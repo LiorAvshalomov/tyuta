@@ -4,7 +4,8 @@ import ProfileRecentActivity from '@/components/ProfileRecentActivity'
 import ProfileStatsCard from '@/components/ProfileStatsCard'
 import ProfileOwnerActions from '@/components/ProfileOwnerActions'
 import ProfileFollowBar from '@/components/ProfileFollowBar'
-import PostCard, { type PostCardPost } from '@/components/PostCard'
+// Posts list (with sorting + pagination) is rendered client-side for a smooth UX.
+import ProfilePostsClient from '@/components/ProfilePostsClient'
 
 type PageProps = {
   params: Promise<{ username: string }>
@@ -92,64 +93,27 @@ export default async function PublicProfilePage({ params }: PageProps) {
     .select('following_id', { count: 'exact', head: true })
     .eq('follower_id', prof.id)
 
-  const { data: posts } = await supabase
+  // Count total posts (for stats). We don't pull all posts on the server
+  // because the profile bottom list is now fully client-side with pagination.
+  const { count: postsCount = 0 } = await supabase
     .from('posts')
-    .select(
-      `
-      id,
-      title,
-      slug,
-      excerpt,
-      cover_image_url,
-      created_at,
-      is_anonymous,
-      channel:channels ( name_he ),
-      post_tags:post_tags ( tag:tags ( slug, name_he ) )
-    `
-    )
+    .select('id', { count: 'exact', head: true })
     .eq('author_id', prof.id)
     .eq('status', 'published')
     .eq('is_anonymous', false)
-    .order('created_at', { ascending: false })
-    .limit(30)
 
   const displayName = safeText(prof.display_name) || 'אנונימי'
   const bio = safeText(prof.bio)
 
-  // medals per post (same behavior as Home page)
-  const postIds = ((posts ?? []) as PostRow[]).map(p => p.id)
-  const medalsByPost = new Map<string, { gold: number; silver: number; bronze: number }>()
-  if (postIds.length > 0) {
-    const { data: sums } = await supabase
-      .from('post_reaction_summary')
-      .select('post_id, gold, silver, bronze')
-      .in('post_id', postIds)
-
-    ;((sums ?? []) as SummaryRow[]).forEach(r => {
-      medalsByPost.set(r.post_id, {
-        gold: r.gold ?? 0,
-        silver: r.silver ?? 0,
-        bronze: r.bronze ?? 0,
-      })
-    })
-  }
-
-  const list = ((posts ?? []) as PostRow[]).map<PostCardPost>(p => ({
-    slug: p.slug,
-    title: p.title,
-    excerpt: p.excerpt ?? null,
-    cover_image_url: p.cover_image_url ?? null,
-    created_at: p.created_at,
-    author_username: prof.username,
-    author_name: displayName,
-    channel_name: p.channel?.[0]?.name_he ?? null,
-    tags: (p.post_tags ?? [])
-      .flatMap(pt => pt.tag ?? [])
-      .map(t => ({ slug: t.slug, name_he: t.name_he })),
-    medals: medalsByPost.get(p.id) ?? null,
-  }))
-
-  const postsCount = list.length
+  // Collect ids for "תגובות שקיבל" stat (bounded so we don't overload on huge accounts)
+  const { data: postIdsRows } = await supabase
+    .from('posts')
+    .select('id')
+    .eq('author_id', prof.id)
+    .eq('status', 'published')
+    .eq('is_anonymous', false)
+    .order('created_at', { ascending: false })
+    .limit(5000)
 
   const { count: commentsWritten = 0 } = await supabase
     .from('comments')
@@ -157,8 +121,8 @@ export default async function PublicProfilePage({ params }: PageProps) {
     .eq('author_id', prof.id)
 
   let commentsReceived = 0
-  if (list.length > 0) {
-    const postIds = ((posts ?? []) as Array<{ id: string }>).map(p => p.id)
+  const postIds = (postIdsRows ?? []).map(r => r.id)
+  if (postIds.length > 0) {
     const { count } = await supabase
       .from('comments')
       .select('id', { count: 'exact', head: true })
@@ -246,22 +210,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       </section>
 
       <section className="mt-6">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-bold">פוסטים אחרונים</h2>
-          <div className="text-xs text-muted-foreground">מיון: אחרונים (ברירת מחדל)</div>
-        </div>
-
-        {list.length === 0 ? (
-          <div className="rounded-2xl border bg-white p-5 text-sm text-muted-foreground">
-            עדיין אין פוסטים.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {list.map(p => (
-              <PostCard key={p.slug} post={p} variant="mypen-row" />
-            ))}
-          </div>
-        )}
+        <ProfilePostsClient profileId={prof.id} username={prof.username} />
       </section>
     </div>
   )

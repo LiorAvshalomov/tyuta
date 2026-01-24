@@ -72,10 +72,18 @@ function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
   return out
 }
 
-function SectionTitle({ title }: { title: string }) {
+function SectionTitle({ title, href }: { title: string; href?: string }) {
   return (
     <div className="mb-3 rounded border bg-white">
-      <div className="bg-neutral-100 px-3 py-2 font-bold">{title}</div>
+      <div className="bg-neutral-100 px-3 py-2 font-bold">
+        {href ? (
+          <Link href={href} className="hover:underline">
+            {title}
+          </Link>
+        ) : (
+          title
+        )}
+      </div>
     </div>
   )
 }
@@ -311,32 +319,29 @@ function ListRow({ post }: { post: CardPost }) {
 
 function RecentMiniRow({ post }: { post: CardPost }) {
   return (
-    <Link href={`/post/${post.slug}`} className="block rounded border bg-white p-2 hover:shadow-sm">
-      <div className="flex flex-row-reverse items-start gap-2">
-        <CoverFrame src={post.cover_image_url} w={70} h={48} rounded="rounded" />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-bold leading-snug line-clamp-2">{post.title}</div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            {post.author_name}
-            {post.channel_name && post.channel_slug ? (
-              <>
-                <span className="mx-1">•</span>
-                <Link href={`/c/${post.channel_slug}`} className="hover:underline">
-                  {post.channel_name}
-                </Link>
-              </>
-            ) : post.channel_name ? (
-              <>
-                <span className="mx-1">•</span>
-                <span>{post.channel_name}</span>
-              </>
-            ) : null}
-            <span className="mx-1">•</span>
-            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+    <div className="block rounded border bg-white p-2 hover:shadow-sm">
+      <Link href={`/post/${post.slug}`} className="block">
+        <div className="flex flex-row-reverse items-start gap-2">
+          <CoverFrame src={post.cover_image_url} w={70} h={48} rounded="rounded" />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-bold leading-snug line-clamp-2">{post.title}</div>
+            {post.excerpt ? <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{post.excerpt}</div> : null}
           </div>
         </div>
+      </Link>
+
+      <div className="mt-1 text-[11px] text-muted-foreground">
+        {post.author_name}
+        {post.channel_name ? (
+          <>
+            <span className="mx-1">•</span>
+            <span>{post.channel_name}</span>
+          </>
+        ) : null}
+        <span className="mx-1">•</span>
+        <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
       </div>
-    </Link>
+    </div>
   )
 }
 
@@ -367,9 +372,9 @@ export default async function ChannelFeedPage({
       excerpt,
       cover_image_url,
       channel:channels ( slug, name_he ),
-      author:profiles ( username, display_name ),
+      author:profiles!posts_author_id_fkey ( username, display_name ),
       subcategory:tags!posts_subcategory_tag_fk ( id, name_he, slug ),
-      post_tags:post_tags ( tag:tags ( name_he, slug ) )
+      post_tags:post_tags!fk_post_tags_post_id_posts ( tag:tags!fk_post_tags_tag_id_tags ( name_he, slug ) )
     `
     )
     .eq('status', 'published')
@@ -586,7 +591,7 @@ export default async function ChannelFeedPage({
 
           <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
             <section>
-              <SectionTitle title="פוסטים אחרונים" />
+          <SectionTitle title="פוסטים אחרונים" href={`/search?sort=recent&channel=${encodeURIComponent(channelSlug)}`} />
               <div className="space-y-2">
                 {recentMini.length ? (
                   recentMini.map(p => <RecentMiniRow key={p.id} post={p} />)

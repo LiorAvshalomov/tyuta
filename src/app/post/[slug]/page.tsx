@@ -39,7 +39,7 @@ export default async function PostPage({ params }: PostPageProps) {
         author_id,
         channel_id,
         channel:channels ( name_he ),
-        author:profiles (
+        author:profiles!posts_author_id_fkey (
           id,
           username,
           display_name,

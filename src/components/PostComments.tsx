@@ -43,6 +43,18 @@ function normalizeAuthor(input: unknown): AuthorMini | null {
   return input as AuthorMini
 }
 
+// Some browsers/environments (and non-HTTPS origins) don't expose crypto.randomUUID.
+// We only need a client-side temp id for optimistic UI.
+function makeTempId() {
+  const uuid =
+    typeof globalThis !== 'undefined' &&
+    'crypto' in globalThis &&
+    (globalThis.crypto as Crypto | undefined)?.randomUUID
+      ? (globalThis.crypto as Crypto).randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  return `temp-${uuid}`
+}
+
 export default function PostComments({ postId }: Props) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -92,7 +104,7 @@ export default function PostComments({ postId }: Props) {
         content,
         created_at,
         updated_at,
-        author:profiles (
+        author:profiles!fk_comments_author_id_profiles (
           username,
           display_name,
           avatar_url
@@ -153,7 +165,7 @@ export default function PostComments({ postId }: Props) {
               .select(
                 `
                 id, post_id, author_id, content, created_at, updated_at,
-                author:profiles ( username, display_name, avatar_url )
+                author:profiles!fk_comments_author_id_profiles ( username, display_name, avatar_url )
               `
               )
               .eq('id', newId)
@@ -225,7 +237,7 @@ export default function PostComments({ postId }: Props) {
 
     setSending(true)
 
-    const tempId = `temp-${crypto.randomUUID()}`
+    const tempId = makeTempId()
     const optimistic: CommentRow = {
       id: tempId,
       post_id: postId,
