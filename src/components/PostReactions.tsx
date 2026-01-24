@@ -1,0 +1,411 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { supabase } from '@/lib/supabaseClient'
+
+type Reaction = {
+  key: string
+  label_he: string
+  channel_id: number | null
+  sort_order: number
+}
+
+type SummaryRow = {
+  post_id: string
+  reaction_key: string
+  votes: number
+  bronze: number
+  silver: number
+  gold: number
+}
+
+type ReactionVoteRow = {
+  post_id: string
+  reaction_key: string
+  voter_id: string
+}
+
+type Props = {
+  postId: string
+  channelId: number
+  authorId: string
+}
+
+function calcMedalsFromVotes(votes: number) {
+  const bronze = Math.floor(votes / 5)
+  const silver = Math.floor(bronze / 3)
+  const gold = Math.min(Math.floor(silver / 3), 6)
+  return { bronze, silver, gold }
+}
+
+const REACTION_EMOJI: Record<string, string> = {
+  funny: '😄',
+  moving: '🥹',
+  creative: '🎨',
+  relatable: '🫂',
+  inspiring: '✨',
+  gripping: '📖',
+  well_written: '✍️',
+  smart: '🧠',
+  interesting: '👀',
+}
+
+export default function PostReactions({ postId, channelId, authorId }: Props) {
+  const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+
+  const [reactions, setReactions] = useState<Reaction[]>([])
+  const [summary, setSummary] = useState<Record<string, SummaryRow>>({})
+  const [myVotes, setMyVotes] = useState<Set<string>>(new Set())
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const [animatingKey, setAnimatingKey] = useState<string | null>(null)
+
+  const myVotesCount = myVotes.size
+
+  const sortedReactions = useMemo(
+    () => [...reactions].sort((a, b) => a.sort_order - b.sort_order),
+    [reactions]
+  )
+
+  const totals = useMemo(() => {
+    let bronze = 0
+    let silver = 0
+    let gold = 0
+    for (const s of Object.values(summary)) {
+      bronze += s.bronze ?? 0
+      silver += s.silver ?? 0
+      gold += s.gold ?? 0
+    }
+    return { bronze, silver, gold }
+  }, [summary])
+
+  // keep latest userId without re-subscribing
+  const userIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    userIdRef.current = userId
+  }, [userId])
+
+  // --------
+  // Fetch summary only (truth from DB)
+  // --------
+  const fetchSummaryOnly = useCallback(async () => {
+    if (!postId) return
+
+    const { data: sum, error } = await supabase
+      .from('post_reaction_summary')
+      .select('post_id, reaction_key, votes, bronze, silver, gold')
+      .eq('post_id', postId)
+
+    if (error) return
+
+    const map: Record<string, SummaryRow> = {}
+    ;(sum ?? []).forEach(r => {
+      const row = r as SummaryRow
+      map[row.reaction_key] = row
+    })
+    setSummary(map)
+  }, [postId])
+
+  // debounce sync on realtime bursts
+  const syncTimerRef = useRef<number | null>(null)
+
+  const scheduleSync = useCallback(() => {
+    if (syncTimerRef.current) {
+      window.clearTimeout(syncTimerRef.current)
+    }
+
+    syncTimerRef.current = window.setTimeout(() => {
+      fetchSummaryOnly()
+    }, 120)
+  }, [fetchSummaryOnly])
+
+  // --------
+  // Initial load (full)
+  // --------
+  useEffect(() => {
+    if (!postId) return
+    let cancelled = false
+
+    const loadAll = async () => {
+      setLoading(true)
+      setErrorMsg(null)
+
+      const { data: auth } = await supabase.auth.getUser()
+      if (cancelled) return
+      const u = auth.user
+      setUserId(u?.id ?? null)
+
+      const { data: rx, error: rxErr } = await supabase
+        .from('reactions')
+        .select('key, label_he, channel_id, sort_order')
+        .eq('is_active', true)
+        .or(`channel_id.is.null,channel_id.eq.${channelId}`)
+
+      if (cancelled) return
+      if (rxErr) {
+        setErrorMsg(rxErr.message)
+        setLoading(false)
+        return
+      }
+      setReactions((rx ?? []) as Reaction[])
+
+      await fetchSummaryOnly()
+      if (cancelled) return
+
+      if (u?.id) {
+        const { data: mv, error: mvErr } = await supabase
+          .from('post_reaction_votes')
+          .select('reaction_key')
+          .eq('post_id', postId)
+          .eq('voter_id', u.id)
+
+        if (cancelled) return
+        if (mvErr) {
+          setErrorMsg(mvErr.message)
+          setLoading(false)
+          return
+        }
+
+        setMyVotes(new Set((mv ?? []).map(x => (x as { reaction_key: string }).reaction_key)))
+      } else {
+        setMyVotes(new Set())
+      }
+
+      setLoading(false)
+    }
+
+    loadAll()
+
+    return () => {
+      cancelled = true
+      if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current)
+    }
+  }, [postId, channelId, fetchSummaryOnly])
+
+  // --------
+  // Realtime: on ANY change -> schedule DB sync
+  // --------
+  useEffect(() => {
+    if (!postId) return
+
+    const ch = supabase
+      .channel(`post-reactions-${postId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'post_reaction_votes',
+          filter: `post_id=eq.${postId}`,
+        },
+        payload => {
+          const row =
+            (payload.eventType === 'DELETE' ? payload.old : payload.new) as ReactionVoteRow | null
+          if (!row) return
+
+          // ignore events from myself (I already do optimistic UI)
+          if (userIdRef.current && row.voter_id === userIdRef.current) return
+
+          // just sync truth
+          scheduleSync()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(ch)
+    }
+  }, [postId, scheduleSync])
+
+  // --------
+  // Optimistic helper (this client only)
+  // --------
+  const optimisticDelta = (reactionKey: string, delta: 1 | -1) => {
+    setSummary(prev => {
+      const curVotes = prev[reactionKey]?.votes ?? 0
+      const votes = Math.max(0, curVotes + delta)
+      const medals = calcMedalsFromVotes(votes)
+      return {
+        ...prev,
+        [reactionKey]: { post_id: postId, reaction_key: reactionKey, votes, ...medals },
+      }
+    })
+  }
+
+  // --------
+  // Toggle
+  // --------
+  const toggle = async (reactionKey: string) => {
+    setErrorMsg(null)
+
+    setAnimatingKey(reactionKey)
+    window.setTimeout(() => setAnimatingKey(null), 160)
+
+    if (!userId) {
+      setErrorMsg('צריך להתחבר כדי לדרג')
+      return
+    }
+    if (userId === authorId) {
+      setErrorMsg('אי אפשר לדרג פוסט של עצמך')
+      return
+    }
+
+    const has = myVotes.has(reactionKey)
+
+    if (has) {
+      setMyVotes(prev => {
+        const n = new Set(prev)
+        n.delete(reactionKey)
+        return n
+      })
+      optimisticDelta(reactionKey, -1)
+
+      const { error } = await supabase
+        .from('post_reaction_votes')
+        .delete()
+        .eq('post_id', postId)
+        .eq('voter_id', userId)
+        .eq('reaction_key', reactionKey)
+
+      if (error) {
+        // rollback
+        setMyVotes(prev => new Set(prev).add(reactionKey))
+        optimisticDelta(reactionKey, 1)
+        setErrorMsg(error.message)
+        return
+      }
+
+      // sync truth (covers edge cases)
+      fetchSummaryOnly()
+      return
+    }
+
+    if (myVotesCount >= 3) {
+      setErrorMsg('אפשר לבחור עד 3 דירוגים לפוסט')
+      return
+    }
+
+    setMyVotes(prev => new Set([...prev, reactionKey]))
+    optimisticDelta(reactionKey, 1)
+
+    const { error } = await supabase.from('post_reaction_votes').insert({
+      post_id: postId,
+      voter_id: userId,
+      reaction_key: reactionKey,
+    })
+
+    if (error) {
+      // rollback
+      setMyVotes(prev => {
+        const n = new Set(prev)
+        n.delete(reactionKey)
+        return n
+      })
+      optimisticDelta(reactionKey, -1)
+
+      const msg = String(error.message).toLowerCase()
+      if (msg.includes('max 3 reactions')) setErrorMsg('אפשר לבחור עד 3 דירוגים לפוסט')
+      else if (msg.includes('own post')) setErrorMsg('אי אפשר לדרג פוסט של עצמך')
+      else setErrorMsg(error.message)
+      return
+    }
+
+    // sync truth (covers edge cases)
+    fetchSummaryOnly()
+  }
+
+  if (loading) {
+    return (
+      <div style={{ direction: 'rtl', marginTop: 18, color: '#666' }}>
+        טוען דירוגים…
+      </div>
+    )
+  }
+
+  return (
+    <section
+      style={{
+        direction: 'rtl',
+        marginTop: 22,
+        border: '1px solid #eee',
+        background: '#fafafa',
+        borderRadius: 16,
+        padding: 14,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>דירוגים:</h3>
+          <span style={{ fontSize: 12, color: '#777' }}>עד 3</span>
+          <span style={{ fontSize: 12, color: '#666' }}>נבחרו: {myVotesCount}/3</span>
+        </div>
+
+        {(totals.gold > 0 || totals.silver > 0 || totals.bronze > 0) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
+            {totals.gold > 0 && <span>🥇 {totals.gold}</span>}
+            {totals.silver > 0 && <span>🥈 {totals.silver}</span>}
+            {totals.bronze > 0 && <span>🥉 {totals.bronze}</span>}
+          </div>
+        )}
+      </div>
+
+      {errorMsg ? (
+        <div
+          style={{
+            marginTop: 10,
+            padding: '10px 12px',
+            border: '1px solid #f2c2c2',
+            background: '#fff5f5',
+            borderRadius: 12,
+            color: '#8a1f1f',
+            fontSize: 13,
+          }}
+        >
+          {errorMsg}
+        </div>
+      ) : null}
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'nowrap', overflowX: 'auto', marginTop: 12, paddingBottom: 4 }}>
+        {sortedReactions.map(r => {
+          const mine = myVotes.has(r.key)
+          const votes = summary[r.key]?.votes ?? 0
+          const isAnimating = animatingKey === r.key
+
+          return (
+            <button
+              key={r.key}
+              type="button"
+              onClick={() => toggle(r.key)}
+              style={{
+                border: '1px solid #e5e5e5',
+                borderRadius: 14,
+                padding: '10px 12px',
+                background: mine ? '#111' : '#fff',
+                color: mine ? '#fff' : '#111',
+                cursor: 'pointer',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                minWidth: 88,
+                maxWidth: 140,
+                flexShrink: 0,
+                transform: isAnimating ? 'scale(1.06)' : mine ? 'scale(1.02)' : 'scale(1)',
+                transition: 'transform 120ms ease, background-color 120ms ease, color 120ms ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 18, lineHeight: 1 }}>
+                <span>{REACTION_EMOJI[r.key] ?? '⭐'}</span>
+                {votes > 0 && <span style={{ fontSize: 12, opacity: 0.8 }}>{votes}</span>}
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12, fontWeight: 600 }}>{r.label_he}</div>
+            </button>
+          )
+        })}
+      </div>
+
+      <div style={{ marginTop: 10, fontSize: 12, color: '#777', lineHeight: 1.5 }}>
+        בחר עד 3 דירוגים לפוסט, אפשר לבטל בלחיצה נוספת.
+      </div>
+    </section>
+  )
+}

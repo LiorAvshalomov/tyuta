@@ -1,0 +1,745 @@
+import Link from 'next/link'
+import { supabase } from '@/lib/supabaseClient'
+import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
+
+type PostRow = {
+  id: string
+  title: string
+  slug: string
+  created_at: string
+  published_at: string | null
+  excerpt: string | null
+  cover_image_url: string | null
+  channel: { slug: string; name_he: string }[] | null
+  author: { username: string; display_name: string | null }[] | null
+  post_tags:
+  | {
+    tag:
+    | {
+      name_he: string
+      slug: string
+    }[]
+    | null
+  }[]
+  | null
+}
+
+type SummaryRow = {
+  post_id: string
+  reaction_key: string | null
+  votes: number | null
+  gold: number | null
+  silver: number | null
+  bronze: number | null
+}
+
+type CardPost = {
+  id: string
+  slug: string
+  title: string
+  excerpt: string | null
+  created_at: string
+  cover_image_url: string | null
+  channel_slug: string | null
+  channel_name: string | null
+  author_username: string | null
+  author_name: string
+  tags: { name_he: string; slug: string }[]
+  medals: { gold: number; silver: number; bronze: number }
+  votesByKey: Record<string, number>
+  score: number
+}
+
+function medalsScore(m: { gold: number; silver: number; bronze: number }) {
+  return m.gold * 3 + m.silver * 2 + m.bronze
+}
+
+function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
+  const out: CardPost[] = []
+  for (const p of arr) {
+    if (used.has(p.id)) continue
+    used.add(p.id)
+    out.push(p)
+    if (out.length >= n) break
+  }
+  return out
+}
+
+function SectionTitle({ title }: { title: string }) {
+  return (
+    <div className="mb-3 rounded border bg-white">
+      <div className="bg-neutral-100 px-3 py-2 font-bold">{title}</div>
+    </div>
+  )
+}
+
+function CoverFrame({
+  src,
+  w,
+  h,
+  rounded = 'rounded',
+}: {
+  src: string | null
+  w: number
+  h: number
+  rounded?: string
+}) {
+  if (!src) {
+    return <div className={`${rounded} border bg-neutral-100`} style={{ width: w, height: h }} />
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return (
+    <div className={`${rounded} overflow-hidden border bg-white`} style={{ width: w, height: h }}>
+      <img
+        src={src}
+        alt=""
+        width={w}
+        height={h}
+        loading="lazy"
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+    </div>
+  )
+}
+
+
+
+function hasAnyMedals(m: { gold: number; silver: number; bronze: number }) {
+  return (m.gold ?? 0) + (m.silver ?? 0) + (m.bronze ?? 0) > 0
+}
+
+/** הגדול - בצד ימין, גובה קבוע */
+function FeaturedTopCard({ post }: { post: CardPost }) {
+  const showMedals = hasAnyMedals(post.medals)
+
+  return (
+    <article className="h-[420px] rounded border bg-white p-4 shadow-sm hover:shadow-md">
+      <div className="flex h-full flex-col">
+        {/* כותרת + כותב */}
+        <div className="text-right">
+          <Link
+            href={`/post/${post.slug}`}
+            className="block text-2xl font-extrabold leading-tight break-words line-clamp-2 hover:underline"
+          >
+            {post.title}
+          </Link>
+
+          <div className="mt-1 text-sm text-muted-foreground">
+            מאת:{' '}
+            {post.author_username ? (
+              <Link href={`/u/${post.author_username}`} className="text-blue-700 hover:underline">
+                {post.author_name}
+              </Link>
+            ) : (
+              <span>{post.author_name}</span>
+            )}
+          </div>
+
+          {/* מדליות - רק אם יש */}
+          {showMedals ? (
+            <div className="mt-2 flex items-center justify-end gap-3 text-xs text-muted-foreground">
+              {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+              {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
+              {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
+            </div>
+          ) : null}
+        </div>
+
+        {/* קרא עוד - מעל התמונה, בצד שמאל */}
+        <div className="mt-3 flex justify-start">
+          <Link href={`/post/${post.slug}`} className="text-xs text-blue-700 underline">
+            קרא עוד
+          </Link>
+        </div>
+
+        {/* תמונה - לינק לפוסט */}
+        <div className="mt-2 flex flex-1 items-start justify-end">
+          <Link href={`/post/${post.slug}`} className="inline-block">
+            <CoverFrame src={post.cover_image_url} w={400} h={280} rounded="rounded" />
+          </Link>
+        </div>
+
+        {/* תגיות - לא לינק כרגע כדי לא להוסיף עוד התנהגות */}
+        {post.tags.length ? (
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2 text-xs">
+            <span className="text-muted-foreground">תגיות:</span>
+            {post.tags.slice(0, 4).map(t => (
+              <span key={t.slug} className="text-emerald-700">
+                {t.name_he}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
+
+/** קטן - לשמאל, גובה חצי מהעמודה, קרא עוד מתחת לתמונה בקצה שמאל */
+function SmallTopCard({ post }: { post: CardPost }) {
+  const showMedals = hasAnyMedals(post.medals)
+
+  return (
+    <article className="h-full rounded border bg-white p-3 shadow-sm hover:shadow-md">
+      <div className="flex h-full flex-col">
+        <div className="flex flex-row-reverse items-start gap-3">
+          {/* תמונה - לינק לפוסט */}
+          <Link href={`/post/${post.slug}`} className="inline-block">
+            <CoverFrame src={post.cover_image_url} w={220} h={150} rounded="rounded" />
+          </Link>
+
+          {/* תוכן */}
+          <div className="min-w-0 flex-1 text-right">
+            <Link
+              href={`/post/${post.slug}`}
+              className="block text-sm font-bold leading-snug line-clamp-2 hover:underline"
+            >
+              {post.title}
+            </Link>
+
+            <div className="mt-1 text-xs text-muted-foreground">
+              מאת:{' '}
+              {post.author_username ? (
+                <Link href={`/u/${post.author_username}`} className="text-blue-700 hover:underline">
+                  {post.author_name}
+                </Link>
+              ) : (
+                <span>{post.author_name}</span>
+              )}
+            </div>
+
+            {/* מדליות - רק אם יש */}
+            {showMedals ? (
+              <div className="mt-2 flex items-center justify-end gap-3 text-xs text-muted-foreground">
+                {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+                {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
+                {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* קרא עוד - מתחת לתמונה, בקצה שמאל */}
+        <div className="mt-auto pt-2">
+          <div className="flex justify-start">
+            <Link href={`/post/${post.slug}`} className="text-xs text-blue-700 underline">
+              קרא עוד
+            </Link>
+          </div>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+
+
+function TileCard({ post }: { post: CardPost }) {
+  return (
+    <Link href={`/post/${post.slug}`} className="block overflow-hidden rounded border bg-white shadow-sm hover:shadow-md">
+      {/* ~210x140 */}
+      <div className="flex justify-center p-2">
+        <CoverFrame src={post.cover_image_url} w={210} h={140} rounded="rounded" />
+      </div>
+      <div className="px-3 pb-3 text-center">
+        <div className="text-sm font-bold line-clamp-2">{post.title}</div>
+      </div>
+    </Link>
+  )
+}
+
+function ListRow({ post }: { post: CardPost }) {
+  const showMedals = hasAnyMedals(post.medals)
+
+  return (
+    <article className="rounded border bg-white p-3 shadow-sm hover:shadow-md">
+      <div className="flex flex-row-reverse items-start gap-3">
+        {/* תמונה - לינק לפוסט */}
+        <Link href={`/post/${post.slug}`} className="inline-block">
+          <CoverFrame src={post.cover_image_url} w={165} h={110} rounded="rounded" />
+        </Link>
+
+        <div className="min-w-0 flex-1">
+          {/* כותרת - לינק לפוסט */}
+          <Link
+            href={`/post/${post.slug}`}
+            className="block text-base font-bold leading-snug break-words line-clamp-2 hover:underline"
+          >
+            {post.title}
+          </Link>
+
+          <div className="mt-1 text-xs text-muted-foreground">
+            מאת:{' '}
+            {post.author_username ? (
+              <Link href={`/u/${post.author_username}`} className="text-blue-700 hover:underline">
+                {post.author_name}
+              </Link>
+            ) : (
+              <span>{post.author_name}</span>
+            )}
+
+            <span className="mx-2">•</span>
+            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+
+            {post.channel_name && post.channel_slug ? (
+              <>
+                <span className="mx-2">•</span>
+                <Link href={`/c/${post.channel_slug}`} className="hover:underline">
+                  {post.channel_name}
+                </Link>
+              </>
+            ) : post.channel_name ? (
+              <>
+                <span className="mx-2">•</span>
+                <span>{post.channel_name}</span>
+              </>
+            ) : null}
+          </div>
+
+          {post.excerpt ? (
+            <div className="mt-2 text-sm leading-6 text-foreground/80 line-clamp-2">{post.excerpt}</div>
+          ) : null}
+
+          {post.tags.length ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">תגיות:</span>
+              {post.tags.slice(0, 3).map(t => (
+                <span key={t.slug} className="text-emerald-700">
+                  {t.name_he}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          {/* מדליות - רק אם יש */}
+          {showMedals ? (
+            <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+              {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+              {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
+              {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+
+function RecentMiniRow({ post }: { post: CardPost }) {
+  return (
+    <Link href={`/post/${post.slug}`} className="block rounded border bg-white p-2 hover:shadow-sm">
+      <div className="flex flex-row-reverse items-start gap-2">
+        {/* ~70x48 */}
+        <CoverFrame src={post.cover_image_url} w={70} h={48} rounded="rounded" />
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-bold leading-snug line-clamp-2">{post.title}</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">
+            {post.author_name}
+            {post.channel_name && post.channel_slug ? (
+              <>
+                <span className="mx-1">•</span>
+                <Link href={`/c/${post.channel_slug}`} className="hover:underline">
+                  {post.channel_name}
+                </Link>
+              </>
+            ) : post.channel_name ? (
+              <>
+                <span className="mx-1">•</span>
+                <span>{post.channel_name}</span>
+              </>
+            ) : null}
+            <span className="mx-1">•</span>
+            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+          </div>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+function firstRel<T>(rel: T[] | T | null | undefined): T | null {
+  if (!rel) return null
+  return Array.isArray(rel) ? (rel[0] ?? null) : rel
+}
+
+
+export default async function HomePage() {
+  const { data: rows, error } = await supabase
+    .from('posts')
+    .select(
+      `
+      id,
+      title,
+      slug,
+      created_at,
+      published_at,
+      excerpt,
+      cover_image_url,
+      channel:channels ( slug, name_he ),
+      author:profiles ( username, display_name ),
+      post_tags:post_tags ( tag:tags ( name_he, slug ) )
+    `
+    )
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .limit(250)
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-neutral-50" dir="rtl">
+        <div className="mx-auto max-w-6xl px-4 py-10">
+          <h1 className="text-xl font-bold">שגיאה בטעינת דף הבית</h1>
+          <pre className="mt-4 rounded border bg-white p-4 text-xs">{JSON.stringify(error, null, 2)}</pre>
+        </div>
+      </main>
+    )
+  }
+
+  const posts = (rows ?? []) as PostRow[]
+  const postIds = posts.map(p => p.id)
+
+  const votesByPost = new Map<string, Record<string, number>>()
+  const medalsByPost = new Map<string, { gold: number; silver: number; bronze: number }>()
+
+  if (postIds.length) {
+    const { data: sums } = await supabase
+      .from('post_reaction_summary')
+      .select('post_id, reaction_key, votes, gold, silver, bronze')
+      .in('post_id', postIds)
+
+      ; ((sums ?? []) as SummaryRow[]).forEach(r => {
+        if (!r.post_id) return
+
+        // votes map
+        const key = (r.reaction_key ?? '').trim()
+        if (key) {
+          const prev = votesByPost.get(r.post_id) ?? {}
+          prev[key] = (prev[key] ?? 0) + (r.votes ?? 0)
+          votesByPost.set(r.post_id, prev)
+        }
+
+        // medals sum
+        const prevM = medalsByPost.get(r.post_id) ?? { gold: 0, silver: 0, bronze: 0 }
+        medalsByPost.set(r.post_id, {
+          gold: prevM.gold + (r.gold ?? 0),
+          silver: prevM.silver + (r.silver ?? 0),
+          bronze: prevM.bronze + (r.bronze ?? 0),
+        })
+      })
+  }
+
+  const cardPosts: CardPost[] = posts.map(p => {
+    const channel = firstRel(p.channel)
+    const author = firstRel(p.author)
+
+    const tags = (p.post_tags ?? [])
+      .flatMap(pt => {
+        const t = firstRel(pt.tag)
+        return t ? [t] : []
+      })
+      .map(t => ({ name_he: t.name_he, slug: t.slug }))
+
+    const medals = medalsByPost.get(p.id) ?? { gold: 0, silver: 0, bronze: 0 }
+    const votesMap = votesByPost.get(p.id) ?? {}
+
+    return {
+      id: p.id,
+      slug: p.slug,
+      title: p.title,
+      excerpt: p.excerpt,
+      created_at: p.published_at ?? p.created_at,
+      cover_image_url: p.cover_image_url,
+      channel_slug: channel?.slug ?? null,
+      channel_name: channel?.name_he ?? null,
+      author_username: author?.username ?? null,
+      author_name: author?.display_name ?? author?.username ?? 'אנונימי',
+      tags,
+      medals,
+      votesByKey: votesMap,
+      score: medalsScore(medals),
+    }
+  })
+
+  const byRecent = [...cardPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  const byScore = [...cardPosts].sort((a, b) => b.score - a.score || new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  // --- TOP BLOCK (3 posts) ---
+  const used = new Set<string>()
+  const featured = byScore[0] ?? null
+  if (featured) used.add(featured.id)
+  const leftTwo = takeUnique(byScore, 2, used)
+
+  // --- 4 TILES by reaction_key ---
+  const topByReaction = (reactionKey: string) => {
+    const arr = [...cardPosts].sort((a, b) => {
+      const av = a.votesByKey[reactionKey] ?? 0
+      const bv = b.votesByKey[reactionKey] ?? 0
+      if (bv !== av) return bv - av
+      return (b.score - a.score) || (new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    })
+    return arr[0] ?? null
+  }
+
+  const tileMoving = topByReaction('moving')
+  const tileFunny = topByReaction('funny')
+  const tileCreative = topByReaction('creative')
+  const tileInspiring = topByReaction('inspiring')
+
+  // --- Sections ---
+  const stories = byRecent.filter(p => p.channel_slug === 'stories').sort((a, b) => (b.score - a.score) || (new Date(b.created_at).getTime() - new Date(a.created_at).getTime())).slice(0, 5)
+  const release = byRecent.filter(p => p.channel_slug === 'release').sort((a, b) => (b.score - a.score) || (new Date(b.created_at).getTime() - new Date(a.created_at).getTime())).slice(0, 5)
+  const magazine = byRecent.filter(p => p.channel_slug === 'magazine').sort((a, b) => (b.score - a.score) || (new Date(b.created_at).getTime() - new Date(a.created_at).getTime())).slice(0, 5)
+
+  const recentMini = byRecent.slice(0, 10)
+
+  // Writers of the month (from posts in last 30 days)
+  const NOW = new Date()
+  const monthAgo = new Date(
+    NOW.getTime() - 30 * 24 * 60 * 60 * 1000
+  ).toISOString()
+
+  const writersMonth = (() => {
+    const map = new Map<string, { username: string | null; name: string; score: number; gold: number; silver: number; bronze: number }>()
+    for (const p of cardPosts) {
+      if (p.created_at < monthAgo) continue
+      const key = p.author_username ?? p.author_name ?? 'anon'
+      const prev = map.get(key) ?? { username: p.author_username, name: p.author_name, score: 0, gold: 0, silver: 0, bronze: 0 }
+      prev.gold += p.medals.gold
+      prev.silver += p.medals.silver
+      prev.bronze += p.medals.bronze
+      prev.score += p.score
+      map.set(key, prev)
+    }
+    return [...map.values()].sort((a, b) => b.score - a.score).slice(0, 5)
+  })()
+
+  return (
+    <main className="min-h-screen bg-neutral-50" dir="rtl">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        {/* A) TOP 3 POSTS */}
+        {/* A) TOP 3 POSTS */}
+        {/* A) TOP 3 POSTS */}
+        <div className="flex flex-col gap-4 lg:flex-row" dir="rtl">
+          {/* RIGHT (בויזואל): featured - חצי מסך */}
+          <div className="lg:w-1/2">
+            {featured ? <FeaturedTopCard post={featured} /> : null}
+          </div>
+
+          {/* LEFT (בויזואל): שני קטנים - חצי מסך, מתחלקים שווה */}
+          <div className="lg:w-1/2">
+            <div className="flex h-[420px] flex-col gap-4">
+              {leftTwo.length ? (
+                leftTwo.map(p => (
+                  <div key={p.id} className="flex-1">
+                    <SmallTopCard post={p} />
+                  </div>
+                ))
+              ) : (
+                <div className="flex h-[420px] items-center justify-center rounded border bg-white text-sm text-muted-foreground">
+                  אין עדיין פוסטים להצגה.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* B) 4 TILES */}
+        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div>
+            <div className="mb-2 text-center text-sm font-bold">הכי מרגש</div>
+            {tileMoving ? <TileCard post={tileMoving} /> : <div className="rounded border bg-white p-4 text-center text-sm text-muted-foreground">אין</div>}
+          </div>
+          <div>
+            <div className="mb-2 text-center text-sm font-bold">הכי מצחיק</div>
+            {tileFunny ? <TileCard post={tileFunny} /> : <div className="rounded border bg-white p-4 text-center text-sm text-muted-foreground">אין</div>}
+          </div>
+          <div>
+            <div className="mb-2 text-center text-sm font-bold">הכי יצירתי</div>
+            {tileCreative ? <TileCard post={tileCreative} /> : <div className="rounded border bg-white p-4 text-center text-sm text-muted-foreground">אין</div>}
+          </div>
+          <div>
+            <div className="mb-2 text-center text-sm font-bold">הכי מעורר השראה</div>
+            {tileInspiring ? <TileCard post={tileInspiring} /> : <div className="rounded border bg-white p-4 text-center text-sm text-muted-foreground">אין</div>}
+          </div>
+        </div>
+
+
+        {/* C+D+E) MAIN CONTENT + SIDEBAR (כמו MyPen) */}
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]" dir="rtl">
+          {/* RIGHT (תוכן ראשי) */}
+          <div className="space-y-8">
+            {/* סיפורים */}
+            <section>
+              <SectionTitle title="סיפורים" />
+              <div className="space-y-3">
+                {stories.length ? (
+                  stories.map(p => <ListRow key={p.id} post={p} />)
+                ) : (
+                  <div className="rounded border bg-white p-6 text-sm text-muted-foreground">
+                    אין עדיין סיפורים.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* פריקה */}
+            <section>
+              <SectionTitle title="פריקה" />
+              <div className="space-y-3">
+                {release.length ? (
+                  release.map(p => <ListRow key={p.id} post={p} />)
+                ) : (
+                  <div className="rounded border bg-white p-6 text-sm text-muted-foreground">
+                    אין עדיין פריקות.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* מגזין */}
+            <section>
+              <SectionTitle title="מגזין" />
+              <div className="space-y-3">
+                {magazine.length ? (
+                  magazine.map(p => <ListRow key={p.id} post={p} />)
+                ) : (
+                  <div className="rounded border bg-white p-6 text-sm text-muted-foreground">
+                    אין עדיין כתבות במגזין.
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+
+          {/* LEFT (Sidebar קבוע) */}
+          <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+            {/* פוסטים אחרונים */}
+            <section>
+              <SectionTitle title="פוסטים אחרונים" />
+              <div className="space-y-2">
+                {recentMini.length ? (
+                  recentMini.map(p => <RecentMiniRow key={p.id} post={p} />)
+                ) : (
+                  <div className="rounded border bg-white p-6 text-sm text-muted-foreground">
+                    אין עדיין פוסטים.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* כותבי החודש */}
+            <section>
+              <SectionTitle title="כותבי החודש" />
+              <div className="space-y-2 rounded border bg-white p-3">
+                {writersMonth.length ? (
+                  writersMonth.map(w => (
+                    <div key={w.username ?? w.name} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        {w.username ? (
+                          <Link href={`/u/${w.username}`} className="font-bold hover:underline">
+                            {w.name}
+                          </Link>
+                        ) : (
+                          <div className="font-bold">{w.name}</div>
+                        )}
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          🥇 {w.gold} · 🥈 {w.silver} · 🥉 {w.bronze}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-muted-foreground">עדיין אין נתונים לחודש הזה.</div>
+                )}
+              </div>
+            </section>
+          </aside>
+        </div>
+
+
+        {/* C) Stories + Recent */}
+        {/* <div className="mt-8 lg:flex lg:items-start lg:gap-6" dir="rtl">
+  {/* RIGHT: Stories */}
+        {/* <div className="lg:flex-1">
+    <SectionTitle title="סיפורים" />
+    <div className="space-y-3">
+      {stories.length ? (
+        stories.map(p => <ListRow key={p.id} post={p} />)
+      ) : (
+        <div className="rounded border bg-white p-6 text-sm text-muted-foreground">
+          אין עדיין סיפורים.
+        </div>
+      )}
+    </div>
+  </div> */}
+
+        {/* LEFT: Recent posts */}
+        {/* <aside className="mt-6 lg:mt-0 lg:w-[340px] lg:shrink-0">
+    <SectionTitle title="פוסטים אחרונים" />
+    <div className="space-y-2">
+      {recentMini.length ? (
+        recentMini.map(p => <RecentMiniRow key={p.id} post={p} />)
+      ) : (
+        <div className="rounded border bg-white p-6 text-sm text-muted-foreground">
+          אין עדיין פוסטים.
+        </div>
+      )}
+    </div>
+  </aside>
+</div>  */}
+
+
+        {/* D) Release + Writers week
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
+          <div>
+            <SectionTitle title="פריקה" />
+            <div className="space-y-3">
+              {release.length ? release.map(p => <ListRow key={p.id} post={p} />) : (
+                <div className="rounded border bg-white p-6 text-sm text-muted-foreground">אין עדיין פריקות.</div>
+              )}
+            </div>
+          </div>
+
+          <aside>
+            <SectionTitle title="כותבי החודש" />
+            <div className="space-y-2 rounded border bg-white p-3">
+              {writersMonth.length ? (
+                writersMonth.map(w => (
+                  <div key={w.username ?? w.name} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      {w.username ? (
+                        <Link href={`/u/${w.username}`} className="font-bold hover:underline">
+                          {w.name}
+                        </Link>
+                      ) : (
+                        <div className="font-bold">{w.name}</div>
+                      )}
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        🥇 {w.gold} · 🥈 {w.silver} · 🥉 {w.bronze}
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">{w.score}</div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-muted-foreground">עדיין אין נתונים לחודש הזה.</div>
+              )}
+            </div>
+          </aside>
+        </div>
+
+        {/* E) Magazine */}
+        {/* <div className="mt-8">
+          <SectionTitle title="מגזין" />
+          <div className="space-y-3">
+            {magazine.length ? magazine.map(p => <ListRow key={p.id} post={p} />) : (
+              <div className="rounded border bg-white p-6 text-sm text-muted-foreground">אין עדיין כתבות במגזין.</div>
+            )}
+          </div>
+        </div>  */}
+      </div>
+    </main>
+  )
+}

@@ -1,0 +1,105 @@
+'use client'
+
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import AuthLayout from '@/components/AuthLayout'
+import { signIn } from '@/lib/auth'
+
+const WITTY = [
+  'כאן מילים מקבלות מקום.',
+  'פותחים מחברת, משחררים מחשבה.',
+  'לפעמים מספיק משפט כדי להתחיל.',
+  'כתיבה היא נשימה שקטה.',
+  'בין פריקה למגזין — הכול סיפור.',
+  'תן/י לזה לצאת בעדינות.',
+  'שורה אחת יכולה לשנות יום.',
+]
+
+export default function LoginPage() {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const [lineIdx, setLineIdx] = useState(() => Math.floor(Math.random() * WITTY.length))
+
+  useEffect(() => {
+    const t = window.setInterval(() => setLineIdx(i => (i + 1) % WITTY.length), 4200)
+    return () => window.clearInterval(t)
+  }, [])
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setErr(null)
+    setLoading(true)
+    try {
+      const { error } = await signIn(email.trim(), password)
+      if (error) {
+        setErr(error.message)
+        return
+      }
+      router.push('/write')
+      router.refresh()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <AuthLayout mode="login">
+      <div className="space-y-5">
+        <div className="space-y-1">
+          <h2 className="pd-auth-title text-2xl font-extrabold">כניסה</h2>
+          <p className="pd-auth-subtitle text-sm">
+            <span key={lineIdx} className="pd-witty inline-block">{WITTY[lineIdx]}</span>
+          </p>
+        </div>
+
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-sm font-semibold text-black/80">אימייל</label>
+            <input
+              className="pd-auth-input w-full rounded-2xl px-4 py-3 text-sm"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-semibold text-black/80">סיסמה</label>
+            <input
+              className="pd-auth-input w-full rounded-2xl px-4 py-3 text-sm"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          {err ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{err}</div>
+          ) : null}
+
+          <button
+            className="pd-auth-btn w-full rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-95"
+            disabled={loading}
+            type="submit"
+          >
+            {loading ? 'נכנסים…' : 'כניסה'}
+          </button>
+        </form>
+
+        <div className="text-sm text-black/70">
+          אין לך משתמש?{' '}
+          <Link href="/auth/signup" className="font-semibold text-blue-700 hover:underline">הרשמה</Link>
+        </div>
+      </div>
+    </AuthLayout>
+  )
+}

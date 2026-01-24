@@ -1,0 +1,186 @@
+'use client'
+
+import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
+import Avatar from '@/components/Avatar'
+
+type ConvRow = {
+  conversation_id: string
+  other_user_id: string
+  other_username: string
+  other_display_name: string | null
+  other_avatar_url: string | null
+  last_body: string | null
+  last_created_at: string | null
+  unread_count: number
+}
+
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+
+function daysDiff(from: Date, to: Date) {
+  const a = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
+  const b = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime()
+  return Math.round((b - a) / (1000 * 60 * 60 * 24))
+}
+
+function formatLastTime(iso: string | null) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+
+  const diff = daysDiff(d, now)
+  if (diff === 0) return d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+  if (diff === 1) return 'אתמול'
+  if (diff >= 2 && diff <= 6) return d.toLocaleDateString('he-IL', { weekday: 'long' })
+  return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+export default function InboxThreads() {
+  const pathname = usePathname()
+  const [loading, setLoading] = useState(true)
+  const [rows, setRows] = useState<ConvRow[]>([])
+
+  // Debounce refresh bursts (INSERT + UPDATE can arrive together)
+  const refreshTimerRef = useRef<number | null>(null)
+
+  const selectedConversationId = useMemo(() => {
+    const m = pathname.match(/^\/inbox\/([^/]+)$/)
+    return m?.[1] ?? null
+  }, [pathname])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+
+    const { data: me } = await supabase.auth.getUser()
+    if (!me.user?.id) {
+      setRows([])
+      setLoading(false)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('inbox_threads')
+      .select(
+        'conversation_id, other_user_id, other_username, other_display_name, other_avatar_url, last_body, last_created_at, unread_count'
+      )
+      .order('last_created_at', { ascending: false, nullsFirst: false })
+
+    if (error) {
+      console.error('InboxThreads load error:', error)
+      setRows([])
+      setLoading(false)
+      return
+    }
+
+    setRows((data ?? []) as ConvRow[])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    void load()
+
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = window.setTimeout(() => void load(), 250)
+    }
+
+    const ch = supabase
+      .channel('inbox-threads-refresh')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, scheduleRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, scheduleRefresh)
+      .subscribe()
+
+    return () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
+      supabase.removeChannel(ch)
+    }
+  }, [load])
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b px-4 py-3" style={{ backgroundColor: '#F7F6F3' }}>
+        <div className="text-lg font-black">הודעות</div>
+        <div className="text-xs text-muted-foreground">השיחות שלך</div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-3" style={{ backgroundColor: '#FBFAF8' }}>
+        {loading ? (
+          <div className="rounded-2xl border bg-white p-4 text-sm text-muted-foreground">טוען…</div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-2xl border bg-white p-4 text-sm text-muted-foreground">אין עדיין שיחות.</div>
+        ) : (
+          <div className="space-y-2">
+            {rows.map(r => {
+              const displayName =
+                (r.other_display_name ?? '').trim() || (r.other_username ?? '').trim() || 'שיחה'
+              const isActive = selectedConversationId === r.conversation_id
+              const timeText = formatLastTime(r.last_created_at)
+              const unread = Number.isFinite(r.unread_count) ? r.unread_count : 0
+              const hasUnread = unread > 0
+              const lastBody = (r.last_body ?? '').trim() || 'אין עדיין הודעות'
+
+              return (
+                <Link
+                  key={r.conversation_id}
+                  href={`/inbox/${r.conversation_id}`}
+                  className={[
+                    'group block rounded-2xl border p-3 transition',
+                    isActive
+                      ? 'bg-white border-neutral-300 ring-1 ring-neutral-300'
+                      : hasUnread
+                        ? 'bg-white border-neutral-200 hover:bg-neutral-50'
+                        : 'bg-white hover:bg-neutral-50',
+                  ].join(' ')}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar src={r.other_avatar_url} name={displayName} size={44} shape="square" />
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div
+                          className={['truncate text-sm font-black', hasUnread ? 'text-neutral-950' : 'text-neutral-900'].join(' ')}
+                        >
+                          {displayName}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={[
+                              'shrink-0 text-[11px]',
+                              hasUnread ? 'text-neutral-900 font-semibold' : 'text-muted-foreground',
+                            ].join(' ')}
+                          >
+                            {timeText}
+                          </div>
+
+                          {hasUnread && (
+                            <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-black px-2 py-0.5 text-[11px] font-bold text-white">
+                              {unread > 99 ? '99+' : unread}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div
+                        className={[
+                          'mt-1 truncate text-xs',
+                          hasUnread ? 'text-neutral-900 font-semibold' : 'text-muted-foreground',
+                        ].join(' ')}
+                      >
+                        {lastBody}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
