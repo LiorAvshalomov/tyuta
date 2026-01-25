@@ -74,8 +74,8 @@ function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
 
 function SectionTitle({ title, href }: { title: string; href?: string }) {
   return (
-    <div className="mb-3 rounded border bg-white">
-      <div className="bg-neutral-100 px-3 py-2 font-bold">
+    <div className="mb-3 overflow-hidden rounded-2xl border bg-white/70 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="bg-black/5 px-4 py-2 font-bold">
         {href ? (
           <Link href={href} className="hover:underline">
             {title}
@@ -503,7 +503,7 @@ export default async function ChannelFeedPage({
   })()
 
   return (
-    <main className="min-h-screen bg-neutral-50" dir="rtl">
+    <main className="min-h-screen" dir="rtl">
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-extrabold">{channelName}</h1>
@@ -512,7 +512,10 @@ export default async function ChannelFeedPage({
           {subcategories?.length ? (
             <div className="mt-4 flex flex-wrap items-center gap-2">
               {subcategories.map(s => (
-                <span key={s} className="rounded-full border bg-white px-3 py-1 text-sm">
+                <span
+                  key={s}
+                  className="rounded-full border bg-white/70 px-3 py-1 text-sm backdrop-blur supports-[backdrop-filter]:bg-white/60"
+                >
                   {s}
                 </span>
               ))}

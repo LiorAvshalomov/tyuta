@@ -67,16 +67,26 @@ function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
 
 function SectionTitle({ title, href }: { title: string; href?: string }) {
   return (
-    <div className="mb-3 rounded border bg-white">
-      <div className="bg-neutral-100 px-3 py-2 font-bold">
-        {href ? (
-          <Link href={href} className="hover:underline">
+    <div className="mb-4">
+      {href ? (
+        <Link
+          href={href}
+          className="group inline-flex w-full items-center justify-between rounded-2xl border bg-white/70 px-4 py-3 backdrop-blur transition hover:bg-white/85"
+        >
+          <span className="inline-flex items-center gap-2 rounded-full bg-black/8 px-4 py-2 text-sm font-semibold tracking-tight text-foreground">
             {title}
-          </Link>
-        ) : (
-          title
-        )}
-      </div>
+          </span>
+          <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-muted-foreground transition group-hover:bg-black/10">
+            מעבר
+          </span>
+        </Link>
+      ) : (
+        <div className="inline-flex w-full items-center justify-between rounded-2xl border bg-white/70 px-4 py-3 backdrop-blur">
+          <span className="inline-flex items-center gap-2 rounded-full bg-black/8 px-4 py-2 text-sm font-semibold tracking-tight text-foreground">
+            {title}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -397,7 +407,7 @@ export default async function HomePage() {
 
   if (error) {
     return (
-      <main className="min-h-screen bg-neutral-50" dir="rtl">
+      <main className="min-h-screen" dir="rtl">
         <div className="mx-auto max-w-6xl px-4 py-10">
           <h1 className="text-xl font-bold">שגיאה בטעינת דף הבית</h1>
           <pre className="mt-4 rounded border bg-white p-4 text-xs">{JSON.stringify(error, null, 2)}</pre>
@@ -525,7 +535,7 @@ export default async function HomePage() {
   })()
 
   return (
-    <main className="min-h-screen bg-neutral-50" dir="rtl">
+    <main className="min-h-screen" dir="rtl">
       <div className="mx-auto max-w-6xl px-4 py-8">
         {/* A) TOP 3 POSTS */}
         {/* A) TOP 3 POSTS */}
@@ -581,7 +591,7 @@ export default async function HomePage() {
           <div className="space-y-8">
             {/* סיפורים */}
             <section>
-              <SectionTitle title="סיפורים" />
+              <SectionTitle title="סיפורים" href="/c/stories" />
               <div className="space-y-3">
                 {stories.length ? (
                   stories.map(p => <ListRow key={p.id} post={p} />)
@@ -595,7 +605,7 @@ export default async function HomePage() {
 
             {/* פריקה */}
             <section>
-              <SectionTitle title="פריקה" />
+              <SectionTitle title="פריקה" href="/c/release" />
               <div className="space-y-3">
                 {release.length ? (
                   release.map(p => <ListRow key={p.id} post={p} />)
@@ -609,7 +619,7 @@ export default async function HomePage() {
 
             {/* מגזין */}
             <section>
-              <SectionTitle title="מגזין" />
+              <SectionTitle title="מגזין" href="/c/magazine" />
               <div className="space-y-3">
                 {magazine.length ? (
                   magazine.map(p => <ListRow key={p.id} post={p} />)
@@ -672,7 +682,7 @@ export default async function HomePage() {
         {/* <div className="mt-8 lg:flex lg:items-start lg:gap-6" dir="rtl">
   {/* RIGHT: Stories */}
         {/* <div className="lg:flex-1">
-    <SectionTitle title="סיפורים" />
+    <SectionTitle title="סיפורים" href="/c/stories" />
     <div className="space-y-3">
       {stories.length ? (
         stories.map(p => <ListRow key={p.id} post={p} />)
@@ -703,7 +713,7 @@ export default async function HomePage() {
         {/* D) Release + Writers week
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
           <div>
-            <SectionTitle title="פריקה" />
+            <SectionTitle title="פריקה" href="/c/release" />
             <div className="space-y-3">
               {release.length ? release.map(p => <ListRow key={p.id} post={p} />) : (
                 <div className="rounded border bg-white p-6 text-sm text-muted-foreground">אין עדיין פריקות.</div>
@@ -741,7 +751,7 @@ export default async function HomePage() {
 
         {/* E) Magazine */}
         {/* <div className="mt-8">
-          <SectionTitle title="מגזין" />
+          <SectionTitle title="מגזין" href="/c/magazine" />
           <div className="space-y-3">
             {magazine.length ? magazine.map(p => <ListRow key={p.id} post={p} />) : (
               <div className="rounded border bg-white p-6 text-sm text-muted-foreground">אין עדיין כתבות במגזין.</div>

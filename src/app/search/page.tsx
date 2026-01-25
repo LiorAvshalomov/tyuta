@@ -367,7 +367,10 @@ export default function SearchPage() {
         <div className="text-sm text-muted-foreground">סינונים + מיון + פייג׳יניישן</div>
       </div>
 
-      <form onSubmit={onSubmit} className="rounded-2xl border bg-white p-4 shadow-sm">
+      <form
+        onSubmit={onSubmit}
+        className="rounded-2xl border bg-neutral-50/80 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-neutral-50/70"
+      >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
           <div className="md:col-span-2">
             <label className="mb-1 block text-sm font-medium">טקסט</label>

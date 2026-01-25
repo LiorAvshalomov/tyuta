@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SiteNavbar from '@/components/SiteNavbar'
 import SiteHeader from '@/components/SiteHeader'
+import AppBackground from '@/components/AppBackground'
+import SiteFooter from '@/components/SiteFooter'
 
 
 
@@ -24,10 +26,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="he" dir="rtl">
-<body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
-  <SiteHeader />
-  {children}
-</body>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
+      >
+        <AppBackground />
+        <div className="min-h-screen flex flex-col">
+          <SiteHeader />
+          <main className="flex-1">{children}</main>
+          <SiteFooter />
+        </div>
+      </body>
     </html>
   )
 }
