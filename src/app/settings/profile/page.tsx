@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from '@/components/Avatar'
+import AvatarUpload from '@/components/AvatarUpload'
 
 type ProfileRow = {
   id: string
@@ -23,6 +24,8 @@ function slugifyUsername(input: string) {
     .slice(0, 20)
 }
 
+const BIO_MAX = 120
+
 export default function ProfileSettingsPage() {
   const router = useRouter()
 
@@ -34,19 +37,20 @@ export default function ProfileSettingsPage() {
 
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
-
   const [bio, setBio] = useState('')
-
 
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+
   const avatarPreview = useMemo(() => {
-    const dn = displayName.trim()
-    if (!dn) return profile?.avatar_url ?? null
-    // keep svg (we already support unoptimized svg in Avatar.tsx)
-    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(dn)}`
-  }, [displayName, profile?.avatar_url])
+    // Prefer stored avatar_url. Fallback to dicebear initials by display name.
+    if (profile?.avatar_url) return profile.avatar_url
+    const seed = (displayName || profile?.display_name || 'משתמש').trim()
+    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}`
+  }, [displayName, profile?.avatar_url, profile?.display_name])
 
   useEffect(() => {
     const load = async () => {
@@ -75,10 +79,11 @@ export default function ProfileSettingsPage() {
         return
       }
 
-      setProfile(p as ProfileRow)
-      setDisplayName((p as ProfileRow).display_name ?? '')
-      setUsername((p as ProfileRow).username ?? '')
-      setBio((p as ProfileRow).bio ?? '')
+      const row = p as ProfileRow
+      setProfile(row)
+      setDisplayName(row.display_name ?? '')
+      setUsername(row.username ?? '')
+      setBio(row.bio ?? '')
       setLoading(false)
     }
 
@@ -89,11 +94,11 @@ export default function ProfileSettingsPage() {
   const save = async () => {
     setErr(null)
     setMsg(null)
-
     if (!userId) return
 
     const dn = displayName.trim()
     const un = slugifyUsername(username)
+    const b = bio.trim().slice(0, BIO_MAX)
 
     if (!dn) {
       setErr('אנא הזן שם תצוגה')
@@ -127,45 +132,78 @@ export default function ProfileSettingsPage() {
       return
     }
 
-    // 2) update profile
-    const avatarUrl = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(dn)}`
+    // 2) update basic profile fields
+    const { error: upErr } = await supabase
+      .from('profiles')
+      .update({
+        display_name: dn,
+        username: un,
+        bio: b || null,
+      })
+      .eq('id', userId)
 
-const { error: upErr } = await supabase
-  .from('profiles')
-  .update({
-    display_name: dn,
-    username: un,
-    avatar_url: avatarUrl,
-    bio: bio.trim() || null,
-  })
-  .eq('id', userId)
+    if (upErr) {
+      setSaving(false)
+      if (upErr.message.includes('profiles_username_unique')) {
+        setErr('שם המשתמש כבר תפוס. נסה משהו אחר.')
+      } else {
+        setErr(upErr.message)
+      }
+      return
+    }
 
+    // 3) upload avatar only on save (if user selected a new file)
+    if (avatarFile) {
+      const ok = await uploadAvatar(userId, avatarFile)
+      if (!ok) {
+        setSaving(false)
+        return
+      }
+      setAvatarFile(null)
+    }
 
     setSaving(false)
 
-if (upErr) {
-  // טיפול נעים בעברית לשם משתמש תפוס
-  if (upErr.message.includes('profiles_username_unique')) {
-    setErr('שם המשתמש כבר תפוס. נסה משהו אחר.')
-  } else {
-    setErr(upErr.message)
+    // Redirect to the updated profile (use the new username if changed)
+    router.push(`/u/${un}`)
+    router.refresh()
   }
-  return
-}
 
-    
+  const uploadAvatar = async (uid: string, file: File): Promise<boolean> => {
+    try {
+      setAvatarUploading(true)
 
-    
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${uid}/profile.${ext}`
 
-    setMsg('נשמר ✅')
-    setProfile(prev =>
-      prev
-        ? { ...prev, display_name: dn, username: un, avatar_url: avatarUrl }
-        : prev
-    )
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, cacheControl: '3600' })
 
+      if (upErr) throw upErr
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+      const baseUrl = data.publicUrl
+      // Cache-bust so the user sees the new image immediately
+      const url = `${baseUrl}?v=${Date.now()}`
+
+      const { error: pErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: url })
+        .eq('id', uid)
+
+      if (pErr) throw pErr
+
+      setProfile(prev => (prev ? { ...prev, avatar_url: url } : prev))
+      return true
+    } catch (e: unknown) {
+      const m = e instanceof Error ? e.message : String(e)
+      setErr(m)
+      return false
+    } finally {
+      setAvatarUploading(false)
+    }
   }
-  
 
   if (loading) {
     return (
@@ -186,22 +224,36 @@ if (upErr) {
     )
   }
 
-  
-
   return (
     <div className="mx-auto max-w-xl px-4 py-8" dir="rtl">
       <h1 className="text-2xl font-bold">עריכת פרופיל</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        כאן אתה יכול לשנות שם תצוגה, שם משתמש ותמונת פרופיל.
+        כאן אתה יכול לשנות שם תצוגה, שם משתמש, תמונת פרופיל וביו קצר.
       </p>
 
       <div className="mt-6 rounded-2xl border bg-white p-4">
-        <div className="flex items-center gap-3">
-          <Avatar src={avatarPreview} name={displayName || 'משתמש'} />
-          <div className="text-sm">
-            <div className="font-semibold">{displayName || '—'}</div>
-            <div className="text-muted-foreground">@{slugifyUsername(username) || '—'}</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Avatar src={avatarPreview} name={displayName || 'משתמש'} />
+            <div className="text-sm">
+              <div className="font-semibold">{displayName || '—'}</div>
+              <div className="text-muted-foreground">
+                @{slugifyUsername(username) || '—'}
+              </div>
+            </div>
           </div>
+
+          {userId ? (
+            <AvatarUpload
+              currentUrl={profile?.avatar_url ?? null}
+              displayName={displayName || profile?.display_name || 'משתמש'}
+              onSelectFile={(f) => {
+                setErr(null)
+                setMsg(null)
+                setAvatarFile(f)
+              }}
+            />
+          ) : null}
         </div>
 
         <div className="mt-5 space-y-3">
@@ -216,7 +268,9 @@ if (upErr) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">שם משתמש (באנגלית)</label>
+            <label className="block text-sm font-medium">
+              שם משתמש (באנגלית)
+            </label>
             <input
               className="mt-1 w-full rounded-xl border px-3 py-2"
               placeholder="למשל: pen_writer_12"
@@ -224,7 +278,25 @@ if (upErr) {
               onChange={e => setUsername(e.target.value)}
             />
             <div className="mt-1 text-xs text-muted-foreground">
-              מותר: a-z, 0-9, underscore. נשמר כ: <b>{slugifyUsername(username) || '—'}</b>
+              מותר: a-z, 0-9, underscore. נשמר כ:{' '}
+              <b>{slugifyUsername(username) || '—'}</b>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium">
+              ביו קצר (אופציונלי)
+            </label>
+            <textarea
+              className="mt-1 w-full rounded-xl border px-3 py-2 leading-6 resize-none overflow-y-auto max-h-32"
+              rows={3}
+              placeholder="משפט-שניים עליך… (עד 120 תווים)"
+              value={bio}
+              onChange={e => setBio(e.target.value.slice(0, BIO_MAX))}
+              maxLength={BIO_MAX}
+            />
+            <div className="mt-1 text-xs text-muted-foreground">
+              עד {BIO_MAX} תווים. כרגע: <b>{bio.length}</b>
             </div>
           </div>
 
@@ -242,10 +314,10 @@ if (upErr) {
 
           <button
             onClick={save}
-            disabled={saving}
-            className="w-full rounded-xl bg-black text-white py-2 font-semibold disabled:opacity-50"
+            disabled={saving || avatarUploading}
+            className="w-full rounded-xl bg-black py-2 font-semibold text-white disabled:opacity-50"
           >
-            {saving ? 'שומר…' : 'שמירה'}
+            {saving || avatarUploading ? (avatarUploading ? 'מעלה תמונה…' : 'שומר…') : 'שמירה'}
           </button>
         </div>
       </div>
@@ -258,22 +330,6 @@ if (upErr) {
           </a>
         </div>
       ) : null}
-
-<div>
-  <label className="block text-sm font-medium">ביו (אופציונלי)</label>
-  <textarea
-className="mt-1 w-full rounded-xl border px-3 py-2 leading-6 resize-none overflow-y-auto max-h-40"
-  rows={4}
-    placeholder="כמה מילים עליך… (למשל: כותב/ת בלילות, אוהב/ת סיפורים קצרים, אנונימי/ת פה כדי לפרוק)"
-    value={bio}
-    onChange={e => setBio(e.target.value)}
-    maxLength={240}
-  />
-  <div className="mt-1 text-xs text-muted-foreground">
-    עד 240 תווים. כרגע: <b>{bio.length}</b>
-  </div>
-</div>
-
     </div>
   )
 }

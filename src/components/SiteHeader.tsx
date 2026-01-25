@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Avatar from '@/components/Avatar'
 import SearchPostsBar from '@/components/SearchPostsBar'
 import { supabase } from '@/lib/supabaseClient'
@@ -69,6 +69,7 @@ function ChannelsInline({ onNavigate }: { onNavigate?: () => void }) {
 
 export default function SiteHeader() {
   const router = useRouter()
+  const pathname = usePathname()
   const [user, setUser] = useState<MiniUser | null>(null)
 
   // dropdown states
@@ -99,50 +100,48 @@ export default function SiteHeader() {
     return () => window.removeEventListener('keydown', onKey)
   }, [anyOpen, closeAll])
 
-  useEffect(() => {
-    let mounted = true
+  const loadUser = useCallback(async () => {
+    const { data } = await supabase.auth.getSession()
+    const session = data.session
 
-    async function load() {
-      const { data } = await supabase.auth.getSession()
-      const session = data.session
-      if (!mounted) return
-
-      if (!session?.user?.id) {
-        setUser(null)
-        return
-      }
-
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url')
-        .eq('id', session.user.id)
-        .single()
-
-      if (!mounted) return
-
-      if (prof?.id && prof?.username) {
-        setUser({
-          id: prof.id,
-          username: prof.username,
-          displayName: (prof.display_name ?? '').trim() || prof.username || 'אנונימי',
-          avatarUrl: prof.avatar_url ?? null,
-        })
-      } else {
-        setUser(null)
-      }
+    if (!session?.user?.id) {
+      setUser(null)
+      return
     }
 
-    load()
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('id, username, display_name, avatar_url')
+      .eq('id', session.user.id)
+      .single()
 
+    if (prof?.id && prof?.username) {
+      setUser({
+        id: prof.id,
+        username: prof.username,
+        displayName: (prof.display_name ?? '').trim() || prof.username || 'אנונימי',
+        avatarUrl: prof.avatar_url ?? null,
+      })
+    } else {
+      setUser(null)
+    }
+  }, [])
+
+  // Load user initially + whenever route changes (e.g. after saving profile)
+  useEffect(() => {
+    void loadUser()
+  }, [loadUser, pathname])
+
+  // Reload when auth state changes (login/logout)
+  useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      load()
+      void loadUser()
     })
 
     return () => {
-      mounted = false
       sub.subscription.unsubscribe()
     }
-  }, [])
+  }, [loadUser])
 
   function requireAuthOrGoWrite(target: 'prika' | 'stories' | 'magazine') {
     if (!user) {

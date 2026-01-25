@@ -2,7 +2,18 @@
 const nextConfig = {
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'api.dicebear.com' },
+      // DiceBear (fallback לאוואטר)
+      {
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
+      },
+
+      // Supabase Storage (avatars)
+      {
+        protocol: 'https',
+        hostname: 'dowhdgcvxgzaikmpnchv.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
     ],
   },
 }
