@@ -8,7 +8,7 @@ import Badge from '@/components/Badge'
 import { supabase } from '@/lib/supabaseClient'
 
 type Channel = { id: number; name_he: string }
-type Tag = { id: number; type: 'emotion' | 'theme' | 'genre' | 'topic'; name_he: string }
+type Tag = { id: number; type: 'emotion' | 'theme' | 'genre' | 'topic'; name_he: string; channel_id: number | null }
 type SubcategoryOption = { id: number; name_he: string }
 
 type DraftRow = {
@@ -29,6 +29,25 @@ type DraftRow = {
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] }
 const EXCERPT_MAX = 160
+
+// Non-subcategory tag types per channel (subcategory itself is stored in posts.subcategory_tag_id and points to tags.type='genre')
+const TAG_TYPES_BY_CHANNEL: Record<number, Array<Tag['type']>> = {
+  1: ['emotion', 'theme'], // פריקה
+  2: ['emotion', 'theme'], // סיפורים
+  3: ['topic', 'theme'],   // מגזין
+}
+
+function uniqById<T extends { id: number }>(rows: T[]) {
+  const seen = new Set<number>()
+  const out: T[] = []
+  for (const r of rows) {
+    if (seen.has(r.id)) continue
+    seen.add(r.id)
+    out.push(r)
+  }
+  return out
+}
+
 
 function clampExcerpt(s: string) {
   const trimmed = s.replace(/\s+/g, ' ').trimStart()
@@ -119,54 +138,77 @@ export default function WritePage() {
     setDraftId(draftParam)
   }, [draftParam])
 
-  // --- Load tags (NOT genre) when channel changes
+  // --- Load "tags" (chips) when channel changes
+  // IMPORTANT: these are NOT the subcategory. Subcategory is a single genre tag stored in posts.subcategory_tag_id.
   useEffect(() => {
     const loadTags = async () => {
       if (!channelId) return
-      const { data } = await supabase
-        .from('tags')
-        .select('id, type, name_he')
-        .eq('channel_id', channelId)
-        .eq('is_active', true)
-        .neq('type', 'genre') // genre is reserved for subcategory
-        .order('type')
-        .order('name_he')
+      const allowedTypes = TAG_TYPES_BY_CHANNEL[channelId] ?? ['emotion', 'theme']
 
-      setTags((data ?? []) as Tag[])
+      const { data, error } = await supabase
+        .from('tags')
+        .select('id, type, name_he, channel_id')
+        .eq('is_active', true)
+        .in('type', allowedTypes as any) // PostgREST enum filter
+
+      if (error) {
+        console.error(error)
+        setTags([])
+        return
+      }
+
+      const filtered = (data ?? []).filter(t => t.channel_id === null || t.channel_id === channelId) as Tag[]
+      // Ensure we never show the subcategory tags in the chips area
+      const withoutGenre = filtered.filter(t => t.type !== 'genre')
+      setTags(uniqById(withoutGenre))
     }
 
     void loadTags()
   }, [channelId])
 
-  // --- Load subcategories (genre tags) for selected channel
+  // --- Load subcategories for selected channel
+  // We only show subcategories that are actually used by posts in that channel (stable + no "random tags" leakage).
   useEffect(() => {
     const loadSubcategories = async () => {
       if (!channelId) return
 
-      const wanted =
-        channelId === 1
-          ? ['מחשבות', 'שירים', 'וידויים']
-          : channelId === 2
-            ? ['סיפורים אמיתיים', 'סיפורים קצרים', 'סיפור בהמשכים']
-            : ['חדשות', 'ספורט', 'תרבות ובידור', 'דעות', 'טכנולוגיה']
+      const { data: postRows, error: postErr } = await supabase
+        .from('posts')
+        .select('subcategory_tag_id')
+        .eq('channel_id', channelId)
+        .not('subcategory_tag_id', 'is', null)
 
-const { data, error } = await supabase
-  .from('tags')
-  .select('id, name_he')
-  .eq('type', 'genre')
-  .eq('is_active', true)
-  .or(`channel_id.is.null,channel_id.eq.${channelId}`)
-  .in('name_he', wanted)
-
-      if (error) {
-        console.error(error)
+      if (postErr) {
+        console.error(postErr)
         setSubcategoryOptions([])
         setSubcategoryTagId(null)
         return
       }
 
-      const rows = (data ?? []) as SubcategoryOption[]
-      rows.sort((a, b) => wanted.indexOf(a.name_he) - wanted.indexOf(b.name_he))
+      const ids = Array.from(
+        new Set((postRows ?? []).map(r => r.subcategory_tag_id).filter(Boolean) as number[])
+      )
+
+      if (ids.length === 0) {
+        setSubcategoryOptions([])
+        setSubcategoryTagId(null)
+        return
+      }
+
+      const { data: tagRows, error: tagErr } = await supabase
+        .from('tags')
+        .select('id, name_he')
+        .in('id', ids)
+
+      if (tagErr) {
+        console.error(tagErr)
+        setSubcategoryOptions([])
+        setSubcategoryTagId(null)
+        return
+      }
+
+      const rows = uniqById((tagRows ?? []) as SubcategoryOption[])
+      rows.sort((a, b) => a.name_he.localeCompare(b.name_he, 'he'))
 
       setSubcategoryOptions(rows)
       setSubcategoryTagId(prev => {
@@ -632,9 +674,9 @@ const { data, error } = await supabase
                       }}
                       className="mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm"
                     >
-                      {/* <option value="" disabled>
+                      <option value="" disabled>
                         בחר תת־קטגוריה
-                      </option> */}
+                      </option>
                       {subcategoryOptions.map(sc => (
                         <option key={sc.id} value={sc.id}>
                           {sc.name_he}
