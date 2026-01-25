@@ -67,26 +67,16 @@ function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
 
 function SectionTitle({ title, href }: { title: string; href?: string }) {
   return (
-    <div className="mb-4">
-      {href ? (
-        <Link
-          href={href}
-          className="group inline-flex w-full items-center justify-between rounded-2xl border bg-white/70 px-4 py-3 backdrop-blur transition hover:bg-white/85"
-        >
-          <span className="inline-flex items-center gap-2 rounded-full bg-black/8 px-4 py-2 text-sm font-semibold tracking-tight text-foreground">
+    <div className="mb-3 rounded border bg-white">
+      <div className="bg-neutral-100 px-3 py-2 font-bold">
+        {href ? (
+          <Link href={href} className="hover:underline">
             {title}
-          </span>
-          <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs text-muted-foreground transition group-hover:bg-black/10">
-            מעבר
-          </span>
-        </Link>
-      ) : (
-        <div className="inline-flex w-full items-center justify-between rounded-2xl border bg-white/70 px-4 py-3 backdrop-blur">
-          <span className="inline-flex items-center gap-2 rounded-full bg-black/8 px-4 py-2 text-sm font-semibold tracking-tight text-foreground">
-            {title}
-          </span>
-        </div>
-      )}
+          </Link>
+        ) : (
+          title
+        )}
+      </div>
     </div>
   )
 }
@@ -682,7 +672,7 @@ export default async function HomePage() {
         {/* <div className="mt-8 lg:flex lg:items-start lg:gap-6" dir="rtl">
   {/* RIGHT: Stories */}
         {/* <div className="lg:flex-1">
-    <SectionTitle title="סיפורים" href="/c/stories" />
+    <SectionTitle title="סיפורים" />
     <div className="space-y-3">
       {stories.length ? (
         stories.map(p => <ListRow key={p.id} post={p} />)
@@ -713,7 +703,7 @@ export default async function HomePage() {
         {/* D) Release + Writers week
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
           <div>
-            <SectionTitle title="פריקה" href="/c/release" />
+            <SectionTitle title="פריקה" />
             <div className="space-y-3">
               {release.length ? release.map(p => <ListRow key={p.id} post={p} />) : (
                 <div className="rounded border bg-white p-6 text-sm text-muted-foreground">אין עדיין פריקות.</div>
@@ -751,7 +741,7 @@ export default async function HomePage() {
 
         {/* E) Magazine */}
         {/* <div className="mt-8">
-          <SectionTitle title="מגזין" href="/c/magazine" />
+          <SectionTitle title="מגזין" />
           <div className="space-y-3">
             {magazine.length ? magazine.map(p => <ListRow key={p.id} post={p} />) : (
               <div className="rounded border bg-white p-6 text-sm text-muted-foreground">אין עדיין כתבות במגזין.</div>
