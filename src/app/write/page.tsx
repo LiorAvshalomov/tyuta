@@ -394,7 +394,7 @@ export default function WritePage() {
       setCoverUrl(d.cover_image_url)
       setCoverSource(d.cover_source)
       setLastSavedAt(d.updated_at)
-      setAutoCoverUsed(d.cover_source === 'pexels')
+      setAutoCoverUsed(d.cover_source === 'pixabay')
 
       const { data: tagRows } = await supabase.from('post_tags').select('tag_id').eq('post_id', d.id)
       const loadedTagIds = (tagRows ?? []).map(r => r.tag_id)
@@ -683,7 +683,9 @@ export default function WritePage() {
 
     setErrorMsg(null)
     const seed = Date.now()
-    const res = await fetch(`/api/cover/pexels?q=${encodeURIComponent(title.trim())}&seed=${seed}`)
+    const res = await fetch(
+  `/api/cover/auto?q=${encodeURIComponent(title.trim())}&seed=${seed}`
+)
     if (!res.ok) {
       setErrorMsg('לא הצלחתי להביא תמונה')
       return
@@ -695,8 +697,8 @@ export default function WritePage() {
     }
 
     setCoverUrl(json.url)
-    setCoverSource('pexels')
-    setAutoCoverUsed(true)
+setCoverSource('pixabay')
+setAutoCoverUsed(true)
   }
 
   const removeCover = async () => {
@@ -707,7 +709,9 @@ export default function WritePage() {
 
   const fetchAutoCoverUrl = async (q: string) => {
     const seed = Date.now()
-    const res = await fetch(`/api/cover/pexels?q=${encodeURIComponent(q)}&seed=${seed}`)
+    const res = await fetch(
+  `/api/cover/auto?q=${encodeURIComponent(q)}&seed=${seed}`
+)
     if (!res.ok) return null
     const json = (await res.json()) as { url?: string }
     return json.url ?? null
@@ -777,9 +781,9 @@ export default function WritePage() {
       }
 
       finalCoverUrl = autoUrl
-      finalCoverSource = 'pexels'
+      finalCoverSource = 'pixabay'
       setCoverUrl(autoUrl)
-      setCoverSource('pexels')
+      setCoverSource('pixabay')
       setAutoCoverUsed(true)
     }
 
@@ -875,7 +879,7 @@ export default function WritePage() {
                   onClick={chooseAutoCover}
                   className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50"
                 >
-                  {autoCoverUsed || coverSource === 'pexels' ? 'החלף תמונה אוטומטית' : 'בחר קאבר אוטומטית'}
+                  {autoCoverUsed || coverSource === 'pixabay' ? 'החלף תמונה אוטומטית' : 'בחר קאבר אוטומטית'}
                 </button>
 
                 <label className="cursor-pointer rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50">
