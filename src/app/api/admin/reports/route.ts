@@ -16,7 +16,12 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url)
   const status = (url.searchParams.get("status") || "open").toLowerCase()
-  const limit = Math.min(Number(url.searchParams.get("limit") || "200"), 500)
+  const rawLimit = Number(url.searchParams.get("limit") || "200")
+  const limit = Math.min(Number.isFinite(rawLimit) ? Math.max(rawLimit, 1) : 200, 500)
+
+  if (status !== "open" && status !== "resolved") {
+    return NextResponse.json({ error: "bad status" }, { status: 400 })
+  }
 
   // טבלת הדיווחים מהצ'אט: user_reports
   // (כולל message_id / excerpt / conversation_id)
@@ -41,8 +46,7 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false })
     .limit(limit)
 
-  const { data: reports, error } =
-    status === "resolved" ? await q.eq("status", "resolved") : await q.eq("status", "open")
+  const { data: reports, error } = await q.eq("status", status)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

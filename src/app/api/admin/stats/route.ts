@@ -7,10 +7,15 @@ export async function GET(req: Request) {
 
   const { admin } = auth
 
+  // posts schema uses status + published_at (no boolean "published" column)
   const [postsTotal, postsPublished, postsDeleted, usersTotal] = await Promise.all([
     admin.from("posts").select("id", { count: "exact", head: true }),
-    admin.from("posts").select("id", { count: "exact", head: true }).filter("published", "eq", true as any),
-    admin.from("posts").select("id", { count: "exact", head: true }).filter("deleted_at", "not.is", null),
+    admin
+      .from("posts")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "published")
+      .is("deleted_at", null),
+    admin.from("posts").select("id", { count: "exact", head: true }).not("deleted_at", "is", null),
     admin.from("profiles").select("id", { count: "exact", head: true }),
   ])
 

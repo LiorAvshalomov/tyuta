@@ -2,10 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
 
 export async function POST(req: NextRequest) {
-  const res = await requireAdminFromRequest(req)
-  if (!res.ok) {
-    return NextResponse.json({ ok: false, error: res.message }, { status: res.status })
-  }
+  const auth = await requireAdminFromRequest(req)
+  if (!auth.ok) return auth.response
 
   const body = await req.json().catch(() => ({}))
   const postId = (body?.post_id ?? '').toString()
@@ -16,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'חייבים לציין סיבה (לפחות 3 תווים).' }, { status: 400 })
 
   // Load post (to know author + title)
-  const { data: post, error: postErr } = await res.admin
+  const { data: post, error: postErr } = await auth.admin
     .from('posts')
     .select('id, author_id, title, slug, deleted_at')
     .eq('id', postId)
@@ -30,9 +28,9 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString()
 
   // Soft delete
-  const { error: updErr } = await res.admin
+  const { error: updErr } = await auth.admin
     .from('posts')
-    .update({ deleted_at: now, deleted_by: res.user.id, deleted_reason: reason })
+    .update({ deleted_at: now, deleted_by: auth.user.id, deleted_reason: reason })
     .eq('id', postId)
 
   if (updErr) return NextResponse.json({ ok: false, error: updErr.message }, { status: 500 })
@@ -45,7 +43,7 @@ export async function POST(req: NextRequest) {
     reason,
   }
 
-  const { error: notifErr } = await res.admin.from('notifications').insert({
+  const { error: notifErr } = await auth.admin.from('notifications').insert({
     user_id: post.author_id,
     actor_id: null,
     type: 'post_deleted',
@@ -63,8 +61,8 @@ export async function POST(req: NextRequest) {
 
   // Audit log (optional table; safe if missing)
   try {
-    await res.admin.from('moderation_actions').insert({
-      actor_id: res.user.id,
+    await auth.admin.from('moderation_actions').insert({
+      actor_id: auth.user.id,
       target_user_id: post.author_id,
       post_id: post.id,
       action: 'post_deleted',

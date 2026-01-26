@@ -2,10 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
 
 export async function POST(req: NextRequest) {
-  const res = await requireAdminFromRequest(req)
-  if (!res.ok) {
-    return NextResponse.json({ ok: false, error: res.message }, { status: res.status })
-  }
+  const auth = await requireAdminFromRequest(req)
+  if (!auth.ok) return auth.response
 
   const body = await req.json().catch(() => ({}))
   const mode = (body?.mode ?? 'user').toString() // 'user' | 'all'
@@ -17,18 +15,22 @@ export async function POST(req: NextRequest) {
   if (!title || title.length < 2) return NextResponse.json({ ok: false, error: 'כותרת קצרה מדי.' }, { status: 400 })
   if (!message || message.length < 2) return NextResponse.json({ ok: false, error: 'הודעה קצרה מדי.' }, { status: 400 })
 
+  if (mode !== 'user' && mode !== 'all') {
+    return NextResponse.json({ ok: false, error: 'mode לא חוקי.' }, { status: 400 })
+  }
+
   let targetIds: string[] = []
 
   if (mode === 'all') {
     // small community MVP: send to all profiles
-    const { data, error } = await res.admin.from('profiles').select('id')
+    const { data, error } = await auth.admin.from('profiles').select('id')
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
     targetIds = (data ?? []).map((r: any) => r.id)
   } else {
     if (userId) {
       targetIds = [userId]
     } else if (username) {
-      const { data, error } = await res.admin.from('profiles').select('id').eq('username', username).maybeSingle()
+      const { data, error } = await auth.admin.from('profiles').select('id').eq('username', username).maybeSingle()
       if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
       if (!data?.id) return NextResponse.json({ ok: false, error: 'לא נמצא משתמש עם ה-username הזה.' }, { status: 404 })
       targetIds = [data.id]
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
   const chunkSize = 500
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize)
-    const { error } = await res.admin.from('notifications').insert(chunk)
+    const { error } = await auth.admin.from('notifications').insert(chunk)
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
   }
 
