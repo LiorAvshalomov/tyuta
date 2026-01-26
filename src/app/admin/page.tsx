@@ -10,32 +10,30 @@ export default function AdminHome() {
   const [stats, setStats] = useState<any | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
-
-
   useEffect(() => {
     let alive = true
-      ; (async () => {
-        try {
-          const [r1, r2] = await Promise.all([
-            adminFetch('/api/admin/reports?status=open&limit=200'),
-            adminFetch('/api/admin/contact?status=open&limit=200'),
-          ])
-          const r3 = await adminFetch('/api/admin/stats')
-          const j1 = await r1.json()
-          const j2 = await r2.json()
-          const j3 = await r3.json().catch(() => ({}))
+    ;(async () => {
+      try {
+        const [r1, r2] = await Promise.all([
+          adminFetch('/api/admin/reports?status=open&limit=200'),
+          adminFetch('/api/admin/contact?status=open&limit=200'),
+        ])
+        const r3 = await adminFetch('/api/admin/stats')
+        const j1 = await r1.json()
+        const j2 = await r2.json()
+        const j3 = await r3.json().catch(() => ({}))
 
-          if (!alive) return
-          if (!r1.ok) throw new Error(j1?.error ?? 'Failed to load reports')
-          if (!r2.ok) throw new Error(j2?.error ?? 'Failed to load contact')
-          if (r3.ok) setStats(j3?.stats ?? null)
-          setOpenReports((j1?.reports ?? []).length)
-          setOpenContact((j2?.messages ?? []).length)
-        } catch (e: any) {
-          if (!alive) return
-          setErr(e?.message ?? 'שגיאה')
-        }
-      })()
+        if (!alive) return
+        if (!r1.ok) throw new Error(j1?.error ?? 'Failed to load reports')
+        if (!r2.ok) throw new Error(j2?.error ?? 'Failed to load contact')
+        if (r3.ok) setStats(j3?.stats ?? null)
+        setOpenReports((j1?.reports ?? []).length)
+        setOpenContact((j2?.messages ?? []).length)
+      } catch (e: any) {
+        if (!alive) return
+        setErr(e?.message ?? 'שגיאה')
+      }
+    })()
     return () => {
       alive = false
     }
