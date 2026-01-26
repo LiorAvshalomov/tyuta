@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react'
 import Avatar from '@/components/Avatar'
 import { adminFetch } from '@/lib/admin/adminFetch'
 
+function getErr(j: any, fallback: string) {
+  return j?.error?.message ?? j?.error ?? fallback
+}
+
 function fmtName(p: any, fallbackId?: string) {
   if (!p) return fallbackId ? fallbackId.slice(0, 8) : '—'
   return p.display_name || (p.username ? `@${p.username}` : p.id?.slice(0, 8) || '—')
@@ -28,7 +32,7 @@ export default function AdminContactPage() {
     try {
       const r = await adminFetch(`/api/admin/contact?status=${status}&limit=200`)
       const j = await r.json()
-      if (!r.ok) throw new Error(j?.error ?? 'Failed')
+      if (!r.ok) throw new Error(getErr(j, 'Failed'))
       setMessages(j.messages ?? [])
       if (active) {
         const refreshed = (j.messages ?? []).find((m: any) => m.id === active.id)
@@ -49,7 +53,7 @@ export default function AdminContactPage() {
     })
     const j = await r.json().catch(() => ({}))
     if (!r.ok) {
-      alert(j?.error ?? 'שגיאה')
+      alert(getErr(j, 'שגיאה'))
       return
     }
     await load()

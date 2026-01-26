@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { adminFetch } from '@/lib/admin/adminFetch'
 
+function getErr(j: any, fallback: string) {
+  return j?.error?.message ?? j?.error ?? fallback
+}
+
 export default function AdminHome() {
   const [openReports, setOpenReports] = useState<number | null>(null)
   const [openContact, setOpenContact] = useState<number | null>(null)
@@ -24,8 +28,8 @@ export default function AdminHome() {
         const j3 = await r3.json().catch(() => ({}))
 
         if (!alive) return
-        if (!r1.ok) throw new Error(j1?.error ?? 'Failed to load reports')
-        if (!r2.ok) throw new Error(j2?.error ?? 'Failed to load contact')
+        if (!r1.ok) throw new Error(getErr(j1, 'Failed to load reports'))
+        if (!r2.ok) throw new Error(getErr(j2, 'Failed to load contact'))
         if (r3.ok) setStats(j3?.stats ?? null)
         setOpenReports((j1?.reports ?? []).length)
         setOpenContact((j2?.messages ?? []).length)

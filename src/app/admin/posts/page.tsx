@@ -5,6 +5,10 @@ import Link from 'next/link'
 import Avatar from '@/components/Avatar'
 import { adminFetch } from '@/lib/admin/adminFetch'
 
+function getErr(j: any, fallback: string) {
+  return j?.error?.message ?? j?.error ?? fallback
+}
+
 function fmtName(p: any, fallbackId?: string) {
   if (!p) return fallbackId ? fallbackId.slice(0, 8) : '—'
   return p.display_name || (p.username ? `@${p.username}` : p.id?.slice(0, 8) || '—')
@@ -33,7 +37,7 @@ export default function AdminPostsPage() {
       const url = `/api/admin/posts?filter=${filter}&limit=200&q=${encodeURIComponent(q.trim())}`
       const r = await adminFetch(url)
       const j = await r.json()
-      if (!r.ok) throw new Error(j?.error ?? 'Failed')
+      if (!r.ok) throw new Error(getErr(j, 'Failed'))
       setPosts(j.posts ?? [])
     } catch (e: any) {
       setErr(e?.message ?? 'שגיאה')
@@ -62,7 +66,7 @@ export default function AdminPostsPage() {
         body: JSON.stringify({ post_id: modal.post.id, reason: modal.reason }),
       })
       const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(j?.error ?? 'שגיאה')
+      if (!r.ok) throw new Error(getErr(j, 'שגיאה'))
       setModal(null)
       await load()
       alert('הפוסט נמחק (soft delete) ונשלחה התראה לבעל הפוסט.')
@@ -83,7 +87,7 @@ export default function AdminPostsPage() {
     })
     const j = await r.json().catch(() => ({}))
     if (!r.ok) {
-      alert(j?.error ?? 'שגיאה')
+      alert(getErr(j, 'שגיאה'))
       return
     }
     await load()

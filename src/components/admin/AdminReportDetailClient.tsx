@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import Avatar from '@/components/Avatar'
 import { adminFetch } from '@/lib/admin/adminFetch'
 
@@ -40,7 +39,7 @@ type Msg = {
 }
 
 type ApiOk = { ok: true; report: Report; messages: Msg[] }
-type ApiErr = { ok?: false; error: string }
+type ApiErr = { ok?: false; error: any }
 
 function fmtName(p: MiniProfile | null, fallbackId?: string) {
   if (p?.display_name) return p.display_name
@@ -69,13 +68,13 @@ function isApiOk(v: unknown): v is ApiOk {
 
 function getErr(v: unknown): string | null {
   if (!v || typeof v !== 'object') return null
-  const o = v as Record<string, unknown>
-  return typeof o.error === 'string' ? o.error : null
+  const o = v as Record<string, any>
+  const e = o.error
+  if (!e) return null
+  return typeof e === 'string' ? e : typeof e?.message === 'string' ? e.message : null
 }
 
 export default function AdminReportDetailClient({ id }: { id: string }) {
-  const router = useRouter()
-
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [report, setReport] = useState<Report | null>(null)
