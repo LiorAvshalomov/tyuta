@@ -32,21 +32,22 @@ export default async function PostPage({ params }: PostPageProps) {
     .from('posts')
     .select(
       `
+      id,
+      title,
+      content_json,
+      created_at,
+      author_id,
+      channel_id,
+      channel:channels ( name_he ),
+      author:profiles!posts_author_id_fkey (
         id,
-        title,
-        content_json,
-        created_at,
-        author_id,
-        channel_id,
-        channel:channels ( name_he ),
-        author:profiles!posts_author_id_fkey (
-          id,
-          username,
-          display_name,
-          avatar_url
+        username,
+        display_name,
+        avatar_url
         )
-      `
+        `
     )
+    .is('deleted_at', null)
     .eq('slug', slug)
     .single()
 

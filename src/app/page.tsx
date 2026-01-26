@@ -389,8 +389,9 @@ export default async function HomePage() {
       channel:channels ( slug, name_he ),
       author:profiles!posts_author_id_fkey ( username, display_name ),
       post_tags:post_tags!fk_post_tags_post_id_posts ( tag:tags!fk_post_tags_tag_id_tags ( name_he, slug ) )
-    `
+      `
     )
+    .is('deleted_at', null)
     .eq('status', 'published')
     .order('published_at', { ascending: false })
     .limit(250)

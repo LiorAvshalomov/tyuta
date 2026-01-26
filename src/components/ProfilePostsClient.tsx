@@ -75,6 +75,7 @@ export default function ProfilePostsClient({
         // Total count (cheap, and needed for pagination)
         const countRes = await supabase
           .from('posts')
+          .is('deleted_at', null)
           .select('id', { count: 'exact', head: true })
           .eq('author_id', profileId)
           .eq('status', 'published')
@@ -87,6 +88,7 @@ export default function ProfilePostsClient({
         if (sort === 'recent') {
           const res = await supabase
             .from('posts')
+            .is('deleted_at', null)
             .select(
               `id, slug, title, excerpt, created_at, cover_image_url,
                channel:channels ( name_he )`
@@ -122,6 +124,7 @@ export default function ProfilePostsClient({
           // fetch all post ids for the user (bounded)
           const allPostsRes = await supabase
             .from('posts')
+            .is('deleted_at', null)
             .select('id, slug, title, excerpt, created_at, cover_image_url, channel:channels ( name_he )')
             .eq('author_id', profileId)
             .eq('status', 'published')
@@ -176,6 +179,7 @@ export default function ProfilePostsClient({
 
         const res = await supabase
           .from('posts')
+          .is('deleted_at', null)
           .select(
             `id, slug, title, excerpt, created_at, cover_image_url,
              channel:channels ( name_he )`

@@ -109,8 +109,9 @@ export default function ProfileTabsClient({
             cover_image_url,
             created_at,
             channel:channels ( name_he )
-          `
+            `
           )
+          .is('deleted_at', null)
           .eq('author_id', profileId)
           .eq('status', 'published')
           .eq('is_anonymous', false)
@@ -132,13 +133,13 @@ export default function ProfileTabsClient({
             .in('post_id', ids)
 
           if (sErr) throw sErr
-          ;((sums ?? []) as ReactionSummaryRow[]).forEach(r => {
-            const g = r.gold ?? 0
-            const s = r.silver ?? 0
-            const b = r.bronze ?? 0
-            // weighted (so gold matters more)
-            score[r.post_id] = { ...(score[r.post_id] ?? { comments: 0, reactions: 0 }), reactions: g * 3 + s * 2 + b }
-          })
+            ; ((sums ?? []) as ReactionSummaryRow[]).forEach(r => {
+              const g = r.gold ?? 0
+              const s = r.silver ?? 0
+              const b = r.bronze ?? 0
+              // weighted (so gold matters more)
+              score[r.post_id] = { ...(score[r.post_id] ?? { comments: 0, reactions: 0 }), reactions: g * 3 + s * 2 + b }
+            })
 
           // 3) Fetch comments for these posts and count in JS (reliable; no GROUP BY headaches)
           const { data: cRows, error: cErr } = await supabase
@@ -148,10 +149,10 @@ export default function ProfileTabsClient({
             .limit(5000)
 
           if (cErr) throw cErr
-          ;((cRows ?? []) as Array<{ id: string; post_id: string }>).forEach(r => {
-            if (!score[r.post_id]) score[r.post_id] = { comments: 0, reactions: 0 }
-            score[r.post_id].comments += 1
-          })
+            ; ((cRows ?? []) as Array<{ id: string; post_id: string }>).forEach(r => {
+              if (!score[r.post_id]) score[r.post_id] = { comments: 0, reactions: 0 }
+              score[r.post_id].comments += 1
+            })
         }
 
         // 4) Reaction totals for achievements tab
@@ -194,7 +195,7 @@ export default function ProfileTabsClient({
               .limit(1000)
 
             if (profErr) throw profErr
-            ;((profs ?? []) as ProfileLite[]).forEach(p => profMap.set(p.id, p))
+              ; ((profs ?? []) as ProfileLite[]).forEach(p => profMap.set(p.id, p))
           }
 
           commentCards = rc

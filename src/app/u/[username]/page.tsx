@@ -38,15 +38,15 @@ type PostRow = {
   is_anonymous: boolean | null
   channel: { name_he: string }[] | null
   post_tags:
+  | {
+    tag:
     | {
-        tag:
-          | {
-              slug: string
-              name_he: string
-            }[]
-          | null
-      }[]
+      slug: string
+      name_he: string
+    }[]
     | null
+  }[]
+  | null
 }
 
 type SummaryRow = {
@@ -108,6 +108,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const { count: postsCount = 0 } = await supabase
     .from('posts')
     .select('id', { count: 'exact', head: true })
+    .is('deleted_at', null)
     .eq('author_id', prof.id)
     .eq('status', 'published')
     .eq('is_anonymous', false)
@@ -119,6 +120,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const { data: postIdsRows } = await supabase
     .from('posts')
     .select('id')
+    .is('deleted_at', null)
     .eq('author_id', prof.id)
     .eq('status', 'published')
     .eq('is_anonymous', false)

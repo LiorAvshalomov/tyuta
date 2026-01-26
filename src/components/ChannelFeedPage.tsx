@@ -375,8 +375,9 @@ export default async function ChannelFeedPage({
       author:profiles!posts_author_id_fkey ( username, display_name ),
       subcategory:tags!posts_subcategory_tag_fk ( id, name_he, slug ),
       post_tags:post_tags!fk_post_tags_post_id_posts ( tag:tags!fk_post_tags_tag_id_tags ( name_he, slug ) )
-    `
+      `
     )
+    .is('deleted_at', null)
     .eq('status', 'published')
     .order('published_at', { ascending: false })
     .limit(250)
@@ -404,23 +405,23 @@ export default async function ChannelFeedPage({
       .select('post_id, reaction_key, votes, gold, silver, bronze')
       .in('post_id', postIds)
 
-    ;((sums ?? []) as SummaryRow[]).forEach(r => {
-      if (!r.post_id) return
+      ; ((sums ?? []) as SummaryRow[]).forEach(r => {
+        if (!r.post_id) return
 
-      const key = (r.reaction_key ?? '').trim()
-      if (key) {
-        const prev = votesByPost.get(r.post_id) ?? {}
-        prev[key] = (prev[key] ?? 0) + (r.votes ?? 0)
-        votesByPost.set(r.post_id, prev)
-      }
+        const key = (r.reaction_key ?? '').trim()
+        if (key) {
+          const prev = votesByPost.get(r.post_id) ?? {}
+          prev[key] = (prev[key] ?? 0) + (r.votes ?? 0)
+          votesByPost.set(r.post_id, prev)
+        }
 
-      const prevM = medalsByPost.get(r.post_id) ?? { gold: 0, silver: 0, bronze: 0 }
-      medalsByPost.set(r.post_id, {
-        gold: prevM.gold + (r.gold ?? 0),
-        silver: prevM.silver + (r.silver ?? 0),
-        bronze: prevM.bronze + (r.bronze ?? 0),
+        const prevM = medalsByPost.get(r.post_id) ?? { gold: 0, silver: 0, bronze: 0 }
+        medalsByPost.set(r.post_id, {
+          gold: prevM.gold + (r.gold ?? 0),
+          silver: prevM.silver + (r.silver ?? 0),
+          bronze: prevM.bronze + (r.bronze ?? 0),
+        })
       })
-    })
   }
 
   const cardPostsAll: CardPost[] = posts.map(p => {
@@ -544,7 +545,7 @@ export default async function ChannelFeedPage({
           </div>
         </div>
 
-        
+
 
         {/* B) 5 TILES */}
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-5">
@@ -594,7 +595,7 @@ export default async function ChannelFeedPage({
 
           <aside className="space-y-6 lg:sticky lg:top-6 lg:self-start">
             <section>
-          <SectionTitle title="פוסטים אחרונים" href={`/search?sort=recent&channel=${encodeURIComponent(channelSlug)}`} />
+              <SectionTitle title="פוסטים אחרונים" href={`/search?sort=recent&channel=${encodeURIComponent(channelSlug)}`} />
               <div className="space-y-2">
                 {recentMini.length ? (
                   recentMini.map(p => <RecentMiniRow key={p.id} post={p} />)

@@ -47,6 +47,7 @@ export default function NotebookPage() {
       const { data, error } = await supabase
         .from('posts')
         .select('id, title, updated_at, created_at, channel_id, channels(name_he)')
+        .is('deleted_at', null)
         .eq('author_id', uid)
         .eq('status', 'draft')
         .order('updated_at', { ascending: false })
