@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from '@/components/Avatar'
@@ -58,7 +58,7 @@ function makeTempId() {
   return `temp-${uuid}`
 }
 
-export default function PostComments({ postId, postSlug, postTitle }: Props) {
+export default function PostComments({ postId, postSlug: _postSlug, postTitle: _postTitle }: Props) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
 
@@ -69,10 +69,14 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
   const [items, setItems] = useState<CommentRow[]>([])
   const [err, setErr] = useState<string | null>(null)
 
+  const errTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const setErrFor = (message: string, ms = 3000) => {
     setErr(message)
-    window.setTimeout(() => setErr(null), ms)
+    if (errTimerRef.current) clearTimeout(errTimerRef.current)
+    errTimerRef.current = setTimeout(() => setErr(null), ms)
   }
+
 
   // likes
   const [myLiked, setMyLiked] = useState<Set<string>>(new Set())
@@ -125,8 +129,9 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
       .in('comment_id', commentIds)
 
     const counts: Record<string, number> = {}
-    ;(countsData as LikeSummaryRow[] | null | undefined)?.forEach((r) => {
-      counts[r.comment_id] = Number((r as any).likes_count ?? 0)
+    const countRows = (countsData ?? []) as LikeSummaryRow[]
+    countRows.forEach((r) => {
+      counts[r.comment_id] = Number(r.likes_count ?? 0)
     })
     setLikeCounts(counts)
 
@@ -142,7 +147,8 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
       .in('comment_id', commentIds)
 
     const mine = new Set<string>()
-    ;(myData as any[] | null | undefined)?.forEach((r) => {
+    const myRows = (myData ?? []) as Array<{ comment_id: string }>
+    myRows.forEach((r) => {
       if (r?.comment_id) mine.add(String(r.comment_id))
     })
     setMyLiked(mine)
@@ -192,7 +198,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
       .limit(150)
 
     if (error) {
-      setErr(error.message)
+      setErrFor(error.message)
       setLoading(false)
       return
     }
@@ -203,7 +209,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
         id: rr.id,
         post_id: rr.post_id,
         author_id: rr.author_id,
-        parent_comment_id: (rr as any).parent_comment_id ?? null,
+        parent_comment_id: rr.parent_comment_id ?? null,
         content: rr.content,
         created_at: rr.created_at,
         updated_at: rr.updated_at ?? null,
@@ -242,7 +248,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
               .from('comments')
               .select(
                 `
-                id, post_id, author_id, content, created_at, updated_at,
+                id, post_id, author_id, parent_comment_id, content, created_at, updated_at,
                 author:profiles!fk_comments_author_id_profiles ( username, display_name, avatar_url )
               `
               )
@@ -256,6 +262,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
               id: d.id,
               post_id: d.post_id,
               author_id: d.author_id,
+              parent_comment_id: (d as unknown as { parent_comment_id?: string | null }).parent_comment_id ?? null,
               content: d.content,
               created_at: d.created_at,
               updated_at: d.updated_at ?? null,
@@ -302,14 +309,14 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
 
     const value = text.trim()
     if (value.length < 2) {
-      setErr('התגובה קצרה מדי')
+      setErrFor('התגובה קצרה מדי')
       return
     }
 
     const { data: auth } = await supabase.auth.getUser()
     const u = auth.user
     if (!u) {
-      setErr('צריך להתחבר כדי להגיב')
+      setErrFor('צריך להתחבר כדי להגיב')
       return
     }
 
@@ -348,7 +355,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
 
     if (error) {
       setItems(prev => prev.filter(x => x.id !== tempId))
-      setErr(error.message)
+      setErrFor(error.message)
       return
     }
 
@@ -369,16 +376,10 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
     setReplyToName(null)
   }
 
-  const toggleLike = async (comment: CommentRow) => {
-    const commentId = comment.id
+  const toggleLike = async (commentId: string) => {
     setErr(null)
     if (!userId) {
       setErrFor('צריך להתחבר כדי לתת לייק')
-      return
-    }
-
-    if (comment.author_id === userId) {
-      setErrFor('אי אפשר לעשות לייק לעצמך')
       return
     }
 
@@ -407,7 +408,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
         rb.add(commentId)
         setMyLiked(rb)
         setLikeCounts(prev => ({ ...prev, [commentId]: Number(prev[commentId] ?? 0) + 1 }))
-        setErr(error.message)
+        setErrFor(error.message)
       }
       return
     }
@@ -423,7 +424,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
       rb.delete(commentId)
       setMyLiked(rb)
       setLikeCounts(prev => ({ ...prev, [commentId]: Math.max(0, Number(prev[commentId] ?? 0) - 1) }))
-      setErr(error.message)
+      setErrFor(error.message)
     }
     // notification is created by DB trigger
   }
@@ -443,7 +444,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
     setErr(null)
     const value = editText.trim()
     if (value.length < 2) {
-      setErr('התגובה קצרה מדי')
+      setErrFor('התגובה קצרה מדי')
       return
     }
 
@@ -460,7 +461,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
     setSending(false)
 
     if (error) {
-      setErr(error.message)
+      setErrFor(error.message)
       await load()
       return
     }
@@ -479,7 +480,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
     const { error } = await supabase.from('comments').delete().eq('id', commentId)
 
     if (error) {
-      setErr(error.message)
+      setErrFor(error.message)
       setItems(snapshot) // rollback
     }
   }
@@ -647,7 +648,16 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
             )
 
             return (
-              <div key={c.id} className="rounded-2xl border p-3">
+              <div key={c.id} className="relative rounded-2xl border p-3">
+                {!isMine && !isTemp ? (
+                  <button
+                    type="button"
+                    onClick={() => setErrFor('תודה, הדיווח נקלט.')}
+                    className="absolute left-3 top-3 text-[11px] font-semibold text-neutral-500 hover:text-neutral-700 hover:underline"
+                  >
+                    דווח
+                  </button>
+                ) : null}
                 {headerRow}
 
                 {body}
@@ -657,7 +667,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
                   <div className="mt-3 flex items-center gap-4 text-xs">
                     <button
                       type="button"
-                      onClick={() => toggleLike(c)}
+                      onClick={() => toggleLike(c.id)}
                       className={`font-semibold hover:underline ${liked ? 'text-red-600' : 'text-neutral-600'}`}
                       disabled={isTemp || sending}
                     >
@@ -689,7 +699,16 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
                       const rLikes = Number(likeCounts[r.id] ?? 0)
 
                       return (
-                        <div key={r.id} className="rounded-2xl border bg-white p-3">
+                        <div key={r.id} className="relative rounded-2xl border bg-white p-3">
+                          {!rMine && !rTemp ? (
+                            <button
+                              type="button"
+                              onClick={() => setErrFor('תודה, הדיווח נקלט.')}
+                              className="absolute left-3 top-3 text-[11px] font-semibold text-neutral-500 hover:text-neutral-700 hover:underline"
+                            >
+                              דווח
+                            </button>
+                          ) : null}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <Avatar src={rAvatar} name={rName} />
@@ -770,7 +789,7 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
                             <div className="mt-3 flex items-center gap-4 text-xs">
                               <button
                                 type="button"
-                                onClick={() => toggleLike(r)}
+                                onClick={() => toggleLike(r.id)}
                                 className={`font-semibold hover:underline ${rLiked ? 'text-red-600' : 'text-neutral-600'}`}
                                 disabled={rTemp || sending}
                               >

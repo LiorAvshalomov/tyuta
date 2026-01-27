@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import type { ComponentProps } from 'react'
 
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from '@/components/Avatar'
@@ -12,6 +13,8 @@ import PostOwnerMenu from '@/components/PostOwnerMenu'
 import PostReactions from '@/components/PostReactions'
 import PostComments from '@/components/PostComments'
 import { formatDateTimeHe } from '@/lib/time'
+
+type RichNode = ComponentProps<typeof RichText>['content']
 
 type Author = {
   id: string
@@ -50,31 +53,44 @@ type SidebarPost = {
   author: Author[] | Author | null
 }
 
-
-const trunc = (s: string, n = 35) => (s.length > n ? `${s.slice(0, n)}…` : s)
-
 function pickAuthor(a: Author[] | Author | null | undefined): Author | null {
   if (!a) return null
   return Array.isArray(a) ? (a[0] ?? null) : a
 }
 
-function SidebarSection({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+function trunc(s: string, n: number) {
+  const v = (s ?? '').trim()
+  return v.length > n ? `${v.slice(0, n)}…` : v
+}
+
+const truncTitle = (s: string) => trunc(s, 25)
+const truncExcerpt = (s: string) => trunc(s, 31)
+
+function SidebarSection({
+  title,
+  action,
+  children,
+}: {
+  title: string
+  action?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
-    <div className="rounded-3xl border bg-white shadow-sm overflow-hidden">
-      {/* כותרת עם "כהות" מהפסגה עד הקו */}
-      <div className="flex items-center justify-between gap-3 bg-neutral-100 px-5 py-4 border-b border-neutral-300">
-        <h3 className="text-[16px] font-extrabold text-neutral-950">{title}</h3>
+    <div className="rounded-3xl border bg-white shadow-sm">
+      <div className="flex items-center justify-between gap-3 rounded-t-3xl bg-neutral-200 px-5 pb-3 pt-4">
+        <h3 className="text-[16px] font-black tracking-tight text-neutral-950">{title}</h3>
         {action ? <div className="text-[15px]">{action}</div> : null}
       </div>
 
+      {/* פס הפרדה כהה */}
+      <div className="mx-5 border-b border-neutral-400" />
+
       <div className="px-3 pb-4 pt-3">
-        <div className="space-y-1">{children}</div>
+        <div className="space-y-2">{children}</div>
       </div>
     </div>
   )
 }
-
-
 
 function SidebarPostItem({
   post,
@@ -84,6 +100,7 @@ function SidebarPostItem({
   showAuthor?: boolean
 }) {
   const router = useRouter()
+
   const pAuthor = pickAuthor(post.author)
   const authorName = pAuthor?.display_name ?? 'אנונימי'
   const authorUsername = pAuthor?.username ?? null
@@ -97,46 +114,43 @@ function SidebarPostItem({
       tabIndex={0}
       onClick={goPost}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          goPost()
-        }
+        if (e.key === 'Enter' || e.key === ' ') goPost()
       }}
-      className="group flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 cursor-pointer transition-colors hover:bg-neutral-200/70"
+      className="group flex items-start justify-between gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-neutral-200/60 cursor-pointer"
     >
       {/* טקסט (ימין) */}
       <div className="min-w-0 flex-1 text-right">
-        <div className="text-[15px] font-semibold leading-6 text-neutral-900 group-hover:text-neutral-950 line-clamp-2">
-          {post.title ?? 'ללא כותרת'}
+        <div className="text-[16px] font-black leading-6 text-neutral-950 group-hover:text-neutral-950">
+          {truncTitle(post.title ?? 'ללא כותרת')}
         </div>
 
         {post.excerpt ? (
-          <div className="mt-0.5 text-[13px] leading-5 text-neutral-600">
-            {trunc(post.excerpt, 35)}
+          <div className="mt-0.5 text-[14px] leading-6 text-neutral-700">
+            {truncExcerpt(post.excerpt)}
           </div>
         ) : null}
 
-        <div className="mt-1 flex w-full flex-wrap items-center justify-end gap-2 text-[12px] text-neutral-500">
+        <div className="mt-1.5 flex items-center justify-start gap-2 text-[12px] text-neutral-600 whitespace-nowrap">
           {showAuthor ? (
             authorUsername ? (
               <Link
                 href={`/u/${authorUsername}`}
+                className="font-extrabold text-neutral-900 hover:text-neutral-950 hover:underline"
                 onClick={(e) => e.stopPropagation()}
-                className="font-semibold text-neutral-800 hover:underline"
               >
                 {authorName}
               </Link>
             ) : (
-              <span className="font-semibold text-neutral-800">{authorName}</span>
+              <span className="font-extrabold text-neutral-900">{authorName}</span>
             )
           ) : null}
-
-          <time dateTime={date}>{formatDateTimeHe(date)}</time>
+          {showAuthor ? <span className="text-neutral-400">·</span> : null}
+          <span className="text-neutral-600">{formatDateTimeHe(date)}</span>
         </div>
       </div>
 
       {/* תמונה (שמאל) */}
-      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/5">
+      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/5">
         {post.cover_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.cover_image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -146,14 +160,34 @@ function SidebarPostItem({
   )
 }
 
+function NotFoundPost() {
+  return (
+    <main className="min-h-screen bg-neutral-50" dir="rtl">
+      <div className="mx-auto max-w-5xl px-4 py-12">
+        <div className="rounded-3xl border bg-white p-10 text-center shadow-sm">
+          <h1 className="text-3xl font-bold tracking-tight">לא נמצא פוסט</h1>
+          <p className="mt-3 text-sm text-muted-foreground">הפוסט לא קיים או הוסר.</p>
 
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Link href="/" className="rounded-full bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-800">
+              לדף הבית
+            </Link>
+            <Link href="/notebook" className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50">
+              למחברת
+            </Link>
+          </div>
+        </div>
+      </div>
+    </main>
+  )
+}
 
 export default function PostPage() {
   const params = useParams()
   const slug = useMemo(() => (typeof params?.slug === 'string' ? params.slug : ''), [params])
 
   const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
+  const [notFoundFlag, setNotFoundFlag] = useState(false)
   const [post, setPost] = useState<PostRow | null>(null)
   const [sidebarLoading, setSidebarLoading] = useState(false)
   const [moreFromAuthor, setMoreFromAuthor] = useState<SidebarPost[]>([])
@@ -166,7 +200,7 @@ export default function PostPage() {
 
     const load = async () => {
       setLoading(true)
-      setNotFound(false)
+      setNotFoundFlag(false)
       setPost(null)
       setMoreFromAuthor([])
       setHotInChannel([])
@@ -199,8 +233,7 @@ export default function PostPage() {
       if (cancelled) return
 
       if (error || !data) {
-        // PGRST116 = 0 rows for .single()
-        setNotFound(true)
+        setNotFoundFlag(true)
         setLoading(false)
         return
       }
@@ -209,7 +242,6 @@ export default function PostPage() {
       setPost(p)
       setLoading(false)
 
-      // Sidebar content (non-blocking)
       setSidebarLoading(true)
 
       const sidebarPostSelect = `
@@ -236,15 +268,17 @@ export default function PostPage() {
           .limit(5),
         p.channel_id
           ? supabase
-              .from('posts')
-              .select('id,slug,title,excerpt,cover_image_url,published_at,created_at,author_id,author:profiles!posts_author_id_fkey ( id, username, display_name, avatar_url ), post_reaction_summary ( medals_gold, medals_silver, medals_bronze )')
-              .is('deleted_at', null)
-              .eq('status', 'published')
-              .eq('channel_id', p.channel_id)
-              .neq('id', p.id)
-              .order('published_at', { ascending: false, nullsFirst: false })
-              .limit(60)
-          : Promise.resolve({ data: [], error: null } as any),
+            .from('posts')
+            .select(
+              'id,slug,title,excerpt,cover_image_url,published_at,created_at,author_id,author:profiles!posts_author_id_fkey ( id, username, display_name, avatar_url ), post_reaction_summary ( gold, silver, bronze )'
+            )
+            .is('deleted_at', null)
+            .eq('status', 'published')
+            .eq('channel_id', p.channel_id)
+            .neq('id', p.id)
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .limit(60)
+          : Promise.resolve({ data: [], error: null } as { data: SidebarPost[]; error: null }),
       ])
 
       if (cancelled) return
@@ -253,33 +287,46 @@ export default function PostPage() {
         setMoreFromAuthor(authorRes.data as SidebarPost[])
       }
 
-      // פוסטים חמים: ניסיון 1 — לפי מדליות מתוך post_reaction_summary (אם קיים / אם RLS מאפשר)
-      let hot: SidebarPost[] = []
+
+      // פוסטים חמים בקטגוריה (מעדיף דירוג לפי post_reaction_summary; אם אין/אין הרשאות → נופל ל"חדשים" כדי שלא יהיה ריק)
+      let didSetHot = false
+
       if (!hotRes.error && Array.isArray(hotRes.data)) {
-        const scored = (hotRes.data as any[])
+        const scoredAll = (hotRes.data as unknown as Array<Record<string, unknown>>)
           .map((row) => {
-            const rs = Array.isArray(row.post_reaction_summary) ? row.post_reaction_summary[0] : row.post_reaction_summary
-            const gold = Number(rs?.medals_gold ?? 0)
-            const silver = Number(rs?.medals_silver ?? 0)
-            const bronze = Number(rs?.medals_bronze ?? 0)
+            const rs = Array.isArray((row as { post_reaction_summary?: unknown }).post_reaction_summary)
+              ? (row as { post_reaction_summary?: unknown[] }).post_reaction_summary?.[0]
+              : (row as { post_reaction_summary?: unknown }).post_reaction_summary
+
+            const gold = Number((rs as { gold?: unknown } | null | undefined)?.gold ?? 0)
+            const silver = Number((rs as { silver?: unknown } | null | undefined)?.silver ?? 0)
+            const bronze = Number((rs as { bronze?: unknown } | null | undefined)?.bronze ?? 0)
             const score = gold * 100 + silver * 10 + bronze
             return { row, score }
           })
           .sort((a, b) => b.score - a.score)
-          .slice(0, 5)
-          .map((x) => {
-            const { post_reaction_summary, ...rest } = x.row
-            return rest
-          })
 
-        hot = scored as SidebarPost[]
+        const picked =
+          scoredAll.some((x) => x.score > 0)
+            ? scoredAll.filter((x) => x.score > 0).slice(0, 5)
+            : scoredAll.slice(0, 5)
+
+        const cleaned = picked.map((x) => {
+          const r = x.row as Record<string, unknown>
+          const { post_reaction_summary, ...rest } = r as { post_reaction_summary?: unknown }
+          return rest
+        })
+
+        const hot = cleaned as SidebarPost[]
+        setHotInChannel(hot)
+        didSetHot = hot.length > 0
       }
 
-      // ניסיון 2 (Fallback) — אם אין תוצאות/ה־join נכשל: פשוט 5 האחרונים בקטגוריה
-      if (hot.length === 0 && p.channel_id) {
-        const { data: fb } = await supabase
+      // Fallback: אם ה-view/relationship לא נגיש ב-RLS או אין נתונים → נציג פשוט 5 פוסטים אחרונים בקטגוריה
+      if (!didSetHot && p.channel_id) {
+        const fb = await supabase
           .from('posts')
-          .select('id,slug,title,excerpt,cover_image_url,published_at,created_at,author_id,author:profiles!posts_author_id_fkey ( id, username, display_name, avatar_url )')
+          .select(sidebarPostSelect)
           .is('deleted_at', null)
           .eq('status', 'published')
           .eq('channel_id', p.channel_id)
@@ -287,11 +334,10 @@ export default function PostPage() {
           .order('published_at', { ascending: false, nullsFirst: false })
           .limit(5)
 
-        hot = (fb as SidebarPost[] | null | undefined) ?? []
+        if (!fb.error && Array.isArray(fb.data)) {
+          setHotInChannel(fb.data as SidebarPost[])
+        }
       }
-
-      setHotInChannel(hot)
-
 
       setSidebarLoading(false)
     }
@@ -313,7 +359,7 @@ export default function PostPage() {
     )
   }
 
-  if (notFound || !post) {
+  if (notFoundFlag || !post) {
     return <NotFoundPost />
   }
 
@@ -338,42 +384,45 @@ export default function PostPage() {
           : null
 
   const header = (
-    <div className="text-right">
-      <h1 className="text-[40px] sm:text-[44px] font-extrabold tracking-tight text-neutral-950 break-words">
-        {post.title ?? 'ללא כותרת'}
-      </h1>
-      {post.excerpt ? <p className="mt-2 text-[16px] leading-8 text-neutral-700">{post.excerpt}</p> : null}
+    <div>
+      {/* כותרת + הקדמה במרכז עם רקע עדין (ללא האווטר) */}
+      <div className="rounded-t-3xl bg-neutral-100/70 border-b border-neutral-200 px-6 py-6 text-center sm:px-10">
+        <h1 className="text-[38px] sm:text-[42px] font-black tracking-tight text-neutral-950 break-words">
+          {post.title ?? 'ללא כותרת'}
+        </h1>
+        {post.excerpt ? <p className="mt-2 text-[16px] leading-8 text-neutral-700">{post.excerpt}</p> : null}
+      </div>
 
-      {/* כותב/ת + קטגוריה + תאריך/שעה (בדיוק כמו ההמחשה ששלחת) */}
-      <div className="mt-5 flex items-start justify-start gap-3">
-        {/* אווטר בימין – גובה שמכיל שתי שורות */}
-        <div className="shrink-0">
-          <Avatar src={author?.avatar_url ?? null} name={authorName} size={52} />
-        </div>
+      {/* כותב/ת + קטגוריה + תאריך/שעה */}
+      <div className="px-6 sm:px-10">
+        <div className="mt-5 flex items-start justify-start gap-3">
+          <div className="shrink-0" >
+            <Avatar src={author?.avatar_url ?? null} name={authorName} size={52} />
+          </div>
+          <div className="min-w-0 text-right">
+            <div className="text-[15px] font-extrabold text-neutral-950">
+              {authorUsername ? (
+                <Link href={`/u/${authorUsername}`} className="hover:underline">
+                  {authorName}
+                </Link>
+              ) : (
+                authorName
+              )}
+            </div>
 
-        {/* הטקסט משמאל לאווטר: שורה 1 שם, שורה 2 קטגוריה+תאריך */}
-        <div className="min-w-0 text-right">
-          <div className="text-[15px] font-extrabold text-neutral-950">
-            {authorUsername ? (
-              <Link href={`/u/${authorUsername}`} className="hover:underline">
-                {authorName}
-              </Link>
-            ) : (
-              authorName
-            )}
+            <div className="mt-1 text-[13px] text-neutral-600">
+              {channelName && channelHref ? (
+                <Link href={channelHref} className="font-semibold text-blue-700 hover:underline">
+                  {channelName}
+                </Link>
+              ) : channelName ? (
+                <span className="font-semibold text-neutral-700">{channelName}</span>
+              ) : null}
+              {channelName ? <span className="text-neutral-400"> · </span> : null}
+              <span className="text-neutral-500">{formatDateTimeHe(publishedAt)}</span>
+            </div>
           </div>
 
-          <div className="mt-1 text-[13px] text-neutral-600">
-            {channelName && channelHref ? (
-              <Link href={channelHref} className="font-semibold text-blue-700 hover:underline">
-                {channelName}
-              </Link>
-            ) : channelName ? (
-              <span className="font-semibold text-neutral-700">{channelName}</span>
-            ) : null}
-            {channelName ? <span className="text-neutral-400"> · </span> : null}
-            <span className="text-neutral-500">{formatDateTimeHe(publishedAt)}</span>
-          </div>
         </div>
       </div>
     </div>
@@ -431,7 +480,7 @@ export default function PostPage() {
     >
       {/* תוכן – לב האתר */}
       <div className="mt-6">
-        <RichText content={post.content_json} />
+        <RichText content={post.content_json as RichNode} />
       </div>
 
       {/* אינטראקציות – מופרד מהתוכן */}
