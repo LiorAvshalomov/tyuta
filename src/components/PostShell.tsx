@@ -1,31 +1,48 @@
-import React from "react"
+import React from 'react'
 
 type Props = {
-  title: string
-  meta?: React.ReactNode
+  header?: React.ReactNode
   actions?: React.ReactNode
+  sidebar?: React.ReactNode
   children: React.ReactNode
 }
 
-export default function PostShell({ title, meta, actions, children }: Props) {
+/**
+ * עוטף לעמוד פוסט: תוכן מימין + סיידבר משמאל (בדסקטופ), RTL-first.
+ * שומר על קריאות גבוהה (מדד קריאה) ועל הרבה "אוויר".
+ */
+export default function PostShell({ header, actions, sidebar, children }: Props) {
   return (
     <main className="min-h-screen bg-neutral-50" dir="rtl">
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <article className="rounded-3xl bg-white shadow-sm ring-1 ring-black/5 p-6 sm:p-10">
-          <header className="mb-8">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground text-right break-words">
-                  {title}
-                </h1>
-                {meta ? <div className="mt-3 text-sm text-muted-foreground text-right">{meta}</div> : null}
-              </div>
-              {actions ? <div className="shrink-0">{actions}</div> : null}
-            </div>
-          </header>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+        {/*
+          חשוב: ב-RTL, flex-row מציב את הפריט הראשון בצד ימין.
+          לכן: article (ראשון) יהיה מימין, sidebar (שני) יהיה משמאל.
+        */}
+        <div className="flex flex-col gap-6 lg:flex-row">
+          {/* תוכן */}
+          <article className="min-w-0 flex-1 rounded-3xl bg-white shadow-sm ring-1 ring-black/5">
+            {(header || actions) ? (
+              <header className="px-6 pt-7 sm:px-10 sm:pt-9">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 text-right">{header}</div>
+                  {actions ? <div className="shrink-0">{actions}</div> : null}
+                </div>
+              </header>
+            ) : null}
 
-          <section className="text-right">{children}</section>
-        </article>
+            <section className="px-6 pb-7 pt-2 text-right sm:px-10 sm:pb-10">
+              <div className="max-w-[72ch]">{children}</div>
+            </section>
+          </article>
+
+          {/* סיידבר – סטטי (ללא sticky) */}
+          {sidebar ? (
+            <aside className="w-full lg:w-[360px] lg:shrink-0">
+              {sidebar}
+            </aside>
+          ) : null}
+        </div>
       </div>
     </main>
   )

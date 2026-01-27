@@ -15,13 +15,16 @@ type CommentRow = {
   id: string
   post_id: string
   author_id: string
+  parent_comment_id: string | null
   content: string
   created_at: string
   updated_at: string | null
   author: AuthorMini | null
 }
 
-type Props = { postId: string }
+type Props = { postId: string; postSlug: string; postTitle: string }
+
+type LikeSummaryRow = { comment_id: string; likes_count: number }
 
 type RealtimePayload<T> = {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE'
@@ -55,7 +58,7 @@ function makeTempId() {
   return `temp-${uuid}`
 }
 
-export default function PostComments({ postId }: Props) {
+export default function PostComments({ postId, postSlug, postTitle }: Props) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
 
@@ -66,12 +69,84 @@ export default function PostComments({ postId }: Props) {
   const [items, setItems] = useState<CommentRow[]>([])
   const [err, setErr] = useState<string | null>(null)
 
+  const setErrFor = (message: string, ms = 3000) => {
+    setErr(message)
+    window.setTimeout(() => setErr(null), ms)
+  }
+
+  // likes
+  const [myLiked, setMyLiked] = useState<Set<string>>(new Set())
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
+
+  // reply state (one level)
+  const [replyToId, setReplyToId] = useState<string | null>(null)
+  const [replyToName, setReplyToName] = useState<string | null>(null)
+
   // edit state
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
 
   const canSend = useMemo(() => text.trim().length >= 2 && !sending, [text, sending])
   const canSaveEdit = useMemo(() => editText.trim().length >= 2 && !sending, [editText, sending])
+
+  const { topLevel, repliesByParent } = useMemo(() => {
+    const top: CommentRow[] = []
+    const replies: Record<string, CommentRow[]> = {}
+
+    for (const c of items) {
+      if (c.parent_comment_id) {
+        const key = c.parent_comment_id
+        if (!replies[key]) replies[key] = []
+        replies[key].push(c)
+      } else {
+        top.push(c)
+      }
+    }
+
+    // top-level: newest first
+    top.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    // replies: oldest first
+    Object.keys(replies).forEach((k) => replies[k].sort((a, b) => (a.created_at > b.created_at ? 1 : -1)))
+
+    return { topLevel: top, repliesByParent: replies }
+  }, [items])
+
+  const refreshLikes = async (commentIds: string[], uid: string | null) => {
+    if (commentIds.length === 0) {
+      setLikeCounts({})
+      setMyLiked(new Set())
+      return
+    }
+
+    // counts
+    const { data: countsData } = await supabase
+      .from('comment_like_summary')
+      .select('comment_id, likes_count')
+      .in('comment_id', commentIds)
+
+    const counts: Record<string, number> = {}
+    ;(countsData as LikeSummaryRow[] | null | undefined)?.forEach((r) => {
+      counts[r.comment_id] = Number((r as any).likes_count ?? 0)
+    })
+    setLikeCounts(counts)
+
+    // my likes
+    if (!uid) {
+      setMyLiked(new Set())
+      return
+    }
+    const { data: myData } = await supabase
+      .from('comment_likes')
+      .select('comment_id')
+      .eq('user_id', uid)
+      .in('comment_id', commentIds)
+
+    const mine = new Set<string>()
+    ;(myData as any[] | null | undefined)?.forEach((r) => {
+      if (r?.comment_id) mine.add(String(r.comment_id))
+    })
+    setMyLiked(mine)
+  }
 
   const load = async () => {
     setErr(null)
@@ -101,6 +176,7 @@ export default function PostComments({ postId }: Props) {
         id,
         post_id,
         author_id,
+        parent_comment_id,
         content,
         created_at,
         updated_at,
@@ -112,8 +188,8 @@ export default function PostComments({ postId }: Props) {
       `
       )
       .eq('post_id', postId)
-      .order('created_at', { ascending: false })
-      .limit(50)
+      .order('created_at', { ascending: true })
+      .limit(150)
 
     if (error) {
       setErr(error.message)
@@ -127,6 +203,7 @@ export default function PostComments({ postId }: Props) {
         id: rr.id,
         post_id: rr.post_id,
         author_id: rr.author_id,
+        parent_comment_id: (rr as any).parent_comment_id ?? null,
         content: rr.content,
         created_at: rr.created_at,
         updated_at: rr.updated_at ?? null,
@@ -135,6 +212,7 @@ export default function PostComments({ postId }: Props) {
     })
 
     setItems(normalized)
+    await refreshLikes(normalized.map((x) => x.id).filter(Boolean), u?.id ?? null)
     setLoading(false)
   }
 
@@ -242,6 +320,7 @@ export default function PostComments({ postId }: Props) {
       id: tempId,
       post_id: postId,
       author_id: u.id,
+      parent_comment_id: replyToId,
       content: value,
       created_at: new Date().toISOString(),
       updated_at: null,
@@ -249,13 +328,17 @@ export default function PostComments({ postId }: Props) {
     }
 
     setItems(prev => [optimistic, ...prev])
+    setLikeCounts(prev => ({ ...prev, [tempId]: 0 }))
     setText('')
+    setReplyToId(null)
+    setReplyToName(null)
 
     const { data: inserted, error } = await supabase
       .from('comments')
       .insert({
         post_id: postId,
         author_id: u.id,
+        parent_comment_id: replyToId,
         content: value,
       })
       .select('id')
@@ -272,6 +355,77 @@ export default function PostComments({ postId }: Props) {
     if (inserted?.id) {
       setItems(prev => prev.map(x => (x.id === tempId ? { ...x, id: inserted.id } : x)))
     }
+  }
+
+  const startReply = (c: CommentRow) => {
+    setErr(null)
+    setReplyToId(c.id)
+    setReplyToName(c.author?.display_name ?? 'אנונימי')
+    setText('')
+  }
+
+  const cancelReply = () => {
+    setReplyToId(null)
+    setReplyToName(null)
+  }
+
+  const toggleLike = async (comment: CommentRow) => {
+    const commentId = comment.id
+    setErr(null)
+    if (!userId) {
+      setErrFor('צריך להתחבר כדי לתת לייק')
+      return
+    }
+
+    if (comment.author_id === userId) {
+      setErrFor('אי אפשר לעשות לייק לעצמך')
+      return
+    }
+
+    const already = myLiked.has(commentId)
+
+    // optimistic
+    const next = new Set(myLiked)
+    if (already) next.delete(commentId)
+    else next.add(commentId)
+    setMyLiked(next)
+    setLikeCounts(prev => {
+      const cur = Number(prev[commentId] ?? 0)
+      return { ...prev, [commentId]: Math.max(0, cur + (already ? -1 : 1)) }
+    })
+
+    if (already) {
+      const { error } = await supabase
+        .from('comment_likes')
+        .delete()
+        .eq('comment_id', commentId)
+        .eq('user_id', userId)
+
+      if (error) {
+        // rollback
+        const rb = new Set(next)
+        rb.add(commentId)
+        setMyLiked(rb)
+        setLikeCounts(prev => ({ ...prev, [commentId]: Number(prev[commentId] ?? 0) + 1 }))
+        setErr(error.message)
+      }
+      return
+    }
+
+    const { error } = await supabase.from('comment_likes').insert({
+      comment_id: commentId,
+      user_id: userId,
+    })
+
+    if (error) {
+      // rollback
+      const rb = new Set(next)
+      rb.delete(commentId)
+      setMyLiked(rb)
+      setLikeCounts(prev => ({ ...prev, [commentId]: Math.max(0, Number(prev[commentId] ?? 0) - 1) }))
+      setErr(error.message)
+    }
+    // notification is created by DB trigger
   }
 
   const startEdit = (c: CommentRow) => {
@@ -339,11 +493,27 @@ export default function PostComments({ postId }: Props) {
 
       {/* Composer */}
       <div className="mt-3 rounded-2xl border bg-neutral-50 p-3">
+        {replyToId ? (
+          <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
+            <div className="text-xs text-neutral-700">
+              משיב/ה ל־<span className="font-bold">{replyToName ?? 'אנונימי'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={cancelReply}
+              className="text-xs font-semibold text-neutral-600 hover:underline"
+              disabled={sending}
+            >
+              ביטול
+            </button>
+          </div>
+        ) : null}
+
         <textarea
           className="w-full resize-none rounded-xl border bg-white px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
           rows={3}
           maxLength={700}
-          placeholder={userId ? 'כתוב תגובה…' : 'התחבר כדי להגיב…'}
+          placeholder={userId ? (replyToId ? 'כתוב תגובת תשובה…' : 'כתוב תגובה…') : 'התחבר כדי להגיב…'}
           value={text}
           onChange={e => setText(e.target.value)}
           disabled={!userId || sending}
@@ -383,7 +553,7 @@ export default function PostComments({ postId }: Props) {
         ) : items.length === 0 ? (
           <div className="text-sm text-muted-foreground">אין עדיין תגובות.</div>
         ) : (
-          items.map(c => {
+          topLevel.map(c => {
             const a = c.author
             const name = a?.display_name ?? 'אנונימי'
             const username = a?.username ?? null
@@ -391,89 +561,228 @@ export default function PostComments({ postId }: Props) {
             const isMine = !!userId && c.author_id === userId
             const isTemp = String(c.id).startsWith('temp-')
             const isEditing = editingId === c.id
+            const liked = myLiked.has(c.id)
+            const likes = Number(likeCounts[c.id] ?? 0)
+            const replies = repliesByParent[c.id] ?? []
 
-            return (
-              <div key={c.id} className="rounded-2xl border p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar src={avatar} name={name} />
-                    <div className="leading-tight">
-                      <div className="text-sm font-semibold">
-                        {username ? (
-                          <Link className="hover:underline" href={`/u/${username}`}>
-                            {name}
-                          </Link>
-                        ) : (
-                          name
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatHe(c.created_at)}
-                        {c.updated_at ? <span> · נערך</span> : null}
-                      </div>
+            const headerRow = (
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <Avatar src={avatar} name={name} />
+                  <div className="leading-tight">
+                    <div className="text-sm font-semibold">
+                      {username ? (
+                        <Link className="hover:underline" href={`/u/${username}`}>
+                          {name}
+                        </Link>
+                      ) : (
+                        name
+                      )}
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {isTemp ? (
-                      <div className="text-xs text-muted-foreground">שולח…</div>
-                    ) : null}
-
-                    {isMine && !isTemp ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => startEdit(c)}
-                          className="text-xs font-semibold text-neutral-600 hover:underline"
-                        >
-                          עריכה
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => remove(c.id)}
-                          className="text-xs font-semibold text-red-600 hover:underline"
-                        >
-                          מחיקה
-                        </button>
-                      </>
-                    ) : null}
+                    <div className="text-xs text-muted-foreground">
+                      {formatHe(c.created_at)}
+                      {c.updated_at ? <span> · נערך</span> : null}
+                    </div>
                   </div>
                 </div>
 
-                {isEditing ? (
-                  <div className="mt-3 rounded-2xl border bg-neutral-50 p-3">
-                    <textarea
-                      className="w-full resize-none rounded-xl border bg-white px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
-                      rows={3}
-                      maxLength={700}
-                      value={editText}
-                      onChange={e => setEditText(e.target.value)}
-                      disabled={sending}
-                    />
-                    <div className="mt-2 flex items-center justify-end gap-2">
+                <div className="flex items-center gap-2">
+                  {isTemp ? <div className="text-xs text-muted-foreground">שולח…</div> : null}
+
+                  {isMine && !isTemp ? (
+                    <>
                       <button
                         type="button"
-                        onClick={cancelEdit}
-                        className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-white"
-                        disabled={sending}
+                        onClick={() => startEdit(c)}
+                        className="text-xs font-semibold text-neutral-600 hover:underline"
                       >
-                        ביטול
+                        עריכה
                       </button>
                       <button
                         type="button"
-                        onClick={() => saveEdit(c.id)}
-                        disabled={!canSaveEdit}
-                        className="rounded-xl bg-black px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        onClick={() => remove(c.id)}
+                        className="text-xs font-semibold text-red-600 hover:underline"
                       >
-                        שמירה
+                        מחיקה
                       </button>
-                    </div>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            )
+
+            const body = isEditing ? (
+              <div className="mt-3 rounded-2xl border bg-neutral-50 p-3">
+                <textarea
+                  className="w-full resize-none rounded-xl border bg-white px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
+                  rows={3}
+                  maxLength={700}
+                  value={editText}
+                  onChange={e => setEditText(e.target.value)}
+                  disabled={sending}
+                />
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-white"
+                    disabled={sending}
+                  >
+                    ביטול
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => saveEdit(c.id)}
+                    disabled={!canSaveEdit}
+                    className="rounded-xl bg-black px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    שמירה
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 break-words [overflow-wrap:anywhere]">
+                {c.content}
+              </div>
+            )
+
+            return (
+              <div key={c.id} className="rounded-2xl border p-3">
+                {headerRow}
+
+                {body}
+
+                {/* פעולות (כמו פייסבוק – עדין, לא מוגזם) */}
+                {!isEditing ? (
+                  <div className="mt-3 flex items-center gap-4 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => toggleLike(c)}
+                      className={`font-semibold hover:underline ${liked ? 'text-red-600' : 'text-neutral-600'}`}
+                      disabled={isTemp || sending}
+                    >
+                      ❤ לייק{likes ? ` (${likes})` : ''}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startReply(c)}
+                      className="font-semibold text-neutral-600 hover:underline"
+                      disabled={isTemp || sending}
+                    >
+                      הגב
+                    </button>
                   </div>
-                ) : (
-                  <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 break-words [overflow-wrap:anywhere]">
-                    {c.content}
+                ) : null}
+
+                {/* Replies */}
+                {replies.length ? (
+                  <div className="mt-4 space-y-2 border-r border-neutral-200 pr-4 mr-6">
+                    {replies.map(r => {
+                      const ra = r.author
+                      const rName = ra?.display_name ?? 'אנונימי'
+                      const rUsername = ra?.username ?? null
+                      const rAvatar = ra?.avatar_url ?? null
+                      const rMine = !!userId && r.author_id === userId
+                      const rTemp = String(r.id).startsWith('temp-')
+                      const rEditing = editingId === r.id
+                      const rLiked = myLiked.has(r.id)
+                      const rLikes = Number(likeCounts[r.id] ?? 0)
+
+                      return (
+                        <div key={r.id} className="rounded-2xl border bg-white p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <Avatar src={rAvatar} name={rName} />
+                              <div className="leading-tight">
+                                <div className="text-sm font-semibold">
+                                  {rUsername ? (
+                                    <Link className="hover:underline" href={`/u/${rUsername}`}>
+                                      {rName}
+                                    </Link>
+                                  ) : (
+                                    rName
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">{formatHe(r.created_at)}</div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {rTemp ? <div className="text-xs text-muted-foreground">שולח…</div> : null}
+
+                              {rMine && !rTemp ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(r)}
+                                    className="text-xs font-semibold text-neutral-600 hover:underline"
+                                  >
+                                    עריכה
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => remove(r.id)}
+                                    className="text-xs font-semibold text-red-600 hover:underline"
+                                  >
+                                    מחיקה
+                                  </button>
+                                </>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          {rEditing ? (
+                            <div className="mt-3 rounded-2xl border bg-neutral-50 p-3">
+                              <textarea
+                                className="w-full resize-none rounded-xl border bg-white px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
+                                rows={3}
+                                maxLength={700}
+                                value={editText}
+                                onChange={e => setEditText(e.target.value)}
+                                disabled={sending}
+                              />
+                              <div className="mt-2 flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={cancelEdit}
+                                  className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-white"
+                                  disabled={sending}
+                                >
+                                  ביטול
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => saveEdit(r.id)}
+                                  disabled={!canSaveEdit}
+                                  className="rounded-xl bg-black px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                >
+                                  שמירה
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 break-words [overflow-wrap:anywhere]">
+                              {r.content}
+                            </div>
+                          )}
+
+                          {!rEditing ? (
+                            <div className="mt-3 flex items-center gap-4 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => toggleLike(r)}
+                                className={`font-semibold hover:underline ${rLiked ? 'text-red-600' : 'text-neutral-600'}`}
+                                disabled={rTemp || sending}
+                              >
+                                ❤ לייק{rLikes ? ` (${rLikes})` : ''}
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    })}
                   </div>
-                )}
+                ) : null}
               </div>
             )
           })

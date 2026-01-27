@@ -136,8 +136,8 @@ export default function SearchPage() {
       // 1) Get distinct subcategory_tag_id used by posts in this channel
       const { data: postsRows, error: postsErr } = await supabase
         .from('posts')
-        .is('deleted_at', null)
         .select('subcategory_tag_id')
+        .is('deleted_at', null)
         .eq('channel_id', channelId)
         .not('subcategory_tag_id', 'is', null)
 
