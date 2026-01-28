@@ -6,6 +6,12 @@ import { supabase } from '@/lib/supabaseClient'
 
 type NotificationPayload = Record<string, unknown>
 
+type ActorProfile = {
+  username: string | null
+  display_name: string | null
+  avatar_url: string | null
+}
+
 type NotificationRow = {
   id: string
   user_id: string
@@ -16,11 +22,8 @@ type NotificationRow = {
   payload: NotificationPayload | null
   created_at: string
   read_at: string | null
-  actor?: {
-    username: string | null
-    display_name: string | null
-    avatar_url: string | null
-  } | null
+  is_read?: boolean | null
+  actor?: ActorProfile | ActorProfile[] | null
 }
 
 type ViewMode = 'desktop' | 'mobile'
@@ -96,6 +99,12 @@ function formatActors(names: string[]): string {
 }
 
 
+
+function pickActor(a: NotificationRow['actor']): ActorProfile | null {
+  if (!a) return null
+  return Array.isArray(a) ? (a[0] ?? null) : a
+}
+
 export default function NotificationsBell() {
   const router = useRouter()
   const boxRef = useRef<HTMLDivElement | null>(null)
@@ -139,7 +148,13 @@ export default function NotificationsBell() {
       .order('created_at', { ascending: false })
       .limit(80)
 
-    if (!error) setRows((data ?? []) as NotificationRow[])
+    if (!error) {
+      const normalized = ((data ?? []) as unknown as NotificationRow[]).map(r => ({
+        ...r,
+        actor: pickActor(r.actor),
+      }))
+      setRows(normalized)
+    }
     setLoading(false)
   }, [])
 
@@ -158,23 +173,24 @@ export default function NotificationsBell() {
 
     setRows(prev => prev.map(r => (r.read_at ? r : { ...r, read_at: ts })))
   }, [])
-
-  useEffect(() => {
-    if (!open) return
-    // Mark unread as read as soon as the panel is opened so counters reset immediately.
-    void markAllRead()
-  }, [open, markAllRead])
-
-  // "נקה הכל" = מסמן הכל כנקרא (לא מוחק מה-DB)
+  // "נקה הכל" = מוחק את כל ההתראות של המשתמש הנוכחי
   const clearAll = useCallback(async () => {
-    await markAllRead()
-  }, [markAllRead])
+    const { data: sessionData } = await supabase.auth.getSession()
+    const uid = sessionData.session?.user?.id
+    if (!uid) return
+
+    await supabase.from('notifications').delete().eq('user_id', uid)
+
+    setRows([])
+  }, [])
 
   const goToNotification = useCallback(
     async (g: GroupedNotif) => {
       setOpen(false)
 
       // Mark this notification group as read (best effort) so counters update immediately.
+      const { data: sessionData } = await supabase.auth.getSession()
+      const userId = sessionData.session?.user?.id
       if (userId) {
         const ids = g.rows.filter(r => !r.read_at).map(r => r.id)
         if (ids.length > 0) {
@@ -253,7 +269,7 @@ export default function NotificationsBell() {
       const actorDisplay =
         n.type === 'system_message' || n.type === 'post_deleted'
           ? 'מערכת האתר'
-          : asString(payload['actor_display_name']) ?? asString(payload['actor_username']) ?? 'מישהו'
+          : asString(payload['from_user_name']) ?? asString(payload['actor_display_name']) ?? asString(payload['actor_username']) ?? pickActor(n.actor)?.display_name ?? pickActor(n.actor)?.username ?? 'מישהו'
       const actorUsername = asString(payload['actor_username']) ?? ''
 
       const key =
@@ -278,12 +294,12 @@ export default function NotificationsBell() {
           count: 1,
           newest_created_at: n.created_at,
           rows: [n],
-          is_read: n.is_read,
+          is_read: !!n.read_at,
         })
       } else {
         existing.count += 1
         existing.rows.push(n)
-        existing.is_read = existing.is_read && n.is_read
+        existing.is_read = existing.is_read && !!n.read_at
 
         // newest time
         if (new Date(n.created_at).getTime() > new Date(existing.newest_created_at).getTime()) {
@@ -312,7 +328,7 @@ export default function NotificationsBell() {
   }, [rows])
 
   const renderText = useCallback((g: GroupedNotif) => {
-    const firstPayload = (g.rows?.[0]?.payload ?? {}) as any
+    const firstPayload = (g.rows?.[0]?.payload ?? {}) as NotificationPayload
 
     if (g.type === 'system_message') {
       const t = typeof firstPayload.title === 'string' ? firstPayload.title : ''
@@ -371,7 +387,13 @@ export default function NotificationsBell() {
   return (
     <div className="relative" ref={boxRef}>
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          setOpen(prev => {
+            const next = !prev
+            if (next) void markAllRead()
+            return next
+          })
+        }}
         className="relative rounded-full border bg-white px-3 py-2 text-xs font-semibold hover:bg-neutral-50"
         aria-label="התראות"
       >
@@ -414,7 +436,7 @@ export default function NotificationsBell() {
                     className={[
                       'w-full rounded-xl px-3 py-2 text-right text-sm',
                       'hover:bg-neutral-50',
-                      g.read_at ? 'text-neutral-700' : 'font-bold',
+                      g.is_read ? 'text-neutral-700' : 'font-bold',
                     ].join(' ')}
                   >
                     {renderText(g)}
@@ -471,7 +493,7 @@ export default function NotificationsBell() {
                       className={[
                         'w-full rounded-2xl border px-4 py-3 text-right text-sm',
                         'hover:bg-neutral-50',
-                        g.read_at ? 'text-neutral-700' : 'font-bold',
+                        g.is_read ? 'text-neutral-700' : 'font-bold',
                       ].join(' ')}
                     >
                       {renderText(g)}

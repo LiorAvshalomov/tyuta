@@ -124,6 +124,7 @@ function ChannelsInline({ onNavigate, mobile = false }: { onNavigate?: () => voi
         )
       })}
     </nav>
+
   )
 }
 
@@ -139,26 +140,64 @@ function formatDateTime(dt: string) {
 }
 
 function notifText(n: NotifRow) {
-  // מינימלי – אפשר להרחיב אח"כ לפי type
-  const actorName = (n.actor?.display_name ?? '').trim() || n.actor?.username || 'מישהו'
-  switch (n.type) {
-    case 'post_like':
-      return `${actorName} אהב את הפוסט שלך`
-    case 'comment_like':
-      return `${actorName} אהב תגובה שלך`
-    case 'comment':
-      return `${actorName} הגיב לפוסט שלך`
+  const p = n.payload ?? {}
+
+  const actorName =
+    (typeof p.from_user_name === 'string' && p.from_user_name.trim()) ||
+    (typeof p.actor_display_name === 'string' && p.actor_display_name.trim()) ||
+    (typeof p.actor_username === 'string' && p.actor_username.trim()) ||
+    (n.actor?.display_name ?? '').trim() ||
+    (n.actor?.username ?? '').trim() ||
+    'מישהו'
+
+  const postTitle =
+    (typeof p.post_title === 'string' && p.post_title.trim()) ||
+    (typeof p.title === 'string' && p.title.trim()) ||
+    null
+
+  // normalize type from payload.action when present (some events store the real action there)
+  const type = (typeof p.action === 'string' && p.action.trim()) ? p.action.trim() : n.type
+
+  switch (type) {
     case 'follow':
-      return `${actorName} התחיל לעקוב אחריך`
+      return `${actorName} התחיל/ה לעקוב אחריך`
+
+    case 'reaction':
+      return postTitle ? `${actorName} דירג/ה את הפוסט שלך: "${postTitle}"` : `${actorName} דירג/ה את הפוסט שלך`
+
+    case 'comment':
+      return postTitle ? `${actorName} הגיב/ה לפוסט שלך: "${postTitle}"` : `${actorName} הגיב/ה לפוסט שלך`
+
+    case 'message_like':
+      return postTitle ? `${actorName} עשה/ה לך לייק להודעה בפוסט: "${postTitle}"` : `${actorName} עשה/ה לך לייק להודעה בפוסט`
+
+    case 'post_like':
+      return postTitle ? `${actorName} עשה/ה לך לייק לפוסט שלך: "${postTitle}"` : `${actorName} עשה/ה לך לייק לפוסט שלך`
+
+    case 'comment_like':
+      return postTitle ? `${actorName} עשה/ה לך לייק לתגובה בפוסט: "${postTitle}"` : `${actorName} עשה/ה לך לייק לתגובה שלך`
+
     default:
-      return `${actorName} שלח עדכון`
+      return postTitle ? `${actorName} שלח/ה עדכון: "${postTitle}"` : `${actorName} שלח/ה עדכון`
   }
 }
+
 
 export default function SiteHeader() {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<MiniUser | null>(null)
+
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const apply = () => setIsMobile(mq.matches)
+    apply()
+    mq.addEventListener?.('change', apply)
+    return () => mq.removeEventListener?.('change', apply)
+  }, [])
+
 
   // dropdown states
   const [writeOpen, setWriteOpen] = useState(false)
@@ -199,7 +238,7 @@ export default function SiteHeader() {
 
   useClickOutside(writeRef, () => setWriteOpen(false), writeOpen)
   useClickOutside(profileRef, () => setProfileOpen(false), profileOpen)
-  useClickOutside(notificationsRef, () => setNotificationsOpen(false), notificationsOpen)
+  useClickOutside(notificationsRef, () => setNotificationsOpen(false), notificationsOpen && !isMobile)
   useClickOutside(messagesRef, () => setMessagesOpen(false), messagesOpen)
 
   // Close mobile menu when clicking outside
@@ -239,6 +278,22 @@ export default function SiteHeader() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [anyOpen, mobileMenuOpen, closeAll])
+  // Mobile: when notifications panel is open, allow native "back" to close it (and prevent random-tap close).
+  useEffect(() => {
+    if (!notificationsOpen || !isMobile) return
+
+    // push a history entry so back closes the panel instead of leaving the page
+    try {
+      window.history.pushState({ pd_notifs_open: true }, '')
+    } catch {
+      // ignore
+    }
+
+    const onPop = () => setNotificationsOpen(false)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [notificationsOpen, isMobile])
+
 
   const loadUser = useCallback(async () => {
     const { data } = await supabase.auth.getSession()
@@ -293,10 +348,88 @@ export default function SiteHeader() {
     }
 
     const safe = (rows ?? []) as unknown as NotifRow[]
-    setNotifs(safe)
-    setNotifUnread(safe.filter(r => !r.is_read && !r.read_at).length)
-  }, [])
 
+    // Enrich missing actor name/avatar from profiles (covers cases where join alias returns null
+    // or payload doesn't include from_user_avatar_url yet).
+    const idsToHydrate = Array.from(
+      new Set(
+        safe
+          .map(r => {
+            const p = r.payload ?? {}
+            const hasAvatar =
+              (typeof p.from_user_avatar_url === 'string' && p.from_user_avatar_url.trim()) ||
+              (typeof p.actor_avatar_url === 'string' && p.actor_avatar_url.trim()) ||
+              ((r.actor?.avatar_url ?? '').trim().length > 0)
+
+            if (hasAvatar) return null
+            const id =
+              (typeof p.from_user_id === 'string' && p.from_user_id) ||
+              (typeof r.actor_id === 'string' && r.actor_id) ||
+              null
+            return id
+          })
+          .filter(Boolean) as string[]
+      )
+    )
+
+    let merged = safe
+
+    if (idsToHydrate.length > 0) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id,username,display_name,avatar_url')
+        .in('id', idsToHydrate)
+
+      const byId = new Map<string, { username: string | null; display_name: string | null; avatar_url: string | null }>()
+      for (const p of profs ?? []) {
+        byId.set((p as any).id, {
+          username: (p as any).username ?? null,
+          display_name: (p as any).display_name ?? null,
+          avatar_url: (p as any).avatar_url ?? null,
+        })
+      }
+
+      merged = safe.map(r => {
+        const p = r.payload ?? {}
+        const hasAvatar =
+          (typeof p.from_user_avatar_url === 'string' && p.from_user_avatar_url.trim()) ||
+          (typeof p.actor_avatar_url === 'string' && p.actor_avatar_url.trim()) ||
+          ((r.actor?.avatar_url ?? '').trim().length > 0)
+
+        if (hasAvatar) return r
+
+        const lookupId =
+          (typeof p.from_user_id === 'string' && p.from_user_id) ||
+          (typeof r.actor_id === 'string' && r.actor_id) ||
+          null
+        if (!lookupId) return r
+
+        const prof = byId.get(lookupId)
+        if (!prof) return r
+
+        // Prefer writing into payload keys the UI already reads
+        const nextPayload = {
+          ...p,
+          from_user_name:
+            (typeof p.from_user_name === 'string' && p.from_user_name.trim()) ||
+            (prof.display_name ?? '').trim() ||
+            (prof.username ?? '').trim() ||
+            p.from_user_name,
+          from_user_avatar_url:
+            (typeof p.from_user_avatar_url === 'string' && p.from_user_avatar_url.trim()) ? p.from_user_avatar_url : prof.avatar_url,
+        }
+
+        return {
+          ...r,
+          payload: nextPayload,
+          actor: r.actor ?? prof,
+        }
+      })
+    }
+
+    setNotifs(merged)
+    setNotifUnread(merged.filter(r => !r.is_read && !r.read_at).length)
+  }, [])
   const loadThreads = useCallback(async () => {
     const { data } = await supabase.auth.getUser()
     const uid = data.user?.id
@@ -363,7 +496,12 @@ export default function SiteHeader() {
       .channel(`header_messages_${user.id}`)
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient_id=eq.${user.id}` },
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
+        () => void loadThreads()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
         () => void loadThreads()
       )
       .subscribe()
@@ -403,10 +541,97 @@ export default function SiteHeader() {
 
   async function clearAllNotifications() {
     if (!user?.id) return
-    // מוחקים – בהתאם למדיניות הקיימת אצלך
-    await supabase.from('notifications').delete().eq('user_id', user.id)
-    await loadNotifications()
+
+    // "נקה הכל" = מוחק את כל ההתראות של המשתמש הנוכחי (DB + UI)
+    const { error } = await supabase.from('notifications').delete().eq('user_id', user.id)
+
+    if (error) {
+      // fallback: אם מחיקה נחסמת מכל סיבה (RLS), לפחות נסמן כנקרא
+      const ts = new Date().toISOString()
+      await supabase.from('notifications').update({ is_read: true, read_at: ts }).eq('user_id', user.id)
+      setNotifs(prev => prev.map(r => (r.read_at ? r : { ...r, is_read: true, read_at: ts })))
+      setNotifUnread(0)
+      return
+    }
+
+    setNotifs([])
+    setNotifUnread(0)
   }
+
+
+
+  const markNotificationsRead = useCallback(
+    async (ids?: string[]) => {
+      if (!user?.id) return
+      const now = new Date().toISOString()
+
+      // optimistic first
+      setNotifs(prev => prev.map(r => (!r.read_at && (!ids || ids.includes(r.id)) ? { ...r, is_read: true, read_at: now } : r)))
+      setNotifUnread(prev => {
+        if (!ids) return 0
+        const unreadInIds = notifs.filter(r => !r.read_at && ids.includes(r.id)).length
+        return Math.max(0, prev - unreadInIds)
+      })
+
+      // best effort update
+      const q = supabase.from('notifications').update({ is_read: true, read_at: now }).eq('user_id', user.id)
+      if (ids && ids.length > 0) {
+        await q.in('id', ids)
+      } else {
+        await q.is('read_at', null)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user?.id, notifs]
+  )
+
+  const resolvePostSlug = useCallback(async (postId: string) => {
+    const { data, error } = await supabase.from('posts').select('slug').eq('id', postId).is('deleted_at', null).single()
+    if (error) return null
+    return (data as any)?.slug ?? null
+  }, [])
+
+  const goToNotification = useCallback(
+    async (n: NotifRow) => {
+      // mark this notif as read immediately
+      await markNotificationsRead([n.id])
+
+      const actorUsername =
+        (n.actor?.username ?? '').trim() ||
+        (typeof n.payload?.actor_username === 'string' ? (n.payload?.actor_username as string) : '') ||
+        null
+
+      if (n.type === 'follow' && actorUsername) {
+        closeAll()
+        router.push(`/u/${actorUsername}`)
+        return
+      }
+
+      const payload = n.payload ?? {}
+      const slug =
+        (typeof payload.post_slug === 'string' && payload.post_slug) ||
+        (typeof payload.slug === 'string' && payload.slug) ||
+        null
+      const postId =
+        (typeof payload.post_id === 'string' && payload.post_id) ||
+        (typeof n.entity_id === 'string' && n.entity_id) ||
+        null
+
+      if (slug) {
+        closeAll()
+        router.push(`/post/${slug}`)
+        return
+      }
+      if (postId) {
+        const s = await resolvePostSlug(postId)
+        if (s) {
+          closeAll()
+          router.push(`/post/${s}`)
+        }
+      }
+    },
+    [markNotificationsRead, closeAll, router, resolvePostSlug]
+  )
 
   const NotificationsList = (
     <div className="overflow-y-auto max-h-[400px] p-3">
@@ -421,18 +646,34 @@ export default function SiteHeader() {
       ) : (
         <div className="space-y-2" dir="rtl">
           {notifs.map(n => {
-            const actorName = (n.actor?.display_name ?? '').trim() || n.actor?.username || 'מישהו'
+            const p = n.payload ?? {}
+            const actorName =
+              (typeof p.from_user_name === 'string' && p.from_user_name.trim()) ||
+              (typeof p.actor_display_name === 'string' && p.actor_display_name.trim()) ||
+              (typeof p.actor_username === 'string' && p.actor_username.trim()) ||
+              (n.actor?.display_name ?? '').trim() ||
+              (n.actor?.username ?? '').trim() ||
+              'מישהו'
+            const actorAvatar =
+              (typeof p.from_user_avatar_url === 'string' && p.from_user_avatar_url.trim()) ||
+              (typeof p.actor_avatar_url === 'string' && p.actor_avatar_url.trim()) ||
+              n.actor?.avatar_url ||
+              null
+            const unread = !n.read_at && !n.is_read
             return (
-              <div
+              <button
                 key={n.id}
-                className={`flex items-start gap-3 rounded-xl border p-3 ${n.read_at ? 'bg-white border-neutral-200' : 'bg-neutral-50 border-neutral-300'}`}
+                type="button"
+                onClick={() => void goToNotification(n)}
+                className={`w-full text-right flex items-start gap-3 rounded-xl border p-3 transition-colors ${unread ? 'bg-neutral-50 border-neutral-300 hover:bg-neutral-100' : 'bg-white border-neutral-200 hover:bg-neutral-50'
+                  }`}
               >
-                <Avatar src={n.actor?.avatar_url ?? null} name={actorName} size={34} />
+                <Avatar src={actorAvatar} name={actorName} size={34} />
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-neutral-900 line-clamp-2">{notifText(n)}</div>
                   <div className="mt-1 text-xs text-neutral-500">{formatDateTime(n.created_at)}</div>
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>
@@ -452,13 +693,13 @@ export default function SiteHeader() {
         </div>
       ) : (
         <div className="space-y-2" dir="rtl">
-          {threads.map(t => {
+          {threads.filter(t => Boolean(t.last_created_at || (t.last_body ?? '').trim())).map(t => {
             const name = (t.other_display_name ?? '').trim() || t.other_username || 'משתמש'
             const snippet = (t.last_body ?? '').trim()
             return (
               <Link
                 key={t.conversation_id}
-                href={`/inbox?thread=${encodeURIComponent(t.thread_id)}`}
+                href={`/inbox/${encodeURIComponent(t.conversation_id)}`}
                 onClick={closeAll}
                 className="block rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 p-3 transition-colors"
               >
@@ -490,7 +731,8 @@ export default function SiteHeader() {
   return (
     <header className="w-full">
       {/* TOP NAVBAR - STICKY */}
-      <nav className="sticky top-0 z-50 bg-neutral-200/95 backdrop-blur-md border-b border-neutral-300 shadow-sm">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-neutral-200/95 backdrop-blur-md border-b border-neutral-300 shadow-sm">
+
         <div className="bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200">
           <div className="mx-auto max-w-6xl px-4">
             <div className="flex h-14 items-center justify-between" dir="rtl">
@@ -640,8 +882,14 @@ export default function SiteHeader() {
                     <div className="relative" ref={notificationsRef}>
                       <button
                         onClick={() => {
-                          setNotificationsOpen(v => !v)
-                          if (!notificationsOpen) void loadNotifications()
+                          setNotificationsOpen(prev => {
+                            const next = !prev
+                            if (next) {
+                              void loadNotifications()
+                              void markNotificationsRead()
+                            }
+                            return next
+                          })
                           setMessagesOpen(false)
                           setWriteOpen(false)
                           setProfileOpen(false)
@@ -753,7 +1001,7 @@ export default function SiteHeader() {
                     </button>
 
                     {profileOpen && (
-                      <div className="absolute top-full right-0 mt-2 w-56 rounded-xl bg-white shadow-xl border border-neutral-200 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="absolute top-full right-0 mt-2 w-56 rounded-xl border border-neutral-200 p-2 z-50 shadow-xl animate-in fade-in slide-in-from-top-2 duration-200" style={{ backgroundColor: '#F7F6F3' }}>
                         <Link
                           href={`/u/${user.username}`}
                           onClick={closeAll}
@@ -813,6 +1061,8 @@ export default function SiteHeader() {
         </div>
       </nav>
 
+      <div className="h-14 lg:h-14" aria-hidden />
+
       {/* שורה 2: BRAND + CHANNELS + SEARCH - Desktop Only */}
       <div className="bg-gradient-to-b from-neutral-50 to-white hidden lg:block border-b border-neutral-200">
         <div className="mx-auto max-w-6xl px-4">
@@ -851,10 +1101,9 @@ export default function SiteHeader() {
       {user && notificationsOpen && (
         <div
           className="lg:hidden fixed inset-0 z-50 bg-black/20 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={(e) => { if (e.target === e.currentTarget) setNotificationsOpen(false) }}
         >
           <div
-            className="absolute left-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl animate-in slide-in-from-left duration-300"
+            className="absolute left-0 top-0 bottom-0 w-full bg-white shadow-2xl animate-in slide-in-from-left duration-300"
             onClick={e => e.stopPropagation()}
             dir="rtl"
           >
@@ -868,7 +1117,7 @@ export default function SiteHeader() {
                   נקה הכל
                 </button>
                 <button
-                  onClick={(e) => { if (e.target === e.currentTarget) setNotificationsOpen(false) }}
+                  onClick={() => setNotificationsOpen(false)}
                   className="p-2 hover:bg-neutral-200 rounded-lg transition-colors"
                   aria-label="סגור"
                 >
@@ -912,7 +1161,8 @@ export default function SiteHeader() {
                   <Home size={18} />
                   <span>בית</span>
                 </Link>
-                {user && (
+
+                {user ? (
                   <Link
                     href="/notes"
                     onClick={closeAll}
@@ -921,22 +1171,7 @@ export default function SiteHeader() {
                     <BookOpen size={18} />
                     <span>פתקים</span>
                   </Link>
-                )}
-                {user && (
-                  <Link
-                    href="/inbox"
-                    onClick={closeAll}
-                    className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-semibold"
-                  >
-                    <MessageCircle size={18} />
-                    <span>הודעות</span>
-                    {msgUnread > 0 ? (
-                      <span className="mr-auto rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                        {msgUnread > 99 ? '99+' : msgUnread}
-                      </span>
-                    ) : null}
-                  </Link>
-                )}
+                ) : null}
               </div>
 
               {/* ערוצים */}
@@ -948,7 +1183,13 @@ export default function SiteHeader() {
               {/* כתיבה (accordion) */}
               <div className="border-t pt-4">
                 <button
-                  onClick={() => setMobileWriteOpen(v => !v)}
+                  onClick={() =>
+                    setMobileWriteOpen(v => {
+                      const next = !v
+                      if (next) setMobileProfileOpen(false)
+                      return next
+                    })
+                  }
                   className="w-full flex items-center justify-between px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-bold"
                 >
                   <span className="inline-flex items-center gap-2">
@@ -1024,8 +1265,14 @@ export default function SiteHeader() {
               {user ? (
                 <div className="border-t pt-4">
                   <button
-                    onClick={() => setMobileProfileOpen(v => !v)}
-                    className="w-full flex items-center justify-between px-4 py-2 rounded-lg hover:bg-neutral-50"
+                    onClick={() =>
+                    setMobileProfileOpen(v => {
+                      const next = !v
+                      if (next) setMobileWriteOpen(false)
+                      return next
+                    })
+                  }
+                    className="w-full flex items-center justify-between px-4 py-2 rounded-lg bg-neutral-100 border border-neutral-200 hover:bg-neutral-200 transition-colors"
                   >
                     <span className="inline-flex items-center gap-3">
                       <Avatar src={user.avatarUrl} name={user.displayName} size={32} />
