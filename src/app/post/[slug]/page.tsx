@@ -519,13 +519,15 @@ export default function PostPage() {
           </div>
         
 
-        <div className="rounded-3xl border border-neutral-200 bg-neutral-50/70 p-5 sm:p-6">
+<div className='bg-neutral-100/70 border ' > 
+        <div className="rounded-3xl border border-neutral-300 bg-neutral-100/70 p-5 sm:p-6">
           <PostReactions postId={post.id} channelId={post.channel_id ?? 0} authorId={post.author_id} />
         </div>
 
         {/* תגובות – קצת כהות עדינה יותר */}
-        <div className="rounded-3xl border border-neutral-200 bg-neutral-100/70 p-5 sm:p-6">
+        <div className="rounded-3xl border border-neutral-200 bg-neutral-100/70 p-1 sm:p-2">
           <PostComments postId={post.id} postSlug={slug} postTitle={post.title ?? ''} />
+        </div>
         </div>
       </div>
     </PostShell>
