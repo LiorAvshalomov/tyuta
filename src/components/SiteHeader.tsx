@@ -1,1182 +1,164 @@
 'use client'
 
+import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import Avatar from '@/components/Avatar'
-import SearchPostsBar from '@/components/SearchPostsBar'
-import { supabase } from '@/lib/supabaseClient'
-import {
-  Menu,
-  X,
-  Search,
-  Home,
-  Edit,
-  User,
-  LogOut,
-  Settings,
-  Trash2,
-  BookOpen,
-  PenTool,
-  FileText,
-  Newspaper,
-  ChevronDown,
-  Sparkles,
-  NotebookPen,
-  Bell,
-  MessageCircle,
-} from 'lucide-react'
-import NotificationsBell from "@/components/NotificationsBell"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Menu, PenLine, User as UserIcon } from 'lucide-react'
+import NotificationsBell from './NotificationsBell'
+import StickySidebar from './StickySidebar'
 
-
-type MiniUser = {
+type ProfileLite = {
   id: string
-  username: string
-  displayName: string
-  avatarUrl: string | null
-}
-
-type NotifRow = {
-  id: string
-  type: string
-  created_at: string
-  read_at: string | null
-  is_read: boolean
-  actor_id: string | null
-  entity_type: string | null
-  entity_id: string | null
-  payload: Record<string, any> | null
-  actor?: { username: string | null; display_name: string | null; avatar_url: string | null } | null
-}
-
-type ThreadRow = {
-  conversation_id: string
-  other_user_id: string
-  other_username: string
-  other_display_name: string
-  other_avatar_url: string | null
-  last_created_at: string | null
-  last_body: string | null
-  unread_count: number | null
-}
-
-function useClickOutside<T extends HTMLElement>(
-  ref: React.RefObject<T | null>,
-  onOutside: () => void,
-  enabled: boolean
-) {
-  useEffect(() => {
-    if (!enabled) return
-    function onDown(e: MouseEvent) {
-      const el = ref.current
-      if (!el) return
-      if (e.target instanceof Node && !el.contains(e.target)) onOutside()
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [enabled, onOutside, ref])
-}
-
-function ChannelsInline({ onNavigate, mobile = false }: { onNavigate?: () => void; mobile?: boolean }) {
-  const items = [
-    {
-      label: 'פריקה',
-      href: '/c/release',
-      icon: PenTool,
-      colorClass: 'text-stone-500',
-      hoverClass: 'hover:bg-stone-50',
-      borderClass: 'border-stone-200',
-    },
-    {
-      label: 'סיפורים',
-      href: '/c/stories',
-      icon: FileText,
-      colorClass: 'text-slate-500',
-      hoverClass: 'hover:bg-slate-50',
-      borderClass: 'border-slate-200',
-    },
-    {
-      label: 'כתבות',
-      href: '/c/magazine',
-      icon: Newspaper,
-      colorClass: 'text-neutral-500',
-      hoverClass: 'hover:bg-neutral-50',
-      borderClass: 'border-neutral-200',
-    },
-  ]
-
-  return (
-    <nav
-      className={`flex items-center ${mobile ? 'flex-col w-full' : 'justify-center'} gap-2.5`}
-      dir="rtl"
-      aria-label="קטגוריות"
-    >
-      {items.map(it => {
-        const Icon = it.icon
-        return (
-          <Link
-            key={it.href}
-            href={it.href}
-            onClick={onNavigate}
-            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white border ${it.borderClass} ${it.hoverClass} hover:shadow-sm transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
-          >
-            <Icon size={17} strokeWidth={2.5} className={`${it.colorClass} group-hover:scale-110 transition-transform`} />
-            <span className="text-neutral-700 group-hover:text-neutral-900 transition-colors">{it.label}</span>
-          </Link>
-        )
-      })}
-    </nav>
-  )
-}
-
-function formatDateTime(dt: string) {
-  const d = new Date(dt)
-  if (Number.isNaN(d.getTime())) return ''
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const yy = d.getFullYear()
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mi = String(d.getMinutes()).padStart(2, '0')
-  return `${hh}:${mi} · ${dd}.${mm}.${yy}`
-}
-
-function notifText(n: NotifRow) {
-  const actorName = (n.actor?.display_name ?? '').trim() || n.actor?.username || 'מישהו'
-  const p = n.payload ?? {}
-  const postTitle =
-    (typeof p.post_title === 'string' && p.post_title.trim()) ||
-    (typeof p.title === 'string' && p.title.trim()) ||
-    null
-  const reaction = (typeof p.reaction === 'string' && p.reaction.trim()) || null
-
-  switch (n.type) {
-    case 'follow':
-      return `${actorName} התחיל/ה לעקוב אחריך`
-
-    case 'reaction':
-      return postTitle
-        ? `${actorName} דירג/ה "${reaction ?? 'ריאקשן'}" לפוסט שלך: "${postTitle}"`
-        : `${actorName} דירג/ה "${reaction ?? 'ריאקשן'}" לפוסט שלך`
-
-    case 'comment':
-      return postTitle ? `${actorName} הגיב/ה לפוסט שלך: "${postTitle}"` : `${actorName} הגיב/ה לפוסט שלך`
-
-    case 'message_like':
-      return postTitle ? `${actorName} עשה/ה לך לייק להודעה בפוסט: "${postTitle}"` : `${actorName} עשה/ה לך לייק להודעה בפוסט`
-
-    case 'post_like':
-      return postTitle ? `${actorName} עשה/ה לך לייק לפוסט שלך: "${postTitle}"` : `${actorName} עשה/ה לך לייק לפוסט שלך`
-
-    case 'comment_like':
-      return postTitle ? `${actorName} עשה/ה לך לייק לתגובה בפוסט: "${postTitle}"` : `${actorName} עשה/ה לך לייק לתגובה שלך`
-
-    default:
-      return postTitle ? `${actorName} שלח/ה עדכון: "${postTitle}"` : `${actorName} שלח/ה עדכון`
-  }
+  username: string | null
+  display_name: string | null
+  avatar_url: string | null
 }
 
 export default function SiteHeader() {
-  const router = useRouter()
+const supabase = createClientComponentClient()
   const pathname = usePathname()
-  const [user, setUser] = useState<MiniUser | null>(null)
+  const router = useRouter()
 
-  const [isMobile, setIsMobile] = useState(false)
-
-  // dropdown states
-  const [writeOpen, setWriteOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [messagesOpen, setMessagesOpen] = useState(false)
+  const [user, setUser] = useState<ProfileLite | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // mobile accordions
-  const [mobileWriteOpen, setMobileWriteOpen] = useState(false)
-  const [mobileProfileOpen, setMobileProfileOpen] = useState(false)
-
-  const writeRef = useRef<HTMLDivElement | null>(null)
-  const profileRef = useRef<HTMLDivElement | null>(null)
-  const notificationsRef = useRef<HTMLDivElement | null>(null)
-  const messagesRef = useRef<HTMLDivElement | null>(null)
-  const mobileMenuRef = useRef<HTMLDivElement | null>(null)
-
-  const [notifs, setNotifs] = useState<NotifRow[]>([])
-  const [notifUnread, setNotifUnread] = useState(0)
-  const [threads, setThreads] = useState<ThreadRow[]>([])
-  const [msgUnread, setMsgUnread] = useState(0)
-
-  const anyOpen = useMemo(
-    () => writeOpen || profileOpen || notificationsOpen || messagesOpen,
-    [writeOpen, profileOpen, notificationsOpen, messagesOpen]
-  )
-
-  const closeAll = useCallback(() => {
-    setWriteOpen(false)
-    setProfileOpen(false)
-    setNotificationsOpen(false)
-    setMessagesOpen(false)
-    setMobileMenuOpen(false)
-    setMobileWriteOpen(false)
-    setMobileProfileOpen(false)
-  }, [])
-
-  useClickOutside(writeRef, () => setWriteOpen(false), writeOpen)
-  useClickOutside(profileRef, () => setProfileOpen(false), profileOpen)
-  useClickOutside(notificationsRef, () => setNotificationsOpen(false), notificationsOpen && !isMobile)
-  useClickOutside(messagesRef, () => setMessagesOpen(false), messagesOpen)
-
-  // Close mobile menu when clicking outside
-  useEffect(() => {
-    if (!mobileMenuOpen) return
-
-    function handleClickOutside(e: MouseEvent | TouchEvent) {
-      const menuButton = document.querySelector('button[aria-label="תפריט"]')
-      const mobileMenu = mobileMenuRef.current
-
-      if (
-        mobileMenu &&
-        !mobileMenu.contains(e.target as Node) &&
-        menuButton &&
-        !menuButton.contains(e.target as Node)
-      ) {
-        closeAll()
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('touchstart', handleClickOutside)
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('touchstart', handleClickOutside)
-    }
-  }, [mobileMenuOpen, closeAll])
+  const mobileRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    if (!anyOpen && !mobileMenuOpen) return
+    void (async () => {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser()
 
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeAll()
-    }
-
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [anyOpen, mobileMenuOpen, closeAll])
-  // Mobile: when notifications panel is open, allow native "back" to close it (and prevent random-tap close).
-  useEffect(() => {
-    if (!notificationsOpen || !isMobile) return
-
-    // push a history entry so back closes the panel instead of leaving the page
-    try {
-      window.history.pushState({ pd_notifs_open: true }, '')
-    } catch {
-      // ignore
-    }
-
-    const onPop = () => setNotificationsOpen(false)
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [notificationsOpen, isMobile])
-
-
-  const loadUser = useCallback(async () => {
-    const { data } = await supabase.auth.getSession()
-    const session = data.session
-
-    if (!session?.user?.id) {
-      setUser(null)
-      return
-    }
-
-    const { data: prof } = await supabase
-      .from('profiles')
-      .select('id, username, display_name, avatar_url')
-      .eq('id', session.user.id)
-      .single()
-
-    if (prof?.id && prof?.username) {
-      setUser({
-        id: prof.id,
-        username: prof.username,
-        displayName: (prof.display_name ?? '').trim() || prof.username || 'אנונימי',
-        avatarUrl: prof.avatar_url ?? null,
-      })
-    } else {
-      setUser(null)
-    }
-  }, [])
-
-  const loadNotifications = useCallback(async () => {
-    const { data } = await supabase.auth.getUser()
-    const uid = data.user?.id
-    if (!uid) {
-      setNotifs([])
-      setNotifUnread(0)
-      return
-    }
-
-    const { data: rows, error } = await supabase
-      .from('notifications')
-      .select(
-        'id,type,created_at,read_at,is_read,actor_id,entity_type,entity_id,payload,actor:profiles!notifications_actor_id_fkey(username,display_name,avatar_url)'
-      )
-      .eq('user_id', uid)
-      .order('created_at', { ascending: false })
-      .limit(30)
-
-    if (error) {
-      // לא מציגים alert כדי לא להציק; פשוט משאירים ריק
-      setNotifs([])
-      setNotifUnread(0)
-      return
-    }
-
-    const safe = (rows ?? []) as unknown as NotifRow[]
-    setNotifs(safe)
-    setNotifUnread(safe.filter(r => !r.is_read && !r.read_at).length)
-  }, [])
-  const loadThreads = useCallback(async () => {
-    const { data } = await supabase.auth.getUser()
-    const uid = data.user?.id
-    if (!uid) {
-      setThreads([])
-      setMsgUnread(0)
-      return
-    }
-
-    const { data: rows, error } = await supabase
-      .from('inbox_threads')
-      .select(
-        'conversation_id,other_user_id,other_username,other_display_name,other_avatar_url,last_body,last_created_at,unread_count'
-      )
-      .order('last_created_at', { ascending: false })
-      .limit(20)
-
-    if (error) {
-      setThreads([])
-      setMsgUnread(0)
-      return
-    }
-
-    const safe = (rows ?? []) as unknown as ThreadRow[]
-    setThreads(safe)
-    setMsgUnread(safe.reduce((acc, r) => acc + (r.unread_count ?? 0), 0))
-  }, [])
-
-  // Load user initially + whenever route changes
-  useEffect(() => {
-    void loadUser()
-  }, [loadUser, pathname])
-
-  // Reload when auth state changes
-  useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      void loadUser()
-      void loadNotifications()
-      void loadThreads()
-    })
-    return () => {
-      sub.subscription.unsubscribe()
-    }
-  }, [loadUser, loadNotifications, loadThreads])
-
-  // Live updates (realtime)
-  useEffect(() => {
-    if (!user?.id) return
-
-    void loadNotifications()
-    void loadThreads()
-
-    const notifCh = supabase
-      .channel(`header_notifications_${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-        () => void loadNotifications()
-      )
-      .subscribe()
-
-    // שינוי הודעות יכול להשפיע על unread_count ב-view. נרענן כשנוצרה הודעה חדשה.
-    const msgCh = supabase
-      .channel(`header_messages_${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
-        () => void loadThreads()
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
-        () => void loadThreads()
-      )
-      .subscribe()
-
-    return () => {
-      void supabase.removeChannel(notifCh)
-      void supabase.removeChannel(msgCh)
-    }
-  }, [user?.id, loadNotifications, loadThreads])
-
-  function requireAuthOrGoWrite(target: 'prika' | 'stories' | 'magazine') {
-    if (!user) {
-      alert('כדי לכתוב צריך להתחבר 🙂')
-      router.push('/auth/login')
-      return
-    }
-    router.push(`/write?channel=${target}`)
-  }
-
-  function requireAuthOrGo(path: string) {
-    if (!user) {
-      alert('כדי להיכנס למחברת צריך להתחבר 🙂')
-      router.push('/auth/login')
-      return
-    }
-    router.push(path)
-  }
-
-  async function handleSignOut() {
-    const confirmed = window.confirm('האם אתה בטוח שברצונך להתנתק? 👋')
-    if (!confirmed) return
-
-    closeAll()
-    await supabase.auth.signOut()
-    router.refresh()
-  }
-
-  async function clearAllNotifications() {
-    if (!user?.id) return
-    const ts = new Date().toISOString()
-
-    // "נקה הכל" = מסמן הכל כנקרא (לא מוחק מה-DB)
-    await supabase.from('notifications').update({ is_read: true, read_at: ts }).eq('user_id', user.id).is('read_at', null)
-
-    // optimistic UI
-    setNotifs(prev => prev.map(r => (r.read_at ? r : { ...r, is_read: true, read_at: ts })))
-    setNotifUnread(0)
-  }
-
-
-  const markNotificationsRead = useCallback(
-    async (ids?: string[]) => {
-      if (!user?.id) return
-      const now = new Date().toISOString()
-
-      // optimistic first
-      setNotifs(prev => prev.map(r => (!r.read_at && (!ids || ids.includes(r.id)) ? { ...r, is_read: true, read_at: now } : r)))
-      setNotifUnread(prev => {
-        if (!ids) return 0
-        const unreadInIds = notifs.filter(r => !r.read_at && ids.includes(r.id)).length
-        return Math.max(0, prev - unreadInIds)
-      })
-
-      // best effort update
-      const q = supabase.from('notifications').update({ is_read: true, read_at: now }).eq('user_id', user.id)
-      if (ids && ids.length > 0) {
-        await q.in('id', ids)
-      } else {
-        await q.is('read_at', null)
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user?.id, notifs]
-  )
-
-  const resolvePostSlug = useCallback(async (postId: string) => {
-    const { data, error } = await supabase.from('posts').select('slug').eq('id', postId).is('deleted_at', null).single()
-    if (error) return null
-    return (data as any)?.slug ?? null
-  }, [])
-
-  const goToNotification = useCallback(
-    async (n: NotifRow) => {
-      // mark this notif as read immediately
-      await markNotificationsRead([n.id])
-
-      const actorUsername =
-        (n.actor?.username ?? '').trim() ||
-        (typeof n.payload?.actor_username === 'string' ? (n.payload?.actor_username as string) : '') ||
-        null
-
-      if (n.type === 'follow' && actorUsername) {
-        closeAll()
-        router.push(`/u/${actorUsername}`)
+      if (!authUser?.id) {
+        setUser(null)
         return
       }
 
-      const payload = n.payload ?? {}
-      const slug =
-        (typeof payload.post_slug === 'string' && payload.post_slug) ||
-        (typeof payload.slug === 'string' && payload.slug) ||
-        null
-      const postId =
-        (typeof payload.post_id === 'string' && payload.post_id) ||
-        (typeof n.entity_id === 'string' && n.entity_id) ||
-        null
+      const { data } = await supabase
+        .from('profiles')
+        .select('id,username,display_name,avatar_url')
+        .eq('id', authUser.id)
+        .single()
 
-      if (slug) {
-        closeAll()
-        router.push(`/post/${slug}`)
-        return
-      }
-      if (postId) {
-        const s = await resolvePostSlug(postId)
-        if (s) {
-          closeAll()
-          router.push(`/post/${s}`)
-        }
-      }
-    },
-    [markNotificationsRead, closeAll, router, resolvePostSlug]
-  )
+      setUser((data as ProfileLite) ?? null)
+    })()
+  }, [supabase])
 
-  const NotificationsList = (
-    <div className="overflow-y-auto max-h-[400px] p-3">
-      {notifs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center mb-3">
-            <Bell size={20} className="text-neutral-400" />
-          </div>
-          <h4 className="text-sm font-bold text-neutral-900 mb-1">אין התראות חדשות</h4>
-          <p className="text-xs text-neutral-500">כל ההתראות שלך יופיעו כאן</p>
-        </div>
-      ) : (
-        <div className="space-y-2" dir="rtl">
-          {notifs.map(n => {
-            const actorName = (n.actor?.display_name ?? '').trim() || n.actor?.username || 'מישהו'
-            const unread = !n.read_at && !n.is_read
-            return (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => void goToNotification(n)}
-                className={`w-full text-right flex items-start gap-3 rounded-xl border p-3 transition-colors ${unread ? 'bg-neutral-50 border-neutral-300 hover:bg-neutral-100' : 'bg-white border-neutral-200 hover:bg-neutral-50'
-                  }`}
-              >
-                <Avatar src={n.actor?.avatar_url ?? null} name={actorName} size={34} />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-neutral-900 line-clamp-2">{notifText(n)}</div>
-                  <div className="mt-1 text-xs text-neutral-500">{formatDateTime(n.created_at)}</div>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (!mobileMenuOpen) return
+      const el = mobileRef.current
+      if (!el) return
+      if (e.target instanceof Node && !el.contains(e.target)) setMobileMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [mobileMenuOpen])
 
-  const MessagesList = (
-    <div className="overflow-y-auto max-h-[400px] p-3">
-      {threads.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center mb-3">
-            <MessageCircle size={20} className="text-neutral-400" />
-          </div>
-          <h4 className="text-sm font-bold text-neutral-900 mb-1">אין הודעות חדשות</h4>
-          <p className="text-xs text-neutral-500">כל ההודעות שלך יופיעו כאן</p>
-        </div>
-      ) : (
-        <div className="space-y-2" dir="rtl">
-          {threads.filter(t => Boolean(t.last_created_at || (t.last_body ?? '').trim())).map(t => {
-            const name = (t.other_display_name ?? '').trim() || t.other_username || 'משתמש'
-            const snippet = (t.last_body ?? '').trim()
-            return (
-              <Link
-                key={t.conversation_id}
-                href={`/inbox/${encodeURIComponent(t.conversation_id)}`}
-                onClick={closeAll}
-                className="block rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 p-3 transition-colors"
-              >
-                <div className="flex items-start gap-3">
-                  <Avatar src={t.other_avatar_url} name={name} size={34} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-bold text-neutral-900 truncate">{name}</div>
-                      {t.unread_count && t.unread_count > 0 ? (
-                        <div className="shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                          {t.unread_count}
-                        </div>
-                      ) : null}
-                    </div>
-                    {snippet ? <div className="mt-1 text-xs text-neutral-600 line-clamp-2">{snippet}</div> : null}
-                    {t.last_created_at ? (
-                      <div className="mt-1 text-[11px] text-neutral-500">{formatDateTime(t.last_created_at)}</div>
-                    ) : null}
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+  const isHome = pathname === '/'
 
   return (
-    <header className="w-full">
-      {/* TOP NAVBAR - STICKY */}
-      <nav className="sticky top-0 z-50 bg-neutral-200/95 backdrop-blur-md border-b border-neutral-300 shadow-sm">
-        <div className="bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200">
-          <div className="mx-auto max-w-6xl px-4">
-            <div className="flex h-14 items-center justify-between" dir="rtl">
-              {/* ימין: בית + פתקים (דסקטופ) | המבורגר + לוגו (מובייל) */}
-              <div className="flex items-center gap-4">
-                {/* המבורגר - רק במובייל */}
-                <button
-                  onClick={() => setMobileMenuOpen(v => !v)}
-                  className="lg:hidden p-2 hover:bg-neutral-300 rounded-lg transition-colors"
-                  aria-label="תפריט"
-                >
-                  {mobileMenuOpen ? (
-                    <X size={24} className="text-neutral-800" />
-                  ) : (
-                    <Menu size={24} className="text-neutral-800" />
-                  )}
-                </button>
+    <>
+      {/* header */}
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+        <nav className="max-w-6xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between">
+          {/* right (RTL) */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="sm:hidden p-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition"
+              onClick={() => setMobileMenuOpen(v => !v)}
+              aria-label="תפריט"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
 
-                {/* בית - רק בדסקטופ */}
-                <Link
-                  href="/"
-                  className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-900 transition-all duration-300 group"
-                  onClick={closeAll}
-                >
-                  <div className="relative">
-                    <Home size={17} strokeWidth={2.5} className="group-hover:scale-110 transition-transform duration-300" />
-                    <div className="absolute inset-0 bg-neutral-900 rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                  </div>
-                  <span className="group-hover:tracking-wider transition-all duration-300">בית</span>
-                </Link>
-
-                {/* לוגו מוקטן - רק במובייל */}
-                <Link href="/" className="lg:hidden flex items-center gap-2 group" onClick={closeAll}>
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-neutral-800 via-neutral-700 to-neutral-600 flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:scale-110 transition-all duration-300">
-                    <Sparkles size={17} strokeWidth={2.5} className="text-white group-hover:rotate-12 transition-transform" />
-                  </div>
-                  <div>
-                    <div className="text-xl font-extrabold text-neutral-900">PenDemic</div>
-                    <div className="text-[9px] text-neutral-600 font-semibold">מקום לכתיבה ולפריקה</div>
-                  </div>
-                </Link>
-
-                {/* פתקים - רק בדסקטופ */}
-                {user ? (
-                  <Link
-                    href="/notes"
-                    className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-900 transition-all duration-300 group"
-                    onClick={closeAll}
-                    title="פתקים מהקהילה"
-                  >
-                    <div className="relative">
-                      <BookOpen size={17} strokeWidth={2.5} className="group-hover:scale-110 transition-transform duration-300" />
-                      <div className="absolute inset-0 bg-neutral-900 rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
-                    </div>
-                    <span className="group-hover:tracking-wider transition-all duration-300">פתקים</span>
-                  </Link>
-                ) : null}
-              </div>
-
-              {/* שמאל: כתוב + התראות + הודעות + פרופיל */}
-              <div className="flex items-center gap-2">
-                {/* כתוב - רק בדסקטופ */}
-                <div className="hidden lg:block relative" ref={writeRef}>
-                  <button
-                    onClick={() => {
-                      setWriteOpen(v => !v)
-                      setProfileOpen(false)
-                      setNotificationsOpen(false)
-                      setMessagesOpen(false)
-                    }}
-                    className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-neutral-800 to-neutral-700 text-white hover:from-neutral-900 hover:to-neutral-800 px-3 py-2 text-sm font-semibold shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200"
-                  >
-                    <Edit size={16} strokeWidth={2.5} />
-                    <span>כתוב</span>
-                    <ChevronDown
-                      size={14}
-                      strokeWidth={2.5}
-                      className={`transition-transform duration-200 ${writeOpen ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-
-                  {writeOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-72 rounded-xl bg-white shadow-xl border border-neutral-200 p-3 space-y-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                      <button
-                        onClick={() => {
-                          closeAll()
-                          requireAuthOrGoWrite('prika')
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-stone-50 border border-transparent hover:border-stone-200 text-sm text-right transition-all"
-                      >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-stone-400 to-stone-500 flex items-center justify-center shadow-sm">
-                          <PenTool size={16} strokeWidth={2.5} className="text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-neutral-900">וידוי/שיר</div>
-                          <div className="text-xs text-neutral-600">שתף את מחשבותיך</div>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => {
-                          closeAll()
-                          requireAuthOrGoWrite('stories')
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-sm text-right transition-all"
-                      >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center shadow-sm">
-                          <FileText size={16} strokeWidth={2.5} className="text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-neutral-900">סיפור</div>
-                          <div className="text-xs text-neutral-600">ספר סיפור מרתק</div>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => {
-                          closeAll()
-                          requireAuthOrGoWrite('magazine')
-                        }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-50 border border-transparent hover:border-zinc-200 text-sm text-right transition-all"
-                      >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-zinc-400 to-zinc-500 flex items-center justify-center shadow-sm">
-                          <Newspaper size={16} strokeWidth={2.5} className="text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-bold text-neutral-900">כתבה</div>
-                          <div className="text-xs text-neutral-600">כתוב כתבה מעניינת</div>
-                        </div>
-                      </button>
-                      <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent my-2" />
-                      <button
-                        onClick={() => {
-                          closeAll()
-                          requireAuthOrGo('/notebook')
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg hover:bg-neutral-50 border border-transparent hover:border-neutral-200 text-sm font-bold text-right transition-all"
-                      >
-                        <NotebookPen size={17} strokeWidth={2.5} className="text-neutral-600" />
-                        <span>המחברת שלי 📓</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {user && (
-                  <>
-                    {/* התראות */}
-                    <NotificationsBell />
-
-                    {/* הודעות */}
-                    <div className="relative" ref={messagesRef}>
-                      <button
-                        onClick={() => {
-                          // במובייל: לוקח ל-/inbox (דרישה)
-                          if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) {
-                            closeAll()
-                            router.push('/inbox')
-                            return
-                          }
-                          setMessagesOpen(v => !v)
-                          if (!messagesOpen) void loadThreads()
-                          setNotificationsOpen(false)
-                          setWriteOpen(false)
-                          setProfileOpen(false)
-                          setMobileMenuOpen(false)
-                        }}
-                        className="relative p-2 rounded-lg hover:bg-neutral-300 transition-all duration-200"
-                        title="הודעות"
-                        aria-label="הודעות"
-                      >
-                        <MessageCircle size={20} strokeWidth={2.5} className="text-neutral-700" />
-                        {msgUnread > 0 ? (
-                          <span className="absolute top-0 right-0 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                            {msgUnread > 99 ? '99+' : msgUnread}
-                          </span>
-                        ) : null}
-                      </button>
-
-                      {/* Desktop Dropdown */}
-                      {messagesOpen && (
-                        <div
-                          className="hidden lg:block absolute top-full left-0 mt-2 w-96 max-h-[500px] rounded-xl bg-white shadow-xl border border-neutral-200 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200"
-                          dir="rtl"
-                        >
-                          <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 border-b border-neutral-200 px-4 py-3 flex items-center justify-between">
-                            <h3 className="text-sm font-bold text-neutral-900">הודעות</h3>
-                            <Link
-                              href="/inbox"
-                              onClick={closeAll}
-                              className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 px-2 py-1 rounded-lg transition-colors"
-                            >
-                              ראה הכל
-                            </Link>
-                          </div>
-                          {MessagesList}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* פרופיל או התחברות - רק בדסקטופ */}
-                {user ? (
-                  <div className="hidden lg:block relative" ref={profileRef}>
-                    <button
-                      onClick={() => {
-                        setProfileOpen(v => !v)
-                        setWriteOpen(false)
-                        setNotificationsOpen(false)
-                        setMessagesOpen(false)
-                      }}
-                      className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 px-2 py-1.5 transition-all"
-                    >
-                      <Avatar src={user.avatarUrl} name={user.displayName} size={26} />
-                      <span className="text-sm font-semibold">{user.displayName}</span>
-                      <ChevronDown
-                        size={15}
-                        strokeWidth={2.5}
-                        className={`text-neutral-600 transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`}
-                      />
-                    </button>
-
-                    {profileOpen && (
-                      <div className="absolute top-full right-0 mt-2 w-56 rounded-xl bg-white shadow-xl border border-neutral-200 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <Link
-                          href={`/u/${user.username}`}
-                          onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-sm transition-all"
-                        >
-                          <User size={18} className="text-neutral-600" />
-                          <span>פרופיל</span>
-                        </Link>
-                        <Link
-                          href="/settings/profile"
-                          onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 border border-transparent hover:border-stone-200 text-sm transition-all"
-                        >
-                          <Settings size={18} className="text-neutral-600" />
-                          <span>עריכת פרופיל</span>
-                        </Link>
-                        <Link
-                          href="/trash"
-                          onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-50 border border-transparent hover:border-zinc-200 text-sm transition-all"
-                        >
-                          <Trash2 size={18} className="text-neutral-600" />
-                          <span>פוסטים שנמחקו</span>
-                        </Link>
-                        <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent my-2" />
-                        <button
-                          onClick={handleSignOut}
-                          className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200 text-sm text-right text-red-600 transition-all"
-                        >
-                          <LogOut size={18} className="text-red-500" />
-                          <span>יציאה</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="hidden lg:flex items-center gap-2">
-                    <Link
-                      href="/auth/login"
-                      onClick={closeAll}
-                      className="rounded-full border border-neutral-300 bg-white hover:bg-neutral-50 px-4 py-1.5 text-sm font-semibold transition-all"
-                    >
-                      התחבר
-                    </Link>
-                    <Link
-                      href="/auth/signup"
-                      onClick={closeAll}
-                      className="rounded-full bg-black hover:opacity-90 px-4 py-1.5 text-sm font-semibold text-white transition-all"
-                    >
-                      הירשם
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
+            <Link href="/" className="font-extrabold text-lg tracking-tight">
+              PenDemic
+            </Link>
           </div>
-        </div>
-      </nav>
 
-      {/* שורה 2: BRAND + CHANNELS + SEARCH - Desktop Only */}
-      <div className="bg-gradient-to-b from-neutral-50 to-white hidden lg:block border-b border-neutral-200">
-        <div className="mx-auto max-w-6xl px-4">
-          <div className="grid items-center gap-4 py-5" dir="rtl" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
-            {/* Right: brand */}
-            <div className="min-w-0">
-              <Link href="/" className="flex items-center gap-2 group" onClick={closeAll}>
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-neutral-800 via-neutral-700 to-neutral-600 flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-neutral-400/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
-                  <Sparkles size={18} strokeWidth={2.5} className="text-white group-hover:rotate-12 transition-transform duration-300" />
-                </div>
-                <div>
-                  <div className="text-xl font-extrabold text-neutral-900 group-hover:text-neutral-700 transition-colors duration-300">
-                    PenDemic
-                  </div>
-                  <div className="text-[10px] text-neutral-600 font-semibold group-hover:text-neutral-800 transition-colors duration-300">
-                    מקום לכתיבה ולפריקה
-                  </div>
-                </div>
+          {/* center */}
+          <div className="hidden sm:flex items-center gap-3">
+            <Link
+              href="/"
+              className={`text-sm ${isHome ? 'font-semibold' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              בית
+            </Link>
+          </div>
+
+          {/* left actions */}
+          <div className="flex items-center gap-1">
+            <NotificationsBell />
+
+            <button
+              type="button"
+              onClick={() => router.push('/write')}
+              className="p-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition"
+              aria-label="כתיבה"
+            >
+              <PenLine className="w-6 h-6" />
+            </button>
+
+            <Link
+              href={user?.username ? `/u/${user.username}` : '/login'}
+              className="p-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition"
+              aria-label="פרופיל"
+            >
+              {user?.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <UserIcon className="w-6 h-6" />
+              )}
+            </Link>
+          </div>
+        </nav>
+      </header>
+
+      {/* mobile menu */}
+      {mobileMenuOpen ? (
+        <div className="sm:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            ref={mobileRef}
+            className="absolute top-14 right-0 left-0 bg-white border-t border-gray-200 shadow-lg p-4"
+          >
+            <div className="flex items-center justify-between">
+              <div className="font-semibold">תפריט</div>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                סגור
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <Link href="/" onClick={() => setMobileMenuOpen(false)} className="block py-2">
+                בית
+              </Link>
+              <Link href="/write" onClick={() => setMobileMenuOpen(false)} className="block py-2">
+                כתיבה
+              </Link>
+              <Link
+                href={user?.username ? `/u/${user.username}` : '/login'}
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2"
+              >
+                פרופיל
               </Link>
             </div>
-
-            {/* Center: channels */}
-            <div className="justify-self-center">
-              <ChannelsInline onNavigate={closeAll} />
-            </div>
-
-            {/* Left: search */}
-            <div className="flex justify-self-end">
-              <SearchPostsBar />
-            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
-      {/* Mobile Notifications Panel - Full Screen */}
-      {user && notificationsOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-50 bg-black/20 backdrop-blur-sm animate-in fade-in duration-200"
-        >
-          <div
-            className="absolute left-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl animate-in slide-in-from-left duration-300"
-            onClick={e => e.stopPropagation()}
-            dir="rtl"
-          >
-            <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 border-b border-neutral-200 px-4 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-neutral-900">התראות</h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => void clearAllNotifications()}
-                  className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  נקה הכל
-                </button>
-                <button
-                  onClick={() => setNotificationsOpen(false)}
-                  className="p-2 hover:bg-neutral-200 rounded-lg transition-colors"
-                  aria-label="סגור"
-                >
-                  <X size={20} className="text-neutral-700" />
-                </button>
-              </div>
-            </div>
-            <div className="overflow-y-auto h-[calc(100vh-73px)] p-4">{NotificationsList}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Menu Dropdown - Full Screen */}
-      {mobileMenuOpen && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-in fade-in duration-200" onClick={closeAll} />
-
-          <div
-            ref={mobileMenuRef}
-            className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-50 bg-white shadow-lg overflow-y-auto animate-in slide-in-from-top duration-300"
-            dir="rtl"
-          >
-            <div className="mx-auto max-w-6xl px-4 py-4 space-y-4">
-              {/* חיפוש במובייל */}
-              <div className="relative">
-                <Search size={18} strokeWidth={2.5} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-                <input
-                  type="search"
-                  placeholder="חפש פוסטים..."
-                  className="w-full rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 pr-10 pl-4 py-2.5 text-sm font-semibold outline-none focus:border-neutral-400 focus:bg-white focus:ring-4 focus:ring-neutral-100 transition-all duration-300"
-                />
-              </div>
-
-              {/* ניווט ראשי */}
-              <div className="space-y-2">
-                <Link
-                  href="/"
-                  onClick={closeAll}
-                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-semibold"
-                >
-                  <Home size={18} />
-                  <span>בית</span>
-                </Link>
-                {user && (
-                  <Link
-                    href="/notes"
-                    onClick={closeAll}
-                    className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-semibold"
-                  >
-                    <BookOpen size={18} />
-                    <span>פתקים</span>
-                  </Link>
-                )}
-                {user && (
-                  <Link
-                    href="/inbox"
-                    onClick={closeAll}
-                    className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-semibold"
-                  >
-                    <MessageCircle size={18} />
-                    <span>הודעות</span>
-                    {msgUnread > 0 ? (
-                      <span className="mr-auto rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                        {msgUnread > 99 ? '99+' : msgUnread}
-                      </span>
-                    ) : null}
-                  </Link>
-                )}
-              </div>
-
-              {/* ערוצים */}
-              <div className="border-t pt-4">
-                <div className="text-xs font-bold text-neutral-600 px-4 mb-2">ערוצים</div>
-                <ChannelsInline onNavigate={closeAll} mobile={true} />
-              </div>
-
-              {/* כתיבה (accordion) */}
-              <div className="border-t pt-4">
-                <button
-                  onClick={() => setMobileWriteOpen(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-bold"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Edit size={18} />
-                    כתיבה
-                  </span>
-                  <ChevronDown size={18} className={`transition-transform ${mobileWriteOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {mobileWriteOpen && (
-                  <div className="px-2 pt-2 space-y-2">
-                    <button
-                      onClick={() => {
-                        closeAll()
-                        requireAuthOrGoWrite('prika')
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-stone-50 border border-transparent hover:border-stone-200 text-sm text-right transition-all"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-stone-400 to-stone-500 flex items-center justify-center">
-                        <PenTool size={15} strokeWidth={2.5} className="text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-neutral-900 text-sm">וידוי/שיר</div>
-                        <div className="text-xs text-neutral-600">שתף את מחשבותיך</div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => {
-                        closeAll()
-                        requireAuthOrGoWrite('stories')
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-sm text-right transition-all"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center">
-                        <FileText size={15} strokeWidth={2.5} className="text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-neutral-900 text-sm">סיפור</div>
-                        <div className="text-xs text-neutral-600">ספר סיפור מרתק</div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => {
-                        closeAll()
-                        requireAuthOrGoWrite('magazine')
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-50 border border-transparent hover:border-zinc-200 text-sm text-right transition-all"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-zinc-400 to-zinc-500 flex items-center justify-center">
-                        <Newspaper size={15} strokeWidth={2.5} className="text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold text-neutral-900 text-sm">כתבה</div>
-                        <div className="text-xs text-neutral-600">כתוב כתבה מעניינת</div>
-                      </div>
-                    </button>
-                    <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent my-2" />
-                    <button
-                      onClick={() => {
-                        closeAll()
-                        requireAuthOrGo('/notebook')
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-neutral-50 border border-transparent hover:border-neutral-200 text-sm font-bold text-right transition-all"
-                    >
-                      <NotebookPen size={16} strokeWidth={2.5} className="text-neutral-600" />
-                      <span>המחברת שלי 📓</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* משתמש (accordion) */}
-              {user ? (
-                <div className="border-t pt-4">
-                  <button
-                    onClick={() => setMobileProfileOpen(v => !v)}
-                    className="w-full flex items-center justify-between px-4 py-2 rounded-lg hover:bg-neutral-50"
-                  >
-                    <span className="inline-flex items-center gap-3">
-                      <Avatar src={user.avatarUrl} name={user.displayName} size={32} />
-                      <span className="text-sm font-semibold">{user.displayName}</span>
-                    </span>
-                    <ChevronDown size={18} className={`transition-transform ${mobileProfileOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {mobileProfileOpen && (
-                    <div className="px-2 pt-2 space-y-2">
-                      <Link
-                        href={`/u/${user.username}`}
-                        onClick={closeAll}
-                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-sm transition-all"
-                      >
-                        <User size={18} className="text-neutral-600" />
-                        <span>פרופיל</span>
-                      </Link>
-                      <Link
-                        href="/settings/profile"
-                        onClick={closeAll}
-                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 border border-transparent hover:border-stone-200 text-sm transition-all"
-                      >
-                        <Settings size={18} className="text-neutral-600" />
-                        <span>עריכת פרופיל</span>
-                      </Link>
-                      <Link
-                        href="/trash"
-                        onClick={closeAll}
-                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-50 border border-transparent hover:border-zinc-200 text-sm transition-all"
-                      >
-                        <Trash2 size={18} className="text-neutral-600" />
-                        <span>פוסטים שנמחקו</span>
-                      </Link>
-                      <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent my-2" />
-                      <button
-                        onClick={handleSignOut}
-                        className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200 text-sm text-right text-red-600 transition-all"
-                      >
-                        <LogOut size={18} className="text-red-500" />
-                        <span>יציאה</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="border-t pt-4 space-y-2">
-                  <Link
-                    href="/auth/login"
-                    onClick={closeAll}
-                    className="w-full flex items-center justify-center gap-2 rounded-full border bg-white px-4 py-3 text-sm font-semibold hover:bg-neutral-50"
-                  >
-                    התחבר
-                  </Link>
-                  <Link
-                    href="/auth/signup"
-                    onClick={closeAll}
-                    className="w-full flex items-center justify-center gap-2 rounded-full bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
-                  >
-                    הירשם
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </header>
+      {/* sticky sidebar if exists in your layout */}
+      <StickySidebar />
+    </>
   )
 }
