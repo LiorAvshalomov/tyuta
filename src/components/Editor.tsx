@@ -290,7 +290,13 @@ export default function Editor({ value, onChange, postId, userId }: Props) {
       const safeExt = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext) ? ext : 'jpg'
 
       // ⚠️ כאן חשוב: ב-bucket name הוא post-assets, ו-name הוא הנתיב בתוך הבקט
-      const path = `${uid}/${postId}/${crypto.randomUUID()}.${safeExt}`
+      const uuid =
+        typeof globalThis !== 'undefined' &&
+        'crypto' in globalThis &&
+        (globalThis.crypto as Crypto | undefined)?.randomUUID
+          ? (globalThis.crypto as Crypto).randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+      const path = `${uid}/${postId}/${uuid}.${safeExt}`
 
       const { error } = await supabase.storage.from('post-assets').upload(path, file, {
         upsert: false,

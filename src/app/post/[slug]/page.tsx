@@ -229,15 +229,29 @@ export default function PostPage() {
     if (!hash || !hash.startsWith('#comment-')) return
 
     const id = hash.slice(1)
-    // Wait a tick so comments finish rendering.
-    const t = window.setTimeout(() => {
+
+    // Comments may render after data fetch; retry a few times until the element exists.
+    let attempts = 0
+    let cancelled = false
+
+    const tryScroll = () => {
+      if (cancelled) return
       const el = document.getElementById(id)
       if (el) {
         el.scrollIntoView({ block: 'start', behavior: 'smooth' })
+        return
       }
-    }, 120)
+      attempts += 1
+      if (attempts < 20) {
+        window.setTimeout(tryScroll, 120)
+      }
+    }
 
-    return () => window.clearTimeout(t)
+    window.setTimeout(tryScroll, 120)
+
+    return () => {
+      cancelled = true
+    }
   }, [loading, post])
 
   useEffect(() => {

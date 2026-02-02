@@ -132,6 +132,9 @@ export default function WritePage() {
   const [contentJson, setContentJson] = useState<JSONContent>(EMPTY_DOC)
 
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
+  // Draft cover uploads live in the private bucket `post-assets`.
+  // In that case we persist the *storage path* in DB, and only generate Signed URLs for preview.
+  const [coverStoragePath, setCoverStoragePath] = useState<string | null>(null)
   const [coverSource, setCoverSource] = useState<string | null>(null)
   const [autoCoverUsed, setAutoCoverUsed] = useState(false)
 
@@ -152,13 +155,14 @@ export default function WritePage() {
       title,
       excerpt,
       contentJson,
-      coverUrl,
+      // Use the DB value, not a preview Signed URL.
+      coverUrl: coverStoragePath ?? coverUrl,
       coverSource,
       channelId,
       subcategoryTagId,
       selectedTagIds,
     })
-  }, [title, excerpt, contentJson, coverUrl, coverSource, channelId, subcategoryTagId, selectedTagIds])
+  }, [title, excerpt, contentJson, coverUrl, coverStoragePath, coverSource, channelId, subcategoryTagId, selectedTagIds])
 
   const isDirty = useMemo(() => {
     if (!isEditMode) return false
@@ -202,6 +206,7 @@ export default function WritePage() {
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasLoadedDraftOnce = useRef(false)
+  const hasEnsuredDraftOnce = useRef(false)
 
   // --- Auth guard
   useEffect(() => {
@@ -386,12 +391,23 @@ export default function WritePage() {
       setLoadedStatus(d.status)
 
       setDraftSlug(d.slug)
-      setTitle((d.title ?? '').toString())
+      // Keep placeholder visible when DB stores a "safe" title like a single space.
+      const loadedTitle = (d.title ?? '').toString()
+      setTitle(loadedTitle.trim() ? loadedTitle : '')
       setExcerpt((d.excerpt ?? '').toString())
       setContentJson((d.content_json as JSONContent) ?? EMPTY_DOC)
       setChannelId(d.channel_id)
       setSubcategoryTagId(d.subcategory_tag_id)
-      setCoverUrl(d.cover_image_url)
+      // Draft covers might store a storage path (private bucket). For preview we must turn it into a signed URL.
+      if (d.status === 'draft' && d.cover_image_url && !String(d.cover_image_url).startsWith('http')) {
+        const path = String(d.cover_image_url)
+        setCoverStoragePath(path)
+        const { data: signed } = await supabase.storage.from('post-assets').createSignedUrl(path, 60 * 60)
+        setCoverUrl(signed?.signedUrl ?? null)
+      } else {
+        setCoverStoragePath(null)
+        setCoverUrl(d.cover_image_url)
+      }
       setCoverSource(d.cover_source)
       setLastSavedAt(d.updated_at)
       setAutoCoverUsed(d.cover_source === 'pixabay')
@@ -405,7 +421,8 @@ export default function WritePage() {
           title: (d.title ?? '').toString(),
           excerpt: (d.excerpt ?? '').toString(),
           contentJson: ((d.content_json as JSONContent) ?? EMPTY_DOC) as JSONContent,
-          coverUrl: d.cover_image_url,
+          // Snapshot compares what we store in DB; drafts store path, published stores public URL.
+          coverUrl: d.status === 'draft' ? d.cover_image_url : d.cover_image_url,
           coverSource: d.cover_source,
           channelId: d.channel_id,
           subcategoryTagId: d.subcategory_tag_id,
@@ -425,15 +442,55 @@ export default function WritePage() {
     if (isEditMode) return null
     if (effectivePostId && draftSlug) return { id: effectivePostId, slug: draftSlug }
 
-    const slug = crypto.randomUUID()
+
+    // ✅ channel_id is NOT NULL — make sure we always have one before insert
+let effectiveChannelId = channelId
+
+if (!effectiveChannelId) {
+  // try from loaded channels state
+  const first = channels?.[0]?.id ?? null
+  effectiveChannelId = first
+
+  // if still null, fetch once from DB (covers first load race)
+  if (!effectiveChannelId) {
+    const { data: ch } = await supabase
+      .from('channels')
+      .select('id')
+      .order('sort_order')
+      .limit(1)
+
+    effectiveChannelId = ch?.[0]?.id ?? null
+  }
+
+  if (!effectiveChannelId) {
+    setErrorMsg('לא נמצאו ערוצים (channels). חייב להיות לפחות ערוץ אחד כדי ליצור טיוטה.')
+    return null
+  }
+
+  // sync state so next saves use it
+  setChannelId(effectiveChannelId)
+}
+
+    // crypto.randomUUID is not available in all environments (and can be missing on non-HTTPS origins).
+    // Use a safe fallback.
+    const slug =
+      typeof globalThis !== 'undefined' &&
+      'crypto' in globalThis &&
+      (globalThis.crypto as Crypto | undefined)?.randomUUID
+        ? (globalThis.crypto as Crypto).randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    // posts.title is NOT NULL. We allow an "empty" UI title while keeping DB valid by storing a single space.
+    // On publish we still enforce a real title.
+    const dbTitle = title.trim() ? title.trim() : ' '
+
     const { data: created, error } = await supabase
       .from('posts')
       .insert({
         slug,
-        title: title.trim() || null,
+        title: dbTitle,
         excerpt: excerpt.trim() || null,
         content_json: contentJson,
-        channel_id: channelId,
+        channel_id: effectiveChannelId,
         subcategory_tag_id: subcategoryTagId,
         author_id: userId,
         status: 'draft',
@@ -452,7 +509,17 @@ export default function WritePage() {
     setDraftSlug(created.slug)
     router.replace(`/write?draft=${created.id}`)
     return { id: created.id, slug: created.slug }
-  }, [userId, isEditMode, effectivePostId, draftSlug, title, excerpt, contentJson, channelId, subcategoryTagId, coverUrl, coverSource, router])
+  }, [userId, isEditMode, effectivePostId, draftSlug, title, excerpt, contentJson, channelId, channels, subcategoryTagId, coverUrl, coverSource, router])
+
+  // Create a draft early so media uploads (image/youtube) won't be blocked by "wait for first save".
+  useEffect(() => {
+    if (!userId) return
+    if (isEditMode) return
+    if (effectivePostId) return
+    if (hasEnsuredDraftOnce.current) return
+    hasEnsuredDraftOnce.current = true
+    void ensureDraft()
+  }, [userId, isEditMode, effectivePostId, ensureDraft])
 
   const syncTags = useCallback(
     async (postId: string) => {
@@ -478,11 +545,13 @@ export default function WritePage() {
       if (isEditMode) {
         if (!effectivePostId) return
 
+        const coverDbValue = coverStoragePath ?? coverUrl
+
         const payload: Record<string, unknown> = {
-          title: title.trim() || null,
+          title: title.trim() ? title.trim() : ' ',
           excerpt: excerpt.trim() || null,
           content_json: contentJson,
-          cover_image_url: coverUrl,
+          cover_image_url: coverDbValue,
           cover_source: coverSource,
         }
 
@@ -506,15 +575,16 @@ export default function WritePage() {
       if (!existing) return
 
       const { id } = existing
+      const coverDbValue = coverStoragePath ?? coverUrl
       const { error } = await supabase
         .from('posts')
         .update({
-          title: title.trim() || null,
+          title: title.trim() ? title.trim() : ' ',
           excerpt: excerpt.trim() || null,
           content_json: contentJson,
           channel_id: channelId,
           subcategory_tag_id: subcategoryTagId,
-          cover_image_url: coverUrl,
+          cover_image_url: coverDbValue,
           cover_source: coverSource,
           status: 'draft',
         })
@@ -542,6 +612,7 @@ export default function WritePage() {
     channelId,
     subcategoryTagId,
     coverUrl,
+    coverStoragePath,
     coverSource,
     syncTags,
     isEditMode,
@@ -650,7 +721,13 @@ export default function WritePage() {
     if (!postId) return
 
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-    const path = `${userId}/${postId}/cover-${crypto.randomUUID()}.${ext}`
+    const uuid =
+      typeof globalThis !== 'undefined' &&
+      'crypto' in globalThis &&
+      (globalThis.crypto as Crypto | undefined)?.randomUUID
+        ? (globalThis.crypto as Crypto).randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const path = `${userId}/${postId}/cover-${uuid}.${ext}`
 
     const { error: uploadErr } = await supabase.storage.from('post-assets').upload(path, file, {
       upsert: false,
@@ -662,9 +739,11 @@ export default function WritePage() {
       return
     }
 
-    const { data } = supabase.storage.from('post-assets').getPublicUrl(path)
-    const url = data.publicUrl
-    setCoverUrl(url)
+    const { data: signed } = await supabase.storage
+  .from('post-assets')
+  .createSignedUrl(path, 60 * 60)
+    setCoverStoragePath(path)
+    setCoverUrl(signed?.signedUrl ?? null)
     setCoverSource('upload')
     setAutoCoverUsed(false)
   }
@@ -696,12 +775,14 @@ export default function WritePage() {
       return
     }
 
+    setCoverStoragePath(null)
     setCoverUrl(json.url)
-setCoverSource('pixabay')
-setAutoCoverUsed(true)
+    setCoverSource('pixabay')
+    setAutoCoverUsed(true)
   }
 
   const removeCover = async () => {
+    setCoverStoragePath(null)
     setCoverUrl(null)
     setCoverSource(null)
     setAutoCoverUsed(false)
@@ -720,37 +801,78 @@ setAutoCoverUsed(true)
   const publish = async () => {
     if (!userId) return
 
+    const promoteCoverIfNeeded = async (opts: { postId: string; postSlug: string }) => {
+      // Only for uploaded covers that currently live in private post-assets.
+      if (coverSource !== 'upload' || !coverStoragePath) return { publicUrl: coverUrl, source: coverSource }
+
+      // Download from private bucket (requires auth) and re-upload into public bucket.
+      const download = await supabase.storage.from('post-assets').download(coverStoragePath)
+      if (download.error || !download.data) {
+        throw new Error(download.error?.message ?? 'לא הצלחתי להוריד את הקאבר מהטיוטה')
+      }
+
+      const ext = (coverStoragePath.split('.').pop() || 'jpg').toLowerCase()
+      const publicPath = `${opts.postId}/cover.${ext}`
+
+      const upload = await supabase.storage.from('post-covers').upload(publicPath, download.data, {
+        upsert: true,
+        contentType: (download.data as any)?.type || undefined,
+      })
+      if (upload.error) {
+        throw new Error(upload.error.message ?? 'לא הצלחתי להעביר את הקאבר')
+      }
+
+      // Best-effort cleanup of the private file (ignore errors).
+      void supabase.storage.from('post-assets').remove([coverStoragePath])
+
+      const { data: pub } = supabase.storage.from('post-covers').getPublicUrl(publicPath)
+      return { publicUrl: pub.publicUrl ?? null, source: 'upload' as const }
+    }
+
     // ✅ In edit-mode for already published posts, "publish" is actually "save changes".
     if (settingsLocked && effectivePostId) {
       setSaving(true)
       setErrorMsg(null)
 
-      const { error } = await supabase
-        .from('posts')
-        .update({
-          title: title.trim() || null,
-          excerpt: excerpt.trim() || null,
-          content_json: contentJson,
-          cover_image_url: coverUrl,
-          cover_source: coverSource,
-        })
-        .eq('id', effectivePostId)
-        .eq('author_id', userId)
+      try {
+        const promoted = await promoteCoverIfNeeded({ postId: effectivePostId, postSlug: draftSlug ?? '' })
+        if (promoted.publicUrl && promoted.publicUrl !== coverUrl) {
+          setCoverUrl(promoted.publicUrl)
+          setCoverStoragePath(null)
+          setCoverSource(promoted.source)
+        }
 
-      if (error) {
-        setErrorMsg(error.message)
+        const { error } = await supabase
+          .from('posts')
+          .update({
+            title: title.trim() ? title.trim() : ' ',
+            excerpt: excerpt.trim() || null,
+            content_json: contentJson,
+            cover_image_url: promoted.publicUrl,
+            cover_source: promoted.source,
+          })
+          .eq('id', effectivePostId)
+          .eq('author_id', userId)
+
+        if (error) {
+          setErrorMsg(error.message)
+          setSaving(false)
+          return
+        }
+
+        setInitialSnapshot(currentSnapshot)
+        setLastSavedAt(new Date().toISOString())
+
+        setSaving(false)
+        if (safeReturnParam) return router.push(safeReturnParam)
+        if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') return router.push(`/post/${draftSlug}`)
+        router.push('/notebook')
+        return
+      } catch (e: any) {
+        setErrorMsg(e?.message ?? 'שגיאה בשמירת שינויים')
         setSaving(false)
         return
       }
-
-      setInitialSnapshot(currentSnapshot)
-      setLastSavedAt(new Date().toISOString())
-
-      setSaving(false)
-      if (safeReturnParam) return router.push(safeReturnParam)
-      if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') return router.push(`/post/${draftSlug}`)
-      router.push('/notebook')
-      return
     }
 
     if (!title.trim()) return alert('כותרת היא חובה')
@@ -783,8 +905,25 @@ setAutoCoverUsed(true)
       finalCoverUrl = autoUrl
       finalCoverSource = 'pixabay'
       setCoverUrl(autoUrl)
+      setCoverStoragePath(null)
       setCoverSource('pixabay')
       setAutoCoverUsed(true)
+    }
+
+    // If the cover is an uploaded private asset, promote it to the public bucket before publishing.
+    try {
+      const promoted = await promoteCoverIfNeeded({ postId: created.id, postSlug: created.slug })
+      finalCoverUrl = promoted.publicUrl
+      finalCoverSource = promoted.source
+      if (promoted.publicUrl && promoted.publicUrl !== coverUrl) {
+        setCoverUrl(promoted.publicUrl)
+        setCoverStoragePath(null)
+        setCoverSource(promoted.source)
+      }
+    } catch (e: any) {
+      setErrorMsg(e?.message ?? 'שגיאה בהעברת קאבר')
+      setSaving(false)
+      return
     }
 
     const { error } = await supabase
@@ -919,7 +1058,7 @@ setAutoCoverUsed(true)
               <input
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                placeholder="תן שם לטקסט…"
+                placeholder="תן שם לכותרת..."
                 className="mt-2 w-full rounded-2xl border px-4 py-3 text-base outline-none focus:ring-2 focus:ring-black/10"
               />
 
@@ -1029,7 +1168,7 @@ setAutoCoverUsed(true)
               {autosaveEnabled ? 'הטקסט נשמר אוטומטית' : 'השינויים לא נשמרים עד שלוחצים שמור'}
             </div>
           </div>
-          <Editor value={contentJson} onChange={setContentJson} />
+          <Editor value={contentJson} onChange={setContentJson} postId={effectivePostId} userId={userId} />
         </section>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">

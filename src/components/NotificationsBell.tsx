@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { createPortal } from "react-dom"
-import { Bell } from "lucide-react"
+import { Bell, X } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 import Avatar from "@/components/Avatar"
+import { createPortal } from "react-dom"
 
 type ProfileLite = {
   id: string
@@ -70,6 +71,53 @@ function str(v: unknown): string | null {
   return typeof v === "string" ? v : null
 }
 
+function getNestedRecord(payload: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  const v = payload[key]
+  return isRecord(v) ? v : null
+}
+
+function commentIdFromPayloadDeep(payload: Record<string, unknown>): string | null {
+  // No guessing: only read known fields in common shapes (flat or nested).
+  const direct = str(payload.comment_id) || str(payload.commentId) || str(payload.entity_id)
+  if (direct) return direct
+
+  const p1 = getNestedRecord(payload, 'payload')
+  if (p1) {
+    const nested = str(p1.comment_id) || str(p1.commentId)
+    if (nested) return nested
+  }
+
+  const comment = getNestedRecord(payload, 'comment')
+  if (comment) {
+    const cid = str(comment.id) || str(comment.comment_id)
+    if (cid) return cid
+
+    const c2 = getNestedRecord(comment, 'comment')
+    if (c2) {
+      const cid2 = str(c2.id) || str(c2.comment_id)
+      if (cid2) return cid2
+    }
+  }
+
+  return null
+}
+
+function postIdFromPayloadDeep(payload: Record<string, unknown>): string | null {
+  const direct = str(payload.post_id)
+  if (direct) return direct
+  const p1 = getNestedRecord(payload, 'payload')
+  if (p1) {
+    const nested = str(p1.post_id)
+    if (nested) return nested
+  }
+  const post = getNestedRecord(payload, 'post')
+  if (post) {
+    const pid = str(post.id) || str(post.post_id)
+    if (pid) return pid
+  }
+  return null
+}
+
 function titleFromPayload(payload: Record<string, unknown>): string | null {
   const direct = str(payload.post_title) || str(payload.title)
   if (direct) return direct
@@ -87,7 +135,19 @@ function reasonFromPayload(payload: Record<string, unknown>): string | null {
 }
 
 function postSlugFromPayload(payload: Record<string, unknown>): string | null {
-  return str(payload.post_slug) || str(payload.slug) || null
+  const direct = str(payload.post_slug) || str(payload.slug)
+  if (direct) return direct
+  const p1 = getNestedRecord(payload, 'payload')
+  if (p1) {
+    const nested = str(p1.post_slug) || str(p1.slug)
+    if (nested) return nested
+  }
+  const post = getNestedRecord(payload, 'post')
+  if (post) {
+    const nested = str(post.slug) || str(post.post_slug)
+    if (nested) return nested
+  }
+  return null
 }
 
 function commentTextFromPayload(payload: Record<string, unknown>): string | null {
@@ -99,6 +159,23 @@ function commentTextFromPayload(payload: Record<string, unknown>): string | null
     str(payload.text) ||
     null
   )
+}
+
+function deepGet(payload: Record<string, unknown>, path: string[]): unknown {
+  let cur: unknown = payload
+  for (const k of path) {
+    if (!isRecord(cur)) return null
+    cur = cur[k]
+  }
+  return cur
+}
+
+function commentIdFromPayload(payload: Record<string, unknown>): string | null {
+  return commentIdFromPayloadDeep(payload)
+}
+
+function postIdFromPayload(payload: Record<string, unknown>): string | null {
+  return postIdFromPayloadDeep(payload)
 }
 
 function isReplyToComment(payload: Record<string, unknown>): boolean {
@@ -210,20 +287,7 @@ export default function NotificationsBell() {
   const [unread, setUnread] = useState(0)
   const [groups, setGroups] = useState<NotifGroup[]>([])
   const wrapRef = useRef<HTMLDivElement | null>(null)
-  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return window.matchMedia('(min-width: 1024px)').matches
-  })
-
-  // Track breakpoint so we can render the right panel reliably (especially on mobile).
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(min-width: 1024px)')
-    const apply = () => setIsDesktop(mq.matches)
-    apply()
-    mq.addEventListener?.('change', apply)
-    return () => mq.removeEventListener?.('change', apply)
-  }, [])
+  const router = useRouter()
 
   const getUid = useCallback(async () => {
     const { data } = await supabase.auth.getUser()
@@ -270,10 +334,10 @@ export default function NotificationsBell() {
           const authorId = str(p.author_id)
           if (authorId) profileIds.add(authorId)
 
-          const postId = str(p.post_id)
+          const postId = postIdFromPayload(p)
           if (postId) postIds.add(postId)
 
-          const cId = str(p.comment_id)
+          const cId = commentIdFromPayload(p)
           if (cId) commentIds.add(cId)
         }
         if (r.entity_type === 'comment' && r.entity_id) commentIds.add(String(r.entity_id))
@@ -321,7 +385,7 @@ export default function NotificationsBell() {
         const actor = r.actor ?? (fallbackActorId ? profilesById.get(fallbackActorId) ?? null : null)
 
         // If this is a comment-like / reply flow, hydrate comment details
-        const commentId = r.entity_type === 'comment' ? (r.entity_id ? String(r.entity_id) : null) : str(p0.comment_id)
+        const commentId = r.entity_type === 'comment' ? (r.entity_id ? String(r.entity_id) : null) : commentIdFromPayload(p0)
         if (commentId && commentsById.has(commentId)) {
           const c = commentsById.get(commentId)!
           if (!('comment_id' in p0)) p0.comment_id = commentId
@@ -330,7 +394,7 @@ export default function NotificationsBell() {
           if (!('post_id' in p0)) p0.post_id = c.post_id
         }
 
-        const postId = str(p0.post_id)
+        const postId = postIdFromPayload(p0)
         if (postId && postsById.has(postId)) {
           const post = postsById.get(postId)!
           if (!('post_slug' in p0)) p0.post_slug = post.slug
@@ -435,10 +499,13 @@ export default function NotificationsBell() {
     }
   }, [getUid])
 
-  // close on click outside (desktop & mobile)
+  // close on click outside (desktop)
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
+      // On mobile we use a full-screen panel; don't close it on random taps.
+      // Close is handled via the X button or navigation.
+      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) return
       const el = wrapRef.current
       if (!el) return
       if (e.target instanceof Node && !el.contains(e.target)) setOpen(false)
@@ -446,16 +513,6 @@ export default function NotificationsBell() {
     document.addEventListener("mousedown", onDown)
     return () => document.removeEventListener("mousedown", onDown)
   }, [open])
-
-  // Track viewport breakpoint (lg = 1024px)
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const mq = window.matchMedia('(min-width: 1024px)')
-    const apply = () => setIsDesktop(mq.matches)
-    apply()
-    mq.addEventListener?.('change', apply)
-    return () => mq.removeEventListener?.('change', apply)
-  }, [])
 
   // load once + realtime refresh
   useEffect(() => {
@@ -477,7 +534,51 @@ export default function NotificationsBell() {
     void markAllRead()
   }, [open, markAllRead])
 
+  // Mobile UX: lock background scroll while the fullscreen panel is open.
+  useEffect(() => {
+    if (!open) return
+    if (typeof window === 'undefined') return
+    const isMobile = window.matchMedia('(max-width: 1023px)').matches
+    if (!isMobile) return
+
+    const prevOverflow = document.body.style.overflow
+    const prevOverscroll = (document.body.style as any).overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    ;(document.body.style as any).overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = prevOverflow
+      ;(document.body.style as any).overscrollBehavior = prevOverscroll
+    }
+  }, [open])
+
   const items = useMemo(() => groups, [groups])
+
+  const makeShortToken = useCallback(() => {
+    const raw =
+      typeof globalThis !== 'undefined' &&
+      'crypto' in globalThis &&
+      (globalThis.crypto as Crypto | undefined)?.randomUUID
+        ? (globalThis.crypto as Crypto).randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    // Keep it short and URL-safe.
+    return raw.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12)
+  }, [])
+
+  const storeHighlightToken = useCallback((commentIds: string[]) => {
+    try {
+      if (typeof window === 'undefined') return null
+      if (commentIds.length <= 1) return null
+      const token = makeShortToken()
+      // sessionStorage only (requirement): short token in URL, full list stored here.
+      window.sessionStorage.setItem(
+        `pendemic:comment-highlight:${token}`,
+        JSON.stringify({ ids: commentIds, ts: Date.now() })
+      )
+      return token
+    } catch {
+      return null
+    }
+  }, [makeShortToken])
 
   const navHrefForGroup = useCallback((g: NotifGroup): string | null => {
     if (g.type === "system_message" || g.type === "post_deleted") return null
@@ -492,10 +593,41 @@ export default function NotificationsBell() {
     const slug = postSlugFromPayload(payload)
     if (!slug) return null
 
-    const commentId = str(payload.comment_id) || (first?.entity_type === 'comment' ? (first.entity_id ?? '') : '')
+    const commentId = commentIdFromPayload(payload) || (first?.entity_type === 'comment' ? (first.entity_id ?? '') : '')
     const hash = commentId ? `#comment-${commentId}` : ''
     return `/post/${slug}${hash}`
   }, [])
+
+  const navTargetForGroup = useCallback(
+    (g: NotifGroup): string | null => {
+      if (g.type === 'system_message' || g.type === 'post_deleted') return null
+      const first = g.rows[0]
+      const payload = first?.payload ?? {}
+
+      if (g.type === 'follow') {
+        const u = first?.actor_username || str(payload.username) || str(payload.actor_username)
+        return u ? `/u/${u}` : null
+      }
+
+      const slug = postSlugFromPayload(payload)
+      if (!slug) return null
+
+      // Collect comment ids for highlight.
+      const ids: string[] = []
+      for (const r of g.rows) {
+        const p = r.payload ?? {}
+        const cid = commentIdFromPayload(p) || (r.entity_type === 'comment' ? (r.entity_id ?? null) : null)
+        if (cid && !ids.includes(cid)) ids.push(cid)
+      }
+
+      const firstId = ids[0] ?? commentIdFromPayload(payload) ?? null
+      const token = storeHighlightToken(ids)
+      const q = token ? `?n=${token}` : ''
+      const hash = firstId ? `#comment-${firstId}` : ''
+      return `/post/${slug}${q}${hash}`
+    },
+    [storeHighlightToken]
+  )
 
   const renderContent = useCallback((g: NotifGroup) => {
     const first = g.rows[0]
@@ -597,14 +729,37 @@ export default function NotificationsBell() {
           (isMobile ? "rounded-none h-[calc(100vh-56px)] flex flex-col" : "rounded-xl")
         }
       >
-        <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 border-b border-neutral-200 px-4 py-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-neutral-900">התראות</h3>
-          <button
-            onClick={() => void clearAll()}
-            className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 px-2 py-1 rounded-lg transition-colors"
-          >
-            נקה הכל
-          </button>
+        <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 border-b border-neutral-200 px-4 py-3">
+          {isMobile ? (
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="p-2 -ml-1 rounded-lg hover:bg-neutral-200 transition-colors"
+                aria-label="סגור"
+                title="סגור"
+              >
+                <X size={18} className="text-neutral-700" />
+              </button>
+              <h3 className="text-sm font-bold text-neutral-900">התראות</h3>
+              <button
+                onClick={() => void clearAll()}
+                className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 px-2 py-1 rounded-lg transition-colors"
+              >
+                נקה הכל
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-neutral-900">התראות</h3>
+              <button
+                onClick={() => void clearAll()}
+                className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 px-2 py-1 rounded-lg transition-colors"
+              >
+                נקה הכל
+              </button>
+            </div>
+          )}
         </div>
 
         <div className={isMobile ? "flex-1 overflow-auto" : "max-h-[440px] overflow-auto"}>
@@ -643,8 +798,11 @@ export default function NotificationsBell() {
                     <Link
                       key={g.key}
                       href={href}
-                      onClick={() => {
+                      onClick={(e) => {
+                        const target = navTargetForGroup(g) || href
+                        e.preventDefault()
                         void markGroupRead(ids)
+                        router.push(target)
                         setOpen(false)
                       }}
                       className={blockClass}
@@ -705,21 +863,18 @@ export default function NotificationsBell() {
       </button>
 
       {/* Desktop dropdown */}
-      {open && isDesktop ? (
-        <div className="absolute top-full left-0 mt-2 w-96 max-h-[500px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+      {open ? (
+        <div className="hidden lg:block absolute top-full left-0 mt-2 w-96 max-h-[500px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
           {renderPanel('desktop')}
         </div>
       ) : null}
 
-      {/* Mobile fullscreen (rendered in a portal to avoid clipping/stacking contexts) */}
-      {open && !isDesktop && typeof document !== 'undefined'
+      {/* Mobile fullscreen (portal to body so it can't be clipped/hidden by parents) */}
+      {open && typeof document !== 'undefined'
         ? createPortal(
             <>
-              <div
-                className="fixed top-14 left-0 right-0 bottom-0 z-[9998] bg-black/30 backdrop-blur-sm animate-in fade-in duration-200"
-                onClick={() => setOpen(false)}
-              />
-              <div className="fixed top-14 left-0 right-0 bottom-0 z-[9999] p-0 overflow-hidden animate-in slide-in-from-top duration-300">
+              <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[10001] bg-black/30 backdrop-blur-sm animate-in fade-in duration-200" />
+              <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[10002] p-0 overflow-hidden animate-in slide-in-from-top duration-300">
                 {renderPanel('mobile')}
               </div>
             </>,

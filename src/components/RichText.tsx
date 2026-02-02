@@ -6,6 +6,10 @@ type Mark = {
 
 type Attrs = {
   level?: number
+  src?: string
+  alt?: string
+  width?: number
+  height?: number
 }
 
 export type RichNode = {
@@ -18,6 +22,37 @@ export type RichNode = {
 
 type Props = {
   content: RichNode
+}
+
+function toYouTubeNoCookieEmbed(src: string): string | null {
+  try {
+    const url = new URL(src)
+    const host = url.hostname.replace(/^www\./, '')
+
+    // Already an embed URL
+    if (host === 'youtube-nocookie.com' && url.pathname.startsWith('/embed/')) return url.toString()
+    if (host === 'youtube.com' && url.pathname.startsWith('/embed/')) {
+      return `https://www.youtube-nocookie.com${url.pathname}${url.search}`
+    }
+
+    // youtu.be/<id>
+    if (host === 'youtu.be') {
+      const id = url.pathname.split('/').filter(Boolean)[0]
+      if (!id) return null
+      return `https://www.youtube-nocookie.com/embed/${id}`
+    }
+
+    // youtube.com/watch?v=<id>
+    if (host.endsWith('youtube.com')) {
+      const v = url.searchParams.get('v')
+      if (!v) return null
+      return `https://www.youtube-nocookie.com/embed/${v}`
+    }
+
+    return null
+  } catch {
+    return null
+  }
 }
 
 function renderText(node: RichNode, key: string) {
@@ -85,6 +120,42 @@ function renderNode(node: RichNode, key: string): React.ReactNode {
 
     case 'horizontalRule':
       return <hr key={key} />
+
+    case 'image': {
+      const src = (node.attrs as Attrs | undefined)?.src
+      if (!src) return null
+      const alt = (node.attrs as Attrs | undefined)?.alt ?? ''
+      return <img key={key} src={src} alt={alt} loading="lazy" />
+    }
+
+    // TipTap YouTube extension commonly emits a node type of "youtube".
+    // Some setups may emit "youtubeVideo".
+    case 'youtube':
+    case 'youtubeVideo': {
+      const src = (node.attrs as Attrs | undefined)?.src
+      if (!src) return null
+      const embed = toYouTubeNoCookieEmbed(src) ?? src
+      return (
+        <div key={key} className="my-4 overflow-hidden rounded-2xl">
+          <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+            <iframe
+              src={embed}
+              className="absolute inset-0 h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title="YouTube"
+            />
+          </div>
+          {toYouTubeNoCookieEmbed(src) ? null : (
+            <div className="mt-2 text-sm text-neutral-600">
+              <a href={src} target="_blank" rel="noopener noreferrer nofollow" className="underline">
+                פתח/י ביוטיוב
+              </a>
+            </div>
+          )}
+        </div>
+      )
+    }
 
     default:
       return <span key={key}>{children}</span>

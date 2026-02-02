@@ -69,6 +69,51 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
   const [items, setItems] = useState<CommentRow[]>([])
   const [err, setErr] = useState<string | null>(null)
 
+  // When arriving from a notification link, temporarily highlight the target comment(s).
+  // - Single highlight uses the hash: /post/[slug]#comment-<id>
+  // - Group highlight uses sessionStorage + short token: /post/[slug]?n=<token>#comment-<first>
+  const [highlightIds, setHighlightIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const ids = new Set<string>()
+
+    // 1) Multi-highlight via token
+    try {
+      const url = new URL(window.location.href)
+      const token = url.searchParams.get('n')
+      if (token) {
+        const raw = window.sessionStorage.getItem(`pendemic:comment-highlight:${token}`)
+        if (raw) {
+          const parsed = JSON.parse(raw) as { ids?: unknown; ts?: unknown }
+          const list = Array.isArray(parsed?.ids) ? parsed.ids : []
+          const ts = typeof parsed?.ts === 'number' ? parsed.ts : 0
+          // best-effort TTL (10 minutes) so old tokens don't linger.
+          if (list.length > 0 && Date.now() - ts < 10 * 60 * 1000) {
+            list.forEach((v) => {
+              if (typeof v === 'string' && v.trim()) ids.add(`comment-${v}`)
+            })
+          }
+        }
+        // one-time use is fine (keeps URL short with no persistent state)
+        window.sessionStorage.removeItem(`pendemic:comment-highlight:${token}`)
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2) Single highlight via hash
+    const hash = window.location.hash
+    if (hash && hash.startsWith('#comment-')) {
+      ids.add(hash.slice(1))
+    }
+
+    if (ids.size === 0) return
+    setHighlightIds(ids)
+    const t = window.setTimeout(() => setHighlightIds(new Set()), 4000)
+    return () => window.clearTimeout(t)
+  }, [])
+
 // auto-hide errors (3s)
 const errTimerRef = useRef<number | null>(null)
 const setErrFor = (msg: string | null) => {
@@ -837,7 +882,10 @@ async function submitReport() {
               <div
                 key={c.id}
                 id={`comment-${c.id}`}
-                className="rounded-2xl border p-3 scroll-mt-24"
+                className={
+                  `rounded-2xl border p-3 scroll-mt-24 transition-colors ` +
+                  (highlightIds.has(`comment-${c.id}`) ? 'ring-2 ring-yellow-300 bg-yellow-50' : '')
+                }
               >
                 {headerRow}
 
@@ -883,7 +931,10 @@ async function submitReport() {
                         <div
                           key={r.id}
                           id={`comment-${r.id}`}
-                          className="rounded-2xl border bg-white p-3 scroll-mt-24"
+                          className={
+                            `rounded-2xl border bg-white p-3 scroll-mt-24 transition-colors ` +
+                            (highlightIds.has(`comment-${r.id}`) ? 'ring-2 ring-yellow-300 bg-yellow-50' : '')
+                          }
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">

@@ -780,7 +780,13 @@ export default function SiteHeader() {
               {/* כתיבה (accordion) */}
               <div className="border-t pt-4">
                 <button
-                  onClick={() => setMobileWriteOpen(v => !v)}
+                  onClick={() => {
+                    setMobileWriteOpen(v => {
+                      const next = !v
+                      if (next) setMobileProfileOpen(false)
+                      return next
+                    })
+                  }}
                   className="w-full flex items-center justify-between px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-bold"
                 >
                   <span className="inline-flex items-center gap-2">
@@ -856,7 +862,13 @@ export default function SiteHeader() {
               {user ? (
                 <div className="border-t pt-4">
                   <button
-                    onClick={() => setMobileProfileOpen(v => !v)}
+                    onClick={() => {
+                      setMobileProfileOpen(v => {
+                        const next = !v
+                        if (next) setMobileWriteOpen(false)
+                        return next
+                      })
+                    }}
                     className="w-full flex items-center justify-between px-4 py-2 rounded-lg bg-neutral-100 border border-neutral-200 hover:bg-neutral-200 transition-colors"
                   >
                     <span className="inline-flex items-center gap-3">
