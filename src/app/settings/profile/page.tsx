@@ -44,13 +44,14 @@ export default function ProfileSettingsPage() {
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
+  const [removeAvatar, setRemoveAvatar] = useState(false)
 
   const avatarPreview = useMemo(() => {
-    // Prefer stored avatar_url. Fallback to dicebear initials by display name.
-    if (profile?.avatar_url) return profile.avatar_url
+    // Prefer stored avatar_url unless user chose to remove it.
+    if (!removeAvatar && profile?.avatar_url) return profile.avatar_url
     const seed = (displayName || profile?.display_name || 'משתמש').trim()
     return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}`
-  }, [displayName, profile?.avatar_url, profile?.display_name])
+  }, [displayName, profile?.avatar_url, profile?.display_name, removeAvatar])
 
   useEffect(() => {
     const load = async () => {
@@ -139,6 +140,7 @@ export default function ProfileSettingsPage() {
         display_name: dn,
         username: un,
         bio: b || null,
+        ...(removeAvatar ? { avatar_url: null } : {}),
       })
       .eq('id', userId)
 
@@ -160,6 +162,11 @@ export default function ProfileSettingsPage() {
         return
       }
       setAvatarFile(null)
+    }
+
+    if (removeAvatar) {
+      setProfile(prev => (prev ? { ...prev, avatar_url: null } : prev))
+      setRemoveAvatar(false)
     }
 
     setSaving(false)
@@ -251,6 +258,13 @@ export default function ProfileSettingsPage() {
                 setErr(null)
                 setMsg(null)
                 setAvatarFile(f)
+                if (f) setRemoveAvatar(false)
+              }}
+              onRemove={() => {
+                setErr(null)
+                setMsg(null)
+                setAvatarFile(null)
+                setRemoveAvatar(true)
               }}
             />
           ) : null}

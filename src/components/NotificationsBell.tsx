@@ -2,8 +2,10 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Bell } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
+import Avatar from "@/components/Avatar"
 
 type ProfileLite = {
   id: string
@@ -26,6 +28,8 @@ type NotifRowDb = {
   user_id: string
   actor_id: string | null
   type: NotificationType | string
+  entity_type?: string | null
+  entity_id?: string | null
   payload: Record<string, unknown> | null
   is_read: boolean
   read_at: string | null
@@ -37,9 +41,12 @@ type NotifNormalized = {
   id: string
   created_at: string
   type: NotificationType | string
+  raw_type: string
   payload: Record<string, unknown>
   is_read: boolean
   read_at: string | null
+  entity_type: string | null
+  entity_id: string | null
   actor_display_name: string | null
   actor_username: string | null
   actor_avatar_url: string | null
@@ -116,9 +123,19 @@ function actorNameFromPayload(payload: Record<string, unknown>): string | null {
   )
 }
 
+function effectiveType(rawType: string, payload: Record<string, unknown>): string {
+  // Some older rows store the real action under payload.action.
+  const a = str(payload.action)
+  if (a) return a
+  return rawType
+}
+
 function normalizeRow(r: NotifRowDb): NotifNormalized {
   const payload = isRecord(r.payload) ? r.payload : {}
   const actor = r.actor ?? null
+
+  const raw_type = String(r.type ?? '')
+  const type = effectiveType(raw_type, payload)
 
   const actor_display_name =
     (actor?.display_name ?? "").trim() ||
@@ -128,10 +145,13 @@ function normalizeRow(r: NotifRowDb): NotifNormalized {
   return {
     id: r.id,
     created_at: r.created_at,
-    type: r.type,
+    raw_type,
+    type,
     payload,
     is_read: r.is_read,
     read_at: r.read_at,
+    entity_type: (r.entity_type ?? null) as string | null,
+    entity_id: (r.entity_id ?? null) as string | null,
     actor_display_name: actor_display_name ? actor_display_name : null,
     actor_username: (actor?.username ?? "").trim() || null,
     actor_avatar_url: actor?.avatar_url ?? null,
@@ -142,8 +162,8 @@ function groupKey(n: NotifNormalized): string {
   if (n.type === "system_message" || n.type === "post_deleted") return `${n.type}|${n.id}`
 
   const p = n.payload
-  const entityType = str(p.entity_type) || ""
-  const entityId = str(p.entity_id) || str(p.post_id) || ""
+  const entityType = n.entity_type || str(p.entity_type) || ""
+  const entityId = n.entity_id || str(p.entity_id) || str(p.post_id) || ""
   const slug = postSlugFromPayload(p) || ""
   const title = titleFromPayload(p) || ""
   return [n.type, entityType, entityId, slug, title].join("|")
@@ -190,6 +210,20 @@ export default function NotificationsBell() {
   const [unread, setUnread] = useState(0)
   const [groups, setGroups] = useState<NotifGroup[]>([])
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return window.matchMedia('(min-width: 1024px)').matches
+  })
+
+  // Track breakpoint so we can render the right panel reliably (especially on mobile).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const apply = () => setIsDesktop(mq.matches)
+    apply()
+    mq.addEventListener?.('change', apply)
+    return () => mq.removeEventListener?.('change', apply)
+  }, [])
 
   const getUid = useCallback(async () => {
     const { data } = await supabase.auth.getUser()
@@ -210,7 +244,7 @@ export default function NotificationsBell() {
         .from("notifications")
         .select(
           `
-          id, user_id, actor_id, type, payload, is_read, read_at, created_at,
+          id, user_id, actor_id, type, entity_type, entity_id, payload, is_read, read_at, created_at,
           actor:profiles!notifications_actor_id_fkey (id, username, display_name, avatar_url)
         `
         )
@@ -221,7 +255,96 @@ export default function NotificationsBell() {
       if (error) throw error
 
       const rows = (data ?? []) as unknown as NotifRowDb[]
-      const norm = rows.map(normalizeRow)
+
+      // --- Enrich missing actor/post/comment data from payloads (legacy triggers)
+      const profileIds = new Set<string>()
+      const postIds = new Set<string>()
+      const commentIds = new Set<string>()
+
+      for (const r of rows) {
+        if (r.actor_id) profileIds.add(String(r.actor_id))
+        const p = isRecord(r.payload) ? r.payload : null
+        if (p) {
+          const fromId = str(p.from_user_id)
+          if (fromId) profileIds.add(fromId)
+          const authorId = str(p.author_id)
+          if (authorId) profileIds.add(authorId)
+
+          const postId = str(p.post_id)
+          if (postId) postIds.add(postId)
+
+          const cId = str(p.comment_id)
+          if (cId) commentIds.add(cId)
+        }
+        if (r.entity_type === 'comment' && r.entity_id) commentIds.add(String(r.entity_id))
+      }
+
+      const profilesById = new Map<string, ProfileLite>()
+      if (profileIds.size > 0) {
+        const { data: ps } = await supabase
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .in('id', Array.from(profileIds))
+          .limit(500)
+        const list = (ps ?? []) as unknown as ProfileLite[]
+        for (const pr of list) profilesById.set(pr.id, pr)
+      }
+
+      type PostLite = { id: string; slug: string; title: string | null }
+      const postsById = new Map<string, PostLite>()
+      if (postIds.size > 0) {
+        const { data: posts } = await supabase
+          .from('posts')
+          .select('id, slug, title')
+          .in('id', Array.from(postIds))
+          .limit(500)
+        const list = (posts ?? []) as unknown as PostLite[]
+        for (const p of list) postsById.set(p.id, p)
+      }
+
+      type CommentLite = { id: string; content: string; parent_comment_id: string | null; post_id: string }
+      const commentsById = new Map<string, CommentLite>()
+      if (commentIds.size > 0) {
+        const { data: cs } = await supabase
+          .from('comments')
+          .select('id, content, parent_comment_id, post_id')
+          .in('id', Array.from(commentIds))
+          .limit(500)
+        const list = (cs ?? []) as unknown as CommentLite[]
+        for (const c of list) commentsById.set(c.id, c)
+      }
+
+      const hydrated: NotifRowDb[] = rows.map((r) => {
+        const p0 = isRecord(r.payload) ? { ...r.payload } : {}
+        const fromId = str(p0.from_user_id)
+        const fallbackActorId = fromId ?? (r.actor_id ? String(r.actor_id) : null)
+        const actor = r.actor ?? (fallbackActorId ? profilesById.get(fallbackActorId) ?? null : null)
+
+        // If this is a comment-like / reply flow, hydrate comment details
+        const commentId = r.entity_type === 'comment' ? (r.entity_id ? String(r.entity_id) : null) : str(p0.comment_id)
+        if (commentId && commentsById.has(commentId)) {
+          const c = commentsById.get(commentId)!
+          if (!('comment_id' in p0)) p0.comment_id = commentId
+          if (!('comment_text' in p0)) p0.comment_text = c.content
+          if (!('parent_comment_id' in p0)) p0.parent_comment_id = c.parent_comment_id
+          if (!('post_id' in p0)) p0.post_id = c.post_id
+        }
+
+        const postId = str(p0.post_id)
+        if (postId && postsById.has(postId)) {
+          const post = postsById.get(postId)!
+          if (!('post_slug' in p0)) p0.post_slug = post.slug
+          if (!('post_title' in p0) && post.title) p0.post_title = post.title
+        }
+
+        return {
+          ...r,
+          actor,
+          payload: p0,
+        }
+      })
+
+      const norm = hydrated.map(normalizeRow)
       const unreadCount = norm.reduce((acc, n) => acc + (n.is_read || n.read_at ? 0 : 1), 0)
       setUnread(unreadCount)
 
@@ -324,6 +447,16 @@ export default function NotificationsBell() {
     return () => document.removeEventListener("mousedown", onDown)
   }, [open])
 
+  // Track viewport breakpoint (lg = 1024px)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const apply = () => setIsDesktop(mq.matches)
+    apply()
+    mq.addEventListener?.('change', apply)
+    return () => mq.removeEventListener?.('change', apply)
+  }, [])
+
   // load once + realtime refresh
   useEffect(() => {
     void load()
@@ -357,7 +490,11 @@ export default function NotificationsBell() {
     }
 
     const slug = postSlugFromPayload(payload)
-    return slug ? `/post/${slug}` : null
+    if (!slug) return null
+
+    const commentId = str(payload.comment_id) || (first?.entity_type === 'comment' ? (first.entity_id ?? '') : '')
+    const hash = commentId ? `#comment-${commentId}` : ''
+    return `/post/${slug}${hash}`
   }, [])
 
   const renderContent = useCallback((g: NotifGroup) => {
@@ -481,6 +618,7 @@ export default function NotificationsBell() {
                 const href = navHrefForGroup(g)
                 const ids = g.rows.map((r) => r.id)
                 const avatar = g.actor_avatars.find(Boolean) ?? null
+                const actorName = uniqueActorNames(g.actor_display_names)[0] ?? 'משתמש'
                 const isSystem = g.type === "system_message" || g.type === "post_deleted"
 
                 const blockClass =
@@ -489,13 +627,8 @@ export default function NotificationsBell() {
 
                 const inner = (
                   <div className="flex items-start gap-3">
-                    <div className="mt-1 w-9 h-9 rounded-full bg-neutral-200 flex items-center justify-center overflow-hidden">
-                      {avatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatar} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-sm font-bold text-neutral-700">מ</span>
-                      )}
+                    <div className="mt-1">
+                      <Avatar src={avatar} name={actorName} />
                     </div>
 
                     <div className="flex-1">
@@ -546,10 +679,18 @@ export default function NotificationsBell() {
     <div className="relative" ref={wrapRef} dir="rtl">
       <button
         type="button"
+        onTouchStart={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={() => {
           const next = !open
           setOpen(next)
-          if (next) void load()
+          if (next) {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('pendemic:close-mobile-menu'))
+              window.dispatchEvent(new CustomEvent('pendemic:close-header-dropdowns'))
+            }
+            void load()
+          }
         }}
         className="relative p-2 rounded-lg hover:bg-neutral-300 transition-all duration-200"
         title="התראות"
@@ -564,24 +705,27 @@ export default function NotificationsBell() {
       </button>
 
       {/* Desktop dropdown */}
-      {open ? (
-        <div className="hidden lg:block absolute top-full left-0 mt-2 w-96 max-h-[500px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+      {open && isDesktop ? (
+        <div className="absolute top-full left-0 mt-2 w-96 max-h-[500px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
           {renderPanel('desktop')}
         </div>
       ) : null}
 
-      {/* Mobile fullscreen */}
-      {open ? (
-        <>
-          <div
-            className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9998] bg-black/30 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={() => setOpen(false)}
-          />
-          <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9999] p-0 overflow-hidden animate-in slide-in-from-top duration-300">
-            {renderPanel('mobile')}
-          </div>
-        </>
-      ) : null}
+      {/* Mobile fullscreen (rendered in a portal to avoid clipping/stacking contexts) */}
+      {open && !isDesktop && typeof document !== 'undefined'
+        ? createPortal(
+            <>
+              <div
+                className="fixed top-14 left-0 right-0 bottom-0 z-[9998] bg-black/30 backdrop-blur-sm animate-in fade-in duration-200"
+                onClick={() => setOpen(false)}
+              />
+              <div className="fixed top-14 left-0 right-0 bottom-0 z-[9999] p-0 overflow-hidden animate-in slide-in-from-top duration-300">
+                {renderPanel('mobile')}
+              </div>
+            </>,
+            document.body
+          )
+        : null}
     </div>
   )
 }

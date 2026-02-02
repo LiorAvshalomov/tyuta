@@ -6,6 +6,7 @@ type Props = {
   currentUrl: string | null
   displayName: string
   onSelectFile: (file: File | null) => void
+  onRemove?: () => void
 }
 
 const MAX_BYTES = 2 * 1024 * 1024 // 2MB
@@ -15,7 +16,7 @@ function dicebearInitialsUrl(seed: string) {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(s)}`
 }
 
-export default function AvatarUpload({ currentUrl, displayName, onSelectFile }: Props) {
+export default function AvatarUpload({ currentUrl, displayName, onSelectFile, onRemove }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [localPreview, setLocalPreview] = useState<string | null>(null)
   const [localErr, setLocalErr] = useState<string | null>(null)
@@ -86,6 +87,17 @@ export default function AvatarUpload({ currentUrl, displayName, onSelectFile }: 
           החלף תמונה
         </button>
 
+        {!localPreview && currentUrl && onRemove ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded-xl border px-3 py-2 text-sm hover:bg-muted"
+            title="הסר תמונת פרופיל"
+          >
+            הסר תמונה
+          </button>
+        ) : null}
+
         {localPreview ? (
           <button
             type="button"
@@ -94,6 +106,17 @@ export default function AvatarUpload({ currentUrl, displayName, onSelectFile }: 
             title="בטל בחירה"
           >
             ביטול
+          </button>
+        ) : null}
+
+        {!localPreview && currentUrl ? (
+          <button
+            type="button"
+            onClick={() => onRemove?.()}
+            className="rounded-xl border px-3 py-2 text-sm hover:bg-muted"
+            title="הסר תמונת פרופיל"
+          >
+            הסר תמונה
           </button>
         ) : null}
       </div>

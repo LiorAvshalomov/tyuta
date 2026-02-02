@@ -1,5 +1,10 @@
 import Image from 'next/image'
 
+function dicebearUrl(seed: string) {
+  const s = encodeURIComponent((seed ?? '').trim() || 'user')
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${s}`
+}
+
 export default function Avatar({
   src,
   name,
@@ -15,13 +20,17 @@ export default function Avatar({
   const radiusClass = shape === 'square' ? 'rounded-xl' : 'rounded-full'
 
   if (!safeSrc) {
+    // Fallback: DiceBear initials (consistent across the site)
+    const url = dicebearUrl(name)
     return (
-      <div
-        className={`${radiusClass} bg-neutral-200 flex items-center justify-center text-sm font-bold`}
-        style={{ width: size, height: size }}
-      >
-        {name?.trim()?.[0] ?? '🙂'}
-      </div>
+      <Image
+        src={url}
+        alt={`תמונת פרופיל של ${name}`}
+        width={size}
+        height={size}
+        className={`${radiusClass} object-cover`}
+        unoptimized
+      />
     )
   }
 

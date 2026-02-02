@@ -220,6 +220,26 @@ export default function PostPage() {
     }
   }, [])
 
+  // When navigating with a #comment-... hash, scroll to the comment (App Router sometimes won't).
+  useEffect(() => {
+    if (loading || !post) return
+    if (typeof window === 'undefined') return
+
+    const hash = window.location.hash
+    if (!hash || !hash.startsWith('#comment-')) return
+
+    const id = hash.slice(1)
+    // Wait a tick so comments finish rendering.
+    const t = window.setTimeout(() => {
+      const el = document.getElementById(id)
+      if (el) {
+        el.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      }
+    }, 120)
+
+    return () => window.clearTimeout(t)
+  }, [loading, post])
+
   useEffect(() => {
     if (!slug) return
 

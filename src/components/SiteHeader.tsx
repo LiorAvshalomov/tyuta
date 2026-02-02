@@ -139,6 +139,8 @@ export default function SiteHeader() {
   const [messagesOpen, setMessagesOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  const [mobileSearch, setMobileSearch] = useState('')
+
   // mobile accordions
   const [mobileWriteOpen, setMobileWriteOpen] = useState(false)
   const [mobileProfileOpen, setMobileProfileOpen] = useState(false)
@@ -168,6 +170,23 @@ export default function SiteHeader() {
   useClickOutside(writeRef, () => setWriteOpen(false), writeOpen)
   useClickOutside(profileRef, () => setProfileOpen(false), profileOpen)
   useClickOutside(messagesRef, () => setMessagesOpen(false), messagesOpen)
+
+  // Allow other components (NotificationsBell, etc.) to request closing header menus.
+  useEffect(() => {
+    const onCloseMobile = () => setMobileMenuOpen(false)
+    const onCloseDropdowns = () => {
+      setWriteOpen(false)
+      setProfileOpen(false)
+      setMessagesOpen(false)
+    }
+
+    window.addEventListener('pendemic:close-mobile-menu', onCloseMobile as EventListener)
+    window.addEventListener('pendemic:close-header-dropdowns', onCloseDropdowns as EventListener)
+    return () => {
+      window.removeEventListener('pendemic:close-mobile-menu', onCloseMobile as EventListener)
+      window.removeEventListener('pendemic:close-header-dropdowns', onCloseDropdowns as EventListener)
+    }
+  }, [])
 
   // Close mobile menu when clicking outside
   useEffect(() => {
@@ -710,14 +729,25 @@ export default function SiteHeader() {
           >
             <div className="mx-auto max-w-6xl px-4 py-4 space-y-4">
               {/* חיפוש במובייל */}
-              <div className="relative">
+              <form
+                className="relative"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const q = mobileSearch.trim()
+                  if (!q) return
+                  closeAll()
+                  router.push(`/search?q=${encodeURIComponent(q)}`)
+                }}
+              >
                 <Search size={18} strokeWidth={2.5} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
                 <input
                   type="search"
+                  value={mobileSearch}
+                  onChange={(e) => setMobileSearch(e.target.value)}
                   placeholder="חפש פוסטים..."
                   className="w-full rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 pr-10 pl-4 py-2.5 text-sm font-semibold outline-none focus:border-neutral-400 focus:bg-white focus:ring-4 focus:ring-neutral-100 transition-all duration-300"
                 />
-              </div>
+              </form>
 
               {/* ניווט ראשי */}
               <div className="space-y-2">

@@ -834,7 +834,11 @@ async function submitReport() {
             )
 
             return (
-              <div key={c.id} className="rounded-2xl border p-3">
+              <div
+                key={c.id}
+                id={`comment-${c.id}`}
+                className="rounded-2xl border p-3 scroll-mt-24"
+              >
                 {headerRow}
 
                 {body}
@@ -876,7 +880,11 @@ async function submitReport() {
                       const rLikes = Number(likeCounts[r.id] ?? 0)
 
                       return (
-                        <div key={r.id} className="rounded-2xl border bg-white p-3">
+                        <div
+                          key={r.id}
+                          id={`comment-${r.id}`}
+                          className="rounded-2xl border bg-white p-3 scroll-mt-24"
+                        >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <Avatar src={rAvatar} name={rName} />

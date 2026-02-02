@@ -40,7 +40,7 @@ export default function LoginPage() {
         setErr(error.message)
         return
       }
-      router.push('/write')
+      router.push('/')
       router.refresh()
     } finally {
       setLoading(false)
