@@ -2,7 +2,9 @@ import Link from 'next/link'
 
 export default function SiteNavbar() {
   return (
-    <header className="border-b bg-white">
+    // NOTE: `sticky` can fail when the page scrolls inside an overflow container.
+    // `fixed` guarantees the first navbar row stays visible on both mobile + desktop.
+    <header className="fixed inset-x-0 top-0 z-50 border-b bg-white">
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3" dir="rtl">
         {/* ימין: לוגו + סלוגן */}
         <div className="flex items-center gap-3 min-w-0">
