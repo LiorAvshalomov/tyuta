@@ -205,7 +205,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
         {/* Image */}
         <div className="order-1 lg:order-2">
           <Link href={`/post/${post.slug}`} className="block">
-            <div className="relative aspect-[16/10] lg:aspect-square lg:h-full bg-gray-100">
+            <div className="relative aspect-[16/10]  lg:h-full bg-gray-100">
               {post.cover_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={post.cover_image_url} alt={post.title} className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
@@ -347,11 +347,27 @@ function SimplePostCard({ post }: { post: CardPost }) {
 
 function ListRowCompact({ post }: { post: CardPost }) {
   return (
-    <article className="group bg-slate-100/70 rounded-2xl border border-black/10 p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] hover:ring-1 hover:ring-black/10 active:scale-[0.99]">
+    <article className="group relative bg-slate-100/70 rounded-2xl border border-black/10 p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] hover:ring-1 hover:ring-black/10 active:scale-[0.99]">
+      {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
+      <Link
+        href={`/post/${post.slug}`}
+        aria-label={`לקריאת ${post.title}`}
+        className="absolute inset-0 rounded-2xl z-10"
+      >
+        <span className="sr-only">לקריאה</span>
+      </Link>
+
+      {/* Make the layout non-interactive so clicks fall through to the overlay link.
+          Specific interactive elements opt-in with pointer-events-auto. */}
+      <div className="relative z-20 pointer-events-none">
       {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
       <div className="flex flex-row-reverse items-start gap-4">
-        <div className="w-[112px] sm:w-[136px] shrink-0">
-          <Link href={`/post/${post.slug}`} className="block">
+        <div className="w-[136px] sm:w-[168px] shrink-0">
+          <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
+            {/*
+              Constrain cover image height to prevent oversized uploads (e.g. desktop images)
+              from expanding the card. The aspect ratio keeps a consistent thumbnail size.
+            */}
             <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
               {post.cover_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -389,24 +405,26 @@ function ListRowCompact({ post }: { post: CardPost }) {
           </div>
 
           <div className="mt-1 text-[15px] sm:text-base font-black leading-snug line-clamp-2">
-            <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700">
+            <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 pointer-events-auto">
               {post.title}
             </Link>
           </div>
           
 
-          {post.excerpt ? (
-            <p className="mt-2 text-xs sm:text-sm text-gray-600 leading-relaxed line-clamp-2">
-              {truncateText(post.excerpt, 90)}
-            </p>
-          ) : null}
+          <div className="mt-1.5 min-h-[24px]">
+            {post.excerpt ? (
+              <p className="text-xs sm:text-sm text-gray-600 leading-relaxed line-clamp-2">
+                {truncateText(post.excerpt, 90)}
+              </p>
+            ) : null}
+          </div>
           
           {/* Author row UNDER excerpt */}
-          <div className="mt-2 flex items-center justify-start gap-2 text-xs text-gray-700">
+          <div className="mt-1.5 flex items-center justify-start gap-2 text-xs text-gray-700">
             {post.author_username ? (
               <Link
                 href={`/u/${post.author_username}`}
-                className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200"
+                className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto"
               >
                 <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
                 <span className="font-semibold transition-colors group-hover/author:text-neutral-900">{post.author_name}</span>
@@ -433,17 +451,28 @@ function ListRowCompact({ post }: { post: CardPost }) {
           ) : null}
         </div>
       </div>
+      </div>
     </article>
   )
 }
 
 function RecentMiniRow({ post }: { post: CardPost }) {
   return (
-    <div className="group rounded-2xl border border-black/10 bg-slate-100/70 p-3 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] active:scale-[0.99]">
+    <div className="group relative rounded-2xl border border-black/10 bg-slate-100/70 p-3 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] active:scale-[0.99]">
+      {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
+      <Link
+        href={`/post/${post.slug}`}
+        aria-label={`לקריאת ${post.title}`}
+        className="absolute inset-0 rounded-2xl z-10"
+      >
+        <span className="sr-only">לקריאה</span>
+      </Link>
+
+      <div className="relative z-20 pointer-events-none">
       {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
       <div className="flex flex-row-reverse items-start gap-3">
         <div className="w-[94px] shrink-0">
-          <Link href={`/post/${post.slug}`} className="block">
+          <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
             <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
               {post.cover_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -460,7 +489,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
         <div className="min-w-0 flex-1 text-right">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1 text-sm font-black leading-snug">
-              <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 line-clamp-1 block">
+              <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 line-clamp-1 block pointer-events-auto">
                 {truncateText(post.title, 48)}
               </Link>
             </div>
@@ -470,16 +499,19 @@ function RecentMiniRow({ post }: { post: CardPost }) {
             </div>
           </div>
 
-          {post.excerpt ? (
-            <p className="mt-1 text-xs text-gray-600 leading-snug line-clamp-1">
-              {truncateText(post.excerpt, 25)}
-            </p>
-          ) : null}
+
+          <div className="mt-1 min-h-[18px]">
+            {post.excerpt ? (
+              <p className="text-xs text-gray-600 leading-snug line-clamp-1">
+                {truncateText(post.excerpt, 25)}
+              </p>
+            ) : null}
+          </div>
           <div className="mt-1 text-[12px] text-gray-500 flex items-center justify-between">
             {post.author_username ? (
               <Link
                 href={`/u/${post.author_username}`}
-                className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200"
+                className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto"
               >
                 <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
                 <span className="font-semibold transition-colors group-hover/author:text-neutral-900">{post.author_name}</span>
@@ -494,6 +526,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
             <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
