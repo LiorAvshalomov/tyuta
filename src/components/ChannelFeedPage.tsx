@@ -130,12 +130,22 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
     <article className="h-[420px] rounded border bg-white p-4 shadow-sm hover:shadow-md">
       <div className="flex h-full flex-col">
         <div className="text-right">
-          <Link
-            href={`/post/${post.slug}`}
-            className="block text-2xl font-extrabold leading-tight break-words line-clamp-2 hover:underline"
-          >
-            {post.title}
-          </Link>
+          <div className="flex items-start justify-between gap-3">
+            {showMedals ? (
+              <div dir="ltr" className="shrink-0 flex items-center gap-2 text-xs text-muted-foreground">
+                {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
+                {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
+                {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+              </div>
+            ) : null}
+
+            <Link
+              href={`/post/${post.slug}`}
+              className="min-w-0 flex-1 block text-2xl font-extrabold leading-tight break-words line-clamp-2 hover:underline text-right"
+            >
+              {post.title}
+            </Link>
+          </div>
 
           <div className="mt-1 text-sm text-muted-foreground">
             מאת:{' '}
@@ -147,14 +157,6 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
               <span>{post.author_name}</span>
             )}
           </div>
-
-          {showMedals ? (
-            <div className="mt-2 flex items-center justify-end gap-3 text-xs text-muted-foreground">
-              {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
-              {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
-              {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
-            </div>
-          ) : null}
         </div>
 
         <div className="mt-3 flex justify-start">
@@ -197,9 +199,22 @@ function SmallTopCard({ post }: { post: CardPost }) {
           </Link>
 
           <div className="min-w-0 flex-1 text-right">
-            <Link href={`/post/${post.slug}`} className="block text-sm font-bold leading-snug line-clamp-2 hover:underline">
-              {post.title}
-            </Link>
+            <div className="flex items-start justify-between gap-2">
+              {showMedals ? (
+                <div dir="ltr" className="shrink-0 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
+                  {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
+                  {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+                </div>
+              ) : null}
+
+              <Link
+                href={`/post/${post.slug}`}
+                className="min-w-0 flex-1 block text-sm font-bold leading-snug line-clamp-2 hover:underline text-right"
+              >
+                {post.title}
+              </Link>
+            </div>
 
             <div className="mt-1 text-xs text-muted-foreground">
               מאת:{' '}
@@ -211,14 +226,6 @@ function SmallTopCard({ post }: { post: CardPost }) {
                 <span>{post.author_name}</span>
               )}
             </div>
-
-            {showMedals ? (
-              <div className="mt-2 flex items-center justify-end gap-3 text-xs text-muted-foreground">
-                {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
-                {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
-                {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
-              </div>
-            ) : null}
           </div>
         </div>
 
@@ -258,9 +265,22 @@ function ListRow({ post }: { post: CardPost }) {
         </Link>
 
         <div className="min-w-0 flex-1">
-          <Link href={`/post/${post.slug}`} className="block text-base font-bold leading-snug break-words line-clamp-2 hover:underline">
-            {post.title}
-          </Link>
+          <div className="flex items-start justify-between gap-3">
+            {showMedals ? (
+              <div dir="ltr" className="shrink-0 flex items-center gap-2 text-[11px] text-muted-foreground">
+                {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
+                {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
+                {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+              </div>
+            ) : null}
+
+            <Link
+              href={`/post/${post.slug}`}
+              className="min-w-0 flex-1 block text-base font-bold leading-snug break-words line-clamp-2 hover:underline text-right"
+            >
+              {post.title}
+            </Link>
+          </div>
 
           <div className="mt-1 text-xs text-muted-foreground">
             מאת:{' '}
@@ -302,14 +322,6 @@ function ListRow({ post }: { post: CardPost }) {
                   {t.name_he}
                 </span>
               ))}
-            </div>
-          ) : null}
-
-          {showMedals ? (
-            <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-              {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
-              {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
-              {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
             </div>
           ) : null}
         </div>
@@ -401,34 +413,44 @@ export default async function ChannelFeedPage({
   const medalsByPost = new Map<string, { gold: number; silver: number; bronze: number }>()
 
   if (postIds.length) {
+    // votes by key (used for category picking)
     const { data: sums } = await supabase
       .from('post_reaction_summary')
-      .select('post_id, reaction_key, votes, gold, silver, bronze')
+      .select('post_id, reaction_key, votes')
       .in('post_id', postIds)
 
-      ; ((sums ?? []) as SummaryRow[]).forEach(r => {
-        if (!r.post_id) return
+    ;((sums ?? []) as Array<{ post_id: string; reaction_key: string | null; votes: number | null }>).forEach(r => {
+      if (!r.post_id) return
+      const key = (r.reaction_key ?? '').trim()
+      if (!key) return
+      const prev = votesByPost.get(r.post_id) ?? {}
+      prev[key] = (prev[key] ?? 0) + (r.votes ?? 0)
+      votesByPost.set(r.post_id, prev)
+    })
 
-        const key = (r.reaction_key ?? '').trim()
-        if (key) {
-          const prev = votesByPost.get(r.post_id) ?? {}
-          prev[key] = (prev[key] ?? 0) + (r.votes ?? 0)
-          votesByPost.set(r.post_id, prev)
-        }
+    // ALL-TIME medals for post cards (display)
+    const { data: mrows, error: mErr } = await supabase
+      .from('post_medals_all_time')
+      .select('post_id, gold, silver, bronze')
+      .in('post_id', postIds)
 
-        const prevM = medalsByPost.get(r.post_id) ?? { gold: 0, silver: 0, bronze: 0 }
-        medalsByPost.set(r.post_id, {
-          gold: prevM.gold + (r.gold ?? 0),
-          silver: prevM.silver + (r.silver ?? 0),
-          bronze: prevM.bronze + (r.bronze ?? 0),
-        })
+    if (mErr) {
+      console.error('post_medals_all_time error:', mErr)
+    }
+
+    ;((mrows ?? []) as Array<{ post_id: string; gold: number; silver: number; bronze: number }>).forEach(r => {
+      medalsByPost.set(r.post_id, {
+        gold: r.gold ?? 0,
+        silver: r.silver ?? 0,
+        bronze: r.bronze ?? 0,
       })
+    })
   }
 
   const cardPostsAll: CardPost[] = posts.map(p => {
     const channel = firstRel(p.channel)
     const author = firstRel(p.author)
-    const subcat = firstRel((p as any).subcategory)
+    const subcat = firstRel(p.subcategory)
 
     const tags = (p.post_tags ?? [])
       .flatMap(pt => {
@@ -449,7 +471,7 @@ export default async function ChannelFeedPage({
       cover_image_url: p.cover_image_url,
       channel_slug: channel?.slug ?? null,
       channel_name: channel?.name_he ?? null,
-      subcategory_name: (subcat as any)?.name_he ?? null,
+      subcategory_name: subcat?.name_he ?? null,
       author_username: author?.username ?? null,
       author_name: author?.display_name ?? author?.username ?? 'אנונימי',
       tags,
@@ -620,8 +642,8 @@ export default async function ChannelFeedPage({
                         ) : (
                           <div className="font-bold">{w.name}</div>
                         )}
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          🥇 {w.gold} · 🥈 {w.silver} · 🥉 {w.bronze}
+                        <div dir="ltr" className="mt-1 text-xs text-muted-foreground">
+                          ❤️ {w.reactions}
                         </div>
                       </div>
                     </div>

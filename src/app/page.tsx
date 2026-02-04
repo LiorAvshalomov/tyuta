@@ -62,6 +62,7 @@ type CardPost = {
   weekReactionsTotal: number
   weekCommentsTotal: number
   weekReactionsByKey: Record<string, number>
+  allTimeMedals: { gold: number; silver: number; bronze: number }
 }
 
 function firstRel<T>(rel: T[] | T | null | undefined): T | null {
@@ -111,6 +112,30 @@ function truncateText(text: string, maxChars: number) {
   const t = text.trim()
   if (t.length <= maxChars) return t
   return `${t.slice(0, Math.max(0, maxChars - 1))}…`
+}
+
+function MedalsInline({
+  medals,
+  size = 'sm',
+}: {
+  medals: { gold: number; silver: number; bronze: number } | null
+  size?: 'sm' | 'xs'
+}) {
+  if (!medals) return null
+  const gold = medals.gold ?? 0
+  const silver = medals.silver ?? 0
+  const bronze = medals.bronze ?? 0
+  if (gold <= 0 && silver <= 0 && bronze <= 0) return null
+
+  const cls = size === 'xs' ? 'text-[11px] gap-2' : 'text-xs gap-3'
+
+  return (
+    <div dir="ltr" className={`flex items-center ${cls} text-gray-700`}>
+      {gold > 0 ? <span className="inline-flex items-center gap-1">🥇 {gold}</span> : null}
+      {silver > 0 ? <span className="inline-flex items-center gap-1">🥈 {silver}</span> : null}
+      {bronze > 0 ? <span className="inline-flex items-center gap-1">🥉 {bronze}</span> : null}
+    </div>
+  )
 }
 
 function channelBadgeColor(slug: string | null) {
@@ -192,25 +217,35 @@ function FeaturedPost({ post }: { post: CardPost }) {
         {/* Content */}
         <div className="order-2 lg:order-1 p-5 sm:p-6 lg:p-10 flex flex-col justify-center">
           {/* Author FIRST (as you asked) */}
-          <div className="flex items-center gap-3 mb-3">
-            <Avatar url={post.author_avatar_url} name={post.author_name} size={40} />
-            <div className="min-w-0">
-              {post.author_username ? (
-                <Link href={`/u/${post.author_username}`} className="font-bold text-sm hover:text-sky-700 transition-colors">
-                  {post.author_name}
-                </Link>
-              ) : (
-                <span className="font-bold text-sm">{post.author_name}</span>
-              )}
-              <div className="text-xs text-gray-500">
-                <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
-                {post.subcategory ? (
-                  <>
-                    <span className="mx-2">•</span>
-                    <span className="font-semibold text-gray-600">{post.subcategory.name_he}</span>
-                  </>
-                ) : null}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar url={post.author_avatar_url} name={post.author_name} size={40} />
+              <div className="min-w-0">
+                {post.author_username ? (
+                  <Link href={`/u/${post.author_username}`} className="font-bold text-sm hover:text-sky-700 transition-colors">
+                    {post.author_name}
+                  </Link>
+                ) : (
+                  <span className="font-bold text-sm">{post.author_name}</span>
+                )}
+                <div className="flex items-center justify-between text-xs text-gray-500">
+
+            <div className="min-w-0 text-right">
+              <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+              {post.subcategory ? (
+                <>
+                  <span className="mx-2">•</span>
+                  <span className="font-semibold text-gray-700">{post.subcategory.name_he}</span>
+                </>
+              ) : null}
+            </div>
+          </div>
               </div>
+            </div>
+
+            {/* Medals - top left */}
+            <div className="shrink-0 pt-1">
+              <MedalsInline medals={post.allTimeMedals} />
             </div>
           </div>
 
@@ -238,13 +273,6 @@ function FeaturedPost({ post }: { post: CardPost }) {
               {truncateText(post.excerpt, 150)}
             </p>
           ) : null}
-
-          {/* Small meta row */}
-          <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span>תגובות: {post.weekCommentsTotal}</span>
-            <span>•</span>
-            <span>ריאקשנים: {post.weekReactionsTotal}</span>
-          </div>
         </div>
       </div>
     </article>
@@ -264,14 +292,21 @@ function SimplePostCard({ post }: { post: CardPost }) {
       </Link>
 
       <div className="p-4 text-right">
-        <div className="text-xs text-gray-500 mb-2">
-          <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
-          {post.subcategory ? (
-            <>
-              <span className="mx-2">•</span>
-              <span className="font-semibold">{post.subcategory.name_he}</span>
-            </>
-          ) : null}
+        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+
+          <div className="min-w-0">
+            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+            {post.subcategory ? (
+              <>
+                <span className="mx-2">•</span>
+                <span className="font-semibold">{post.subcategory.name_he}</span>
+              </>
+            ) : null}
+            
+          </div>
+                    <div className="shrink-0">
+            <MedalsInline medals={post.allTimeMedals}  />
+          </div>
         </div>
 
         <h3 className="text-base font-black leading-snug line-clamp-2">
@@ -285,7 +320,6 @@ function SimplePostCard({ post }: { post: CardPost }) {
             {truncateText(post.excerpt, 90)}
           </p>
         ) : null}
-
         <div className="mt-3 flex items-center justify-start gap-2 text-xs text-gray-700">
           {post.author_username ? (
             <Link href={`/u/${post.author_username}`} className="group/author inline-flex items-center gap-2">
@@ -314,10 +348,10 @@ function SimplePostCard({ post }: { post: CardPost }) {
 function ListRowCompact({ post }: { post: CardPost }) {
   return (
     <article className="group bg-slate-100/70 rounded-2xl border border-black/10 p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] hover:ring-1 hover:ring-black/10 active:scale-[0.99]">
-      <Link href={`/post/${post.slug}`} className="block">
-        {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
-        <div className="flex flex-row-reverse items-start gap-4">
-          <div className="w-[112px] sm:w-[136px] shrink-0">
+      {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
+      <div className="flex flex-row-reverse items-start gap-4">
+        <div className="w-[112px] sm:w-[136px] shrink-0">
+          <Link href={`/post/${post.slug}`} className="block">
             <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
               {post.cover_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -328,59 +362,77 @@ function ListRowCompact({ post }: { post: CardPost }) {
                 />
               ) : null}
             </div>
-          </div>
-
-          <div className="min-w-0 flex-1 text-right">
-            <div className="text-xs text-gray-500">
-              <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
-              {post.subcategory ? (
-                <>
-                  <span className="mx-2">•</span>
-                  <span className="font-semibold text-gray-700">{post.subcategory.name_he}</span>
-                </>
-              ) : null}
-            </div>
-
-            <div className="mt-1 text-[15px] sm:text-base font-black leading-snug line-clamp-2 transition-colors group-hover:text-sky-700">
-              {post.title}
-            </div>
-
-            {post.excerpt ? (
-              <p className="mt-2 text-xs sm:text-sm text-gray-600 leading-relaxed line-clamp-2">
-                {truncateText(post.excerpt, 90)}
-              </p>
-            ) : null}
-
-            {/* Author row UNDER excerpt (as requested) */}
-            <div className="mt-2 flex items-center justify-start gap-2 text-xs text-gray-700">
-              {post.author_username ? (
-                <Link href={`/u/${post.author_username}`} className="group/author inline-flex items-center gap-2">
-                  <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
-                  <span className="font-semibold transition-colors group-hover/author:text-sky-700">{post.author_name}</span>
-                </Link>
-              ) : (
-                <div className="inline-flex items-center gap-2">
-                  <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
-                  <span className="font-semibold">{post.author_name}</span>
-                </div>
-              )}
-            </div>
-
-            {post.tags.length ? (
-              <div className="mt-2 flex flex-wrap justify-end gap-1">
-                {post.tags.slice(0, 2).map(t => (
-                  <span
-                    key={t.slug}
-                    className="inline-flex rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-semibold text-gray-700"
-                  >
-                    {t.name_he}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          </Link>
         </div>
-      </Link>
+
+        <div className="min-w-0 flex-1 text-right">
+           <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+          <div className="text-xs text-gray-500">
+            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}
+                 
+            </span>
+            {post.subcategory ? (
+              <>
+                <span className="mx-2">•</span>
+                <span className="font-semibold text-gray-700">{post.subcategory.name_he}</span>
+              </>
+            ) : null}
+
+            
+            
+          </div>
+          <div className="shrink-0">
+            <MedalsInline medals={post.allTimeMedals}  />
+          </div>
+
+          
+          </div>
+
+          <div className="mt-1 text-[15px] sm:text-base font-black leading-snug line-clamp-2">
+            <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700">
+              {post.title}
+            </Link>
+          </div>
+          
+
+          {post.excerpt ? (
+            <p className="mt-2 text-xs sm:text-sm text-gray-600 leading-relaxed line-clamp-2">
+              {truncateText(post.excerpt, 90)}
+            </p>
+          ) : null}
+          
+          {/* Author row UNDER excerpt */}
+          <div className="mt-2 flex items-center justify-start gap-2 text-xs text-gray-700">
+            {post.author_username ? (
+              <Link
+                href={`/u/${post.author_username}`}
+                className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200"
+              >
+                <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
+                <span className="font-semibold transition-colors group-hover/author:text-neutral-900">{post.author_name}</span>
+              </Link>
+            ) : (
+              <div className="inline-flex items-center gap-2">
+                <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
+                <span className="font-semibold">{post.author_name}</span>
+              </div>
+            )}
+          </div>
+
+          {post.tags.length ? (
+            <div className="mt-2 flex flex-wrap justify-end gap-1">
+              {post.tags.slice(0, 2).map(t => (
+                <span
+                  key={t.slug}
+                  className="inline-flex rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-semibold text-gray-700"
+                >
+                  {t.name_he}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
     </article>
   )
 }
@@ -388,40 +440,214 @@ function ListRowCompact({ post }: { post: CardPost }) {
 function RecentMiniRow({ post }: { post: CardPost }) {
   return (
     <div className="group rounded-2xl border border-black/10 bg-slate-100/70 p-3 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] active:scale-[0.99]">
-      <Link href={`/post/${post.slug}`} className="block">
-        {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
-        <div className="flex flex-row-reverse items-start gap-3">
-          <div className="w-[86px] shrink-0">
-            <div className="relative aspect-[4/3] rounded overflow-hidden bg-gray-100">
+      {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
+      <div className="flex flex-row-reverse items-start gap-3">
+        <div className="w-[94px] shrink-0">
+          <Link href={`/post/${post.slug}`} className="block">
+            <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
               {post.cover_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={post.cover_image_url} alt={post.title} className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
+                <img
+                  src={post.cover_image_url}
+                  alt={post.title}
+                  className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                />
               ) : null}
+            </div>
+          </Link>
+        </div>
+
+        <div className="min-w-0 flex-1 text-right">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1 text-sm font-black leading-snug">
+              <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 line-clamp-1 block">
+                {truncateText(post.title, 48)}
+              </Link>
+            </div>
+
+            <div className="shrink-0 pt-0.5">
+              <MedalsInline medals={post.allTimeMedals} />
             </div>
           </div>
 
-          <div className="min-w-0 flex-1 text-right">
-            <div className="text-sm font-black leading-snug line-clamp-2 transition-colors group-hover:text-sky-700">{post.title}</div>
-            <div className="mt-1 text-[12px] text-gray-500">
-              {post.author_username ? (
-                <Link href={`/u/${post.author_username}`} className="font-semibold hover:text-sky-700 transition-colors">
-                  {post.author_name}
-                </Link>
-              ) : (
+          {post.excerpt ? (
+            <p className="mt-1 text-xs text-gray-600 leading-snug line-clamp-1">
+              {truncateText(post.excerpt, 25)}
+            </p>
+          ) : null}
+          <div className="mt-1 text-[12px] text-gray-500 flex items-center justify-between">
+            {post.author_username ? (
+              <Link
+                href={`/u/${post.author_username}`}
+                className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200"
+              >
+                <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
+                <span className="font-semibold transition-colors group-hover/author:text-neutral-900">{post.author_name}</span>
+              </Link>
+            ) : (
+              <div className="inline-flex items-center gap-2">
+                <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
                 <span className="font-semibold">{post.author_name}</span>
-              )}
-              <span className="mx-1">•</span>
-              <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
-            </div>
+              </div>
+            )}
+
+            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
           </div>
         </div>
-      </Link>
+      </div>
     </div>
   )
 }
 
 export default async function HomePage() {
-  const { data: rows, error } = await supabase
+  type RankedRow = {
+    post_id: string
+    reactions_total: number
+    comments_total: number
+    reactions_by_key: Record<string, number>
+    gold: number
+    silver: number
+    bronze: number
+    window_start: string
+    window_end: string
+  }
+
+  const nowIso = new Date().toISOString()
+
+  const [rankedCombinedRes, rankedStoriesRes, rankedReleaseRes, rankedMagazineRes, rankedAllRes, recentRes] =
+    await Promise.all([
+      supabase.rpc('pendemic_ranked_posts_weekly', {
+        ref_ts: nowIso,
+        channel_slugs: ['stories', 'release'],
+        limit_count: 120,
+      }),
+      supabase.rpc('pendemic_ranked_posts_weekly', {
+        ref_ts: nowIso,
+        channel_slugs: ['stories'],
+        limit_count: 120,
+      }),
+      supabase.rpc('pendemic_ranked_posts_weekly', {
+        ref_ts: nowIso,
+        channel_slugs: ['release'],
+        limit_count: 120,
+      }),
+      supabase.rpc('pendemic_ranked_posts_weekly', {
+        ref_ts: nowIso,
+        channel_slugs: ['magazine'],
+        limit_count: 120,
+      }),
+      // For writers-of-week scoring we want broader coverage.
+      supabase.rpc('pendemic_ranked_posts_weekly', {
+        ref_ts: nowIso,
+        channel_slugs: null,
+        limit_count: 500,
+      }),
+      // Recent posts for the sidebar (not ranked)
+      supabase
+        .from('posts')
+        .select(
+          `
+          id,
+          title,
+          slug,
+          created_at,
+          published_at,
+          excerpt,
+          cover_image_url,
+          subcategory_tag_id,
+          channel:channels ( slug, name_he ),
+          author:profiles!posts_author_id_fkey ( username, display_name, avatar_url ),
+          post_tags:post_tags!fk_post_tags_post_id_posts ( tag:tags!fk_post_tags_tag_id_tags ( name_he, slug ) )
+          `
+        )
+        .is('deleted_at', null)
+        .eq('status', 'published')
+        .order('published_at', { ascending: false })
+        .limit(12),
+    ])
+
+  const rpcError =
+    rankedCombinedRes.error ||
+    rankedStoriesRes.error ||
+    rankedReleaseRes.error ||
+    rankedMagazineRes.error ||
+    rankedAllRes.error
+
+  if (rpcError) {
+    return (
+      <main className="min-h-screen" dir="rtl">
+        <div className="mx-auto max-w-6xl px-4 py-10">
+          <h1 className="text-xl font-bold">שגיאה בטעינת דירוג השבוע</h1>
+          <pre className="mt-4 rounded border bg-white p-4 text-xs">{JSON.stringify(rpcError, null, 2)}</pre>
+        </div>
+      </main>
+    )
+  }
+
+  const rankedCombined = (rankedCombinedRes.data ?? []) as RankedRow[]
+  const rankedStories = (rankedStoriesRes.data ?? []) as RankedRow[]
+  const rankedRelease = (rankedReleaseRes.data ?? []) as RankedRow[]
+  const rankedMagazine = (rankedMagazineRes.data ?? []) as RankedRow[]
+  const rankedAll = (rankedAllRes.data ?? []) as RankedRow[]
+
+  const used = new Set<string>()
+
+  const featuredRank = rankedCombined[0] ?? null
+  const featuredId = featuredRank?.post_id ?? null
+  if (featuredId) used.add(featuredId)
+
+  const pickTopByKey = (key: string): RankedRow | null => {
+    let best: RankedRow | null = null
+    let bestCount = -1
+    for (const r of rankedCombined) {
+      if (used.has(r.post_id)) continue
+      const v = r.reactions_by_key?.[key] ?? 0
+      if (v > bestCount) {
+        bestCount = v
+        best = r
+      }
+    }
+    return best
+  }
+
+  const top1Rank = pickTopByKey('funny')
+  if (top1Rank) used.add(top1Rank.post_id)
+  const top2Rank = pickTopByKey('moving')
+  if (top2Rank) used.add(top2Rank.post_id)
+  const top3Rank = pickTopByKey('creative')
+  if (top3Rank) used.add(top3Rank.post_id)
+
+  const pickRankedList = (rows: RankedRow[], n: number): RankedRow[] => {
+    const out: RankedRow[] = []
+    for (const r of rows) {
+      if (used.has(r.post_id)) continue
+      used.add(r.post_id)
+      out.push(r)
+      if (out.length >= n) break
+    }
+    return out
+  }
+
+  const storiesRanks = pickRankedList(rankedStories, 5)
+  const releaseRanks = pickRankedList(rankedRelease, 5)
+  const magazineRanks = pickRankedList(rankedMagazine, 3) // requested: ONLY 3
+
+  // Collect post IDs we need full data for
+  const idsNeeded = Array.from(
+    new Set(
+      [
+        featuredId,
+        top1Rank?.post_id,
+        top2Rank?.post_id,
+        top3Rank?.post_id,
+        ...storiesRanks.map(r => r.post_id),
+        ...releaseRanks.map(r => r.post_id),
+        ...magazineRanks.map(r => r.post_id),
+      ].filter((v): v is string => typeof v === 'string')
+    )
+  )
+
+  const { data: postsRows, error: postsErr } = await supabase
     .from('posts')
     .select(
       `
@@ -438,27 +664,50 @@ export default async function HomePage() {
       post_tags:post_tags!fk_post_tags_post_id_posts ( tag:tags!fk_post_tags_tag_id_tags ( name_he, slug ) )
       `
     )
-    .is('deleted_at', null)
-    .eq('status', 'published')
-    .order('published_at', { ascending: false })
-    .limit(250)
+    .in('id', idsNeeded)
 
-  if (error) {
+  if (postsErr) {
     return (
       <main className="min-h-screen" dir="rtl">
         <div className="mx-auto max-w-6xl px-4 py-10">
-          <h1 className="text-xl font-bold">שגיאה בטעינת דף הבית</h1>
-          <pre className="mt-4 rounded border bg-white p-4 text-xs">{JSON.stringify(error, null, 2)}</pre>
+          <h1 className="text-xl font-bold">שגיאה בטעינת פוסטים</h1>
+          <pre className="mt-4 rounded border bg-white p-4 text-xs">{JSON.stringify(postsErr, null, 2)}</pre>
         </div>
       </main>
     )
   }
 
-  const posts = (rows ?? []) as PostRow[]
-  const postIds = posts.map(p => p.id)
+  // ALL-TIME medals for posts (display)
+  const { data: medalsRows, error: medalsErr } = await supabase
+    .from('post_medals_all_time')
+    .select('post_id, gold, silver, bronze')
+    .in('post_id', idsNeeded)
 
-  // --- Subcategory tags map ---
-  const subcatIds = Array.from(new Set(posts.map(p => p.subcategory_tag_id).filter((v): v is number => typeof v === 'number')))
+  if (medalsErr) {
+    console.error('post_medals_all_time error:', medalsErr)
+  }
+
+  const medalsByPostId = new Map<string, { gold: number; silver: number; bronze: number }>()
+  ;(medalsRows ?? []).forEach(r => {
+    const row = r as { post_id: string; gold: number; silver: number; bronze: number }
+    medalsByPostId.set(row.post_id, {
+      gold: row.gold ?? 0,
+      silver: row.silver ?? 0,
+      bronze: row.bronze ?? 0,
+    })
+  })
+
+  const postsById = new Map<string, PostRow>()
+  ;((postsRows ?? []) as PostRow[]).forEach(p => postsById.set(p.id, p))
+
+  // Subcategory tags map (only for posts we render)
+  const subcatIds = Array.from(
+    new Set(
+      idsNeeded
+        .map(id => postsById.get(id)?.subcategory_tag_id)
+        .filter((v): v is number => typeof v === 'number')
+    )
+  )
   const tagsMap = new Map<number, { name_he: string; slug: string }>()
   if (subcatIds.length > 0) {
     const { data: tagRows } = await supabase.from('tags').select('id,name_he,slug').in('id', subcatIds)
@@ -468,48 +717,12 @@ export default async function HomePage() {
     })
   }
 
-  // --- Weekly window (Israel Sunday 00:00 -> next Sunday 00:00) ---
-  const { startIso, endIso } = getWeekRangeIsrael(new Date())
-
-  // --- Fetch weekly reactions + comments only for these posts ---
-  const weekReactionsByPost = new Map<string, number>()
-  const weekReactionsByKeyByPost = new Map<string, Record<string, number>>()
-  const weekCommentsByPost = new Map<string, number>()
-
-  if (postIds.length > 0) {
-    const [{ data: reactionRows }, { data: commentRows }] = await Promise.all([
-      supabase
-        .from('post_reaction_votes')
-        .select('post_id,reaction_key,created_at')
-        .in('post_id', postIds)
-        .gte('created_at', startIso)
-        .lt('created_at', endIso),
-      supabase
-        .from('comments')
-        .select('post_id,created_at')
-        .in('post_id', postIds)
-        .gte('created_at', startIso)
-        .lt('created_at', endIso),
-    ])
-
-    ;(reactionRows ?? []).forEach(r0 => {
-      const r = r0 as ReactionVoteRow
-      weekReactionsByPost.set(r.post_id, (weekReactionsByPost.get(r.post_id) ?? 0) + 1)
-
-      const key = r.reaction_key.trim()
-      const prev = weekReactionsByKeyByPost.get(r.post_id) ?? {}
-      prev[key] = (prev[key] ?? 0) + 1
-      weekReactionsByKeyByPost.set(r.post_id, prev)
-    })
-
-    ;(commentRows ?? []).forEach(c0 => {
-      const c = c0 as CommentRow
-      weekCommentsByPost.set(c.post_id, (weekCommentsByPost.get(c.post_id) ?? 0) + 1)
-    })
+  const rankByPostId = new Map<string, RankedRow>()
+  for (const r of [...rankedCombined, ...rankedStories, ...rankedRelease, ...rankedMagazine]) {
+    rankByPostId.set(r.post_id, r)
   }
 
-  // --- Build cards ---
-  const cardPosts: CardPost[] = posts.map(p => {
+  const toCard = (p: PostRow, rank?: RankedRow): CardPost => {
     const channel = firstRel(p.channel)
     const author = firstRel(p.author)
 
@@ -537,112 +750,105 @@ export default async function HomePage() {
       author_avatar_url: author?.avatar_url ?? null,
       subcategory,
       tags,
-      weekReactionsTotal: weekReactionsByPost.get(p.id) ?? 0,
-      weekCommentsTotal: weekCommentsByPost.get(p.id) ?? 0,
-      weekReactionsByKey: weekReactionsByKeyByPost.get(p.id) ?? {},
+      weekReactionsTotal: rank?.reactions_total ?? 0,
+      weekCommentsTotal: rank?.comments_total ?? 0,
+      weekReactionsByKey: rank?.reactions_by_key ?? {},
+      allTimeMedals: medalsByPostId.get(p.id) ?? { gold: 0, silver: 0, bronze: 0 },
     }
-  })
-
-  // --- Weekly featured: reactions desc, then comments desc, then newest ---
-  const byWeeklyFeatured = [...cardPosts].sort((a, b) => {
-    if (b.weekReactionsTotal !== a.weekReactionsTotal) return b.weekReactionsTotal - a.weekReactionsTotal
-    if (b.weekCommentsTotal !== a.weekCommentsTotal) return b.weekCommentsTotal - a.weekCommentsTotal
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  })
-
-  const used = new Set<string>()
-
-  const featured = byWeeklyFeatured[0] ?? null
-  if (featured) used.add(featured.id)
-
-  // --- Top 3 posts (hidden categories): funny/moving/creative, only stories+release ---
-  const eligibleTop = cardPosts.filter(p => p.channel_slug === 'stories' || p.channel_slug === 'release')
-
-  const topByKey = (key: string): CardPost | null => {
-    const sorted = [...eligibleTop].sort((a, b) => {
-      const av = a.weekReactionsByKey[key] ?? 0
-      const bv = b.weekReactionsByKey[key] ?? 0
-      if (bv !== av) return bv - av
-      // fallback: total reactions then newest
-      if (b.weekReactionsTotal !== a.weekReactionsTotal) return b.weekReactionsTotal - a.weekReactionsTotal
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    })
-    return sorted.find(p => !used.has(p.id)) ?? null
   }
 
-  const top1 = topByKey('funny')
-  if (top1) used.add(top1.id)
-  const top2 = topByKey('moving')
-  if (top2) used.add(top2.id)
-  const top3 = topByKey('creative')
-  if (top3) used.add(top3.id)
+  const featured = featuredId ? (postsById.get(featuredId) ? toCard(postsById.get(featuredId) as PostRow, featuredRank ?? undefined) : null) : null
+  const top1 = top1Rank?.post_id ? (postsById.get(top1Rank.post_id) ? toCard(postsById.get(top1Rank.post_id) as PostRow, top1Rank) : null) : null
+  const top2 = top2Rank?.post_id ? (postsById.get(top2Rank.post_id) ? toCard(postsById.get(top2Rank.post_id) as PostRow, top2Rank) : null) : null
+  const top3 = top3Rank?.post_id ? (postsById.get(top3Rank.post_id) ? toCard(postsById.get(top3Rank.post_id) as PostRow, top3Rank) : null) : null
 
-  // --- Section lists: "hot" in the same weekly window, exclude anything already used ---
-  const byRecent = [...cardPosts].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
-  const pickHotSection = (channelSlug: string, n: number): CardPost[] => {
-    const inChannel = cardPosts.filter(p => p.channel_slug === channelSlug)
-    const hasAnyWeeklySignal = inChannel.some(p => p.weekReactionsTotal > 0 || p.weekCommentsTotal > 0)
-
-    const sorted = [...inChannel].sort((a, b) => {
-      if (hasAnyWeeklySignal) {
-        if (b.weekReactionsTotal !== a.weekReactionsTotal) return b.weekReactionsTotal - a.weekReactionsTotal
-        if (b.weekCommentsTotal !== a.weekCommentsTotal) return b.weekCommentsTotal - a.weekCommentsTotal
-      }
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  const stories = storiesRanks
+    .map(r => {
+      const p = postsById.get(r.post_id)
+      return p ? toCard(p, r) : null
     })
+    .filter((x): x is CardPost => x !== null)
 
-    const out: CardPost[] = []
-    for (const p of sorted) {
-      if (used.has(p.id)) continue
-      used.add(p.id)
-      out.push(p)
-      if (out.length >= n) break
-    }
-    return out
-  }
+  const release = releaseRanks
+    .map(r => {
+      const p = postsById.get(r.post_id)
+      return p ? toCard(p, r) : null
+    })
+    .filter((x): x is CardPost => x !== null)
 
-  const stories = pickHotSection('stories', 5)
-  const release = pickHotSection('release', 5)
-  const magazine = pickHotSection('magazine', 5)
+  const magazine = magazineRanks
+    .map(r => {
+      const p = postsById.get(r.post_id)
+      return p ? toCard(p, r) : null
+    })
+    .filter((x): x is CardPost => x !== null)
 
-  const recentMini = byRecent.slice(0, 10)
+  const recentPosts = ((recentRes.data ?? []) as PostRow[]).map(p => toCard(p, rankByPostId.get(p.id)))
+  const recentMini = recentPosts.slice(0, 8)
 
-  // --- Writers of week: prefer medals, fallback to total weekly reactions ---
+  // Writers of week: medals first, fallback to total weekly reactions.
+  // We compute this off rankedAll (broad) and then enrich with profile info via posts.
+  const rankedAllIds = rankedAll.map(r => r.post_id)
+  const { data: writerPostRows } = await supabase
+    .from('posts')
+    .select(
+      `
+      id,
+      author:profiles!posts_author_id_fkey ( username, display_name, avatar_url )
+      `
+    )
+    .in('id', rankedAllIds)
+
+  const authorByPostId = new Map<string, { username: string | null; name: string; avatar_url: string | null }>()
+  ;((writerPostRows ?? []) as { id: string; author: { username: string; display_name: string | null; avatar_url: string | null }[] | null }[]).forEach(r => {
+    const a = firstRel(r.author)
+    authorByPostId.set(r.id, {
+      username: a?.username ?? null,
+      name: a?.display_name ?? a?.username ?? 'אנונימי',
+      avatar_url: a?.avatar_url ?? null,
+    })
+  })
+
   const writerScores = (() => {
     const map = new Map<
       string,
       {
         username: string | null
         name: string
+        avatar_url: string | null
         gold: number
         silver: number
         bronze: number
         reactions: number
-        avatar_url: string | null
       }
     >()
 
-    for (const p of cardPosts) {
-      const key = p.author_username ?? p.author_name
-      const prev = map.get(key) ?? { username: p.author_username, name: p.author_name, gold: 0, silver: 0, bronze: 0, reactions: 0, avatar_url: p.author_avatar_url }
-      prev.gold += p.weekReactionsByKey['gold'] ?? 0
-      prev.silver += p.weekReactionsByKey['silver'] ?? 0
-      prev.bronze += p.weekReactionsByKey['bronze'] ?? 0
-      prev.reactions += p.weekReactionsTotal
-      if (!prev.avatar_url && p.author_avatar_url) prev.avatar_url = p.author_avatar_url
+    for (const r of rankedAll) {
+      const a = authorByPostId.get(r.post_id)
+      if (!a) continue
+      const key = a.username ?? a.name
+      const prev = map.get(key) ?? {
+        username: a.username,
+        name: a.name,
+        avatar_url: a.avatar_url,
+        gold: 0,
+        silver: 0,
+        bronze: 0,
+        reactions: 0,
+      }
+      prev.gold += r.gold ?? 0
+      prev.silver += r.silver ?? 0
+      prev.bronze += r.bronze ?? 0
+      prev.reactions += r.reactions_total ?? 0
+      if (!prev.avatar_url && a.avatar_url) prev.avatar_url = a.avatar_url
       map.set(key, prev)
     }
 
     const arr = Array.from(map.values()).map(v => {
       const medalScore = v.gold * 3 + v.silver * 2 + v.bronze
-      return {
-        ...v,
-        medalScore,
-      }
+      return { ...v, medalScore }
     })
 
-    // Sort by medals first, then total reactions
     arr.sort((a, b) => {
       if (b.medalScore !== a.medalScore) return b.medalScore - a.medalScore
       if (b.reactions !== a.reactions) return b.reactions - a.reactions
@@ -711,11 +917,11 @@ export default async function HomePage() {
             </div>
 
             {/* Sidebar (sticky, NO internal scrolling) */}
-            <StickySidebar>
+            <StickySidebar containerId="main-content">
               <div className="space-y-8">
                 {/* Recent posts FIRST */}
                 <div className="bg-slate-100/70 rounded-2xl p-5 shadow-sm border border-black/10">
-                  <div className="text-base font-black mb-4">פוסטים אחרונים</div>
+                  <Link href="/search?sort=recent" className="text-base font-black mb-4 inline-flex hover:text-sky-700 transition-colors">פוסטים אחרונים</Link>
                   <div className="space-y-3">
                     {recentMini.slice(0, 8).map(p => (
                       <RecentMiniRow key={p.id} post={p} />
@@ -751,7 +957,7 @@ export default async function HomePage() {
                             )}
                           </div>
 
-                          <div className="text-xs text-gray-700 flex items-center gap-2">
+                          <div dir="ltr" className="text-xs text-gray-700 flex items-center gap-2">
                             {w.gold ? <span>🥇 {w.gold}</span> : null}
                             {w.silver ? <span>🥈 {w.silver}</span> : null}
                             {w.bronze ? <span>🥉 {w.bronze}</span> : null}

@@ -6,8 +6,7 @@
 
 /* subtle grain overlay used by <AppBackground /> */
 .pd-grain {
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 160px 160px;
 }
@@ -156,27 +155,58 @@ html {
 /* --- PenDemic Auth: light, literary floating stationery (performance-friendly) --- */
 @layer utilities {
   @keyframes pd-float {
-    0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
-    50%  { transform: translate3d(0, -14px, 0) rotate(3deg); }
-    100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+    0% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+    }
+    50% {
+      transform: translate3d(0, -14px, 0) rotate(3deg);
+    }
+    100% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+    }
   }
   @keyframes pd-drift {
-    0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
-    50%  { transform: translate3d(10px, -10px, 0) rotate(-3deg); }
-    100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+    0% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+    }
+    50% {
+      transform: translate3d(10px, -10px, 0) rotate(-3deg);
+    }
+    100% {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+    }
   }
   @keyframes pd-sway {
-    0%   { transform: translate3d(0, 0, 0) rotate(-2deg); }
-    50%  { transform: translate3d(-8px, -12px, 0) rotate(2deg); }
-    100% { transform: translate3d(0, 0, 0) rotate(-2deg); }
+    0% {
+      transform: translate3d(0, 0, 0) rotate(-2deg);
+    }
+    50% {
+      transform: translate3d(-8px, -12px, 0) rotate(2deg);
+    }
+    100% {
+      transform: translate3d(0, 0, 0) rotate(-2deg);
+    }
   }
 
-  .pd-anim-float { animation: pd-float 8s ease-in-out infinite; will-change: transform; }
-  .pd-anim-drift { animation: pd-drift 10s ease-in-out infinite; will-change: transform; }
-  .pd-anim-sway  { animation: pd-sway 12s ease-in-out infinite; will-change: transform; }
+  .pd-anim-float {
+    animation: pd-float 8s ease-in-out infinite;
+    will-change: transform;
+  }
+  .pd-anim-drift {
+    animation: pd-drift 10s ease-in-out infinite;
+    will-change: transform;
+  }
+  .pd-anim-sway {
+    animation: pd-sway 12s ease-in-out infinite;
+    will-change: transform;
+  }
 
   @media (prefers-reduced-motion: reduce) {
-    .pd-anim-float, .pd-anim-drift, .pd-anim-sway { animation: none !important; }
+    .pd-anim-float,
+    .pd-anim-drift,
+    .pd-anim-sway {
+      animation: none !important;
+    }
   }
 }
 
@@ -186,7 +216,7 @@ html {
 }
 
 .pd-shadow {
-  filter: drop-shadow(0 18px 28px rgb(0 0 0 / 0.10));
+  filter: drop-shadow(0 18px 28px rgb(0 0 0 / 0.1));
 }
 
 .pd-float {
@@ -207,21 +237,42 @@ html {
 }
 
 @keyframes pd-float {
-  0% { transform: translate3d(0, 0, 0) rotate(var(--r, 0deg)); }
-  50% { transform: translate3d(0, -14px, 0) rotate(var(--r, 0deg)); }
-  100% { transform: translate3d(0, 0, 0) rotate(var(--r, 0deg)); }
+  0% {
+    transform: translate3d(0, 0, 0) rotate(var(--r, 0deg));
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) rotate(var(--r, 0deg));
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--r, 0deg));
+  }
 }
 
 @keyframes pd-sway {
-  0% { transform: translate3d(0, 0, 0) rotate(-2deg) scale(1); }
-  50% { transform: translate3d(8px, 6px, 0) rotate(2deg) scale(1.01); }
-  100% { transform: translate3d(0, 0, 0) rotate(-2deg) scale(1); }
+  0% {
+    transform: translate3d(0, 0, 0) rotate(-2deg) scale(1);
+  }
+  50% {
+    transform: translate3d(8px, 6px, 0) rotate(2deg) scale(1.01);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-2deg) scale(1);
+  }
 }
 
 @keyframes pd-blob {
-  0% { transform: translate3d(0, 0, 0) scale(1); opacity: .9; }
-  50% { transform: translate3d(10px, -8px, 0) scale(1.06); opacity: .75; }
-  100% { transform: translate3d(0, 0, 0) scale(1); opacity: .9; }
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate3d(10px, -8px, 0) scale(1.06);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.9;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

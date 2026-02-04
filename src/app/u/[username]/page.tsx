@@ -62,10 +62,10 @@ function safeText(s?: string | null) {
 
 function MedalPills({ gold, silver, bronze }: { gold: number; silver: number; bronze: number }) {
   return (
-    <div className="flex items-center gap-2 shrink-0">
-      <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">🥉 {bronze}</span>
-      <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">🥈 {silver}</span>
+    <div dir="ltr" className="flex items-center gap-2 shrink-0">
       <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">🥇 {gold}</span>
+      <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">🥈 {silver}</span>
+      <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">🥉 {bronze}</span>
     </div>
   )
 }
@@ -143,8 +143,22 @@ export default async function PublicProfilePage({ params }: PageProps) {
     commentsReceived = count ?? 0
   }
 
-  // medals עדיין 0 (כמו שהיה אצלך) — זה לא קשור לריאקשנים החדשים
-  const medals = { gold: 0, silver: 0, bronze: 0 }
+  // ALL-TIME medals for profile (sum across all posts)
+  const { data: medalsRow, error: medalsErr } = await supabase
+    .from('profile_medals_all_time')
+    .select('gold, silver, bronze')
+    .eq('profile_id', prof.id)
+    .single()
+
+  if (medalsErr) {
+    console.error('profile_medals_all_time error:', medalsErr)
+  }
+
+  const medals = {
+    gold: (medalsRow?.gold ?? 0) as number,
+    silver: (medalsRow?.silver ?? 0) as number,
+    bronze: (medalsRow?.bronze ?? 0) as number,
+  }
 
   // ✅ NEW: bring reaction totals via RPC (returns ALL reactions incl. zeros)
   const { data: reactionTotals, error: rtErr } = await supabase.rpc(

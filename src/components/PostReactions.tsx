@@ -31,11 +31,18 @@ type Props = {
   authorId: string
 }
 
-function calcMedalsFromVotes(votes: number) {
-  const bronze = Math.floor(votes / 5)
-  const silver = Math.floor(bronze / 3)
-  const gold = Math.min(Math.floor(silver / 3), 6)
-  return { bronze, silver, gold }
+function calcMedalsReset4(votes: number) {
+  const bTotal = Math.floor(votes / 4) // every 4 reactions => 1 bronze unit
+  const sTotal = Math.floor(bTotal / 4)
+  const gTotal = Math.floor(sTotal / 4)
+
+  // post display cap
+  if (gTotal >= 6) return { gold: 6, silver: 0, bronze: 0 }
+
+  const bronze = bTotal - sTotal * 4
+  const silver = sTotal - gTotal * 4
+  const gold = gTotal
+  return { gold, silver, bronze }
 }
 
 const REACTION_EMOJI: Record<string, string> = {
@@ -70,15 +77,8 @@ export default function PostReactions({ postId, channelId, authorId }: Props) {
   )
 
   const totals = useMemo(() => {
-    let bronze = 0
-    let silver = 0
-    let gold = 0
-    for (const s of Object.values(summary)) {
-      bronze += s.bronze ?? 0
-      silver += s.silver ?? 0
-      gold += s.gold ?? 0
-    }
-    return { bronze, silver, gold }
+    const votesTotal = Object.values(summary).reduce((acc, s) => acc + (s.votes ?? 0), 0)
+    return calcMedalsReset4(votesTotal)
   }, [summary])
 
   useEffect(() => {
@@ -347,7 +347,7 @@ export default function PostReactions({ postId, channelId, authorId }: Props) {
         </div>
 
         {(totals.gold > 0 || totals.silver > 0 || totals.bronze > 0) && (
-          <div className="mt-2 flex items-center justify-center gap-4 text-sm">
+          <div dir="ltr" className="mt-2 flex items-center justify-center gap-4 text-sm">
             {totals.gold > 0 && <span>🥇 {totals.gold}</span>}
             {totals.silver > 0 && <span>🥈 {totals.silver}</span>}
             {totals.bronze > 0 && <span>🥉 {totals.bronze}</span>}

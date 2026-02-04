@@ -147,15 +147,6 @@ export default function PostCard({
         {post.excerpt ? (
           <div className="mt-2 text-sm leading-6 text-foreground/80 line-clamp-3">{post.excerpt}</div>
         ) : null}
-
-        {showMedals ? (
-          <div className="mt-3 flex items-center gap-3 text-sm text-muted-foreground">
-            <span>🥉 {medals?.bronze ?? 0}</span>
-            <span>🥈 {medals?.silver ?? 0}</span>
-            <span>🥇 {medals?.gold ?? 0}</span>
-          </div>
-        ) : null}
-
         {hasCover ? (
           <div className="mt-4">
             <div className="mx-auto w-full max-w-[680px]">
@@ -240,10 +231,20 @@ export default function PostCard({
 
         {/* TEXT */}
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold leading-snug break-words line-clamp-2">
-            <Link href={`/post/${post.slug}`} className="hover:underline">
-              {post.title}
-            </Link>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1 text-sm font-bold leading-snug break-words line-clamp-2 text-right">
+              <Link href={`/post/${post.slug}`} className="hover:underline">
+                {post.title}
+              </Link>
+            </div>
+
+            {showMedals ? (
+              <div dir="ltr" className="shrink-0 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>🥇 {medals?.gold ?? 0}</span>
+                <span>🥈 {medals?.silver ?? 0}</span>
+                <span>🥉 {medals?.bronze ?? 0}</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-1 text-xs text-muted-foreground">
@@ -285,15 +286,6 @@ export default function PostCard({
               </>
             ) : null}
           </div>
-
-          {showMedals ? (
-            <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-              <span>🥉 {medals?.bronze ?? 0}</span>
-              <span>🥈 {medals?.silver ?? 0}</span>
-              <span>🥇 {medals?.gold ?? 0}</span>
-            </div>
-          ) : null}
-
           <Link href={`/post/${post.slug}`} className="mt-2 inline-block text-xs text-blue-700 underline">
             קרא עוד
           </Link>
