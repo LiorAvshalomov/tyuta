@@ -14,6 +14,9 @@ type PostRow = {
   excerpt: string | null
   cover_image_url: string | null
   subcategory_tag_id: number | null
+  subcategory_tag_id: number | null
+  subcategory_tag_id: number | null
+  subcategory_tag_id: number | null
   channel: { slug: string; name_he: string }[] | null
   author: { username: string; display_name: string | null; avatar_url: string | null }[] | null
   post_tags:
@@ -561,6 +564,25 @@ export default async function HomePage(props: HomePageProps = {}) {
   const channelSubtitle = props.forcedSubtitle ?? null
   const forcedSubcategories = props.forcedSubcategories ?? []
 
+  // Resolve channel id once for stable filtering (PostgREST filters on embedded resources can be unreliable)
+  const channelId: number | null = isChannelPage && channelSlug
+    ? ((await supabase.from('channels').select('id').eq('slug', channelSlug).maybeSingle()).data?.id ?? null)
+    : null
+
+  // Resolve subcategory tag ids for forced subcategories (by Hebrew name)
+  const forcedSubcatIdsByName = new Map<string, number>()
+  if (isChannelPage && forcedSubcategories.length > 0) {
+    const names = forcedSubcategories.map(s => s.name_he)
+    const { data: forcedTagRows } = await supabase
+      .from('tags')
+      .select('id,name_he')
+      .in('name_he', names)
+    ;(forcedTagRows ?? []).forEach(r => {
+      const rr = r as { id: number; name_he: string }
+      forcedSubcatIdsByName.set(rr.name_he, rr.id)
+    })
+  }
+
   const [rankedCombinedRes, rankedStoriesRes, rankedReleaseRes, rankedMagazineRes, rankedAllRes, recentRes] =
     isChannelPage
       ? await Promise.all([
@@ -614,9 +636,9 @@ export default async function HomePage(props: HomePageProps = {}) {
             .is('deleted_at', null)
             .eq('status', 'published')
             .order('published_at', { ascending: false })
-            .limit(12)
+            .limit(60)
 
-          if (channelSlug) q = q.eq('channel.slug', channelSlug)
+          if (channelId != null) q = q.eq('channel_id', channelId)
           return q
         })(),
       ])
@@ -734,11 +756,21 @@ export default async function HomePage(props: HomePageProps = {}) {
     return out
   }
 
+  const pickRankedListPeek = (rows: RankedRow[], n: number): RankedRow[] => {
+    const out: RankedRow[] = []
+    for (const r of rows) {
+      if (used.has(r.post_id)) continue
+      out.push(r)
+      if (out.length >= n) break
+    }
+    return out
+  }
+
   const storiesRanks = pickRankedList(rankedStories, 5)
   const releaseRanks = pickRankedList(rankedRelease, 5)
   const magazineRanks = pickRankedList(rankedMagazine, 3) // requested: ONLY 3
 
-  const channelRanks = isChannelPage ? pickRankedList(rankedForPage, 60) : []
+  const channelRanks = isChannelPage ? pickRankedListPeek(rankedForPage, 60) : []
 
   // Collect post IDs we need full data for
   const idsNeeded = Array.from(
@@ -852,6 +884,7 @@ export default async function HomePage(props: HomePageProps = {}) {
       excerpt: p.excerpt,
       created_at: createdAt,
       cover_image_url: p.cover_image_url,
+      subcategory_tag_id: p.subcategory_tag_id,
       channel_slug: channel?.slug ?? null,
       channel_name: channel?.name_he ?? null,
       author_username: author?.username ?? null,
@@ -894,6 +927,11 @@ export default async function HomePage(props: HomePageProps = {}) {
 
   const recentPosts = ((recentRes.data ?? []) as PostRow[]).map(p => toCard(p, rankByPostId.get(p.id)))
   const recentMini = recentPosts.slice(0, 8)
+
+  // Home fallback: if weekly ranking returns no posts (e.g., zero reactions this week), fill category sections from recent posts.
+  const storiesFinal = stories.length > 0 ? stories : recentPosts.filter(p => p.channel_slug === 'stories').slice(0, 5)
+  const releaseFinal = release.length > 0 ? release : recentPosts.filter(p => p.channel_slug === 'release').slice(0, 5)
+  const magazineFinal = magazine.length > 0 ? magazine : recentPosts.filter(p => p.channel_slug === 'magazine').slice(0, 5)
 
   // Writers of week: medals first, fallback to total weekly reactions.
   // We compute this off rankedAll (broad) and then enrich with profile info via posts.
@@ -995,7 +1033,7 @@ export default async function HomePage(props: HomePageProps = {}) {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-lg font-black tracking-tight">פוסטים מובילים</div>
+                  <div className="text-lg font-black tracking-tight">פוסטים מובילים{isChannelPage && channelName ? ` ב: ${channelName}` : ``}</div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {top1 ? <SimplePostCard post={top1} /> : null}
@@ -1009,10 +1047,17 @@ export default async function HomePage(props: HomePageProps = {}) {
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
               <div className="space-y-8">
                 {forcedSubcategories.map(sc => {
-                  const items = channelRanks
-                    .map(r => postsById.get(r.post_id) ? toCard(postsById.get(r.post_id) as PostRow, r) : null)
+                                    const rankedItems = channelRanks
+                    .map(r => (postsById.get(r.post_id) ? toCard(postsById.get(r.post_id) as PostRow, r) : null))
                     .filter((x): x is CardPost => x !== null)
-                    .filter(p => p.subcategory?.name_he === sc.name_he)
+
+                  const items = [...rankedItems, ...recentPosts]
+                    .filter(p => {
+                      const forcedId = forcedSubcatIdsByName.get(sc.name_he)
+                      return forcedId != null
+                        ? (p.subcategory_tag_id === forcedId || p.tags.some(t => t.name_he === sc.name_he))
+                        : (p.subcategory?.name_he === sc.name_he || p.tags.some(t => t.name_he === sc.name_he))
+                    })
 
                   const rows = takeUnique(items, 3, used)
                   if (rows.length === 0) return null
@@ -1110,7 +1155,7 @@ export default async function HomePage(props: HomePageProps = {}) {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-lg font-black tracking-tight">פוסטים מובילים</div>
+                  <div className="text-lg font-black tracking-tight">פוסטים מובילים{isChannelPage && channelName ? ` ב: ${channelName}` : ``}</div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {top1 ? <SimplePostCard post={top1} /> : null}
@@ -1127,7 +1172,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                 <div>
                   <SectionHeader title="סיפורים" href="/c/stories" />
                   <div className="space-y-3">
-                    {stories.map(p => (
+                    {storiesFinal.map(p => (
                       <ListRowCompact key={p.id} post={p} />
                     ))}
                   </div>
@@ -1136,7 +1181,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                 <div>
                   <SectionHeader title="פריקה" href="/c/release" />
                   <div className="space-y-3">
-                    {release.map(p => (
+                    {releaseFinal.map(p => (
                       <ListRowCompact key={p.id} post={p} />
                     ))}
                   </div>
@@ -1145,7 +1190,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                 <div>
                   <SectionHeader title="מגזין" href="/c/magazine" />
                   <div className="space-y-3">
-                    {magazine.map(p => (
+                    {magazineFinal.map(p => (
                       <ListRowCompact key={p.id} post={p} />
                     ))}
                   </div>
