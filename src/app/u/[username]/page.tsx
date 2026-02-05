@@ -1,9 +1,8 @@
 import { supabase } from '@/lib/supabaseClient'
 import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
-import ProfileRecentActivity from '@/components/ProfileRecentActivity'
 import ProfileFollowBar from '@/components/ProfileFollowBar'
 import ProfileBottomTabsClient from '@/components/ProfileBottomTabsClient'
-import ProfilePersonalInfoCardClient from '@/components/ProfilePersonalInfoCardClient'
+import ProfileInfoCardsSection from '@/components/ProfileInfoCardsSection'
 
 type PageProps = {
   params: Promise<{ username: string }>
@@ -246,21 +245,19 @@ export default async function PublicProfilePage({ params }: PageProps) {
           INFO CARDS ROW (Personal Info + Recent Activity)
           Mobile: stacked | Desktop: 2 columns, same height
           ════════════════════════════════════════════════════════════ */}
-      <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ProfilePersonalInfoCardClient
-          profileId={prof.id}
-          initial={{
-            personal_is_shared: Boolean(prof.personal_is_shared),
-            personal_about: prof.personal_about ?? null,
-            personal_age: (prof.personal_age as number | null) ?? null,
-            personal_occupation: prof.personal_occupation ?? null,
-            personal_writing_about: prof.personal_writing_about ?? null,
-            personal_books: prof.personal_books ?? null,
-            personal_favorite_category: prof.personal_favorite_category ?? null,
-          }}
-        />
-        <ProfileRecentActivity userId={prof.id} />
-      </section>
+      <ProfileInfoCardsSection
+        profileId={prof.id}
+        userId={prof.id}
+        initial={{
+          personal_is_shared: Boolean(prof.personal_is_shared),
+          personal_about: prof.personal_about ?? null,
+          personal_age: (prof.personal_age as number | null) ?? null,
+          personal_occupation: prof.personal_occupation ?? null,
+          personal_writing_about: prof.personal_writing_about ?? null,
+          personal_books: prof.personal_books ?? null,
+          personal_favorite_category: prof.personal_favorite_category ?? null,
+        }}
+      />
 
       {/* ════════════════════════════════════════════════════════════
           BOTTOM TABS (Posts / Stats)

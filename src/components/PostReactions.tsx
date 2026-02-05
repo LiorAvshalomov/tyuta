@@ -31,20 +31,6 @@ type Props = {
   authorId: string
 }
 
-function calcMedalsReset4(votes: number) {
-  const bTotal = Math.floor(votes / 4) // every 4 reactions => 1 bronze unit
-  const sTotal = Math.floor(bTotal / 4)
-  const gTotal = Math.floor(sTotal / 4)
-
-  // post display cap
-  if (gTotal >= 6) return { gold: 6, silver: 0, bronze: 0 }
-
-  const bronze = bTotal - sTotal * 4
-  const silver = sTotal - gTotal * 4
-  const gold = gTotal
-  return { gold, silver, bronze }
-}
-
 const REACTION_EMOJI: Record<string, string> = {
   funny: '😄',
   moving: '🥹',
@@ -77,8 +63,16 @@ export default function PostReactions({ postId, channelId, authorId }: Props) {
   )
 
   const totals = useMemo(() => {
-    const votesTotal = Object.values(summary).reduce((acc, s) => acc + (s.votes ?? 0), 0)
-    return calcMedalsReset4(votesTotal)
+    // Truth comes from DB payload (post_reaction_summary)
+    return Object.values(summary).reduce(
+      (acc, s) => {
+        acc.gold += s.gold ?? 0
+        acc.silver += s.silver ?? 0
+        acc.bronze += s.bronze ?? 0
+        return acc
+      },
+      { gold: 0, silver: 0, bronze: 0 }
+    )
   }, [summary])
 
   useEffect(() => {
@@ -240,7 +234,15 @@ export default function PostReactions({ postId, channelId, authorId }: Props) {
     setSummary(prev => {
       const curVotes = prev[reactionKey]?.votes ?? 0
       const votes = Math.max(0, curVotes + delta)
-      const medals = calcMedalsFromVotes(votes)
+
+      // Do NOT compute medals client-side.
+      // Keep the last known medals from the DB payload and let fetchSummaryOnly() resync.
+      const prevRow = prev[reactionKey]
+      const medals = {
+        gold: prevRow?.gold ?? 0,
+        silver: prevRow?.silver ?? 0,
+        bronze: prevRow?.bronze ?? 0,
+      }
       return {
         ...prev,
         [reactionKey]: { post_id: postId, reaction_key: reactionKey, votes, ...medals },

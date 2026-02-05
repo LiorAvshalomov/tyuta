@@ -13,6 +13,11 @@ const nextConfig = {
         hostname: 'pixabay.com',
       },
 
+       {
+        protocol: 'https',
+        hostname: 'images.pexels.com',
+      },
+
       // Supabase Storage (avatars)
       {
         protocol: 'https',

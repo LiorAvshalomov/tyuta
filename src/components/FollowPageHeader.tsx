@@ -1,6 +1,5 @@
 import Link from 'next/link'
-import Avatar from '@/components/Avatar'
-import ProfileFollowBar from '@/components/ProfileFollowBar'
+import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
 
 export default function FollowPageHeader({
   profileId,
@@ -19,64 +18,65 @@ export default function FollowPageHeader({
   initialFollowing: number
   medals: { gold: number; silver: number; bronze: number }
 }) {
+  // Suppress unused warnings
+  void profileId
+  void initialFollowers
+  void initialFollowing
+
   return (
-    <section className="rounded-3xl border bg-white p-5 shadow-sm" dir="rtl">
-      {/* חזרה לפרופיל - בפינה שמאלית (RTL: justify-end) */}
-      {/* <div className="mb-3 flex items-center justify-end">
+    <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm" dir="rtl">
+      {/* Back button - top right */}
+      <div className="mb-4">
         <Link
           href={`/u/${username}`}
-          className="h-9 inline-flex items-center rounded-md border bg-white px-3 text-xs font-semibold hover:bg-neutral-50"
+          className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-900"
         >
+          <svg className="h-4 w-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
           חזרה לפרופיל
         </Link>
-      </div> */}
+      </div>
 
-      <div className="flex items-start gap-4">
-        <div className="flex items-center gap-4 min-w-0 flex-1">
-          <div className="shrink-0">
-            <div className="rounded-full ring-2 ring-black/5 p-1">
-              <Avatar src={avatarUrl} name={displayName} size={140} shape="square" />
+      {/* Profile info */}
+      <div className="flex items-center gap-4">
+        {/* Avatar */}
+        <Link href={`/u/${username}`} className="shrink-0">
+          <ProfileAvatarFrame src={avatarUrl} name={displayName} size={80} shape="square" />
+        </Link>
+
+        {/* Name + Medals */}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold leading-tight truncate">
+            <Link href={`/u/${username}`} className="hover:text-blue-600 transition-colors">
+              {displayName}
+            </Link>
+          </h1>
+          <div className="text-sm text-neutral-500 mt-0.5">@{username}</div>
+
+          {/* Medals - compact */}
+          {(medals.gold > 0 || medals.silver > 0 || medals.bronze > 0) && (
+            <div className="flex items-center gap-2 mt-2">
+              {medals.gold > 0 && (
+                <span className="inline-flex items-center gap-1 text-sm">
+                  <span>🥇</span>
+                  <span className="font-semibold">{medals.gold}</span>
+                </span>
+              )}
+              {medals.silver > 0 && (
+                <span className="inline-flex items-center gap-1 text-sm">
+                  <span>🥈</span>
+                  <span className="font-semibold">{medals.silver}</span>
+                </span>
+              )}
+              {medals.bronze > 0 && (
+                <span className="inline-flex items-center gap-1 text-sm">
+                  <span>🥉</span>
+                  <span className="font-semibold">{medals.bronze}</span>
+                </span>
+              )}
             </div>
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-3 w-full">
-              {/* ✅ השם לחיץ ומעביר לפרופיל */}
-              <h1 className="min-w-0 text-2xl font-bold leading-tight break-words">
-                <Link href={`/u/${username}`} className="hover:underline">
-                  {displayName}
-                </Link>
-              </h1>
-
-              {/* מדליות – כרגע 0 עד שתחבר ל-DB */}
-              <div className="shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">
-                    🥉 {medals.bronze}
-                  </span>
-                  <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">
-                    🥈 {medals.silver}
-                  </span>
-                  <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">
-                    🥇 {medals.gold}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* ✅ לפי מה שביקשת קודם: מורידים @username מהדף הזה */}
-            {/* <div className="mt-1 text-sm text-muted-foreground">@{username}</div> */}
-
-            {/* counts + actions + realtime */}
-            <div className="mt-3">
-              <ProfileFollowBar
-                profileId={profileId}
-                username={username}
-                initialFollowers={initialFollowers}
-                initialFollowing={initialFollowing}
-              />
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </section>

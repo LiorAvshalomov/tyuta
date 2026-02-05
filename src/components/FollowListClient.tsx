@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import FollowButton from '@/components/FollowButton'
+import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
 import { supabase } from '@/lib/supabaseClient'
 
 type UserCard = {
@@ -75,7 +76,6 @@ export default function FollowListClient({
         .in('profile_id', ids)
 
       const mapped = mapCards(cards as ProfileFollowCountRow[] | null)
-
       const order = new Map(ids.map((id, idx) => [id, idx]))
       mapped.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
       setUsers(mapped)
@@ -104,7 +104,6 @@ export default function FollowListClient({
       .in('profile_id', ids)
 
     const mapped = mapCards(cards as ProfileFollowCountRow[] | null)
-
     const order = new Map(ids.map((id, idx) => [id, idx]))
     mapped.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
     setUsers(mapped)
@@ -135,57 +134,56 @@ export default function FollowListClient({
   }, [mode])
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6" dir="rtl">
-      <div className="mb-4 mx-auto w-full max-w-3xl rounded-md bg-red-300 px-4 py-2 text-center text-sm font-bold text-white">
-        {title || (mode === 'followers' ? 'עוקבים' : 'נעקבים')}
-      </div>
+    <div dir="rtl">
+      {/* Title */}
+      <h2 className="text-lg font-bold mb-4">{title || (mode === 'followers' ? 'עוקבים' : 'נעקבים')}</h2>
 
       {users.length === 0 ? (
-        <div className="rounded-2xl border bg-white p-5 text-sm text-muted-foreground">{emptyText}</div>
+        <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center">
+          <div className="text-3xl mb-2">👥</div>
+          <p className="text-sm text-neutral-500">{emptyText}</p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-3">
           {users.map(u => {
             const name = displayNameOnly(u)
-            const initial = (name.trim()[0] ?? 'א').toUpperCase()
 
             return (
-              <div key={u.id} className="rounded-2xl border bg-white p-3">
-                <div className="grid grid-cols-[88px_1fr] items-start gap-3">
-                  <Link href={`/u/${u.username}`} className="block">
-                    <div className="h-[88px] w-[88px] overflow-hidden rounded-xl border bg-neutral-100">
-                      {u.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={u.avatar_url}
-                          alt={name}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-2xl font-black text-neutral-500">
-                          {initial}
-                        </div>
-                      )}
-                    </div>
+              <div 
+                key={u.id} 
+                className="rounded-xl border border-neutral-200 bg-white p-3 transition-shadow hover:shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  {/* Avatar - using ProfileAvatarFrame like in profile */}
+                  <Link href={`/u/${u.username}`} className="shrink-0">
+                    <ProfileAvatarFrame 
+                      src={u.avatar_url} 
+                      name={name} 
+                      size={56} 
+                      shape="square" 
+                    />
                   </Link>
 
-                  <div className="min-w-0">
+                  {/* Name + followers */}
+                  <div className="min-w-0 flex-1">
                     <Link
                       href={`/u/${u.username}`}
-                      className="block truncate text-sm font-bold hover:underline"
+                      className="block font-bold text-sm hover:text-blue-600 transition-colors truncate"
                       title={name}
                     >
                       {name}
                     </Link>
-
-                    <div className="mt-2 text-xs">
-                      <span className="font-bold">{u.followers_count}</span>{' '}
-                      <span className="text-muted-foreground">עוקבים</span>
+                    <div className="text-xs text-neutral-500 mt-0.5">
+                      @{u.username}
                     </div>
-
-                    <div className="mt-3">
-                      <FollowButton targetUserId={u.id} targetUsername={u.username} />
+                    <div className="text-xs text-neutral-500 mt-1">
+                      <span className="font-semibold text-neutral-700">{u.followers_count}</span> עוקבים
                     </div>
+                  </div>
+
+                  {/* Follow button */}
+                  <div className="shrink-0">
+                    <FollowButton targetUserId={u.id} targetUsername={u.username} />
                   </div>
                 </div>
               </div>

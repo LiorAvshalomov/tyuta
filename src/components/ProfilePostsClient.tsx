@@ -1,9 +1,9 @@
 "use client"
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import PostCard, { type PostCardPost } from '@/components/PostCard'
 import { supabase } from '@/lib/supabaseClient'
 
 type SortKey = 'recent' | 'reactions' | 'comments'
@@ -18,14 +18,17 @@ type PostBase = {
   channel?: { name_he: string }[] | null
 }
 
-type PostRow = {
+type PostRow = PostBase
+
+type PostItem = {
   id: string
   slug: string
   title: string
   excerpt: string | null
   created_at: string
   cover_image_url: string | null
-  channel?: { name_he: string }[] | null
+  channel_name: string | null
+  medals?: { gold: number; silver: number; bronze: number } | null
 }
 
 function clampPage(n: number) {
@@ -41,6 +44,30 @@ function getErrorMessage(e: unknown) {
   return 'שגיאה לא ידועה'
 }
 
+function timeAgo(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (seconds < 60) return 'עכשיו'
+  if (seconds < 3600) return `לפני ${Math.floor(seconds / 60)} דקות`
+  if (seconds < 86400) return `לפני ${Math.floor(seconds / 3600)} שעות`
+  if (seconds < 172800) return 'אתמול'
+  if (seconds < 604800) return `לפני ${Math.floor(seconds / 86400)} ימים`
+  if (seconds < 2592000) return `לפני ${Math.floor(seconds / 604800)} שבועות`
+  if (seconds < 31536000) return `לפני ${Math.floor(seconds / 2592000)} חודשים`
+  return `לפני ${Math.floor(seconds / 31536000)} שנים`
+}
+
+function getChannelStyle(channelName: string | null): string {
+  switch (channelName) {
+    case 'פריקה': return 'bg-rose-100 text-rose-700'
+    case 'סיפורים': return 'bg-blue-100 text-blue-700'
+    case 'מגזין': return 'bg-emerald-100 text-emerald-700'
+    default: return 'bg-neutral-100 text-neutral-600'
+  }
+}
+
 async function authedFetch(input: string, init: RequestInit = {}) {
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
@@ -53,18 +80,200 @@ async function authedFetch(input: string, init: RequestInit = {}) {
   if (init.body && !headers['Content-Type'] && !(init.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
   }
-
   return fetch(input, { ...init, headers })
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Desktop Post Card
+   ───────────────────────────────────────────────────────────── */
+function DesktopPostCard({ 
+  post, 
+  isOwner, 
+  returnTo, 
+  onDelete 
+}: { 
+  post: PostItem
+  isOwner: boolean
+  returnTo: string
+  onDelete: (post: PostItem) => void
+}) {
+  return (
+    <article className="group relative hidden sm:block rounded-xl border border-neutral-100 bg-neutral-50 p-4 transition-colors hover:bg-neutral-100">
+      {/* Owner actions */}
+      {isOwner && post.id && (
+        <div className="absolute left-3 top-3 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <Link
+            href={`/write?edit=${encodeURIComponent(post.id)}&return=${encodeURIComponent(returnTo)}`}
+            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium shadow-sm hover:bg-neutral-50"
+          >
+            ערוך
+          </Link>
+          <button
+            type="button"
+            onClick={() => onDelete(post)}
+            className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50"
+          >
+            מחק
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-4">
+        {/* Cover Image - Right side */}
+        <Link href={`/post/${post.slug}`} className="shrink-0">
+          <div className="relative h-28 w-36 overflow-hidden rounded-lg bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100">
+            {post.cover_image_url ? (
+              <Image
+                src={post.cover_image_url}
+                alt={post.title}
+                fill
+                className="object-cover transition-transform duration-300 group-hover:scale-105"
+                sizes="144px"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-3xl opacity-40">📝</div>
+            )}
+          </div>
+        </Link>
+
+        {/* Content - Left side */}
+        <div className="min-w-0 flex-1 flex flex-col justify-between py-1">
+          {/* Title */}
+          <h4 className="text-base font-bold leading-snug">
+            <Link href={`/post/${post.slug}`} className="line-clamp-2 hover:text-blue-600 transition-colors">
+              {post.title}
+            </Link>
+          </h4>
+
+          {/* Excerpt */}
+          {post.excerpt && (
+            <p className="text-sm text-neutral-600 line-clamp-1 mt-1">{post.excerpt}</p>
+          )}
+
+          {/* Meta row */}
+          <div className="flex items-center justify-between mt-auto pt-2">
+            <div className="flex items-center gap-2 text-xs text-neutral-500">
+              <span>{timeAgo(post.created_at)}</span>
+              <span>•</span>
+              {post.channel_name && (
+                <span className={`rounded px-2 py-0.5 text-xs font-semibold ${getChannelStyle(post.channel_name)}`}>
+                  {post.channel_name}
+                </span>
+              )}
+            </div>
+
+            {/* Medals */}
+            {post.medals && (post.medals.gold > 0 || post.medals.silver > 0 || post.medals.bronze > 0) && (
+              <div className="flex items-center gap-1.5 text-sm">
+                {post.medals.bronze > 0 && <span>{post.medals.bronze} 🥉</span>}
+                {post.medals.silver > 0 && <span>{post.medals.silver} 🥈</span>}
+                {post.medals.gold > 0 && <span>{post.medals.gold} 🥇</span>}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile Post Card
+   ───────────────────────────────────────────────────────────── */
+function MobilePostCard({ 
+  post, 
+  isOwner, 
+  returnTo, 
+  onDelete 
+}: { 
+  post: PostItem
+  isOwner: boolean
+  returnTo: string
+  onDelete: (post: PostItem) => void
+}) {
+  return (
+    <article className="group relative sm:hidden rounded-xl border border-neutral-100 bg-neutral-50 overflow-hidden">
+      {/* Owner actions */}
+      {isOwner && post.id && (
+        <div className="absolute left-2 top-2 z-10 flex gap-1">
+          <Link
+            href={`/write?edit=${encodeURIComponent(post.id)}&return=${encodeURIComponent(returnTo)}`}
+            className="rounded-md border border-neutral-200 bg-white/90 px-2 py-1 text-xs font-medium shadow-sm"
+          >
+            ערוך
+          </Link>
+          <button
+            type="button"
+            onClick={() => onDelete(post)}
+            className="rounded-md border border-red-200 bg-white/90 px-2 py-1 text-xs font-medium text-red-600 shadow-sm"
+          >
+            מחק
+          </button>
+        </div>
+      )}
+
+      {/* Cover Image - Top, full width */}
+      <Link href={`/post/${post.slug}`}>
+        <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100">
+          {post.cover_image_url ? (
+            <Image
+              src={post.cover_image_url}
+              alt={post.title}
+              fill
+              className="object-cover"
+              sizes="100vw"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">📝</div>
+          )}
+        </div>
+      </Link>
+
+      {/* Content */}
+      <div className="p-3">
+        {/* Title */}
+        <h4 className="text-base font-bold leading-snug mb-1">
+          <Link href={`/post/${post.slug}`} className="line-clamp-2 hover:text-blue-600 transition-colors">
+            {post.title}
+          </Link>
+        </h4>
+
+        {/* Excerpt */}
+        {post.excerpt && (
+          <p className="text-sm text-neutral-600 line-clamp-2 mb-2">{post.excerpt}</p>
+        )}
+
+        {/* Meta row */}
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-neutral-500">{timeAgo(post.created_at)}</span>
+            {post.channel_name && (
+              <span className={`rounded px-2 py-0.5 font-semibold ${getChannelStyle(post.channel_name)}`}>
+                {post.channel_name}
+              </span>
+            )}
+          </div>
+
+          {/* Medals */}
+          {post.medals && (post.medals.gold > 0 || post.medals.silver > 0 || post.medals.bronze > 0) && (
+            <div className="flex items-center gap-1 text-sm">
+              {post.medals.bronze > 0 && <span>{post.medals.bronze} 🥉</span>}
+              {post.medals.silver > 0 && <span>{post.medals.silver} 🥈</span>}
+              {post.medals.gold > 0 && <span>{post.medals.gold} 🥇</span>}
+            </div>
+          )}
+        </div>
+      </div>
+    </article>
+  )
 }
 
 export default function ProfilePostsClient({
   profileId,
   username,
-  perPage = 5,
 }: {
   profileId: string
   username: string
-  perPage?: number
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -80,51 +289,52 @@ export default function ProfilePostsClient({
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [posts, setPosts] = useState<PostCardPost[]>([])
+  const [posts, setPosts] = useState<PostItem[]>([])
   const [total, setTotal] = useState(0)
   const [refreshKey, setRefreshKey] = useState(0)
-
-  // cached sorted ids for non-recent sorts (so changing page doesn't refetch everything)
   const [sortedIdsCache, setSortedIdsCache] = useState<Record<string, string[]>>({})
+  
+  // Mobile: 4 posts, Desktop: 5 posts
+  const [isMobile, setIsMobile] = useState(false)
+  
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+  
+  const perPage = isMobile ? 4 : 5
+
+  void username // suppress unused warning
 
   useEffect(() => {
-    supabase.auth
-      .getUser()
+    supabase.auth.getUser()
       .then(({ data }) => setViewerId(data.user?.id ?? null))
       .catch(() => setViewerId(null))
   }, [])
 
-  const totalPages = useMemo(() => {
-    const pages = Math.max(1, Math.ceil(total / perPage))
-    return pages
-  }, [total, perPage])
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / perPage)), [total, perPage])
 
-  useEffect(() => {
-    // reset pagination when changing sort
-    setPage(1)
-  }, [sort])
+  useEffect(() => { setPage(1) }, [sort])
 
   const refetchHard = () => {
     setSortedIdsCache({})
     setRefreshKey(k => k + 1)
   }
 
-  const onDelete = async (post: PostCardPost) => {
+  const onDelete = async (post: PostItem) => {
     if (!post.id) return
-    const ok = confirm('למחוק את הפוסט? אפשר יהיה לשחזר עד 14 יום, ואז יימחק לצמיתות.')
+    const ok = confirm('למחוק את הפוסט? אפשר יהיה לשחזר עד 14 יום.')
     if (!ok) return
 
     try {
       const res = await authedFetch(`/api/posts/${post.id}/delete`, { method: 'POST' })
-      const j = (await res.json().catch(() => ({}))) as {
-        error?: string | { message?: string }
-      }
+      const j = (await res.json().catch(() => ({}))) as { error?: string | { message?: string } }
       if (!res.ok) {
         const msg = typeof j.error === 'string' ? j.error : j.error?.message
         throw new Error(msg ?? 'שגיאה במחיקה')
       }
-
-      // remove from UI immediately
       setPosts(prev => prev.filter(p => p.id !== post.id))
       refetchHard()
     } catch (e: unknown) {
@@ -144,7 +354,6 @@ export default function ProfilePostsClient({
       const to = from + perPage - 1
 
       try {
-        // Total count
         const countRes = await supabase
           .from('posts')
           .select('id', { count: 'exact', head: true })
@@ -153,17 +362,12 @@ export default function ProfilePostsClient({
           .is('deleted_at', null)
 
         if (countRes.error) throw countRes.error
-        const totalCount = countRes.count ?? 0
-        if (!cancelled) setTotal(totalCount)
+        if (!cancelled) setTotal(countRes.count ?? 0)
 
-        // RECENT
         if (sort === 'recent') {
           const res = await supabase
             .from('posts')
-            .select(
-              `id, slug, title, excerpt, created_at, cover_image_url,
-              channel:channels ( name_he )`
-            )
+            .select(`id, slug, title, excerpt, created_at, cover_image_url, channel:channels ( name_he )`)
             .eq('author_id', profileId)
             .eq('status', 'published')
             .is('deleted_at', null)
@@ -171,6 +375,21 @@ export default function ProfilePostsClient({
             .range(from, to)
 
           if (res.error) throw res.error
+
+          // Get medals for these posts
+          const postIds = (res.data ?? []).map((p: PostBase) => p.id)
+          let medalsMap = new Map<string, { gold: number; silver: number; bronze: number }>()
+          
+          if (postIds.length > 0) {
+            const { data: medalsData } = await supabase
+              .from('post_medals_summary')
+              .select('post_id, gold, silver, bronze')
+              .in('post_id', postIds)
+            
+            for (const m of medalsData ?? []) {
+              medalsMap.set(m.post_id, { gold: m.gold ?? 0, silver: m.silver ?? 0, bronze: m.bronze ?? 0 })
+            }
+          }
 
           const mapped = (res.data ?? []).map((p: PostBase) => ({
             id: p.id,
@@ -180,17 +399,13 @@ export default function ProfilePostsClient({
             created_at: p.created_at,
             cover_image_url: p.cover_image_url,
             channel_name: p.channel?.[0]?.name_he ?? null,
-            author_name: username,
-            author_username: username,
-            tags: [],
-            medals: null,
-          })) as PostCardPost[]
+            medals: medalsMap.get(p.id) ?? null,
+          })) as PostItem[]
 
           if (!cancelled) setPosts(mapped)
           return
         }
 
-        // REACTIONS / COMMENTS
         const cacheKey = `${sort}:${profileId}`
         let sortedIds = sortedIdsCache[cacheKey]
 
@@ -218,11 +433,7 @@ export default function ProfilePostsClient({
                 counts.set(pid, (counts.get(pid) ?? 0) + 1)
               }
             } else {
-              const rRes = await supabase
-                .from('post_reaction_votes')
-                .select('post_id')
-                .in('post_id', ids)
-                .limit(5000)
+              const rRes = await supabase.from('post_reaction_votes').select('post_id').in('post_id', ids).limit(5000)
               if (rRes.error) throw rRes.error
               for (const row of rRes.data ?? []) {
                 const pid = (row as { post_id: string }).post_id
@@ -252,14 +463,24 @@ export default function ProfilePostsClient({
 
         const res = await supabase
           .from('posts')
-          .select(
-            `id, slug, title, excerpt, created_at, cover_image_url,
-            channel:channels ( name_he )`
-          )
+          .select(`id, slug, title, excerpt, created_at, cover_image_url, channel:channels ( name_he )`)
           .in('id', sliceIds)
           .is('deleted_at', null)
 
         if (res.error) throw res.error
+
+        // Get medals
+        let medalsMap = new Map<string, { gold: number; silver: number; bronze: number }>()
+        if (sliceIds.length > 0) {
+          const { data: medalsData } = await supabase
+            .from('post_medals_summary')
+            .select('post_id, gold, silver, bronze')
+            .in('post_id', sliceIds)
+          
+          for (const m of medalsData ?? []) {
+            medalsMap.set(m.post_id, { gold: m.gold ?? 0, silver: m.silver ?? 0, bronze: m.bronze ?? 0 })
+          }
+        }
 
         const byId = new Map((res.data ?? []).map(p => [(p as PostRow).id, p as PostRow]))
         const ordered = sliceIds
@@ -273,11 +494,8 @@ export default function ProfilePostsClient({
             created_at: p.created_at,
             cover_image_url: p.cover_image_url,
             channel_name: p.channel?.[0]?.name_he ?? null,
-            author_name: username,
-            author_username: username,
-            tags: [],
-            medals: null,
-          })) as PostCardPost[]
+            medals: medalsMap.get(p.id) ?? null,
+          })) as PostItem[]
 
         if (!cancelled) setPosts(ordered)
       } catch (e: unknown) {
@@ -288,10 +506,8 @@ export default function ProfilePostsClient({
     }
 
     void run()
-    return () => {
-      cancelled = true
-    }
-  }, [profileId, username, sort, page, perPage, sortedIdsCache, refreshKey])
+    return () => { cancelled = true }
+  }, [profileId, sort, page, perPage, sortedIdsCache, refreshKey])
 
   const pages = useMemo(() => {
     const n = totalPages
@@ -308,14 +524,14 @@ export default function ProfilePostsClient({
   return (
     <section>
       {/* Sort buttons */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-center sm:justify-start gap-2">
         <button
           type="button"
           onClick={() => setSort('recent')}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
             sort === 'recent' 
-              ? 'bg-neutral-900 text-white shadow-sm' 
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+              ? 'bg-blue-600 text-white shadow-sm' 
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
           }`}
         >
           אחרונים
@@ -323,60 +539,41 @@ export default function ProfilePostsClient({
         <button
           type="button"
           onClick={() => setSort('reactions')}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
             sort === 'reactions' 
-              ? 'bg-neutral-900 text-white shadow-sm' 
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+              ? 'bg-blue-600 text-white shadow-sm' 
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
           }`}
         >
-          ריאקשנים
+          הכי פופולרי
         </button>
         <button
           type="button"
           onClick={() => setSort('comments')}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
             sort === 'comments' 
-              ? 'bg-neutral-900 text-white shadow-sm' 
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+              ? 'bg-blue-600 text-white shadow-sm' 
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
           }`}
         >
-          תגובות
+          הכי הרבה תגובות
         </button>
       </div>
 
-      {error ? (
+      {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>
-      ) : null}
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-blue-600" />
         </div>
       ) : posts.length ? (
         <div className="space-y-3">
           {posts.map(p => (
-            <div key={p.slug} className="group relative">
-              {isOwner && p.id ? (
-                <div className="absolute left-2 top-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Link
-                    href={`/write?edit=${encodeURIComponent(p.id)}&return=${encodeURIComponent(returnTo)}`}
-                    className="rounded-lg border border-neutral-200 bg-white/95 px-2.5 py-1 text-xs font-medium shadow-sm transition-colors hover:bg-neutral-50"
-                    title="ערוך"
-                  >
-                    ערוך
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => void onDelete(p)}
-                    className="rounded-lg border border-red-200 bg-white/95 px-2.5 py-1 text-xs font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50"
-                    title="מחק"
-                  >
-                    מחק
-                  </button>
-                </div>
-              ) : null}
-
-              <PostCard post={p} variant="mypen-row" />
+            <div key={p.slug}>
+              <DesktopPostCard post={p} isOwner={isOwner} returnTo={returnTo} onDelete={onDelete} />
+              <MobilePostCard post={p} isOwner={isOwner} returnTo={returnTo} onDelete={onDelete} />
             </div>
           ))}
         </div>
@@ -387,15 +584,15 @@ export default function ProfilePostsClient({
         </div>
       )}
 
-      {totalPages > 1 ? (
+      {totalPages > 1 && (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <button
             type="button"
-            disabled={page <= 1}
-            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page >= totalPages}
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            הקודם
+            הבא →
           </button>
 
           {pages.map(n => (
@@ -403,7 +600,7 @@ export default function ProfilePostsClient({
               key={n}
               type="button"
               onClick={() => setPage(n)}
-              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
                 n === page 
                   ? 'bg-neutral-900 text-white shadow-sm' 
                   : 'border border-neutral-200 bg-white hover:bg-neutral-50'
@@ -415,14 +612,14 @@ export default function ProfilePostsClient({
 
           <button
             type="button"
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page <= 1}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
             className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            הבא 
+            ← קודם
           </button>
         </div>
-      ) : null}
+      )}
     </section>
   )
 }

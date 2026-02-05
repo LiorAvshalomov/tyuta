@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import ProfilePersonalInfoCard from '@/components/ProfilePersonalInfoCard'
 
@@ -19,7 +19,6 @@ const LIMITS = {
   occupation: 35,
   writingAbout: 35,
   books: 80,
-  // Stored as one of: "פריקה" | "סיפורים" | "מגזין"
   favoriteCategory: 10,
 }
 
@@ -41,12 +40,12 @@ function InputShell({
 }) {
   return (
     <div className="space-y-1">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold">{label}</div>
-          {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
+      <div className="flex items-end justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-neutral-800">{label}</div>
+          {hint ? <div className="text-[11px] text-neutral-500">{hint}</div> : null}
         </div>
-        {counter ? <div className="text-xs text-muted-foreground">{counter}</div> : null}
+        {counter ? <div className="text-[11px] text-neutral-400 shrink-0">{counter}</div> : null}
       </div>
       {children}
     </div>
@@ -56,27 +55,27 @@ function InputShell({
 export default function ProfilePersonalInfoCardClient({
   profileId,
   initial,
+  onHeightChange,
 }: {
   profileId: string
   initial: PersonalInfo
+  onHeightChange?: (height: number) => void
 }) {
   const [isOwner, setIsOwner] = useState(false)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
 
   const [info, setInfo] = useState<PersonalInfo>(initial)
 
-  // form fields
   const [isShared, setIsShared] = useState<boolean>(initial.personal_is_shared)
   const [about, setAbout] = useState<string>(initial.personal_about ?? '')
   const [age, setAge] = useState<string>(initial.personal_age?.toString() ?? '')
   const [occupation, setOccupation] = useState<string>(initial.personal_occupation ?? '')
   const [writingAbout, setWritingAbout] = useState<string>(initial.personal_writing_about ?? '')
   const [books, setBooks] = useState<string>(initial.personal_books ?? '')
-  const [favoriteCategory, setFavoriteCategory] = useState<string>(
-    initial.personal_favorite_category ?? ''
-  )
+  const [favoriteCategory, setFavoriteCategory] = useState<string>(initial.personal_favorite_category ?? '')
 
   const favoriteCategoryOptions = useMemo(
     () => [
@@ -90,19 +89,28 @@ export default function ProfilePersonalInfoCardClient({
 
   useEffect(() => {
     let mounted = true
-
     const run = async () => {
       const { data } = await supabase.auth.getUser()
       const uid = data?.user?.id
       if (!mounted) return
       setIsOwner(Boolean(uid && uid === profileId))
     }
-
     run()
-    return () => {
-      mounted = false
-    }
+    return () => { mounted = false }
   }, [profileId])
+
+  // Report height changes
+  useEffect(() => {
+    if (cardRef.current && onHeightChange) {
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          onHeightChange(entry.contentRect.height + 32) // Add padding
+        }
+      })
+      observer.observe(cardRef.current)
+      return () => observer.disconnect()
+    }
+  }, [onHeightChange])
 
   const cardRight = useMemo(() => {
     if (isOwner) {
@@ -110,7 +118,6 @@ export default function ProfilePersonalInfoCardClient({
         <button
           type="button"
           onClick={() => {
-            // reset form from current state
             setIsShared(info.personal_is_shared)
             setAbout(info.personal_about ?? '')
             setAge(info.personal_age?.toString() ?? '')
@@ -121,15 +128,14 @@ export default function ProfilePersonalInfoCardClient({
             setError(null)
             setOpen(true)
           }}
-          className="text-xs font-semibold rounded-full border px-3 py-1 hover:bg-neutral-50"
+          className="text-xs font-semibold text-blue-600 transition-colors hover:text-blue-700 hover:underline"
         >
           עריכה
         </button>
       )
     }
-
     return !info.personal_is_shared ? (
-      <span className="text-xs text-muted-foreground">פרטי</span>
+      <span className="text-xs text-neutral-400">פרטי</span>
     ) : null
   }, [info, isOwner])
 
@@ -141,20 +147,13 @@ export default function ProfilePersonalInfoCardClient({
       personal_is_shared: Boolean(isShared),
       personal_about: about.trim() ? clampStr(about.trim(), LIMITS.about) : null,
       personal_age: age.trim() ? Number(age) : null,
-      personal_occupation: occupation.trim()
-        ? clampStr(occupation.trim(), LIMITS.occupation)
-        : null,
-      personal_writing_about: writingAbout.trim()
-        ? clampStr(writingAbout.trim(), LIMITS.writingAbout)
-        : null,
+      personal_occupation: occupation.trim() ? clampStr(occupation.trim(), LIMITS.occupation) : null,
+      personal_writing_about: writingAbout.trim() ? clampStr(writingAbout.trim(), LIMITS.writingAbout) : null,
       personal_books: books.trim() ? clampStr(books.trim(), LIMITS.books) : null,
-      personal_favorite_category: favoriteCategory.trim()
-        ? clampStr(favoriteCategory.trim(), LIMITS.favoriteCategory)
-        : null,
+      personal_favorite_category: favoriteCategory.trim() ? clampStr(favoriteCategory.trim(), LIMITS.favoriteCategory) : null,
       personal_updated_at: new Date().toISOString(),
     }
 
-    // basic client-side validation
     if (payload.personal_age !== null) {
       if (Number.isNaN(payload.personal_age) || payload.personal_age < 0 || payload.personal_age > 150) {
         setSaving(false)
@@ -188,142 +187,126 @@ export default function ProfilePersonalInfoCardClient({
 
   return (
     <>
-      <ProfilePersonalInfoCard
-        isShared={info.personal_is_shared}
-        about={info.personal_about}
-        age={info.personal_age}
-        occupation={info.personal_occupation}
-        writingAbout={info.personal_writing_about}
-        books={info.personal_books}
-        favoriteCategory={info.personal_favorite_category}
-        rightSlot={cardRight}
-      />
+      <div ref={cardRef}>
+        <ProfilePersonalInfoCard
+          isShared={info.personal_is_shared}
+          about={info.personal_about}
+          age={info.personal_age}
+          occupation={info.personal_occupation}
+          writingAbout={info.personal_writing_about}
+          books={info.personal_books}
+          favoriteCategory={info.personal_favorite_category}
+          rightSlot={cardRight}
+        />
+      </div>
 
-      {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" dir="rtl">
+      {/* Modal */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center sm:items-center justify-center pt-14" dir="rtl">
+          {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => (saving ? null : setOpen(false))}
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !saving && setOpen(false)}
           />
 
-          <div className="relative z-10 w-[min(720px,calc(100vw-32px))] rounded-3xl border bg-white p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="text-lg font-bold">עריכת מידע אישי</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  אתה יכול לבחור לשתף או להסתיר את המידע. אם לא תשתף, עדיין יוצגו תיבות אחידות
-                  עם "הכותב בחר לא להציג".
-                </p>
-              </div>
-
+          {/* Modal Content - mobile: bottom sheet, desktop: centered */}
+          <div className="relative z-10 flex max-h-[85vh] sm:max-h-[90vh] w-full sm:max-w-md flex-col rounded-t-2xl sm:rounded-2xl border border-neutral-200 bg-white shadow-2xl">
+            {/* Header - Fixed */}
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-100 p-4">
+              <h3 className="text-base font-bold text-neutral-900">עריכת מידע אישי</h3>
               <button
                 type="button"
-                className="rounded-full border px-3 py-1 text-sm hover:bg-neutral-50"
-                onClick={() => (saving ? null : setOpen(false))}
+                className="rounded-full p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                onClick={() => !saving && setOpen(false)}
               >
-                סגור
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
-            <div className="mt-4 flex items-center justify-between rounded-2xl border bg-neutral-50 p-3">
-              <div>
-                <div className="text-sm font-semibold">שיתוף מידע אישי</div>
-                <div className="text-xs text-muted-foreground">
-                  אם כבוי — יופיע "הכותב בחר לא להציג" במקום הערכים.
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4">
+              {/* Share toggle */}
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 p-3 mb-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-neutral-800">שיתוף מידע</div>
+                  <div className="text-[11px] text-neutral-500">אם כבוי — יוצג &quot;לא להציג&quot;</div>
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsShared(v => !v)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold border ${
-                  isShared ? 'bg-neutral-900 text-white' : 'bg-white'
-                }`}
-              >
-                {isShared ? 'משותף' : 'פרטי'}
-              </button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="md:col-span-2">
-                <InputShell
-                  label="קצת עליי"
-                  hint="מקסימום 90 תווים"
-                  counter={`${about.length}/${LIMITS.about}`}
+                <button
+                  type="button"
+                  onClick={() => setIsShared(v => !v)}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${isShared
+                    ? 'bg-neutral-900 text-white'
+                    : 'border border-neutral-300 bg-white text-neutral-600'
+                    }`}
                 >
+                  {isShared ? 'משותף' : 'פרטי'}
+                </button>
+              </div>
+
+              {/* Form fields */}
+              <div className="space-y-3">
+                <InputShell label="קצת עליי" hint="עד 90 תווים" counter={`${about.length}/${LIMITS.about}`}>
                   <textarea
-                    className="w-full rounded-2xl border p-3 text-sm leading-6"
-                    rows={3}
+                    className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm leading-relaxed transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                    rows={2}
                     maxLength={LIMITS.about}
                     value={about}
                     onChange={e => setAbout(e.target.value)}
                     placeholder="כתוב קצת על עצמך…"
                   />
                 </InputShell>
-              </div>
 
-              <InputShell label="גיל" hint="מספר בלבד">
-                <input
-                  className="w-full rounded-2xl border p-3 text-sm"
-                  inputMode="numeric"
-                  value={age}
-                  onChange={e => setAge(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="למשל 24"
-                />
-              </InputShell>
+                <div className="grid grid-cols-2 gap-3">
+                  <InputShell label="גיל">
+                    <input
+                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      inputMode="numeric"
+                      value={age}
+                      onChange={e => setAge(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="24"
+                    />
+                  </InputShell>
 
-              <InputShell
-                label="עיסוק"
-                hint="מקסימום 35 תווים"
-                counter={`${occupation.length}/${LIMITS.occupation}`}
-              >
-                <input
-                  className="w-full rounded-2xl border p-3 text-sm"
-                  maxLength={LIMITS.occupation}
-                  value={occupation}
-                  onChange={e => setOccupation(e.target.value)}
-                  placeholder="למשל סטודנט / מפתח / כותב…"
-                />
-              </InputShell>
+                  <InputShell label="עיסוק" counter={`${occupation.length}/${LIMITS.occupation}`}>
+                    <input
+                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      maxLength={LIMITS.occupation}
+                      value={occupation}
+                      onChange={e => setOccupation(e.target.value)}
+                      placeholder="סטודנט"
+                    />
+                  </InputShell>
+                </div>
 
-              <InputShell
-                label="אוהב לכתוב על"
-                hint="מקסימום 35 תווים"
-                counter={`${writingAbout.length}/${LIMITS.writingAbout}`}
-              >
-                <input
-                  className="w-full rounded-2xl border p-3 text-sm"
-                  maxLength={LIMITS.writingAbout}
-                  value={writingAbout}
-                  onChange={e => setWritingAbout(e.target.value)}
-                  placeholder="למשל אהבה, חרדות, טכנולוגיה…"
-                />
-              </InputShell>
+                <div className="grid grid-cols-2 gap-3">
+                  <InputShell label="כותב על" counter={`${writingAbout.length}/${LIMITS.writingAbout}`}>
+                    <input
+                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      maxLength={LIMITS.writingAbout}
+                      value={writingAbout}
+                      onChange={e => setWritingAbout(e.target.value)}
+                      placeholder="אהבה, חרדות…"
+                    />
+                  </InputShell>
 
-              <InputShell
-                label="קטגוריה מועדפת"
-                hint="בחר אחת משלוש קטגוריות"
-              >
-                <select
-                  className="w-full rounded-2xl border p-3 text-sm bg-white"
-                  value={favoriteCategory}
-                  onChange={e => setFavoriteCategory(e.target.value)}
-                >
-                  {favoriteCategoryOptions.map(o => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </InputShell>
+                  <InputShell label="קטגוריה">
+                    <select
+                      className="w-full rounded-lg border border-neutral-200 bg-white p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      value={favoriteCategory}
+                      onChange={e => setFavoriteCategory(e.target.value)}
+                    >
+                      {favoriteCategoryOptions.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </InputShell>
+                </div>
 
-              <div className="md:col-span-2">
-                <InputShell
-                  label="ספרים שקראתי"
-                  hint="מקסימום 80 תווים"
-                  counter={`${books.length}/${LIMITS.books}`}
-                >
+                <InputShell label="ספרים" hint="עד 80 תווים" counter={`${books.length}/${LIMITS.books}`}>
                   <textarea
-                    className="w-full rounded-2xl border p-3 text-sm leading-6"
+                    className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm leading-relaxed transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
                     rows={2}
                     maxLength={LIMITS.books}
                     value={books}
@@ -332,14 +315,17 @@ export default function ProfilePersonalInfoCardClient({
                   />
                 </InputShell>
               </div>
+
+              {error && (
+                <div className="mt-3 rounded-lg bg-red-50 p-2.5 text-sm text-red-600">{error}</div>
+              )}
             </div>
 
-            {error ? <div className="mt-3 text-sm text-red-600">{error}</div> : null}
-
-            <div className="mt-5 flex items-center justify-end gap-2">
+            {/* Footer - Fixed */}
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-neutral-100 p-4">
               <button
                 type="button"
-                className="rounded-full border px-4 py-2 text-sm hover:bg-neutral-50"
+                className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100"
                 disabled={saving}
                 onClick={() => setOpen(false)}
               >
@@ -347,7 +333,7 @@ export default function ProfilePersonalInfoCardClient({
               </button>
               <button
                 type="button"
-                className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className="rounded-full bg-neutral-900 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:opacity-60"
                 disabled={saving}
                 onClick={save}
               >
@@ -356,7 +342,7 @@ export default function ProfilePersonalInfoCardClient({
             </div>
           </div>
         </div>
-      ) : null}
+      )}
     </>
   )
 }

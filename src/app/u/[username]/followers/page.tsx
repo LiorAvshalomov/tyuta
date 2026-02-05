@@ -25,7 +25,7 @@ export default async function FollowersPage({ params }: PageProps) {
 
   const displayName = (prof.display_name ?? '').trim() || 'אנונימי'
 
-  // counts (initial)
+  // Counts
   const { count: followersCount = 0 } = await supabase
     .from('user_follows')
     .select('follower_id', { count: 'exact', head: true })
@@ -36,7 +36,7 @@ export default async function FollowersPage({ params }: PageProps) {
     .select('following_id', { count: 'exact', head: true })
     .eq('follower_id', prof.id)
 
-  // list ids (followers)
+  // Followers list
   const { data: rows } = await supabase
     .from('user_follows')
     .select('follower_id')
@@ -44,29 +44,39 @@ export default async function FollowersPage({ params }: PageProps) {
     .order('created_at', { ascending: false })
     .limit(200)
 
-  const ids = (rows ?? []).map(r => (r as any).follower_id).filter(Boolean)
+  const ids = (rows ?? []).map(r => (r as { follower_id: string }).follower_id).filter(Boolean)
 
-  let initialUsers: any[] = []
+  let initialUsers: { id: string; username: string; display_name: string | null; avatar_url: string | null; followers_count: number }[] = []
   if (ids.length > 0) {
     const { data: cards } = await supabase
       .from('profile_follow_counts')
       .select('profile_id, username, display_name, avatar_url, followers_count')
       .in('profile_id', ids)
 
-    initialUsers =
-      (cards ?? []).map((c: any) => ({
-        id: c.profile_id,
-        username: c.username,
-        display_name: c.display_name,
-        avatar_url: c.avatar_url,
-        followers_count: c.followers_count ?? 0,
-      })) ?? []
+    initialUsers = (cards ?? []).map((c: { profile_id: string; username: string; display_name: string | null; avatar_url: string | null; followers_count: number | null }) => ({
+      id: c.profile_id,
+      username: c.username,
+      display_name: c.display_name,
+      avatar_url: c.avatar_url,
+      followers_count: c.followers_count ?? 0,
+    }))
   }
 
-  const medals = { gold: 0, silver: 0, bronze: 0 }
+  // Get medals
+  const { data: medalsRow } = await supabase
+    .from('profile_medals_all_time')
+    .select('gold, silver, bronze')
+    .eq('profile_id', prof.id)
+    .maybeSingle()
+
+  const medals = {
+    gold: medalsRow?.gold ?? 0,
+    silver: medalsRow?.silver ?? 0,
+    bronze: medalsRow?.bronze ?? 0,
+  }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8" dir="rtl">
+    <div className="mx-auto max-w-2xl px-4 py-6" dir="rtl">
       <FollowPageHeader
         profileId={prof.id}
         username={prof.username}
@@ -79,7 +89,7 @@ export default async function FollowersPage({ params }: PageProps) {
 
       <div className="mt-6">
         <FollowListClient
-          title={`עוקבים אחרי ${displayName}`}
+          title={`עוקבים (${followersCount ?? 0})`}
           subjectProfileId={prof.id}
           mode="followers"
           initialUsers={initialUsers}
