@@ -6,6 +6,15 @@ import { supabase } from '@/lib/supabaseClient'
 import FollowButton from '@/components/FollowButton'
 import ProfileNonOwnerActions from '@/components/ProfileNonOwnerActions'
 
+/* ─────────────────────────────────────────────────────────────
+   Format large numbers (1000 → 1K, etc.)
+   ───────────────────────────────────────────────────────────── */
+function formatCount(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`
+  return n.toString()
+}
+
 export default function ProfileFollowBar({
   profileId,
   username,
@@ -88,39 +97,38 @@ export default function ProfileFollowBar({
 
   return (
     <div className="mt-6">
-      {/* full-width divider inside the card (match mockup) */}
-      <div className="-mx-4 border-t border-neutral-200/80 pt-4 sm:-mx-5">
-        <div className="grid grid-cols-2 items-end gap-4 px-4 sm:px-5">
-          {/* counts (stick to RIGHT side of the card in RTL) */}
-          <div className="flex items-end justify-end gap-6 sm:gap-10">
+      {/* Full-width divider */}
+      <div className="-mx-5 border-t border-neutral-200 pt-5 lg:-mx-8">
+        <div className="flex items-center justify-between px-2 lg:px-8 pt-4">
+          {/* Follow counts (RIGHT side in RTL) */}
+          <div className="flex items-center gap-2">
             <Link
               href={`/u/${username}/followers`}
-              className="group inline-flex flex-col items-center justify-center cursor-pointer select-none transition hover:scale-[1.02] active:scale-[0.98]"
+              className="group flex flex-col items-center transition-transform hover:scale-105 active:scale-95"
             >
-              <span className="text-2xl font-bold leading-none transition group-hover:opacity-90">
-                {followersCount}
+              <span className="text-2xl font-black leading-none transition-colors group-hover:text-blue-600">
+                {formatCount(followersCount)}
               </span>
-              <span className="mt-1 text-xs text-muted-foreground transition group-hover:text-neutral-700">
+              <span className="mt-1 text-xs text-neutral-500 transition-colors group-hover:text-neutral-700">
                 עוקבים
               </span>
             </Link>
 
             <Link
               href={`/u/${username}/following`}
-              className="group inline-flex flex-col items-center justify-center cursor-pointer select-none transition hover:scale-[1.02] active:scale-[0.98]"
+              className="group flex flex-col items-center transition-transform hover:scale-105 active:scale-95"
             >
-              <span className="text-2xl font-bold leading-none transition group-hover:opacity-90">
-                {followingCount}
+              <span className="text-2xl font-black leading-none transition-colors group-hover:text-blue-600">
+                {formatCount(followingCount)}
               </span>
-              <span className="mt-1 text-xs text-muted-foreground transition group-hover:text-neutral-700">
+              <span className="mt-1 text-xs text-neutral-500 transition-colors group-hover:text-neutral-700">
                 עוקב אחרי
               </span>
             </Link>
           </div>
 
-          {/* actions (stick to LEFT side of the card) */}
-          <div className="flex items-center justify-start gap-3 sm:gap-4">
-            {/* ✅ לא מציגים פעולות על עצמי / לא מחובר */}
+          {/* Action buttons (LEFT side in RTL) */}
+          <div className="flex items-center gap-2">
             {isMe || !isAuthed ? null : (
               <>
                 <FollowButton targetUserId={profileId} targetUsername={username} />

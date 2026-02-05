@@ -24,7 +24,7 @@ export default function ProfileRecentActivity({ userId }: { userId: string }) {
         .select('created_at, content, post_slug, post_title')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(10)
+        .limit(5)
 
       if (!error && data) setRows(data as Row[])
       setLoading(false)
@@ -34,34 +34,46 @@ export default function ProfileRecentActivity({ userId }: { userId: string }) {
   }, [userId])
 
   return (
-    <div className="rounded-2xl border bg-white p-4 h-[440px] flex flex-col" dir="rtl">
-      <div className="flex items-center justify-between">
+    <div className="flex h-[440px] flex-col rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md" dir="rtl">
+      <div className="flex shrink-0 items-center justify-between">
         <h3 className="text-sm font-bold m-0">פעילות אחרונה</h3>
-        <span className="text-xs text-muted-foreground">10 אחרונות</span>
+        <span className="text-xs text-neutral-400">5 אחרונות</span>
       </div>
 
-      <div className="mt-3 flex-1 overflow-y-auto pr-1">
+      {/* Scrollable content area */}
+      <div className="mt-3 flex-1 overflow-y-auto">
         {loading ? (
-          <div className="text-sm text-muted-foreground">טוען…</div>
+          <div className="flex h-full items-center justify-center">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600" />
+          </div>
         ) : rows.length === 0 ? (
-          <div className="text-sm text-muted-foreground">אין עדיין תגובות.</div>
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center">
+              <div className="text-2xl mb-2">💬</div>
+              <p className="text-sm text-neutral-500">אין עדיין תגובות.</p>
+            </div>
+          </div>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-2 pb-1">
             {rows.map((r, i) => (
-              <li key={i} className="border-b pb-3 last:border-b-0 last:pb-0">
-                <div className="text-xs text-muted-foreground">
+              <li 
+                key={i} 
+                className="rounded-xl border border-neutral-100 bg-neutral-50 p-3 transition-colors hover:bg-neutral-100"
+              >
+                <div className="text-xs text-neutral-400">
                   {new Date(r.created_at).toLocaleString('he-IL')}
                 </div>
 
-                <div className="mt-1 text-sm leading-6 line-clamp-2">
+                <div className="mt-1 text-sm leading-relaxed text-neutral-700 line-clamp-2">
                   {r.content}
                 </div>
 
                 <Link
-                  className="mt-2 inline-block text-sm font-semibold hover:underline"
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-600 transition-colors hover:text-blue-700 hover:underline"
                   href={`/post/${r.post_slug}`}
                 >
-                  ↩ לפוסט: {r.post_title}
+                  <span>↩</span>
+                  <span className="line-clamp-1">{r.post_title}</span>
                 </Link>
               </li>
             ))}

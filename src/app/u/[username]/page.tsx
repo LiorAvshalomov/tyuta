@@ -16,8 +16,6 @@ type Profile = {
   avatar_url: string | null
   bio: string | null
   created_at: string | null
-
-  // personal info (optional)
   personal_is_shared?: boolean | null
   personal_about?: string | null
   personal_age?: number | null
@@ -27,44 +25,37 @@ type Profile = {
   personal_favorite_category?: string | null
 }
 
-type PostRow = {
-  id: string
-  title: string
-  slug: string
-  excerpt: string | null
-  cover_image_url: string | null
-  created_at: string
-  is_anonymous: boolean | null
-  channel: { name_he: string }[] | null
-  post_tags:
-    | {
-        tag:
-          | {
-              slug: string
-              name_he: string
-            }[]
-          | null
-      }[]
-    | null
-}
-
-type SummaryRow = {
-  post_id: string
-  gold: number | null
-  silver: number | null
-  bronze: number | null
-}
-
 function safeText(s?: string | null) {
   return (s ?? '').trim()
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Medal Pills - shows gold/silver/bronze counts
+   ───────────────────────────────────────────────────────────── */
 function MedalPills({ gold, silver, bronze }: { gold: number; silver: number; bronze: number }) {
   return (
-    <div className="flex items-center gap-2 shrink-0">
-      <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">🥉 {bronze}</span>
-      <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">🥈 {silver}</span>
-      <span className="rounded-full border bg-neutral-50 px-3 py-1 text-sm">🥇 {gold}</span>
+    <div className="flex items-center gap-2">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100">
+        {bronze} <span className="text-base">🥉</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100">
+        {silver} <span className="text-base">🥈</span>
+      </span>
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100">
+        {gold} <span className="text-base">🥇</span>
+      </span>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Stat Pill - individual stat display (posts, comments, etc.)
+   ───────────────────────────────────────────────────────────── */
+function StatPill({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 transition-colors hover:bg-neutral-100">
+      <span className="text-xs text-neutral-500">{label}:</span>
+      <span className="text-sm font-bold">{value}</span>
     </div>
   )
 }
@@ -91,7 +82,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
   const prof = profile as Profile
 
-  // initial counts (server)
+  // Follow counts
   const { count: followersCount = 0 } = await supabase
     .from('user_follows')
     .select('follower_id', { count: 'exact', head: true })
@@ -102,8 +93,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
     .select('following_id', { count: 'exact', head: true })
     .eq('follower_id', prof.id)
 
-  // Count total posts (for stats). We don't pull all posts on the server
-  // because the profile bottom list is now fully client-side with pagination.
+  // Posts count
   const { count: postsCount = 0 } = await supabase
     .from('posts')
     .select('id', { count: 'exact', head: true })
@@ -115,7 +105,13 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const displayName = safeText(prof.display_name) || 'אנונימי'
   const bio = safeText(prof.bio)
 
-  // Collect ids for "תגובות שקיבל" stat (bounded so we don't overload on huge accounts)
+  // Comments written
+  const { count: commentsWritten = 0 } = await supabase
+    .from('comments')
+    .select('id', { count: 'exact', head: true })
+    .eq('author_id', prof.id)
+
+  // Comments received (on user's posts)
   const { data: postIdsRows } = await supabase
     .from('posts')
     .select('id')
@@ -126,11 +122,6 @@ export default async function PublicProfilePage({ params }: PageProps) {
     .order('created_at', { ascending: false })
     .limit(5000)
 
-  const { count: commentsWritten = 0 } = await supabase
-    .from('comments')
-    .select('id', { count: 'exact', head: true })
-    .eq('author_id', prof.id)
-
   let commentsReceived = 0
   const postIds = (postIdsRows ?? []).map(r => r.id)
   if (postIds.length > 0) {
@@ -138,11 +129,10 @@ export default async function PublicProfilePage({ params }: PageProps) {
       .from('comments')
       .select('id', { count: 'exact', head: true })
       .in('post_id', postIds)
-
     commentsReceived = count ?? 0
   }
 
-  // medals (all-time)
+  // Medals (all-time)
   const { data: medalsRow } = await supabase
     .from('profile_medals_all_time')
     .select('gold, silver, bronze')
@@ -155,99 +145,108 @@ export default async function PublicProfilePage({ params }: PageProps) {
     bronze: medalsRow?.bronze ?? 0,
   }
 
-  // ✅ bring reaction totals via RPC (returns ALL reactions incl. zeros)
+  // Reaction totals
   const { data: reactionTotals, error: rtErr } = await supabase.rpc('get_profile_reaction_totals', {
     p_profile_id: prof.id,
   })
 
   if (rtErr) {
-    // לא שובר את הפרופיל אם יש בעיה — רק לוג לצורך debug
     console.error('get_profile_reaction_totals error:', rtErr)
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8" dir="rtl">
-      <section className="rounded-3xl border bg-white p-4 shadow-sm sm:p-5">
-        {/* HEADER (match your mockup) */}
-        <div className="mt-2">
-          {/* Mobile: avatar centered + name + bio centered */}
-          <div className="sm:hidden">
-            <div className="flex flex-col items-center text-center">
-              <ProfileAvatarFrame src={prof.avatar_url} name={displayName} size={176} shape="square" />
-              <h1 className="mt-4 break-words text-3xl font-bold leading-tight">{displayName}</h1>
-              <div className="mt-1 text-sm text-muted-foreground">@{prof.username}</div>
+    <div className="mx-auto max-w-3xl px-4 py-6 lg:py-8" dir="rtl">
+      {/* ════════════════════════════════════════════════════════════
+          PROFILE HEADER CARD
+          ════════════════════════════════════════════════════════════ */}
+      <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md lg:rounded-3xl lg:p-8">
+        
+        {/* ─────────────────────────────────────────
+            MOBILE LAYOUT (default, hidden on lg+)
+            ───────────────────────────────────────── */}
+        <div className="lg:hidden">
+          <div className="flex flex-col items-center text-center">
+            {/* Avatar */}
+            <ProfileAvatarFrame src={prof.avatar_url} name={displayName} size={160} shape="square" />
+            
+            {/* Name + Username */}
+            <h1 className="mt-4 break-words text-2xl font-black leading-tight">{displayName}</h1>
+            <div className="mt-1 text-sm text-neutral-500">@{prof.username}</div>
 
-              {bio ? (
-                <p className="mt-3 max-w-[42ch] break-words text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">
+            {/* Bio */}
+            {bio && (
+              <p className="mt-4 max-w-[38ch] break-words text-sm leading-relaxed text-neutral-600 [overflow-wrap:anywhere]">
+                {bio}
+              </p>
+            )}
+
+            {/* Stats */}
+            <div className="mt-5 flex w-full flex-wrap justify-center gap-2">
+              <StatPill label="פוסטים" value={postsCount ?? 0} />
+              <StatPill label="תגובות שכתב" value={commentsWritten ?? 0} />
+              <StatPill label="תגובות שקיבל" value={commentsReceived} />
+            </div>
+
+            {/* Medals */}
+            <div className="mt-4">
+              <MedalPills gold={medals.gold} silver={medals.silver} bronze={medals.bronze} />
+            </div>
+          </div>
+        </div>
+
+        {/* ─────────────────────────────────────────
+            DESKTOP LAYOUT (lg and up)
+            ───────────────────────────────────────── */}
+        <div className="hidden lg:block">
+          {/* Medals positioned top-left */}
+          <div className="mb-4 flex justify-end">
+            <MedalPills gold={medals.gold} silver={medals.silver} bronze={medals.bronze} />
+          </div>
+
+          {/* Avatar + Name row */}
+          <div className="flex items-start gap-6">
+            {/* Avatar on the right (RTL) */}
+            <div className="shrink-0">
+              <ProfileAvatarFrame src={prof.avatar_url} name={displayName} size={200} shape="square" />
+            </div>
+
+            {/* Name + Username + Bio */}
+            <div className="flex min-w-0 flex-1 flex-col pt-2">
+              <h1 className="break-words text-4xl font-black leading-tight">{displayName}</h1>
+              <div className="mt-1 text-sm text-neutral-500">@{prof.username}</div>
+              
+              {bio && (
+                <p className="mt-4 max-w-[50ch] break-words text-sm leading-relaxed text-neutral-600 [overflow-wrap:anywhere]">
                   {bio}
                 </p>
-              ) : null}
-
-              {/* Stats pills */}
-              <div className="mt-4 grid w-full grid-cols-3 gap-2">
-                <StatPill label="פוסטים" value={postsCount ?? 0} />
-                <StatPill label="תגובות שכתב" value={commentsWritten ?? 0} />
-                <StatPill label="תגובות שקיבל" value={commentsReceived} />
-              </div>
-
-              {/* Medals (mobile: under stats, centered) */}
-              <div className="mt-4">
-                <MedalPills gold={medals.gold} silver={medals.silver} bronze={medals.bronze} />
-              </div>
+              )}
             </div>
           </div>
 
-          {/* Desktop: medals top-left, avatar top-right, name to the LEFT of avatar. Bio + stats centered. */}
-          <div className="hidden sm:block">
-            <div className="relative">
-              <div className="absolute left-0 top-0">
-                <MedalPills gold={medals.gold} silver={medals.silver} bronze={medals.bronze} />
-              </div>
-
-              <div className="flex items-start justify-end gap-5">
-                <ProfileAvatarFrame src={prof.avatar_url} name={displayName} size={200} shape="square" />
-
-                <div className="min-w-0 pt-2 text-right">
-                  <h1 className="min-w-0 break-words text-4xl font-bold leading-tight">{displayName}</h1>
-                  <div className="mt-1 text-sm text-muted-foreground">@{prof.username}</div>
-                </div>
-              </div>
-
-              {bio ? (
-                <p className="mt-6 mx-auto max-w-[52ch] break-words text-center text-sm leading-6 text-neutral-700 [overflow-wrap:anywhere]">
-                  {bio}
-                </p>
-              ) : null}
-
-              <div className="mt-4 flex flex-wrap justify-center gap-3">
-                <StatPill label="פוסטים" value={postsCount ?? 0} />
-                <StatPill label="תגובות שכתב" value={commentsWritten ?? 0} />
-                <StatPill label="תגובות שקיבל" value={commentsReceived} />
-              </div>
-            </div>
-          </div>
-
-          {/* Follow bar */}
-          <div className="mt-5">
-            <ProfileFollowBar
-              profileId={prof.id}
-              username={prof.username}
-              initialFollowers={followersCount ?? 0}
-              initialFollowing={followingCount ?? 0}
-            />
-          </div>
-
-          {/* (Removed old shared pills+followbar block) */}
-          {/* Stats pills: under the header row in mobile, inline in desktop */}
-          <div className="hidden">
+          {/* Stats - centered */}
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
             <StatPill label="פוסטים" value={postsCount ?? 0} />
             <StatPill label="תגובות שכתב" value={commentsWritten ?? 0} />
             <StatPill label="תגובות שקיבל" value={commentsReceived} />
           </div>
         </div>
+
+        {/* ─────────────────────────────────────────
+            FOLLOW BAR (shared between mobile & desktop)
+            ───────────────────────────────────────── */}
+        <ProfileFollowBar
+          profileId={prof.id}
+          username={prof.username}
+          initialFollowers={followersCount ?? 0}
+          initialFollowing={followingCount ?? 0}
+        />
       </section>
 
-      <section className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* ════════════════════════════════════════════════════════════
+          INFO CARDS ROW (Personal Info + Recent Activity)
+          Mobile: stacked | Desktop: 2 columns, same height
+          ════════════════════════════════════════════════════════════ */}
+      <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ProfilePersonalInfoCardClient
           profileId={prof.id}
           initial={{
@@ -263,23 +262,18 @@ export default async function PublicProfilePage({ params }: PageProps) {
         <ProfileRecentActivity userId={prof.id} />
       </section>
 
+      {/* ════════════════════════════════════════════════════════════
+          BOTTOM TABS (Posts / Stats)
+          ════════════════════════════════════════════════════════════ */}
       <ProfileBottomTabsClient
         profileId={prof.id}
         username={prof.username}
         postsCount={postsCount ?? 0}
         commentsWritten={commentsWritten ?? 0}
         commentsReceived={commentsReceived ?? 0}
+        medals={medals}
         reactionTotals={reactionTotals ?? []}
       />
-    </div>
-  )
-}
-
-function StatPill({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="inline-flex items-center justify-center gap-2 rounded-full border bg-white px-4 py-2 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.02)]">
-      <span className="text-sm font-bold leading-none">{value}</span>
-      <span className="text-xs font-medium text-blue-600">{label}</span>
     </div>
   )
 }

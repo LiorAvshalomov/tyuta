@@ -306,47 +306,61 @@ export default function ProfilePostsClient({
   }, [page, totalPages])
 
   return (
-    <section className="mt-6">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-bold">פוסטים</h2>
-        <div className="flex items-center gap-2 text-sm">
-          <button
-            type="button"
-            onClick={() => setSort('recent')}
-            className={`rounded px-3 py-1.5 ${sort === 'recent' ? 'bg-neutral-900 text-white' : 'border bg-white'}`}
-          >
-            אחרונים
-          </button>
-          <button
-            type="button"
-            onClick={() => setSort('reactions')}
-            className={`rounded px-3 py-1.5 ${sort === 'reactions' ? 'bg-neutral-900 text-white' : 'border bg-white'}`}
-          >
-            ריאקשנים
-          </button>
-          <button
-            type="button"
-            onClick={() => setSort('comments')}
-            className={`rounded px-3 py-1.5 ${sort === 'comments' ? 'bg-neutral-900 text-white' : 'border bg-white'}`}
-          >
-            תגובות
-          </button>
-        </div>
+    <section>
+      {/* Sort buttons */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSort('recent')}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+            sort === 'recent' 
+              ? 'bg-neutral-900 text-white shadow-sm' 
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+          }`}
+        >
+          אחרונים
+        </button>
+        <button
+          type="button"
+          onClick={() => setSort('reactions')}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+            sort === 'reactions' 
+              ? 'bg-neutral-900 text-white shadow-sm' 
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+          }`}
+        >
+          ריאקשנים
+        </button>
+        <button
+          type="button"
+          onClick={() => setSort('comments')}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+            sort === 'comments' 
+              ? 'bg-neutral-900 text-white shadow-sm' 
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+          }`}
+        >
+          תגובות
+        </button>
       </div>
 
-      {error ? <div className="rounded border bg-white p-3 text-sm text-red-600">{error}</div> : null}
+      {error ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>
+      ) : null}
 
       {loading ? (
-        <div className="rounded border bg-white p-6 text-sm text-muted-foreground">טוען…</div>
+        <div className="flex items-center justify-center py-12">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600" />
+        </div>
       ) : posts.length ? (
         <div className="space-y-3">
           {posts.map(p => (
             <div key={p.slug} className="group relative">
               {isOwner && p.id ? (
-                <div className="absolute left-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                <div className="absolute left-2 top-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <Link
                     href={`/write?edit=${encodeURIComponent(p.id)}&return=${encodeURIComponent(returnTo)}`}
-                    className="rounded border bg-white/95 px-2 py-1 text-xs shadow-sm hover:bg-neutral-50"
+                    className="rounded-lg border border-neutral-200 bg-white/95 px-2.5 py-1 text-xs font-medium shadow-sm transition-colors hover:bg-neutral-50"
                     title="ערוך"
                   >
                     ערוך
@@ -354,7 +368,7 @@ export default function ProfilePostsClient({
                   <button
                     type="button"
                     onClick={() => void onDelete(p)}
-                    className="rounded border bg-white/95 px-2 py-1 text-xs text-red-700 shadow-sm hover:bg-red-50"
+                    className="rounded-lg border border-red-200 bg-white/95 px-2.5 py-1 text-xs font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50"
                     title="מחק"
                   >
                     מחק
@@ -367,16 +381,19 @@ export default function ProfilePostsClient({
           ))}
         </div>
       ) : (
-        <div className="rounded border bg-white p-6 text-sm text-muted-foreground">אין עדיין פוסטים.</div>
+        <div className="rounded-xl bg-neutral-50 px-4 py-12 text-center">
+          <div className="text-3xl mb-2">📝</div>
+          <p className="text-sm text-neutral-500">אין עדיין פוסטים.</p>
+        </div>
       )}
 
       {totalPages > 1 ? (
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           <button
             type="button"
             disabled={page <= 1}
             onClick={() => setPage(p => Math.max(1, p - 1))}
-            className="rounded border bg-white px-3 py-1.5 text-sm disabled:opacity-50"
+            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             הקודם
           </button>
@@ -386,7 +403,11 @@ export default function ProfilePostsClient({
               key={n}
               type="button"
               onClick={() => setPage(n)}
-              className={`rounded px-3 py-1.5 text-sm ${n === page ? 'bg-neutral-900 text-white' : 'border bg-white'}`}
+              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+                n === page 
+                  ? 'bg-neutral-900 text-white shadow-sm' 
+                  : 'border border-neutral-200 bg-white hover:bg-neutral-50'
+              }`}
             >
               {n}
             </button>
@@ -396,9 +417,9 @@ export default function ProfilePostsClient({
             type="button"
             disabled={page >= totalPages}
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            className="rounded border bg-white px-3 py-1.5 text-sm disabled:opacity-50"
+            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            הבא
+            הבא 
           </button>
         </div>
       ) : null}

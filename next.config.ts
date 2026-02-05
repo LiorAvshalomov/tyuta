@@ -8,6 +8,11 @@ const nextConfig = {
         hostname: 'api.dicebear.com',
       },
 
+      {
+        protocol: 'https',
+        hostname: 'pixabay.com',
+      },
+
       // Supabase Storage (avatars)
       {
         protocol: 'https',

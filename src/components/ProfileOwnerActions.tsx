@@ -33,12 +33,6 @@ export default function ProfileOwnerActions({ profileId }: { profileId: string }
         עריכת פרופיל
       </Link>
 
-      <Link
-        href="/saved"
-        className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-neutral-50"
-      >
-        פוסטים שמורים
-      </Link>
     </div>
   )
 }
