@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 
 type PixabayHit = {
   id: number
@@ -38,6 +39,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const qHebrew = (searchParams.get('q') ?? '').trim()
   const seed = Number(searchParams.get('seed') ?? Date.now())
+  const postId = searchParams.get('postId')
 
   if (!qHebrew) {
     return NextResponse.json({ url: null })
@@ -70,6 +72,58 @@ export async function GET(req: Request) {
     
     const idx = Math.abs(seed) % hits.length
     const pick = hits[idx]
+
+    // If postId provided, download image and upload to private storage
+    if (postId) {
+      const authResult = await requireUserFromRequest(req)
+      if (!authResult.ok) {
+        return NextResponse.json({ storagePath: null, signedUrl: null })
+      }
+      const { user, supabase: scopedClient } = authResult
+
+      // Verify post ownership via RLS (only returns rows where author_id = auth.uid())
+      const { data: post } = await scopedClient
+        .from('posts')
+        .select('id')
+        .eq('id', postId)
+        .single()
+
+      if (!post) {
+        return NextResponse.json({ storagePath: null, signedUrl: null })
+      }
+
+      try {
+        const imgRes = await fetch(pick.largeImageURL)
+        if (!imgRes.ok) {
+          return NextResponse.json({ storagePath: null, signedUrl: null })
+        }
+        const blob = await imgRes.blob()
+        const uuid = crypto.randomUUID()
+        const storagePath = `${user.id}/${postId}/cover-${uuid}.jpg`
+
+        const { error: uploadErr } = await scopedClient.storage
+          .from('post-assets')
+          .upload(storagePath, blob, {
+            upsert: false,
+            contentType: blob.type || 'image/jpeg',
+          })
+
+        if (uploadErr) {
+          return NextResponse.json({ storagePath: null, signedUrl: null })
+        }
+
+        const { data: signed } = await scopedClient.storage
+          .from('post-assets')
+          .createSignedUrl(storagePath, 3600)
+
+        return NextResponse.json({
+          storagePath,
+          signedUrl: signed?.signedUrl ?? null,
+        })
+      } catch {
+        return NextResponse.json({ storagePath: null, signedUrl: null })
+      }
+    }
 
     return NextResponse.json({
       url: pick.largeImageURL,

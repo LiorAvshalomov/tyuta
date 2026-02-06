@@ -460,6 +460,8 @@ useEffect(() => {
 
   const ensureDraft = useCallback(async (): Promise<{ id: string; slug: string } | null> => {
     if (!userId) return null
+    const { data: { session: _s } } = await supabase.auth.getSession()
+    if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return null }
     // In edit mode we never create a new draft silently.
     if (isEditMode) return null
     if (effectivePostId && draftSlug) return { id: effectivePostId, slug: draftSlug }
@@ -581,6 +583,8 @@ if (!effectiveChannelId) {
 
   const upsertDraftSilently = useCallback(async () => {
     if (!userId) return
+    const { data: { session: _s } } = await supabase.auth.getSession()
+    if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
 
     const isEmpty = !title.trim() && !excerpt.trim() && JSON.stringify(contentJson) === JSON.stringify(EMPTY_DOC)
     if (isEmpty && !effectivePostId && !isEditMode) return
@@ -801,31 +805,37 @@ if (!effectiveChannelId) {
       alert('כדי לבחור קאבר אוטומטי צריך כותרת')
       return
     }
-    if (!isEditMode) {
-      const created = await ensureDraft()
-      if (!created) return
-    } else {
-      if (!effectivePostId) return
-    }
+    const postId = isEditMode ? effectivePostId : (await ensureDraft())?.id
+    if (!postId || !userId) return
 
     setErrorMsg(null)
     const seed = Date.now()
+    const { data: { session } } = await supabase.auth.getSession()
+    const headers: Record<string, string> = {}
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`
+    }
     const res = await fetch(
-  `/api/cover/auto?q=${encodeURIComponent(title.trim())}&seed=${seed}`
-)
+      `/api/cover/auto?q=${encodeURIComponent(title.trim())}&seed=${seed}&postId=${postId}`,
+      { headers }
+    )
     if (!res.ok) {
       setErrorMsg('לא הצלחתי להביא תמונה')
       return
     }
-    const json = (await res.json()) as { url?: string }
-    if (!json.url) {
+    const json = (await res.json()) as { storagePath?: string | null; signedUrl?: string | null; url?: string }
+    if (json.storagePath && json.signedUrl) {
+      setCoverStoragePath(json.storagePath)
+      setCoverUrl(json.signedUrl)
+      setCoverSource('upload')
+    } else if (json.url) {
+      setCoverStoragePath(null)
+      setCoverUrl(json.url)
+      setCoverSource('pixabay')
+    } else {
       setErrorMsg('לא נמצאה תמונה מתאימה')
       return
     }
-
-    setCoverStoragePath(null)
-    setCoverUrl(json.url)
-    setCoverSource('pixabay')
     setAutoCoverUsed(true)
   }
 
@@ -836,31 +846,46 @@ if (!effectiveChannelId) {
     setAutoCoverUsed(false)
   }
 
-  const fetchAutoCoverUrl = async (q: string) => {
+  const fetchAutoCoverUrl = async (q: string, postId: string): Promise<{ storagePath: string | null; displayUrl: string } | null> => {
     const seed = Date.now()
+    const { data: { session } } = await supabase.auth.getSession()
+    const headers: Record<string, string> = {}
+    if (session?.access_token) {
+      headers['Authorization'] = `Bearer ${session.access_token}`
+    }
     const res = await fetch(
-  `/api/cover/auto?q=${encodeURIComponent(q)}&seed=${seed}`
-)
+      `/api/cover/auto?q=${encodeURIComponent(q)}&seed=${seed}&postId=${postId}`,
+      { headers }
+    )
     if (!res.ok) return null
-    const json = (await res.json()) as { url?: string }
-    return json.url ?? null
+    const json = (await res.json()) as { storagePath?: string | null; signedUrl?: string | null; url?: string }
+    if (json.storagePath && json.signedUrl) {
+      return { storagePath: json.storagePath, displayUrl: json.signedUrl }
+    }
+    if (json.url) {
+      return { storagePath: null, displayUrl: json.url }
+    }
+    return null
   }
 
   const publish = async () => {
     if (!userId) return
 
+    let activeCoverStoragePath = coverStoragePath
+    let activeCoverSource = coverSource
+
     const promoteCoverIfNeeded = async (opts: { postId: string; postSlug: string }) => {
-      // Only for uploaded covers that currently live in private post-assets.
-      if (coverSource !== 'upload' || !coverStoragePath) return { publicUrl: coverUrl, source: coverSource }
+      // Promote any cover stored in private post-assets (upload or pixabay).
+      if (!activeCoverStoragePath) return { publicUrl: coverUrl, source: activeCoverSource }
 
       // Download from private bucket (requires auth) and re-upload into public bucket.
-      const download = await supabase.storage.from('post-assets').download(coverStoragePath)
+      const download = await supabase.storage.from('post-assets').download(activeCoverStoragePath)
       if (download.error || !download.data) {
         throw new Error(download.error?.message ?? 'לא הצלחתי להוריד את הקאבר מהטיוטה')
       }
 
-      const ext = (coverStoragePath.split('.').pop() || 'jpg').toLowerCase()
-      const publicPath = `${opts.postId}/cover.${ext}`
+      const ext = (activeCoverStoragePath.split('.').pop() || 'jpg').toLowerCase()
+      const publicPath = `${userId}/${opts.postId}/cover.${ext}`
 
       const upload = await supabase.storage.from('post-covers').upload(publicPath, download.data, {
         upsert: true,
@@ -871,10 +896,10 @@ if (!effectiveChannelId) {
       }
 
       // Best-effort cleanup of the private file (ignore errors).
-      void supabase.storage.from('post-assets').remove([coverStoragePath])
+      void supabase.storage.from('post-assets').remove([activeCoverStoragePath])
 
       const { data: pub } = supabase.storage.from('post-covers').getPublicUrl(publicPath)
-      return { publicUrl: pub.publicUrl ?? null, source: 'upload' as const }
+      return { publicUrl: pub.publicUrl ?? null, source: activeCoverSource }
     }
 
     // ✅ In edit-mode for already published posts, "publish" is actually "save changes".
@@ -943,18 +968,20 @@ if (!effectiveChannelId) {
     let finalCoverSource = coverSource
 
     if (!finalCoverUrl) {
-      const autoUrl = await fetchAutoCoverUrl(title.trim())
-      if (!autoUrl) {
+      const auto = await fetchAutoCoverUrl(title.trim(), created.id)
+      if (!auto) {
         setErrorMsg('לא הצלחתי לבחור תמונה אוטומטית. נסה שוב או העלה תמונה ידנית.')
         setSaving(false)
         return
       }
 
-      finalCoverUrl = autoUrl
-      finalCoverSource = 'pixabay'
-      setCoverUrl(autoUrl)
-      setCoverStoragePath(null)
-      setCoverSource('pixabay')
+      finalCoverUrl = auto.displayUrl
+      finalCoverSource = auto.storagePath ? 'upload' : 'pixabay'
+      activeCoverStoragePath = auto.storagePath
+      activeCoverSource = auto.storagePath ? 'upload' : 'pixabay'
+      setCoverUrl(auto.displayUrl)
+      setCoverStoragePath(auto.storagePath)
+      setCoverSource(auto.storagePath ? 'upload' : 'pixabay')
       setAutoCoverUsed(true)
     }
 
