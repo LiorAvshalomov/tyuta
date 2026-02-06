@@ -170,6 +170,7 @@ export default function WritePage() {
   const [coverStoragePath, setCoverStoragePath] = useState<string | null>(null)
   const [coverSource, setCoverSource] = useState<string | null>(null)
   const [autoCoverUsed, setAutoCoverUsed] = useState(false)
+  const [isCoverLoading, setIsCoverLoading] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -772,6 +773,7 @@ if (!effectiveChannelId) {
     const postId = isEditMode ? effectivePostId : (await ensureDraft())?.id
     if (!postId) return
 
+    setIsCoverLoading(true)
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
     const uuid =
       typeof globalThis !== 'undefined' &&
@@ -787,6 +789,7 @@ if (!effectiveChannelId) {
     })
 
     if (uploadErr) {
+      setIsCoverLoading(false)
       setErrorMsg(uploadErr.message)
       return
     }
@@ -808,6 +811,7 @@ if (!effectiveChannelId) {
     const postId = isEditMode ? effectivePostId : (await ensureDraft())?.id
     if (!postId || !userId) return
 
+    setIsCoverLoading(true)
     setErrorMsg(null)
     const seed = Date.now()
     const { data: { session } } = await supabase.auth.getSession()
@@ -820,6 +824,7 @@ if (!effectiveChannelId) {
       { headers }
     )
     if (!res.ok) {
+      setIsCoverLoading(false)
       setErrorMsg('לא הצלחתי להביא תמונה')
       return
     }
@@ -833,6 +838,7 @@ if (!effectiveChannelId) {
       setCoverUrl(json.url)
       setCoverSource('pixabay')
     } else {
+      setIsCoverLoading(false)
       setErrorMsg('לא נמצאה תמונה מתאימה')
       return
     }
@@ -840,6 +846,7 @@ if (!effectiveChannelId) {
   }
 
   const removeCover = async () => {
+    setIsCoverLoading(false)
     setCoverStoragePath(null)
     setCoverUrl(null)
     setCoverSource(null)
@@ -1078,12 +1085,18 @@ if (!effectiveChannelId) {
         <section className="rounded-3xl border bg-white p-4 shadow-sm">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="md:col-span-1">
-              <div className="overflow-hidden rounded-2xl border bg-neutral-50">
+              <div className="relative overflow-hidden rounded-2xl border bg-neutral-50">
                 {coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={coverUrl ?? undefined} alt="" className="h-44 w-full object-cover" />
+                  <img src={coverUrl ?? undefined} alt="" className="h-44 w-full object-cover" onLoad={() => setIsCoverLoading(false)} onError={() => setIsCoverLoading(false)} />
                 ) : (
                   <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">אין קאבר</div>
+                )}
+                {isCoverLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span className="mt-2 text-xs text-white">מייבא תמונה…</span>
+                  </div>
                 )}
               </div>
 
