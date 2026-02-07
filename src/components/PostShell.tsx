@@ -16,7 +16,7 @@ type Props = {
  */
 export default function PostShell({ header, actions, sidebar, children, below }: Props) {
   return (
-    <main className="min-h-screen bg-neutral-50 font-sans text-neutral-900" dir="rtl">
+    <main className="min-h-screen bg-transparent font-sans text-neutral-900" dir="rtl">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
         {/*
           חשוב: בדסקטופ אנחנו רוצים שהטקסט (המאמר) יהיה בצד ימין והסיידבר בצד שמאל.

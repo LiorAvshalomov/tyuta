@@ -267,6 +267,28 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length])
 
+  // Auto-expand parents of highlighted/pending-highlighted replies
+  useEffect(() => {
+    const idsToCheck = new Set<string>()
+    highlightIds.forEach(key => idsToCheck.add(key.replace('comment-', '')))
+    pendingHighlightRef.current.forEach(id => idsToCheck.add(id))
+    if (idsToCheck.size === 0) return
+
+    const parentsToExpand = new Set<string>()
+    for (const id of idsToCheck) {
+      const comment = items.find(c => c.id === id)
+      if (comment?.parent_comment_id) parentsToExpand.add(comment.parent_comment_id)
+    }
+
+    if (parentsToExpand.size > 0) {
+      setExpandedParents(prev => {
+        let changed = false
+        const next = new Set(prev)
+        parentsToExpand.forEach(id => { if (!next.has(id)) { next.add(id); changed = true } })
+        return changed ? next : prev
+      })
+    }
+  }, [highlightIds, items])
 
 // auto-hide errors (3s)
 const errTimerRef = useRef<number | null>(null)
@@ -338,6 +360,14 @@ async function submitReport() {
   // likes
   const [myLiked, setMyLiked] = useState<Set<string>>(new Set())
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
+
+  // collapsed replies (default: collapsed; auto-expand on deep-link)
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
+
+  // like tooltip
+  const [likerNames, setLikerNames] = useState<Record<string, { names: string[]; total: number }>>({})
+  const [tooltipId, setTooltipId] = useState<string | null>(null)
+  const tooltipTimerRef = useRef<number | null>(null)
 
   // reply state (one level)
   const [replyToId, setReplyToId] = useState<string | null>(null)
@@ -684,6 +714,47 @@ async function submitReport() {
     // notification is created by DB trigger
   }
 
+  const fetchLikers = async (commentId: string) => {
+    const currentCount = Number(likeCounts[commentId] ?? 0)
+    if (currentCount === 0) return
+    const cached = likerNames[commentId]
+    if (cached && cached.total === currentCount) return
+
+    const { data: likesData } = await supabase
+      .from('comment_likes')
+      .select('user_id')
+      .eq('comment_id', commentId)
+      .order('created_at', { ascending: false })
+      .limit(6)
+
+    if (!likesData || likesData.length === 0) return
+
+    const userIds = (likesData as { user_id: string }[]).map(r => r.user_id)
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, display_name, username')
+      .in('id', userIds)
+
+    const nameMap = new Map<string, string>()
+    ;(profiles as { id: string; display_name: string | null; username: string | null }[] | null)?.forEach(p => {
+      nameMap.set(p.id, p.display_name ?? p.username ?? 'משתמש')
+    })
+
+    const names = userIds.slice(0, 5).map(uid => nameMap.get(uid) ?? 'משתמש')
+    setLikerNames(prev => ({ ...prev, [commentId]: { names, total: currentCount } }))
+  }
+
+  const showTooltip = (commentId: string) => {
+    if (tooltipTimerRef.current) window.clearTimeout(tooltipTimerRef.current)
+    fetchLikers(commentId)
+    setTooltipId(commentId)
+  }
+
+  const hideTooltip = () => {
+    tooltipTimerRef.current = window.setTimeout(() => setTooltipId(null), 300)
+  }
+
   const startEdit = (c: CommentRow) => {
     setErrFor(null)
     setEditingId(c.id)
@@ -743,18 +814,7 @@ async function submitReport() {
   return (
 
 <>
-  {/* Subtle highlight animation (lightweight, future-proof) */}
-  <style jsx global>{`
-    .pendemic-comment-hl {
-      animation: pendemicCommentPulse 0.7s ease-in-out 0s 2;
-      will-change: transform;
-    }
-    @keyframes pendemicCommentPulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.01); }
-      100% { transform: scale(1); }
-    }
-  `}</style>
+  {/* empty – highlight handled by Tailwind classes only */}
   {/* Report modal */}
   {reportOpen && (
     <div
@@ -1050,8 +1110,8 @@ async function submitReport() {
                 key={c.id}
                 id={`comment-${c.id}`}
                 className={
-                  `rounded-2xl border p-3 scroll-mt-24 transition-colors ` +
-                  (highlightIds.has(`comment-${c.id}`) ? 'ring-2 ring-violet-400/40 bg-violet-50 shadow-md pendemic-comment-hl' : '')
+                  `rounded-2xl border p-3 scroll-mt-24 transition-colors duration-300 ` +
+                  (highlightIds.has(`comment-${c.id}`) ? 'ring-1 ring-violet-300/70 bg-violet-50/60 shadow-sm' : '')
                 }
               >
                 {headerRow}
@@ -1061,14 +1121,34 @@ async function submitReport() {
                 {/* פעולות (כמו פייסבוק – עדין, לא מוגזם) */}
                 {!isEditing ? (
                   <div className="mt-3 flex items-center gap-4 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => toggleLike(c.id)}
-                      className={`font-semibold hover:underline ${liked ? 'text-red-600' : 'text-neutral-600'}`}
-                      disabled={isTemp || sending}
-                    >
-                      ❤ לייק{likes ? ` (${likes})` : ''}
-                    </button>
+                    <div className="relative inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleLike(c.id)}
+                        className={`font-semibold hover:underline ${liked ? 'text-red-600' : 'text-neutral-600'}`}
+                        disabled={isTemp || sending}
+                      >
+                        ❤ לייק
+                      </button>
+                      {likes > 0 && (
+                        <span
+                          className="cursor-pointer font-semibold text-neutral-500"
+                          onMouseEnter={() => showTooltip(c.id)}
+                          onMouseLeave={hideTooltip}
+                          onClick={(e) => { e.stopPropagation(); fetchLikers(c.id); setTooltipId(prev => prev === c.id ? null : c.id) }}
+                        >
+                          ({likes})
+                        </span>
+                      )}
+                      {tooltipId === c.id && likes > 0 && likerNames[c.id] && (
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded-lg bg-neutral-900 px-3 py-2 text-[11px] text-white shadow-lg z-20 pointer-events-none flex flex-col space-y-0.5" dir="rtl">
+                          {likerNames[c.id].names.map((name, i) => (
+                            <span key={i}>{name}</span>
+                          ))}
+                          {likerNames[c.id].total > 5 && <span className="text-neutral-400 text-[10px]">ועוד {likerNames[c.id].total - 5}+</span>}
+                        </div>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => startReply(c)}
@@ -1082,7 +1162,9 @@ async function submitReport() {
 
                 {/* Replies */}
                 {replies.length ? (
-                  <div className="mt-4 space-y-2 border-r border-neutral-200 pr-4 mr-6">
+                  expandedParents.has(c.id) ? (
+                  <div id={`replies-${c.id}`} className="mt-4 scroll-mt-24">
+                  <div className="space-y-2 border-r border-neutral-200 pr-4 mr-6">
                     {replies.map(r => {
                       const ra = r.author
                       const rName = ra?.display_name ?? 'אנונימי'
@@ -1099,8 +1181,8 @@ async function submitReport() {
                           key={r.id}
                           id={`comment-${r.id}`}
                           className={
-                            `rounded-2xl border bg-white p-3 scroll-mt-24 transition-colors ` +
-                            (highlightIds.has(`comment-${r.id}`) ? 'ring-2 ring-violet-400/40 bg-violet-50 shadow-md pendemic-comment-hl' : '')
+                            `rounded-2xl border bg-white p-3 scroll-mt-24 transition-colors duration-300 ` +
+                            (highlightIds.has(`comment-${r.id}`) ? 'ring-1 ring-violet-300/70 bg-violet-50/60 shadow-sm' : '')
                           }
                         >
                           <div className="flex items-start justify-between gap-3">
@@ -1195,20 +1277,70 @@ async function submitReport() {
 
                           {!rEditing ? (
                             <div className="mt-3 flex items-center gap-4 text-xs">
-                              <button
-                                type="button"
-                                onClick={() => toggleLike(r.id)}
-                                className={`font-semibold hover:underline ${rLiked ? 'text-red-600' : 'text-neutral-600'}`}
-                                disabled={rTemp || sending}
-                              >
-                                ❤ לייק{rLikes ? ` (${rLikes})` : ''}
-                              </button>
+                              <div className="relative inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleLike(r.id)}
+                                  className={`font-semibold hover:underline ${rLiked ? 'text-red-600' : 'text-neutral-600'}`}
+                                  disabled={rTemp || sending}
+                                >
+                                  ❤ לייק
+                                </button>
+                                {rLikes > 0 && (
+                                  <span
+                                    className="cursor-pointer font-semibold text-neutral-500"
+                                    onMouseEnter={() => showTooltip(r.id)}
+                                    onMouseLeave={hideTooltip}
+                                    onClick={(e) => { e.stopPropagation(); fetchLikers(r.id); setTooltipId(prev => prev === r.id ? null : r.id) }}
+                                  >
+                                    ({rLikes})
+                                  </span>
+                                )}
+                                {tooltipId === r.id && rLikes > 0 && likerNames[r.id] && (
+                                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded-lg bg-neutral-900 px-3 py-2 text-[11px] text-white shadow-lg z-20 pointer-events-none flex flex-col space-y-0.5" dir="rtl">
+                                    {likerNames[r.id].names.map((name, i) => (
+                                      <span key={i}>{name}</span>
+                                    ))}
+                                    {likerNames[r.id].total > 5 && <span className="text-neutral-400 text-[10px]">ועוד {likerNames[r.id].total - 5}+</span>}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           ) : null}
                         </div>
                       )
                     })}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpandedParents(prev => { const n = new Set(prev); n.delete(c.id); return n })
+                      if (window.matchMedia('(max-width: 767px)').matches) {
+                        const el = document.getElementById(`comment-${c.id}`)
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }
+                    }}
+                    className="mt-2 mr-6 text-xs font-semibold text-neutral-500 hover:underline"
+                  >
+                    הסתר תגובות
+                  </button>
+                  </div>
+                  ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExpandedParents(prev => new Set(prev).add(c.id))
+                      if (window.matchMedia('(max-width: 767px)').matches) {
+                        requestAnimationFrame(() => {
+                          document.getElementById(`replies-${c.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        })
+                      }
+                    }}
+                    className="mt-3 text-xs font-semibold text-blue-600 hover:underline"
+                  >
+                    {`הצג ${replies.length} ${replies.length === 1 ? 'תגובה' : 'תגובות'}`}
+                  </button>
+                  )
                 ) : null}
               </div>
             )

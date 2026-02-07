@@ -77,14 +77,13 @@ function SidebarSection({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-3xl border bg-white shadow-sm">
-      <div className="flex flex-row-reverse items-center justify-between gap-3 rounded-t-3xl bg-neutral-200/90 px-4 py-2.5">
+    <div className="rounded-3xl border border-neutral-200 bg-white/80 shadow-sm backdrop-blur-sm">
+      <div className="flex flex-row-reverse items-center justify-between gap-3 rounded-t-3xl bg-neutral-100/60 px-4 py-2.5">
         <h3 className="text-[15px] font-black tracking-tight text-neutral-950 text-right">{title}</h3>
         {action ? <div className="text-[15px] text-left">{action}</div> : null}
       </div>
 
-      {/* פס הפרדה כהה */}
-      <div className="mx-4 border-b border-neutral-400" />
+      <div className="mx-4 border-b border-neutral-200" />
 
       <div className="px-3 pb-3 pt-2.5">
         <div className="space-y-1.5">{children}</div>
@@ -196,9 +195,12 @@ export default function PostPage() {
   const [moreFromAuthor, setMoreFromAuthor] = useState<SidebarPost[]>([])
   const [hotInChannel, setHotInChannel] = useState<SidebarPost[]>([])
   const [myUserId, setMyUserId] = useState<string | null>(null)
-  
+  const [medals, setMedals] = useState<{ gold: number; silver: number; bronze: number }>({ gold: 0, silver: 0, bronze: 0 })
+
 
   const [isMobile, setIsMobile] = useState(false)
+
+  
 
   useEffect(() => {
     // Tailwind breakpoint md=768
@@ -460,12 +462,22 @@ export default function PostPage() {
           ? '/c/magazine'
           : null
 
+  const hasMedals = medals.gold > 0 || medals.silver > 0 || medals.bronze > 0
+
   const header = (
     <div>
-
-        <h1 className="text-right text-[32px] sm:text-[36px] font-black tracking-tight text-neutral-950 break-words">
+        <div className="flex items-start justify-between gap-3">
+        <h1 className="min-w-0 flex-1 text-right text-[32px] sm:text-[36px] font-black tracking-tight text-neutral-950 break-words">
           {post.title ?? 'ללא כותרת'}
         </h1>
+        {hasMedals && (
+          <div dir="ltr" className="mt-2 flex shrink-0 items-center gap-2 text-sm">
+            {medals.gold > 0 && <span>🥇 {medals.gold}</span>}
+            {medals.silver > 0 && <span>🥈 {medals.silver}</span>}
+            {medals.bronze > 0 && <span>🥉 {medals.bronze}</span>}
+          </div>
+        )}
+        </div>
         {post.excerpt ? (
           <p className="mt-2 text-right text-[16px] leading-8 text-neutral-700">{post.excerpt}</p>
         ) : null}
@@ -574,11 +586,11 @@ export default function PostPage() {
 
       {/* אינטראקציות – מופרד לחלוטין מהטקסט */}
       
-      <div className="-mx-6 sm:-mx-10 mt-12 space-y-6">
+      <div className="-mx-6 sm:-mx-10 mt-6 space-y-6">
 <div className='bg-neutral-100/70 border ' > 
 <div>
         <div className="rounded-3xl border border-neutral-300 bg-neutral-200/70 p-5 sm:p-6">
-          <PostReactions postId={post.id} channelId={post.channel_id ?? 0} authorId={post.author_id} />
+          <PostReactions postId={post.id} channelId={post.channel_id ?? 0} authorId={post.author_id} onMedalsChange={setMedals} />
         </div>
         <div className="mt-0.5 "></div>
         </div>

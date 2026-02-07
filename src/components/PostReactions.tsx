@@ -29,6 +29,7 @@ type Props = {
   postId: string
   channelId: number
   authorId: string
+  onMedalsChange?: (totals: { gold: number; silver: number; bronze: number }) => void
 }
 
 const REACTION_EMOJI: Record<string, string> = {
@@ -43,7 +44,7 @@ const REACTION_EMOJI: Record<string, string> = {
   interesting: '👀',
 }
 
-export default function PostReactions({ postId, channelId, authorId }: Props) {
+export default function PostReactions({ postId, channelId, authorId, onMedalsChange }: Props) {
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
 
@@ -62,18 +63,20 @@ export default function PostReactions({ postId, channelId, authorId }: Props) {
     [reactions]
   )
 
-  const totals = useMemo(() => {
-    // Truth comes from DB payload (post_reaction_summary)
-    return Object.values(summary).reduce(
-      (acc, s) => {
-        acc.gold += s.gold ?? 0
-        acc.silver += s.silver ?? 0
-        acc.bronze += s.bronze ?? 0
-        return acc
-      },
-      { gold: 0, silver: 0, bronze: 0 }
-    )
-  }, [summary])
+const totals = useMemo(() => {
+  return Object.values(summary).reduce(
+    (acc, s) => ({
+      gold: acc.gold + (s.gold ?? 0),
+      silver: acc.silver + (s.silver ?? 0),
+      bronze: acc.bronze + (s.bronze ?? 0),
+    }),
+    { gold: 0, silver: 0, bronze: 0 }
+  )
+}, [summary])
+
+  const onMedalsRef = useRef(onMedalsChange)
+  useEffect(() => { onMedalsRef.current = onMedalsChange })
+  useEffect(() => { onMedalsRef.current?.(totals) }, [totals])
 
   useEffect(() => {
   if (!errorMsg) return
@@ -257,7 +260,7 @@ export default function PostReactions({ postId, channelId, authorId }: Props) {
     setErrorMsg(null)
 
     setAnimatingKey(reactionKey)
-    window.setTimeout(() => setAnimatingKey(null), 160)
+    window.setTimeout(() => setAnimatingKey(null), 220)
 
     if (!userId) {
       setErrorMsg('צריך להתחבר כדי לדרג')
@@ -348,14 +351,6 @@ export default function PostReactions({ postId, channelId, authorId }: Props) {
           </div>
         </div>
 
-        {(totals.gold > 0 || totals.silver > 0 || totals.bronze > 0) && (
-          <div dir="ltr" className="mt-2 flex items-center justify-center gap-4 text-sm">
-            {totals.gold > 0 && <span>🥇 {totals.gold}</span>}
-            {totals.silver > 0 && <span>🥈 {totals.silver}</span>}
-            {totals.bronze > 0 && <span>🥉 {totals.bronze}</span>}
-          </div>
-        )}
-
         {errorMsg ? (
           <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-800">
             {errorMsg}
@@ -378,13 +373,13 @@ export default function PostReactions({ postId, channelId, authorId }: Props) {
                 type="button"
                 onClick={() => toggle(r.key)}
                 className={[
-                  'group inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border px-2 py-1 text-center transition md:min-w-[74px] md:px-3 md:py-2',
+                  'group inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border px-2 py-1 text-center transition-all duration-150 ease-out md:min-w-[74px] md:px-3 md:py-2',
                   mine
                     ? 'border-neutral-900 bg-neutral-900 text-white'
                     : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50',
                 ].join(' ')}
                 style={{
-                  transform: isAnimating ? 'scale(1.06)' : mine ? 'scale(1.02)' : 'scale(1)',
+                  transform: isAnimating ? 'scale(1.12)' : 'scale(1)',
                 }}
               >
                 <div className="flex items-center justify-center gap-1.5 text-[15px] leading-none md:text-[18px]">
