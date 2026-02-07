@@ -654,6 +654,12 @@ async function submitReport() {
     setReplyToId(c.id)
     setReplyToName(c.author?.display_name ?? 'אנונימי')
     setText('')
+    requestAnimationFrame(() => {
+      const el = document.getElementById('comment-composer')
+      if (!el) return
+      const mobile = window.matchMedia('(max-width: 767px)').matches
+      el.scrollIntoView({ behavior: mobile ? 'smooth' : 'auto', block: 'start' })
+    })
   }
 
   const cancelReply = () => {
@@ -936,7 +942,7 @@ async function submitReport() {
       </div>
 
       {/* Composer */}
-      <div className="mt-3 rounded-2xl border bg-neutral-50 p-3">
+      <div id="comment-composer" className="mt-3 rounded-2xl border bg-neutral-50 p-3 scroll-mt-24">
         {replyToId ? (
           <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
             <div className="text-xs text-neutral-700">
@@ -1315,10 +1321,12 @@ async function submitReport() {
                     type="button"
                     onClick={() => {
                       setExpandedParents(prev => { const n = new Set(prev); n.delete(c.id); return n })
-                      if (window.matchMedia('(max-width: 767px)').matches) {
+                      requestAnimationFrame(() => {
                         const el = document.getElementById(`comment-${c.id}`)
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }
+                        if (!el) return
+                        const mobile = window.matchMedia('(max-width: 767px)').matches
+                        el.scrollIntoView({ behavior: mobile ? 'smooth' : 'auto', block: 'start' })
+                      })
                     }}
                     className="mt-2 mr-6 text-xs font-semibold text-neutral-500 hover:underline"
                   >

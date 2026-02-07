@@ -63,35 +63,42 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
     [reactions]
   )
 
-const totals = useMemo(() => {
-  return Object.values(summary).reduce(
-    (acc, s) => ({
-      gold: acc.gold + (s.gold ?? 0),
-      silver: acc.silver + (s.silver ?? 0),
-      bronze: acc.bronze + (s.bronze ?? 0),
-    }),
-    { gold: 0, silver: 0, bronze: 0 }
-  )
-}, [summary])
+  // IMPORTANT: medals must be computed from the TOTAL votes across all reaction keys,
+  // using the project's base-4 reset rules.
+  const calcMedalsReset4 = (votesTotal: number) => {
+    // 4 votes => 1 bronze unit
+    // 4 bronze units => 1 silver (bronze resets)
+    // 4 silver units => 1 gold (silver resets)
+    const bronzeUnits = Math.floor(votesTotal / 4)
+    const bronze = bronzeUnits % 4
+    const silverUnits = Math.floor(bronzeUnits / 4)
+    const silver = silverUnits % 4
+    const gold = Math.floor(silverUnits / 4)
+    return { gold: Math.min(gold, 6), silver, bronze }
+  }
+
+  const totals = useMemo(() => {
+    const votesTotal = Object.values(summary).reduce((acc, s) => acc + (s.votes ?? 0), 0)
+    return calcMedalsReset4(votesTotal)
+  }, [summary])
 
   const onMedalsRef = useRef(onMedalsChange)
   useEffect(() => { onMedalsRef.current = onMedalsChange })
   useEffect(() => { onMedalsRef.current?.(totals) }, [totals])
 
   useEffect(() => {
-  if (!errorMsg) return
+    if (!errorMsg) return
 
-  if (errTimerRef.current) window.clearTimeout(errTimerRef.current)
-
-  errTimerRef.current = window.setTimeout(() => {
-    setErrorMsg(null)
-  }, 2000)
-
-  return () => {
     if (errTimerRef.current) window.clearTimeout(errTimerRef.current)
-  }
-}, [errorMsg])
 
+    errTimerRef.current = window.setTimeout(() => {
+      setErrorMsg(null)
+    }, 2000)
+
+    return () => {
+      if (errTimerRef.current) window.clearTimeout(errTimerRef.current)
+    }
+  }, [errorMsg])
 
   // keep latest userId without re-subscribing
   const userIdRef = useRef<string | null>(null)

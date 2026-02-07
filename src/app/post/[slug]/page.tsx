@@ -15,7 +15,7 @@ import PostComments from '@/components/PostComments'
 import FollowButton from '@/components/FollowButton'
 import SavePostButton from '@/components/SavePostButton'
 import SharePostButton from '@/components/SharePostButton'
-import { formatDateTimeHe } from '@/lib/time'
+import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 
 type RichNode = ComponentProps<typeof RichText>['content']
 
@@ -77,15 +77,15 @@ function SidebarSection({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-3xl border border-neutral-200 bg-white/80 shadow-sm backdrop-blur-sm">
-      <div className="flex flex-row-reverse items-center justify-between gap-3 rounded-t-3xl bg-neutral-100/60 px-4 py-2.5">
-        <h3 className="text-[15px] font-black tracking-tight text-neutral-950 text-right">{title}</h3>
-        {action ? <div className="text-[15px] text-left">{action}</div> : null}
+    <div className="rounded-2xl border border-neutral-200/60 bg-white/60 shadow-sm">
+      <div className="flex flex-row-reverse items-center justify-between gap-3 px-4 py-3">
+        <h3 className="inline-flex items-center gap-2 rounded-xl border border-neutral-200/70 bg-neutral-100/70 px-3 py-1.5 text-[12px] font-semibold text-slate-600">{title}</h3>
+        {action ? <div className="text-[12px] text-left">{action}</div> : null}
       </div>
 
-      <div className="mx-4 border-b border-neutral-200" />
+      <div className="mx-4 border-b border-neutral-100" />
 
-      <div className="px-3 pb-3 pt-2.5">
+      <div className="px-3 pb-3 pt-2">
         <div className="space-y-1.5">{children}</div>
       </div>
     </div>
@@ -118,21 +118,19 @@ function SidebarPostItem({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') goPost()
       }}
-      className="group flex items-start justify-between gap-3 rounded-2xl px-2.5 py-2 transition-colors hover:bg-neutral-100 cursor-pointer"
+      className="group flex items-start justify-between gap-2.5 rounded-xl border border-neutral-200/70 bg-white/60 p-2 transition-colors duration-150 hover:bg-neutral-100/60 cursor-pointer"
     >
       {/* טקסט (ימין) */}
       <div className="min-w-0 flex-1 text-right">
-        <div className="text-[16px] font-black leading-6 text-neutral-950 group-hover:text-neutral-950">
+        <div className="text-[14px] font-black leading-5 text-neutral-950 group-hover:text-neutral-950">
           {trunc(post.title ?? 'ללא כותרת', isMobile ? 35 : 25)}
         </div>
 
-        {post.excerpt ? (
-          <div className="mt-0.5 text-[14px] leading-6 text-neutral-700">
-            {trunc(post.excerpt, isMobile ? 50 : 30)}
-          </div>
-        ) : null}
+        <div className="mt-0.5 min-h-[2rem] text-[13px] leading-5 text-neutral-700">
+          {post.excerpt ? trunc(post.excerpt, isMobile ? 50 : 30) : ''}
+        </div>
 
-        <div className="mt-1.5 flex items-center justify-start gap-2 text-[12px] text-neutral-600 whitespace-nowrap">
+        <div className="mt-1 flex items-center justify-start gap-2 text-[11px] text-neutral-600 whitespace-nowrap">
           {showAuthor ? (
             authorUsername ? (
               <Link
@@ -147,7 +145,7 @@ function SidebarPostItem({
             )
           ) : null}
           {showAuthor ? <span className="text-neutral-400">·</span> : null}
-          <span className="text-neutral-600">{formatDateTimeHe(date)}</span>
+          <span className="text-neutral-600">{formatRelativeHe(date)}</span>
         </div>
       </div>
 
@@ -330,18 +328,12 @@ export default function PostPage() {
           .order('published_at', { ascending: false, nullsFirst: false })
           .limit(5),
         p.channel_id
-          ? supabase
-            .from('posts')
-            .select(
-              'id,slug,title,excerpt,cover_image_url,published_at,created_at,author_id,author:profiles!posts_author_id_fkey ( id, username, display_name, avatar_url ), post_reaction_summary ( gold, silver, bronze )'
-            )
-            .is('deleted_at', null)
-            .eq('status', 'published')
-            .eq('channel_id', p.channel_id)
-            .neq('id', p.id)
-            .order('published_at', { ascending: false, nullsFirst: false })
-            .limit(60)
-          : Promise.resolve({ data: [], error: null } as { data: SidebarPost[]; error: null }),
+          ? supabase.rpc('pendemic_hot_posts_smart_by_channel', {
+              p_channel_id: p.channel_id,
+              p_ref_ts: new Date().toISOString(),
+              p_limit: 6,
+            })
+          : Promise.resolve({ data: [], error: null } as { data: { post_id: string }[]; error: null }),
       ])
 
       if (cancelled) return
@@ -365,57 +357,29 @@ export default function PostPage() {
       const authorList = uniqById(authorListRaw)
       setMoreFromAuthor(authorList)
 
-      // פוסטים חמים בקטגוריה (מעדיף דירוג לפי post_reaction_summary; אם אין/אין הרשאות → נופל ל"חדשים" כדי שלא יהיה ריק)
-      let didSetHot = false
+      // פוסטים חמים בקטגוריה – via RPC (weekly → monthly → recent fallback, all server-side)
+      const hotIds = (!hotRes.error && Array.isArray(hotRes.data))
+        ? (hotRes.data as { post_id: string }[])
+            .map(r => r.post_id)
+            .filter(id => id !== p.id)
+            .slice(0, 5)
+        : []
 
-      if (!hotRes.error && Array.isArray(hotRes.data)) {
-        const scoredAll = (hotRes.data as unknown as Array<Record<string, unknown>>)
-          .map((row) => {
-            const rs = Array.isArray((row as { post_reaction_summary?: unknown }).post_reaction_summary)
-              ? (row as { post_reaction_summary?: unknown[] }).post_reaction_summary?.[0]
-              : (row as { post_reaction_summary?: unknown }).post_reaction_summary
-
-            const gold = Number((rs as { gold?: unknown } | null | undefined)?.gold ?? 0)
-            const silver = Number((rs as { silver?: unknown } | null | undefined)?.silver ?? 0)
-            const bronze = Number((rs as { bronze?: unknown } | null | undefined)?.bronze ?? 0)
-            const score = gold * 100 + silver * 10 + bronze
-            return { row, score }
-          })
-          .sort((a, b) => b.score - a.score)
-
-        const picked =
-          scoredAll.some((x) => x.score > 0)
-            ? scoredAll.filter((x) => x.score > 0).slice(0, 5)
-            : scoredAll.slice(0, 5)
-
-        const cleaned = picked.map((x) => {
-          const r = x.row as Record<string, unknown>
-          const { post_reaction_summary: _post_reaction_summary, ...rest } = r as { post_reaction_summary?: unknown }
-          return rest
-        })
-
-        const hotRaw = uniqById(cleaned as SidebarPost[])
-        const authorIds = new Set(authorList.map(x => x.id))
-        const hot = hotRaw.filter(x => !authorIds.has(x.id))
-        setHotInChannel(hot)
-        didSetHot = hot.length > 0
-      }
-
-      // Fallback: אם ה-view/relationship לא נגיש ב-RLS או אין נתונים → נציג פשוט 5 פוסטים אחרונים בקטגוריה
-      if (!didSetHot && p.channel_id) {
-        const fb = await supabase
+      if (hotIds.length > 0) {
+        const { data: hotPosts } = await supabase
           .from('posts')
           .select(sidebarPostSelect)
-          .is('deleted_at', null)
-          .eq('status', 'published')
-          .eq('channel_id', p.channel_id)
-          .neq('id', p.id)
-          .order('published_at', { ascending: false, nullsFirst: false })
-          .limit(5)
+          .in('id', hotIds)
 
-        if (!fb.error && Array.isArray(fb.data)) {
-          setHotInChannel(uniqById((fb.data as SidebarPost[])).filter(x => !new Set(authorList.map(y => y.id)).has(x.id)))
+        if (!cancelled && hotPosts) {
+          const byId = new Map((hotPosts as SidebarPost[]).map(x => [x.id, x]))
+          const ordered = hotIds
+            .map(id => byId.get(id))
+            .filter((x): x is SidebarPost => !!x)
+          setHotInChannel(ordered)
         }
+      } else {
+        setHotInChannel([])
       }
 
       setSidebarLoading(false)
@@ -462,6 +426,15 @@ export default function PostPage() {
           ? '/c/magazine'
           : null
 
+  const channelChipClass =
+    post.channel_id === 1
+      ? 'text-rose-700/90'
+      : post.channel_id === 2
+        ? 'text-indigo-700/90'
+        : post.channel_id === 3
+          ? 'text-emerald-700/90'
+          : 'text-neutral-700'
+
   const hasMedals = medals.gold > 0 || medals.silver > 0 || medals.bronze > 0
 
   const header = (
@@ -502,11 +475,11 @@ export default function PostPage() {
 
             <div className="mt-1 text-[13px] text-neutral-600">
               {channelName && channelHref ? (
-                <Link href={channelHref} className="font-semibold text-blue-700 hover:underline">
+                <Link href={channelHref} className={`inline-flex items-center rounded-full  border-neutral-200/70 bg-neutral-100/70 px-0.5 py-0.5 text-[12px] font-semibold ${channelChipClass} hover:bg-neutral-200/60`}>
                   {channelName}
                 </Link>
               ) : channelName ? (
-                <span className="font-semibold text-neutral-700">{channelName}</span>
+                <span className={`inline-flex items-center rounded-full border border-neutral-200/70 bg-neutral-100/70 px-2.5 py-0.5 text-[12px] font-semibold ${channelChipClass}`}>{channelName}</span>
               ) : null}
               {channelName ? <span className="text-neutral-400"> · </span> : null}
               <span className="text-neutral-500">{formatDateTimeHe(publishedAt)}</span>
@@ -542,7 +515,7 @@ export default function PostPage() {
           title={`פוסטים חמים ב: ${channelName ?? 'קטגוריה'}`}
           action={
             channelHref ? (
-              <Link href={channelHref} className="text-sm text-blue-700 hover:underline">
+              <Link href={channelHref} className=" text-sm text-blue-700 hover:underline">
                 לדף הקטגוריה
               </Link>
             ) : null
@@ -567,12 +540,12 @@ export default function PostPage() {
       sidebar={sidebar}
     >
       {/* תוכן – לב האתר */}
-      <div className="mt-6 min-h-[45vh] pb-14">
+      <div className="mt-6 min-h-[45vh] pb-4">
         <RichText content={post.content_json as RichNode} />
       </div>
 
-          <div  className=" flex flex-wrap items-center justify-between  -mx-6   mt-3" >
-            <div className="flex items-center gap-2  ">
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-2 [&_button]:h-10 [&_button]:rounded-xl [&_button]:border [&_button]:border-neutral-200 [&_button]:transition-all [&_button]:duration-100 [&_button:hover]:bg-neutral-100/70 [&_button:active]:scale-[0.98]">
+            <div className="flex items-center gap-2">
               <SavePostButton postId={post.id} />
               {author?.id && myUserId && author.id !== myUserId && authorUsername ? (
                 <FollowButton targetUserId={author.id} targetUsername={authorUsername} />
