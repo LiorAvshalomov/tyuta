@@ -77,10 +77,10 @@ function SidebarSection({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-200/60 bg-white/60 shadow-sm">
+    <div className="rounded-2xl border border-neutral-200/60 bg-white/05 shadow-sm">
       <div className="flex flex-row-reverse items-center justify-between gap-3 px-4 py-3">
-        <h3 className="inline-flex items-center gap-2 rounded-xl border border-neutral-200/70 bg-neutral-100/70 px-3 py-1.5 text-[12px] font-semibold text-slate-600">{title}</h3>
-        {action ? <div className="text-[12px] text-left">{action}</div> : null}
+        {action ? <div className="shrink-0">{action}</div> : null}
+        <h3 className="inline-flex items gap-2 rounded-xl  border border-neutral-100/70 bg-neutral-200/70 px-3 py-1.5 text-[12px] font-semibold text-slate-600">{title}</h3>
       </div>
 
       <div className="mx-4 border-b border-neutral-100" />
