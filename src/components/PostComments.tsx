@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from '@/components/Avatar'
@@ -69,9 +70,12 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
   const [items, setItems] = useState<CommentRow[]>([])
   const [err, setErr] = useState<string | null>(null)
 
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+
   // When arriving from a notification link, temporarily highlight the target comment(s).
-  // - Single highlight uses the hash: /post/[slug]#comment-<id>
-  // - Group highlight uses sessionStorage + short token: /post/[slug]?n=<token>#comment-<first>
+  // - Single highlight: /post/[slug]?hl=<id>
+  // - Group highlight uses sessionStorage + short token: /post/[slug]?n=<token>&hl=<first>
   //
   // IMPORTANT:
   // Comments can render asynchronously (load/realtime/hydration). If we clear highlight too early,
@@ -89,6 +93,9 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
   const scrolledRef = useRef(false)
   const scrollTargetIdRef = useRef<string | null>(null)
   const tokenStorageKeyRef = useRef<string | null>(null)
+
+  // collapsed replies (default: collapsed; auto-expand on deep-link)
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
 
   const clearHighlightTimer = (key: string) => {
     const t = highlightTimersRef.current.get(key)
@@ -121,50 +128,78 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
   const tryActivatePending = () => {
     if (typeof window === 'undefined') return
     const pending = pendingHighlightRef.current
-    if (pending.size === 0) return
 
     // Activate any ids whose element exists in the DOM.
-    Array.from(pending).forEach((rawId) => {
-      const el = document.getElementById(`comment-${rawId}`)
-      if (!el) return
-      activateHighlight(rawId)
-      pending.delete(rawId)
-    })
+    if (pending.size > 0) {
+      Array.from(pending).forEach((rawId) => {
+        const el = document.getElementById(`comment-${rawId}`)
+        if (!el) return
+        activateHighlight(rawId)
+        pending.delete(rawId)
+      })
+    }
 
-    // Scroll exactly once, and only to the hash target (the "first" comment chosen by NotificationsBell).
-    // This avoids unstable behavior where we scroll to whichever comment rendered first (often the newest),
-    // which lands the user in the middle of the thread.
+    // Scroll exactly once, to the hl target (the "first" comment chosen by NotificationsBell).
+    // Runs independently of pending — highlight may already have activated but scroll still
+    // needed (e.g. after auto-expand of a collapsed reply parent).
     if (!scrolledRef.current) {
       const targetId = scrollTargetIdRef.current
       if (targetId) {
         const targetEl = document.getElementById(`comment-${targetId}`)
         if (targetEl) {
           scrolledRef.current = true
+          scrollTargetIdRef.current = null
 
-          // Use an explicit offset so the sticky navbar doesn't cover the top of the comment.
           const header = document.querySelector('header') as HTMLElement | null
           const headerH = header?.offsetHeight ?? 56
           const extra = 12
-          requestAnimationFrame(() => {
-            // First align the element to the top, then apply a negative offset for the sticky header.
-            targetEl.scrollIntoView({ block: 'start', behavior: 'auto' })
-            window.scrollBy({ top: -(headerH + extra), behavior: 'auto' })
-          })
+          // Calculate absolute scroll position and use a single scrollTo call.
+          // scrollIntoView + scrollBy with smooth behavior conflict on mobile browsers
+          // (two concurrent smooth scrolls cancel each other → no visible scroll).
+          setTimeout(() => {
+            const rect = targetEl.getBoundingClientRect()
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+            const targetY = scrollTop + rect.top - headerH - extra
+            const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            const behavior: ScrollBehavior = prefersReduced ? 'auto' : 'smooth'
+            window.scrollTo({ top: Math.max(0, targetY), behavior })
+          }, 80)
         }
       }
     }
   }
 
+  // Reactive deep-link params — effect re-runs when URL changes (same-page nav)
+  const hlParam = searchParams?.get('hl') ?? ''
+  const nParam = searchParams?.get('n') ?? ''
+  const tParam = searchParams?.get('t') ?? ''
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
+    const timers = highlightTimersRef.current
+
+    // Reset from prior navigation
+    scrollTargetIdRef.current = null
+    timers.forEach((t) => window.clearTimeout(t))
+    timers.clear()
+    setHighlightIds(new Set())
+
     const pending = new Set<string>()
+
+    // Read params from actual URL (reliable across all environments / hydration states).
+    // The React searchParams-derived deps (hlParam/nParam/tParam) only trigger re-runs.
+    let currentN: string | null = null
+    let currentHl: string | null = null
+    try {
+      const url = new URL(window.location.href)
+      currentN = url.searchParams.get('n')
+      currentHl = url.searchParams.get('hl')
+    } catch { /* ignore */ }
 
     // 1) Multi-highlight via token
     try {
-      const url = new URL(window.location.href)
-      const token = url.searchParams.get('n')
+      const token = currentN
       if (token) {
         const keyPrimary = `pendemic:comment-highlight:${token}`
         const keyLegacy = `notif:${token}`
@@ -181,14 +216,17 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
           let ts = 0
 
           try {
-            const parsed = JSON.parse(raw) as any
-            if (Array.isArray(parsed)) {
-              list = parsed
-            } else if (parsed && typeof parsed === 'object') {
-              if (Array.isArray(parsed.ids)) list = parsed.ids
-              if (typeof parsed.ts === 'number') ts = parsed.ts
-            }
-          } catch {
+  const parsed: unknown = JSON.parse(raw)
+  if (Array.isArray(parsed)) {
+    list = parsed
+  } else if (parsed && typeof parsed === 'object') {
+    const obj = parsed as Record<string, unknown>
+    const ids = obj['ids']
+    const tsVal = obj['ts']
+    if (Array.isArray(ids)) list = ids
+    if (typeof tsVal === 'number') ts = tsVal
+  }
+} catch {
             // If it's not JSON, ignore.
           }
 
@@ -204,14 +242,24 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
       // ignore
     }
 
-    // 2) Single highlight via hash
-    const hash = window.location.hash
-    if (hash && hash.startsWith('#comment-')) {
-      const id = hash.replace('#comment-', '').trim()
+    // 2) Single highlight via hl query param (preferred)
+    if (currentHl) {
+      const id = currentHl.trim()
       if (id) {
         pending.add(id)
-        // Always scroll to the hash target (earliest in the group), not whichever comment renders first.
         scrollTargetIdRef.current = id
+      }
+    }
+
+    // 3) Fallback: hash #comment-<id> (legacy links)
+    if (!scrollTargetIdRef.current) {
+      const hash = window.location.hash
+      if (hash && hash.startsWith('#comment-')) {
+        const id = hash.replace('#comment-', '').trim()
+        if (id) {
+          pending.add(id)
+          scrollTargetIdRef.current = id
+        }
       }
     }
 
@@ -244,7 +292,17 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
       }, 8000)
     }
 
+    // Fallback: retry periodically in case MutationObserver misses a React-driven
+    // DOM change (e.g. expand of collapsed replies via state update).
+    const retryId = window.setInterval(() => {
+      tryActivatePending()
+      if (pendingHighlightRef.current.size === 0 && (scrolledRef.current || !scrollTargetIdRef.current)) {
+        window.clearInterval(retryId)
+      }
+    }, 300)
+
     return () => {
+      window.clearInterval(retryId)
       observerRef.current?.disconnect()
       observerRef.current = null
       if (stopObserverTimerRef.current) window.clearTimeout(stopObserverTimerRef.current)
@@ -254,12 +312,12 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
       // Removing here would delete the token before the second mount can read it,
       // which breaks multi-highlight. Token cleanup is handled by the observer timeout.
       // clear any per-id timers
-      highlightTimersRef.current.forEach((t) => window.clearTimeout(t))
-      highlightTimersRef.current.clear()
+      timers.forEach((t) => window.clearTimeout(t))
+      timers.clear()
       pendingHighlightRef.current.clear()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [hlParam, nParam, tParam, pathname])
 
   // After comments are loaded, try again (covers async load without relying on MutationObserver only).
   useEffect(() => {
@@ -289,6 +347,14 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
       })
     }
   }, [highlightIds, items])
+
+// After parent expand, reply elements appear in the DOM → retry highlight + scroll.
+  useEffect(() => {
+    if (expandedParents.size === 0) return
+    const id = requestAnimationFrame(() => tryActivatePending())
+    return () => cancelAnimationFrame(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedParents])
 
 // auto-hide errors (3s)
 const errTimerRef = useRef<number | null>(null)
@@ -349,8 +415,8 @@ async function submitReport() {
       setReportErr(null)
       setReportOk(null)
     }, 2200)
-  } catch (e: any) {
-    setReportErr(e?.message ?? 'לא הצלחנו לשלוח דיווח')
+  } catch (e: unknown) {
+    setReportErr(e instanceof Error ? e.message : 'לא הצלחנו לשלוח דיווח')
   } finally {
     setReportSending(false)
   }
@@ -360,9 +426,6 @@ async function submitReport() {
   // likes
   const [myLiked, setMyLiked] = useState<Set<string>>(new Set())
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({})
-
-  // collapsed replies (default: collapsed; auto-expand on deep-link)
-  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
 
   // like tooltip
   const [likerNames, setLikerNames] = useState<Record<string, { names: string[]; total: number }>>({})
@@ -417,7 +480,7 @@ async function submitReport() {
 
     const counts: Record<string, number> = {}
     ;(countsData as LikeSummaryRow[] | null | undefined)?.forEach((r) => {
-      counts[r.comment_id] = Number((r as any).likes_count ?? 0)
+      counts[r.comment_id] = Number(r.likes_count ?? 0)
     })
     setLikeCounts(counts)
 
@@ -433,7 +496,7 @@ async function submitReport() {
       .in('comment_id', commentIds)
 
     const mine = new Set<string>()
-    ;(myData as any[] | null | undefined)?.forEach((r) => {
+    ;(myData as { comment_id: string }[] | null | undefined)?.forEach((r) => {
       if (r?.comment_id) mine.add(String(r.comment_id))
     })
     setMyLiked(mine)
@@ -494,7 +557,7 @@ async function submitReport() {
         id: rr.id,
         post_id: rr.post_id,
         author_id: rr.author_id,
-        parent_comment_id: (rr as any).parent_comment_id ?? null,
+        parent_comment_id: rr.parent_comment_id ?? null,
         content: rr.content,
         created_at: rr.created_at,
         updated_at: rr.updated_at ?? null,
@@ -547,7 +610,7 @@ async function submitReport() {
               id: d.id,
               post_id: d.post_id,
               author_id: d.author_id,
-              parent_comment_id: (d as any).parent_comment_id ?? null,
+              parent_comment_id: d.parent_comment_id ?? null,
               content: d.content,
               created_at: d.created_at,
               updated_at: d.updated_at ?? null,
@@ -820,7 +883,13 @@ async function submitReport() {
   return (
 
 <>
-  {/* empty – highlight handled by Tailwind classes only */}
+  <style>{`
+    @keyframes pendemicGlow {
+      0%  { transform: scale(1);     box-shadow: 0 0 0 0     rgba(251,191,36,0.35); }
+      35% { transform: scale(1.005); box-shadow: 0 0 24px -2px rgba(251,191,36,0.28); }
+      100%{ transform: scale(1);     box-shadow: 0 0 12px -3px rgba(251,191,36,0.10); }
+    }
+  `}</style>
   {/* Report modal */}
   {reportOpen && (
     <div
@@ -1116,8 +1185,8 @@ async function submitReport() {
                 key={c.id}
                 id={`comment-${c.id}`}
                 className={
-                  `rounded-2xl border p-3 scroll-mt-24 transition-colors duration-300 ` +
-                  (highlightIds.has(`comment-${c.id}`) ? 'ring-1 ring-violet-300/70 bg-violet-50/60 shadow-sm' : '')
+                  `rounded-2xl border p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
+                  (highlightIds.has(`comment-${c.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[pendemicGlow_900ms_ease-out] motion-reduce:animate-none' : '')
                 }
               >
                 {headerRow}
@@ -1187,8 +1256,8 @@ async function submitReport() {
                           key={r.id}
                           id={`comment-${r.id}`}
                           className={
-                            `rounded-2xl border bg-white p-3 scroll-mt-24 transition-colors duration-300 ` +
-                            (highlightIds.has(`comment-${r.id}`) ? 'ring-1 ring-violet-300/70 bg-violet-50/60 shadow-sm' : '')
+                            `rounded-2xl border bg-white p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
+                            (highlightIds.has(`comment-${r.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[pendemicGlow_900ms_ease-out] motion-reduce:animate-none' : '')
                           }
                         >
                           <div className="flex items-start justify-between gap-3">

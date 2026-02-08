@@ -257,13 +257,13 @@ export default function SiteHeader() {
     }
   }, [])
 
-  const loadThreads = useCallback(async () => {
+  const loadThreads = useCallback(async (): Promise<ThreadRow[]> => {
     const { data } = await supabase.auth.getUser()
     const uid = data.user?.id
     if (!uid) {
       setThreads([])
       setMsgUnread(0)
-      return
+      return []
     }
 
     const { data: rows, error } = await supabase
@@ -277,12 +277,13 @@ export default function SiteHeader() {
     if (error) {
       setThreads([])
       setMsgUnread(0)
-      return
+      return []
     }
 
     const safe = (rows ?? []) as unknown as ThreadRow[]
     setThreads(safe)
     setMsgUnread(safe.reduce((acc, r) => acc + (r.unread_count ?? 0), 0))
+    return safe
   }, [])
 
   // Load user initially + whenever route changes
@@ -304,26 +305,51 @@ export default function SiteHeader() {
   // Live updates (realtime)
   useEffect(() => {
     if (!user?.id) return
-    void loadThreads()
+    let active = true
+    let ch: ReturnType<typeof supabase.channel> | null = null
 
-    // שינוי הודעות יכול להשפיע על unread_count ב-view. נרענן כשנוצרה הודעה חדשה.
-    const msgCh = supabase
-      .channel(`header_messages_${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
-        () => void loadThreads()
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
-        () => void loadThreads()
-      )
-      .subscribe()
+    ;(async () => {
+      // Ensure we have the latest threads first (also sets msgUnread).
+      const latest = await loadThreads()
+      if (!active) return
+
+      // Subscribe only to the currently visible threads (limit 20) to avoid noisy updates.
+      const convIds = latest.map(t => t.conversation_id).filter(Boolean)
+
+      ch = supabase.channel(`header_messages_${user.id}`)
+
+      // If we don't have any threads yet, fall back to an unfiltered subscription
+      // (RLS still applies) so the badge can become live immediately.
+      if (convIds.length === 0) {
+        ch
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => void loadThreads())
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => void loadThreads())
+          .subscribe()
+        return
+      }
+
+      for (const id of convIds) {
+        ch
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
+            () => void loadThreads()
+          )
+          .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
+            () => void loadThreads()
+          )
+      }
+
+      ch.subscribe()
+    })()
 
     return () => {
-      void supabase.removeChannel(msgCh)
+      active = false
+      if (ch) void supabase.removeChannel(ch)
     }
+    // We intentionally re-subscribe when the visible thread list changes.
   }, [user?.id, loadThreads])
 
   function requireAuthOrGoWrite(target: 'prika' | 'stories' | 'magazine') {

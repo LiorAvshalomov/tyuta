@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
@@ -91,16 +90,6 @@ function postSlugFromPayload(payload: Record<string, unknown>): string | null {
   return str(payload.post_slug) || str(payload.slug) || null
 }
 
-function commentTextFromPayload(payload: Record<string, unknown>): string | null {
-  return (
-    str(payload.comment_text) ||
-    str(payload.comment_body) ||
-    str(payload.comment) ||
-    str(payload.body) ||
-    str(payload.text) ||
-    null
-  )
-}
 
 function isReplyToComment(payload: Record<string, unknown>): boolean {
   // We only treat it as a reply when we have an explicit signal (no guessing).
@@ -137,10 +126,10 @@ if (a === 'comment_reply') return 'comment'
   const hasCommentSignals =
     typeof payload.comment_id === 'string' ||
     typeof payload.parent_comment_id === 'string' ||
-    typeof (payload as any).parentCommentId === 'string' ||
+    typeof payload['parentCommentId'] === 'string' ||
     typeof payload.reply_to_comment_id === 'string' ||
     typeof payload.reply_to_id === 'string' ||
-    typeof (payload as any).commentId === 'string' ||
+    typeof payload['commentId'] === 'string' ||
     (isRecord(nestedComment) && (typeof nestedComment.id === 'string' || typeof nestedComment.parent_comment_id === 'string'))
   if (hasCommentSignals) return 'comment'
 
@@ -151,7 +140,7 @@ function normalizeRow(r: NotifRowDb): NotifNormalized {
   // Some legacy triggers store the data under payload.payload (nested json).
   // We flatten it shallowly so UI + navigation can rely on the same keys.
   const p0 = isRecord(r.payload) ? { ...r.payload } : {}
-  const nested = (p0 as any).payload
+  const nested = p0['payload']
   const payload = isRecord(nested) ? { ...p0, ...nested } : p0
   const actor = r.actor ?? null
 
@@ -187,7 +176,7 @@ function groupKey(n: NotifNormalized): string {
   if (n.type === 'comment') {
     const p = n.payload
     const action = str(p.action)
-    const isReply = action === 'comment_reply' || typeof p.parent_comment_id === 'string' || typeof (p as any).parentCommentId === 'string'
+    const isReply = action === 'comment_reply' || typeof p.parent_comment_id === 'string' || typeof p['parentCommentId'] === 'string'
     const postId = str(p.post_id) || ''
     const slug = postSlugFromPayload(p) || ''
     const title = titleFromPayload(p) || ''
@@ -228,11 +217,6 @@ function verbByCount(count: number, singular: string, plural: string): string {
   return count <= 1 ? singular : plural
 }
 
-function clipText(s: string, max = 60): string {
-  const t = s.trim()
-  if (t.length <= max) return t
-  return `${t.slice(0, max).trimEnd()}...`
-}
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso)
@@ -298,12 +282,12 @@ export default function NotificationsBell() {
           const postId = str(p.post_id)
           if (postId) postIds.add(postId)
 
-          const nested = (p as any).payload
-          const nestedComment = (p as any).comment
+          const nested = p['payload']
+          const nestedComment = p['comment']
           const cId =
             str(p.comment_id) ||
-            (isRecord(nested) ? str((nested as any).comment_id) : null) ||
-            (isRecord(nestedComment) ? str((nestedComment as any).id) : null)
+            (isRecord(nested) ? str(nested['comment_id']) : null) ||
+            (isRecord(nestedComment) ? str(nestedComment['id']) : null)
           if (cId) commentIds.add(cId)
         }
         const rawType = String(r.type ?? '')
@@ -564,8 +548,8 @@ export default function NotificationsBell() {
       str(payload.comment_id) ||
       (first?.entity_type === 'comment' ? (first.entity_id ?? '') : '') ||
       (first?.raw_type === 'comment' ? (first.entity_id ?? '') : '')
-    const hash = commentId ? `#comment-${commentId}` : ''
-    return `/post/${slug}${hash}`
+    const hl = commentId ? `?hl=${commentId}` : ''
+    return `/post/${slug}${hl}`
   }, [])
 
   const navTargetForGroup = useCallback(
@@ -586,12 +570,12 @@ export default function NotificationsBell() {
 const entries: { id: string; created_at: string }[] = []
 for (const r of g.rows) {
   const p = r.payload ?? {}
-  const nested = (p as any).payload
-  const nestedComment = (p as any).comment
+  const nested = p['payload']
+  const nestedComment = p['comment']
   const cid =
-    str((p as any).comment_id) ||
-    (isRecord(nested) ? str((nested as any).comment_id) : null) ||
-    (isRecord(nestedComment) ? str((nestedComment as any).id) : null) ||
+    str(p['comment_id']) ||
+    (isRecord(nested) ? str(nested['comment_id']) : null) ||
+    (isRecord(nestedComment) ? str(nestedComment['id']) : null) ||
     (r.entity_type === 'comment' ? (r.entity_id ?? null) : null) ||
     (r.raw_type === 'comment' ? (r.entity_id ?? null) : null)
 
@@ -608,9 +592,11 @@ const ids = entries
 
 const firstId = ids[0] ?? str(payload.comment_id) ?? null
 const token = storeHighlightToken(ids)
-      const q = token ? `?n=${token}` : ''
-      const hash = firstId ? `#comment-${firstId}` : ''
-      return `/post/${slug}${q}${hash}`
+      const params = new URLSearchParams()
+      if (token) params.set('n', token)
+      if (firstId) params.set('hl', firstId)
+      const qs = params.toString()
+      return `/post/${slug}${qs ? `?${qs}` : ''}`
     },
     [storeHighlightToken]
   )
@@ -624,7 +610,7 @@ const token = storeHighlightToken(ids)
     const m = messageFromPayload(payload)
     return (
       <div className="text-right leading-snug">
-        <div className="font-semibold">מערכת האתר "{t || "הודעה"}"</div>
+        <div className="font-semibold">מערכת האתר ״{t || "הודעה"}״</div>
         {m ? <div className="text-neutral-600 mt-0.5">{m}</div> : null}
       </div>
     )
@@ -635,7 +621,7 @@ const token = storeHighlightToken(ids)
     const reason = reasonFromPayload(payload)
     return (
       <div className="text-right leading-snug">
-        <div className="font-semibold">הפוסט "{t}" נמחק ע"י מערכת האתר</div>
+        <div className="font-semibold">הפוסט ״{t}״ נמחק ע"י מערכת האתר</div>
         {reason ? <div className="text-neutral-600 mt-0.5">סיבה: {reason}</div> : null}
       </div>
     )
@@ -661,7 +647,7 @@ const token = storeHighlightToken(ids)
     return (
       <div className="text-right leading-snug">
         <div>
-          <span className="font-semibold">{who}</span> {verb} לייק לתגובה שלך בפוסט: "{postTitle}"
+          <span className="font-semibold">{who}</span> {verb} לייק לתגובה שלך בפוסט: ״{postTitle}״
         </div>
       </div>
     )
@@ -675,7 +661,7 @@ const token = storeHighlightToken(ids)
       <div className="text-right leading-snug">
         <div>
           <span className="font-semibold">{who}</span>{" "}
-          {isReply ? `${verb} על התגובה שלך בפוסט` : `${verb} בפוסט שלך`}: "{postTitle}"
+          {isReply ? `${verb} על התגובה שלך בפוסט` : `${verb} בפוסט שלך`}: ״{postTitle}״
         </div>
       </div>
     )
@@ -685,7 +671,7 @@ const token = storeHighlightToken(ids)
     return (
       <span>
         <span className="font-semibold">{who}</span>{" "}
-        {verbByCount(count, "העלה/תה", "העלו")} פוסט חדש{title ? `: "${title}"` : ""}
+        {verbByCount(count, "העלה/תה", "העלו")} פוסט חדש{title ? `: ״${title}״` : ""}
       </span>
     )
   }
@@ -694,14 +680,14 @@ const token = storeHighlightToken(ids)
     return (
       <span>
         <span className="font-semibold">{who}</span>{" "}
-        {verbByCount(count, "דירג/ה", "דירגו")} את הפוסט שלך{title ? `: "${title}"` : ""}
+        {verbByCount(count, "דירג/ה", "דירגו")} את הפוסט שלך{title ? `: ״${title}״` : ""}
       </span>
     )
   }
 
   return (
     <span>
-      <span className="font-semibold">{who}</span> שלח/ה עדכון{title ? `: "${title}"` : ""}
+      <span className="font-semibold">{who}</span> שלח/ה עדכון{title ? `: ״${title}״` : ""}
     </span>
   )
 }, [])
@@ -784,21 +770,37 @@ const token = storeHighlightToken(ids)
                 )
 
                 if (href) {
+                  const doNav = () => {
+                    const target = navTargetForGroup(g) || href
+                    void markGroupRead(ids)
+                    // Cache-buster forces re-highlight even on same-page navigation
+                    const sep = target.includes('?') ? '&' : '?'
+                    const navUrl = target.includes('/post/') ? `${target}${sep}t=${Date.now()}` : target
+                    setOpen(false)
+                    // Mobile post deep-links: hard navigation guarantees fresh mount + reliable hl/scroll.
+                    // Desktop & non-post URLs: SPA push for smooth experience.
+                    const isMobilePost = typeof window !== 'undefined'
+                      && window.matchMedia('(max-width: 1023px)').matches
+                      && navUrl.includes('/post/')
+                    if (isMobilePost) {
+                      window.location.href = navUrl
+                    } else {
+                      router.push(navUrl)
+                    }
+                  }
                   return (
-                    <Link
+                    <div
                       key={g.key}
-                      href={href}
-                      onClick={(e) => {
-                        const target = navTargetForGroup(g) || href
-                        e.preventDefault()
-                        void markGroupRead(ids)
-                        router.push(target)
-                        setOpen(false)
+                      role="button"
+                      tabIndex={0}
+                      onClick={doNav}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); doNav() }
                       }}
                       className={blockClass}
                     >
                       {inner}
-                    </Link>
+                    </div>
                   )
                 }
 
