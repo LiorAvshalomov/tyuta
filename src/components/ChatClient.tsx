@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from '@/components/Avatar'
 import { resolveUserIdentity } from '@/lib/systemIdentity'
+import { getSupportConversationId } from '@/lib/moderation'
 
 type Msg = {
   id: string
@@ -120,7 +121,6 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   const [reportErr, setReportErr] = useState<string | null>(null)
 
   const [other, setOther] = useState<MiniProfile | null>(null)
-  const [meProfile, setMeProfile] = useState<MiniProfile | null>(null)
 
   const [reportedMessage, setReportedMessage] = useState<Msg | null>(null)
 
@@ -154,34 +154,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
   }, [canReport, other?.id, myId, conversationId, reportCategory, reportDetails, reportedMessage?.id])
 
-  // load my profile (for avatar/name in bubbles)
-  useEffect(() => {
-    let cancelled = false
-    const run = async () => {
-      const { data } = await supabase.auth.getUser()
-      const uid = data.user?.id ?? null
-      if (!uid) return
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url')
-        .eq('id', uid)
-        .maybeSingle()
-
-      if (cancelled) return
-      if (p && typeof p.id === 'string') {
-        setMeProfile({
-          id: p.id,
-          username: (p as any).username ?? '',
-          display_name: (p as any).display_name ?? null,
-          avatar_url: (p as any).avatar_url ?? null,
-        })
-      }
-    }
-    void run()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  // NOTE: This is a private 1:1 chat UI. We intentionally do NOT show avatars inside message bubbles.
 
   // typing
   const [isOtherTyping, setIsOtherTyping] = useState(false)
@@ -721,6 +694,9 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
   }
 
+  const supportCid = useMemo(() => getSupportConversationId(), [])
+  const systemId = useMemo(() => getSystemUserId(), [])
+
   const identity = other?.id
     ? resolveUserIdentity({
         userId: other.id,
@@ -728,7 +704,9 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         username: other.username,
         avatarUrl: other.avatar_url,
       })
-    : { displayName: 'שיחה', avatarUrl: null, isSystem: false }
+    : supportCid && supportCid === conversationId && systemId
+      ? resolveUserIdentity({ userId: systemId })
+      : { displayName: 'שיחה', avatarUrl: null, isSystem: false }
 
   const isSystem = identity.isSystem
   const otherDisplay = identity.displayName
@@ -742,7 +720,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
   return (
     <div
-      className="flex min-h-0 flex-col overflow-hidden rounded-3xl border bg-white shadow-sm h-full"
+      className="flex min-h-0 flex-col overflow-hidden rounded-3xl border bg-white text-black shadow-sm h-full"
       dir="rtl"
     >
       {/* Header */}
@@ -896,17 +874,6 @@ export default function ChatClient({ conversationId }: { conversationId: string 
             grouped,
             messages,
             myId,
-            {
-              name:
-                (meProfile?.display_name ?? '').trim() ||
-                (meProfile?.username ? `@${meProfile.username}` : '') ||
-                'אני',
-              avatarSrc: meProfile?.avatar_url ?? null,
-            },
-            {
-              name: otherDisplay,
-              avatarSrc: identity.avatarUrl,
-            },
             firstUnreadIndex,
             showUnreadDivider ? unreadNow : 0,
             canReport,
@@ -1013,8 +980,6 @@ function _groupedRender(
   grouped: Array<{ type: 'day'; label: string } | { type: 'msg'; msg: Msg }>,
   rawMessages: Msg[],
   myId: string | null,
-  myIdentity: { name: string; avatarSrc: string | null },
-  otherIdentity: { name: string; avatarSrc: string | null },
   firstUnreadIndex: number,
   unreadCountForDivider: number,
   canReportMessage: boolean,
@@ -1067,12 +1032,6 @@ function _groupedRender(
             )}
 
             <div className={`flex ${rowAlign} gap-2`}>
-              {!mine && (
-                <div className="mt-0.5 shrink-0">
-                  <Avatar src={otherIdentity.avatarSrc} name={otherIdentity.name} size={28} />
-                </div>
-              )}
-
               <div className={`group max-w-[78%] ${bubbleWrapClass}`}>
                 <div
                   className={[
@@ -1102,12 +1061,6 @@ function _groupedRender(
                   )}
                 </div>
               </div>
-
-              {mine && (
-                <div className="mt-0.5 shrink-0">
-                  <Avatar src={myIdentity.avatarSrc} name={myIdentity.name} size={28} />
-                </div>
-              )}
             </div>
           </div>
         )
