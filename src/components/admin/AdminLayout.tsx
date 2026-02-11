@@ -47,6 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <NavLink href="/admin/reports" label="דיווחים" />
                 <NavLink href="/admin/contact" label="צור קשר" />
                 <NavLink href="/admin/posts" label="פוסטים" />
+                <NavLink href="/admin/users" label="משתמשים" />
                 <NavLink href="/admin/inbox" label="אינבוקס" />
                 <NavLink href="/admin/system" label="הודעת מערכת" />
               </div>

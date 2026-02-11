@@ -4,9 +4,10 @@ import Link from 'next/link'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Avatar from '@/components/Avatar'
-import { resolveUserIdentity } from '@/lib/systemIdentity'
+import { resolveUserIdentity, SYSTEM_USER_ID } from '@/lib/systemIdentity'
 import SearchPostsBar from '@/components/SearchPostsBar'
 import { supabase } from '@/lib/supabaseClient'
+import { getModerationStatus } from '@/lib/moderation'
 import {
   Menu,
   X,
@@ -367,6 +368,10 @@ export default function SiteHeader() {
     if (!user) {
       alert('כדי לכתוב צריך להתחבר 🙂')
       router.push('/auth/login')
+      return
+    }
+    if (getModerationStatus() === 'suspended') {
+      router.push('/restricted?from=%2Fwrite')
       return
     }
     router.push(`/write?channel=${target}`)

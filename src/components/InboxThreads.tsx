@@ -5,7 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from '@/components/Avatar'
-import { resolveUserIdentity } from '@/lib/systemIdentity'
+import { resolveUserIdentity, SYSTEM_USER_ID } from '@/lib/systemIdentity'
+import { getModerationStatus } from '@/lib/moderation'
 
 type ConvRow = {
   conversation_id: string
@@ -40,6 +41,9 @@ export default function InboxThreads() {
   const pathname = usePathname()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<ConvRow[]>([])
+  const modStatus = getModerationStatus()
+  const isBanned = modStatus === 'banned'
+  const visibleRows = useMemo(() => (isBanned ? rows.filter((r) => r.other_user_id === SYSTEM_USER_ID) : rows), [isBanned, rows])
 
   // Debounce refresh bursts (INSERT + UPDATE can arrive together)
   const refreshTimerRef = useRef<number | null>(null)
@@ -111,7 +115,7 @@ export default function InboxThreads() {
           <div className="rounded-2xl border bg-white p-4 text-sm text-muted-foreground">אין עדיין שיחות.</div>
         ) : (
           <div className="space-y-2">
-            {rows.map((r) => {
+            {visibleRows.map((r) => {
               const identity = resolveUserIdentity({
                 userId: r.other_user_id,
                 displayName: r.other_display_name,

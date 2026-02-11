@@ -5,7 +5,8 @@ import { usePathname } from 'next/navigation'
 const AUTH_ROUTES = ['/auth/login', '/auth/register', '/auth/signup', '/login', '/register']
 
 export default function AppBackground() {
-  const pathname = usePathname() || ''
+  const pathname = usePathname()
+  if (pathname?.startsWith('/banned') || pathname?.startsWith('/restricted')) return null
   const isAuth = AUTH_ROUTES.some((p) => pathname.startsWith(p))
   if (isAuth) return null
 

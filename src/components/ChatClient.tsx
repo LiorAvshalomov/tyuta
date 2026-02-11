@@ -120,6 +120,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   const [reportErr, setReportErr] = useState<string | null>(null)
 
   const [other, setOther] = useState<MiniProfile | null>(null)
+  const [meProfile, setMeProfile] = useState<MiniProfile | null>(null)
 
   const [reportedMessage, setReportedMessage] = useState<Msg | null>(null)
 
@@ -145,12 +146,42 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       setReportOk('דיווח נשלח. תודה ששמרת על הקהילה 🙏')
       setReportDetails('')
       setReportedMessage(null)
-    } catch (err: any) {
-      setReportErr(err?.message ?? 'לא הצלחנו לשלוח דיווח')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'לא הצלחנו לשלוח דיווח'
+      setReportErr(msg)
     } finally {
       setReportSending(false)
     }
   }, [canReport, other?.id, myId, conversationId, reportCategory, reportDetails, reportedMessage?.id])
+
+  // load my profile (for avatar/name in bubbles)
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      const { data } = await supabase.auth.getUser()
+      const uid = data.user?.id ?? null
+      if (!uid) return
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', uid)
+        .maybeSingle()
+
+      if (cancelled) return
+      if (p && typeof p.id === 'string') {
+        setMeProfile({
+          id: p.id,
+          username: (p as any).username ?? '',
+          display_name: (p as any).display_name ?? null,
+          avatar_url: (p as any).avatar_url ?? null,
+        })
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // typing
   const [isOtherTyping, setIsOtherTyping] = useState(false)
@@ -328,6 +359,38 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       mounted = false
     }
   }, [conversationId])
+
+  // load my profile (avatar/display name for message bubbles)
+  useEffect(() => {
+    let mounted = true
+
+    async function loadMyProfile() {
+      if (!myId) {
+        setMeProfile(null)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .eq('id', myId)
+        .maybeSingle()
+
+      if (!mounted) return
+      if (error || !data) {
+        setMeProfile(null)
+        return
+      }
+
+      const p = data as MiniProfile
+      setMeProfile(p)
+    }
+
+    void loadMyProfile()
+    return () => {
+      mounted = false
+    }
+  }, [myId])
 
   // unreadNow as truth (state)
   const unreadNow = useMemo(() => computeUnreadCount(messages, myId), [messages, myId])
@@ -611,6 +674,30 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       return
     }
 
+    // Soft-suspend enforcement: allow messaging only to "System" while suspended.
+    // DB/RLS should also enforce this, but this prevents confusing UX.
+    try {
+      const { data: mod, error: modErr } = await supabase
+        .from('user_moderation')
+        .select('is_suspended, is_banned')
+        .eq('user_id', uid)
+        .maybeSingle()
+
+      if (!modErr && mod?.is_banned === true && !isSystem) {
+        alert('החשבון שלך הורחק לצמיתות. אפשר לפנות למערכת האתר.')
+        router.replace(`/banned?from=${encodeURIComponent(`/inbox/${conversationId}`)}`)
+        return
+      }
+
+      if (!modErr && mod?.is_suspended === true && !isSystem) {
+        alert('החשבון שלך הוגבל. אפשר לפנות למערכת האתר דרך האינבוקס.')
+        router.replace(`/restricted?from=${encodeURIComponent(`/inbox/${conversationId}`)}`)
+        return
+      }
+    } catch {
+      // ignore
+    }
+
     setSending(true)
     try {
       const safeBody = softWrapEveryN(bodyTrimmed, 55)
@@ -809,6 +896,17 @@ export default function ChatClient({ conversationId }: { conversationId: string 
             grouped,
             messages,
             myId,
+            {
+              name:
+                (meProfile?.display_name ?? '').trim() ||
+                (meProfile?.username ? `@${meProfile.username}` : '') ||
+                'אני',
+              avatarSrc: meProfile?.avatar_url ?? null,
+            },
+            {
+              name: otherDisplay,
+              avatarSrc: identity.avatarUrl,
+            },
             firstUnreadIndex,
             showUnreadDivider ? unreadNow : 0,
             canReport,
@@ -915,6 +1013,8 @@ function _groupedRender(
   grouped: Array<{ type: 'day'; label: string } | { type: 'msg'; msg: Msg }>,
   rawMessages: Msg[],
   myId: string | null,
+  myIdentity: { name: string; avatarSrc: string | null },
+  otherIdentity: { name: string; avatarSrc: string | null },
   firstUnreadIndex: number,
   unreadCountForDivider: number,
   canReportMessage: boolean,
@@ -950,6 +1050,7 @@ function _groupedRender(
 
         const bubbleWrapClass = mine ? 'ml-auto' : 'mr-auto'
         const metaAlignClass = mine ? 'justify-end' : 'justify-start'
+        const rowAlign = mine ? 'justify-end' : 'justify-start'
 
         const rawIndex = indexById.get(m.id) ?? -1
         const shouldInsertDivider =
@@ -965,7 +1066,13 @@ function _groupedRender(
               </div>
             )}
 
-            <div className="flex">
+            <div className={`flex ${rowAlign} gap-2`}>
+              {!mine && (
+                <div className="mt-0.5 shrink-0">
+                  <Avatar src={otherIdentity.avatarSrc} name={otherIdentity.name} size={28} />
+                </div>
+              )}
+
               <div className={`group max-w-[78%] ${bubbleWrapClass}`}>
                 <div
                   className={[
@@ -995,6 +1102,12 @@ function _groupedRender(
                   )}
                 </div>
               </div>
+
+              {mine && (
+                <div className="mt-0.5 shrink-0">
+                  <Avatar src={myIdentity.avatarSrc} name={myIdentity.name} size={28} />
+                </div>
+              )}
             </div>
           </div>
         )
