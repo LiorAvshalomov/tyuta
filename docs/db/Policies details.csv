@@ -1,35 +1,39 @@
-table_schema,table_name,policy_name,permissive,roles,command,using_expression,with_check_expression
+schema,table,policyname,permissive,roles,cmd,qual,with_check
+cron,job,cron_job_policy,PERMISSIVE,{public},ALL,(username = CURRENT_USER),null
+cron,job_run_details,cron_job_run_details_policy,PERMISSIVE,{public},ALL,(username = CURRENT_USER),null
+public,admins,admins_select_self,PERMISSIVE,{authenticated},SELECT,(auth.uid() = user_id),null
 public,channels,Public can read channels,PERMISSIVE,{public},SELECT,true,null
 public,comment_likes,comment_likes_delete_own,PERMISSIVE,{authenticated},DELETE,(auth.uid() = user_id),null
 public,comment_likes,comment_likes_insert_own,PERMISSIVE,{authenticated},INSERT,null,(auth.uid() = user_id)
 public,comment_likes,comment_likes_select_public,PERMISSIVE,{public},SELECT,true,null
-public,comments,Authenticated users can insert their own comments,PERMISSIVE,{authenticated},INSERT,null,(author_id = auth.uid())
+public,comments,Authenticated users can insert their own comments,PERMISSIVE,{authenticated},INSERT,null,((author_id = auth.uid()) AND (NOT is_user_suspended(auth.uid())))
 public,comments,comments_delete_own,PERMISSIVE,{authenticated},DELETE,(author_id = auth.uid()),null
-public,comments,comments_insert_authenticated,PERMISSIVE,{authenticated},INSERT,null,(author_id = auth.uid())
-public,comments,comments_insert_own,PERMISSIVE,{public},INSERT,null,(auth.uid() = author_id)
+public,comments,comments_insert_authenticated,PERMISSIVE,{authenticated},INSERT,null,((author_id = auth.uid()) AND (NOT is_user_suspended(auth.uid())))
+public,comments,comments_insert_own,PERMISSIVE,{public},INSERT,null,((auth.uid() = author_id) AND (NOT is_user_suspended(auth.uid())))
 public,comments,comments_read_all,PERMISSIVE,{public},SELECT,true,null
 public,comments,comments_select_all,PERMISSIVE,{public},SELECT,true,null
 public,comments,comments_select_public,PERMISSIVE,{public},SELECT,true,null
-public,comments,comments_update_own,PERMISSIVE,{authenticated},UPDATE,(author_id = auth.uid()),(author_id = auth.uid())
+public,comments,comments_update_own,PERMISSIVE,{authenticated},UPDATE,((author_id = auth.uid()) AND (NOT is_user_suspended(auth.uid()))),((author_id = auth.uid()) AND (NOT is_user_suspended(auth.uid())))
 public,community_notes,community_notes_select_all,PERMISSIVE,"{anon,authenticated}",SELECT,true,null
 public,community_notes,community_notes_select_auth,PERMISSIVE,{authenticated},SELECT,true,null
+public,community_notes_moderation_log,community_notes_moderation_log_no_select,PERMISSIVE,{authenticated},SELECT,false,null
 public,contact_messages,contact_insert_auth,PERMISSIVE,{authenticated},INSERT,null,((auth.uid() IS NOT NULL) AND (user_id = auth.uid()))
 public,conversation_members,conv_members_select_own,PERMISSIVE,{authenticated},SELECT,(user_id = auth.uid()),null
 public,conversation_members,conv_members_update_own,PERMISSIVE,{authenticated},UPDATE,(user_id = auth.uid()),(user_id = auth.uid())
 public,conversations,conversations_select_if_member,PERMISSIVE,{authenticated},SELECT,"(EXISTS ( SELECT 1
    FROM conversation_members m
   WHERE ((m.conversation_id = conversations.id) AND (m.user_id = auth.uid()))))",null
-public,messages,messages_insert_for_sender_member,PERMISSIVE,{authenticated},INSERT,null,"((sender_id = auth.uid()) AND (EXISTS ( SELECT 1
+public,messages,messages_insert_for_sender_member,PERMISSIVE,{authenticated},INSERT,null,"((sender_id = auth.uid()) AND (NOT is_user_suspended(auth.uid())) AND (EXISTS ( SELECT 1
    FROM conversation_members cm
   WHERE ((cm.conversation_id = messages.conversation_id) AND (cm.user_id = auth.uid())))))"
 public,messages,messages_select_for_members,PERMISSIVE,{authenticated},SELECT,"(EXISTS ( SELECT 1
    FROM conversation_members cm
   WHERE ((cm.conversation_id = messages.conversation_id) AND (cm.user_id = auth.uid()))))",null
-public,messages,messages_update_for_members,PERMISSIVE,{authenticated},UPDATE,"(EXISTS ( SELECT 1
+public,messages,messages_update_for_members,PERMISSIVE,{authenticated},UPDATE,"((NOT is_user_suspended(auth.uid())) AND (EXISTS ( SELECT 1
    FROM conversation_members cm
-  WHERE ((cm.conversation_id = messages.conversation_id) AND (cm.user_id = auth.uid()))))","(EXISTS ( SELECT 1
+  WHERE ((cm.conversation_id = messages.conversation_id) AND (cm.user_id = auth.uid())))))","((NOT is_user_suspended(auth.uid())) AND (EXISTS ( SELECT 1
    FROM conversation_members cm
-  WHERE ((cm.conversation_id = messages.conversation_id) AND (cm.user_id = auth.uid()))))"
+  WHERE ((cm.conversation_id = messages.conversation_id) AND (cm.user_id = auth.uid())))))"
 public,notifications,notifications_delete_own,PERMISSIVE,{public},DELETE,(user_id = auth.uid()),null
 public,notifications,notifications_select_own,PERMISSIVE,{public},SELECT,(user_id = auth.uid()),null
 public,notifications,notifications_update_own,PERMISSIVE,{public},UPDATE,(user_id = auth.uid()),(user_id = auth.uid())
@@ -60,13 +64,13 @@ public,post_tags,post_tags_select_owner,PERMISSIVE,{authenticated},SELECT,"(EXIS
   WHERE ((p.id = post_tags.post_id) AND (p.author_id = auth.uid()))))",null
 public,post_votes,Read votes,PERMISSIVE,{public},SELECT,true,null
 public,post_votes,Users can vote,PERMISSIVE,{public},INSERT,null,(auth.uid() = voter_id)
-public,posts,Authors can create posts,PERMISSIVE,{public},INSERT,null,(auth.uid() = author_id)
-public,posts,Authors can update their posts,PERMISSIVE,{public},UPDATE,(auth.uid() = author_id),null
+public,posts,Authors can create posts,PERMISSIVE,{public},INSERT,null,((auth.uid() = author_id) AND (NOT is_user_suspended(auth.uid())))
+public,posts,Authors can update their posts,PERMISSIVE,{public},UPDATE,((auth.uid() = author_id) AND (NOT is_user_suspended(auth.uid()))),((auth.uid() = author_id) AND (NOT is_user_suspended(auth.uid())))
 public,posts,posts_delete_own_drafts,PERMISSIVE,{authenticated},DELETE,((author_id = auth.uid()) AND (status = 'draft'::text)),null
-public,posts,posts_insert_own,PERMISSIVE,{authenticated},INSERT,null,(author_id = auth.uid())
+public,posts,posts_insert_own,PERMISSIVE,{authenticated},INSERT,null,((author_id = auth.uid()) AND (NOT is_user_suspended(auth.uid())))
 public,posts,posts_select_own,PERMISSIVE,{authenticated},SELECT,(author_id = auth.uid()),null
 public,posts,posts_select_published_public,PERMISSIVE,{public},SELECT,((status = 'published'::text) AND (deleted_at IS NULL)),null
-public,posts,posts_update_own,PERMISSIVE,{authenticated},UPDATE,(author_id = auth.uid()),(author_id = auth.uid())
+public,posts,posts_update_own,PERMISSIVE,{authenticated},UPDATE,((author_id = auth.uid()) AND (NOT is_user_suspended(auth.uid()))),((author_id = auth.uid()) AND (NOT is_user_suspended(auth.uid())))
 public,profiles,Profiles are viewable by everyone,PERMISSIVE,{public},SELECT,true,null
 public,profiles,Public profiles are viewable by everyone,PERMISSIVE,{public},SELECT,true,null
 public,profiles,Users can insert own profile,PERMISSIVE,{public},INSERT,null,(auth.uid() = id)
@@ -80,6 +84,9 @@ public,tags,Public can read tags,PERMISSIVE,{public},SELECT,true,null
 public,user_follows,user_follows_delete_owner,PERMISSIVE,{authenticated},DELETE,(auth.uid() = follower_id),null
 public,user_follows,user_follows_insert_owner,PERMISSIVE,{authenticated},INSERT,null,(auth.uid() = follower_id)
 public,user_follows,user_follows_select_public,PERMISSIVE,"{anon,authenticated}",SELECT,true,null
+public,user_moderation,user_moderation_no_write,PERMISSIVE,{authenticated},ALL,false,false
+public,user_moderation,user_moderation_select_own,PERMISSIVE,{authenticated},SELECT,(user_id = auth.uid()),null
+public,user_moderation_events,user_moderation_events_no_access,PERMISSIVE,{authenticated},ALL,false,false
 public,user_reports,reports_insert_auth,PERMISSIVE,{authenticated},INSERT,null,((auth.uid() IS NOT NULL) AND (reporter_id = auth.uid()) AND (reporter_id <> reported_user_id))
 storage,objects,Public read avatars,PERMISSIVE,{public},SELECT,(bucket_id = 'avatars'::text),null
 storage,objects,Users can delete own avatar,PERMISSIVE,{authenticated},DELETE,((bucket_id = 'avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text)),null

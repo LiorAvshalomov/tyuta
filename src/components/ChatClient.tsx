@@ -333,38 +333,6 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
   }, [conversationId])
 
-  // load my profile (avatar/display name for message bubbles)
-  useEffect(() => {
-    let mounted = true
-
-    async function loadMyProfile() {
-      if (!myId) {
-        setMeProfile(null)
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, display_name, avatar_url')
-        .eq('id', myId)
-        .maybeSingle()
-
-      if (!mounted) return
-      if (error || !data) {
-        setMeProfile(null)
-        return
-      }
-
-      const p = data as MiniProfile
-      setMeProfile(p)
-    }
-
-    void loadMyProfile()
-    return () => {
-      mounted = false
-    }
-  }, [myId])
-
   // unreadNow as truth (state)
   const unreadNow = useMemo(() => computeUnreadCount(messages, myId), [messages, myId])
 

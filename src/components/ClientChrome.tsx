@@ -9,9 +9,13 @@ import SiteFooter from "@/components/SiteFooter"
 type Props = { children: React.ReactNode }
 
 function isCleanRoute(pathname: string): boolean {
-  // Pages that must be "clean" (no header/footer/background)
+  // Pages that must be fully clean (no header/footer/background)
   if (pathname.startsWith("/banned")) return true
   if (pathname.startsWith("/restricted")) return true
+  return false
+}
+
+function isAuthRoute(pathname: string): boolean {
   if (pathname.startsWith("/auth/login")) return true
   if (pathname.startsWith("/auth/register")) return true
   if (pathname.startsWith("/auth/signup")) return true
@@ -22,8 +26,20 @@ function isCleanRoute(pathname: string): boolean {
 export default function ClientChrome({ children }: Props) {
   const pathname = usePathname() || "/"
   const clean = useMemo(() => isCleanRoute(pathname), [pathname])
+  const auth = useMemo(() => isAuthRoute(pathname), [pathname])
 
   if (clean) return <>{children}</>
+
+  // Auth pages: show only the top sticky header row (Row2 is hidden inside SiteHeader for auth routes)
+  // and keep the page clean (no footer/background).
+  if (auth) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <SiteHeader />
+        <main className="flex-1 overflow-hidden">{children}</main>
+      </div>
+    )
+  }
 
   return (
     <>

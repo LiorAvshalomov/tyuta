@@ -24,9 +24,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const [lineIdx, setLineIdx] = useState(() => Math.floor(Math.random() * WITTY.length))
+  const [lineIdx, setLineIdx] = useState(0)
 
   useEffect(() => {
+    // Avoid hydration mismatch: choose the first line on the server, then randomize on the client.
+    setLineIdx(Math.floor(Math.random() * WITTY.length))
     const t = window.setInterval(() => setLineIdx(i => (i + 1) % WITTY.length), 4200)
     return () => window.clearInterval(t)
   }, [])

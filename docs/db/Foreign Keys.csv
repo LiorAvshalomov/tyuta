@@ -1,0 +1,37 @@
+schema,table_name,constraint_name,column_name,foreign_table_name,foreign_column_name,update_rule,delete_rule
+public,comment_likes,comment_likes_comment_id_fkey,comment_id,comments,id,NO ACTION,CASCADE
+public,comments,comments_author_id_fkey,author_id,profiles,id,NO ACTION,CASCADE
+public,comments,comments_parent_comment_id_fkey,parent_comment_id,comments,id,NO ACTION,CASCADE
+public,comments,comments_post_id_fkey,post_id,posts,id,NO ACTION,CASCADE
+public,comments,fk_comments_author_id_profiles,author_id,profiles,id,NO ACTION,RESTRICT
+public,comments,fk_comments_post_id_posts,post_id,posts,id,NO ACTION,CASCADE
+public,community_notes,community_notes_user_id_fkey,user_id,profiles,id,NO ACTION,CASCADE
+public,conversation_members,conversation_members_conversation_id_fkey,conversation_id,conversations,id,NO ACTION,CASCADE
+public,conversation_members,conversation_members_user_id_fkey,user_id,profiles,id,NO ACTION,CASCADE
+public,formats,formats_channel_id_fkey,channel_id,channels,id,NO ACTION,CASCADE
+public,messages,messages_conversation_id_fkey,conversation_id,conversations,id,NO ACTION,CASCADE
+public,messages,messages_sender_id_fkey,sender_id,profiles,id,NO ACTION,CASCADE
+public,notifications,notifications_actor_id_fkey,actor_id,profiles,id,NO ACTION,SET NULL
+public,notifications,notifications_user_id_fkey,user_id,profiles,id,NO ACTION,CASCADE
+public,post_bookmarks,post_bookmarks_post_id_fkey,post_id,posts,id,NO ACTION,CASCADE
+public,post_reaction_votes,fk_prv_post_id_posts,post_id,posts,id,NO ACTION,CASCADE
+public,post_reaction_votes,fk_prv_reaction_key_reactions,reaction_key,reactions,key,NO ACTION,RESTRICT
+public,post_reaction_votes,fk_prv_voter_id_profiles,voter_id,profiles,id,NO ACTION,RESTRICT
+public,post_reaction_votes,post_reaction_votes_post_id_fkey,post_id,posts,id,NO ACTION,CASCADE
+public,post_reaction_votes,post_reaction_votes_reaction_key_fkey,reaction_key,reactions,key,NO ACTION,RESTRICT
+public,post_tags,fk_post_tags_post_id_posts,post_id,posts,id,NO ACTION,CASCADE
+public,post_tags,fk_post_tags_tag_id_tags,tag_id,tags,id,NO ACTION,CASCADE
+public,post_tags,post_tags_post_id_fkey,post_id,posts,id,NO ACTION,CASCADE
+public,post_tags,post_tags_tag_id_fkey,tag_id,tags,id,NO ACTION,CASCADE
+public,post_votes,fk_post_votes_post_id_posts,post_id,posts,id,NO ACTION,CASCADE
+public,post_votes,fk_post_votes_voter_id_profiles,voter_id,profiles,id,NO ACTION,RESTRICT
+public,post_votes,post_votes_post_id_fkey,post_id,posts,id,NO ACTION,CASCADE
+public,posts,fk_posts_subcategory_tag_id_tags,subcategory_tag_id,tags,id,NO ACTION,SET NULL
+public,posts,posts_author_id_fkey,author_id,profiles,id,NO ACTION,SET NULL
+public,posts,posts_channel_id_fkey,channel_id,channels,id,NO ACTION,NO ACTION
+public,posts,posts_format_id_fkey,format_id,formats,id,NO ACTION,NO ACTION
+public,posts,posts_subcategory_tag_fk,subcategory_tag_id,tags,id,NO ACTION,SET NULL
+public,reactions,reactions_channel_id_fkey,channel_id,channels,id,NO ACTION,CASCADE
+public,tags,tags_channel_id_fkey,channel_id,channels,id,NO ACTION,CASCADE
+public,user_follows,user_follows_follower_id_fkey,follower_id,profiles,id,NO ACTION,CASCADE
+public,user_follows,user_follows_following_id_fkey,following_id,profiles,id,NO ACTION,CASCADE

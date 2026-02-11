@@ -6,7 +6,27 @@ import { adminFetch } from '@/lib/admin/adminFetch'
 
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
 
-function fmtName(p: any, fallbackId?: string) {
+type MiniProfile = {
+  id: string
+  username: string | null
+  display_name: string | null
+  avatar_url: string | null
+}
+
+
+type ContactMessage = {
+  id: string
+  created_at: string
+  user_id: string | null
+  email: string | null
+  subject: string | null
+  message: string
+  status: 'open' | 'resolved'
+  user_profile: MiniProfile | null
+}
+
+
+function fmtName(p: MiniProfile | null | undefined, fallbackId?: string) {
   if (!p) return fallbackId ? fallbackId.slice(0, 8) : '—'
   return p.display_name || (p.username ? `@${p.username}` : p.id?.slice(0, 8) || '—')
 }
@@ -19,10 +39,10 @@ function fmtDateTime(iso?: string) {
 
 export default function AdminContactPage() {
   const [status, setStatus] = useState<'open' | 'resolved'>('open')
-  const [messages, setMessages] = useState<any[]>([])
+  const [messages, setMessages] = useState<ContactMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
-  const [active, setActive] = useState<any | null>(null)
+  const [active, setActive] = useState<ContactMessage | null>(null)
 
   async function load() {
     setLoading(true)
@@ -33,10 +53,10 @@ export default function AdminContactPage() {
       if (!r.ok) throw new Error(getAdminErrorMessage(j, 'Failed'))
       setMessages(j.messages ?? [])
       if (active) {
-        const refreshed = (j.messages ?? []).find((m: any) => m.id === active.id)
+        const refreshed = (j.messages ?? []).find(m => m.id === active.id)
         setActive(refreshed ?? null)
       }
-    } catch (e: any) {
+    } catch {
       setErr(e?.message ?? 'שגיאה')
     } finally {
       setLoading(false)
@@ -126,7 +146,7 @@ export default function AdminContactPage() {
                   </div>
 
                   <div className="flex items-center gap-2 rounded-2xl border border-black/5 bg-white/50 px-2 py-1">
-                    <Avatar url={m.user_profile?.avatar_url} size={24} alt="" />
+                    <Avatar src={m.user_profile?.avatar_url} name={fmtName(m.user_profile, m.user_id)} size={24} />
                     <div className="text-xs font-bold">{fmtName(m.user_profile, m.user_id)}</div>
                   </div>
                 </div>
@@ -149,7 +169,7 @@ export default function AdminContactPage() {
               </div>
 
               <div className="mt-3 flex items-center gap-2">
-                <Avatar url={active.user_profile?.avatar_url} size={28} alt="" />
+                <Avatar src={active.user_profile?.avatar_url} name={fmtName(active.user_profile, active.user_id)} size={28} />
                 <div className="text-sm font-black">{fmtName(active.user_profile, active.user_id)}</div>
               </div>
               {active.email && <div className="mt-1 text-xs text-muted-foreground">אימייל: {active.email}</div>}
