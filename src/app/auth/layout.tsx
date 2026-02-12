@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   // "Clean" auth pages:
   // - No Footer (handled by SiteFooter route detection)

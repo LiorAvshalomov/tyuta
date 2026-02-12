@@ -71,7 +71,7 @@ export default function AuthSync({ children }: Props) {
         handleLostAuth('SIGNED_OUT')
         return
       }
-      if (event === 'TOKEN_REFRESH_FAILED') {
+      if ((event as string) === 'TOKEN_REFRESH_FAILED') {
         handleLostAuth('TOKEN_REFRESH_FAILED')
         return
       }

@@ -3,6 +3,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { adminFetch } from '@/lib/admin/adminFetch'
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
+import PageHeader from '@/components/admin/PageHeader'
+import FilterTabs from '@/components/admin/FilterTabs'
+import ErrorBanner from '@/components/admin/ErrorBanner'
+import EmptyState from '@/components/admin/EmptyState'
+import ConfirmDialog from '@/components/admin/ConfirmDialog'
+import { TableSkeleton } from '@/components/admin/AdminSkeleton'
+import {
+  Users,
+  Search,
+  RefreshCw,
+  ShieldBan,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  EyeOff,
+  UserX,
+} from 'lucide-react'
 
 type Moderation = {
   is_suspended: boolean
@@ -47,6 +64,14 @@ function fmt(iso: string | null | undefined): string {
 
 type Tab = 'search' | 'limited' | 'banned'
 
+const TAB_OPTIONS: { value: Tab; label: string }[] = [
+  { value: 'banned', label: 'חסומים' },
+  { value: 'limited', label: 'מוגבלים' },
+  { value: 'search', label: 'חיפוש' },
+]
+
+type ConfirmAction = 'hide' | 'purge' | 'delete'
+
 export default function AdminUsersPage() {
   const [tab, setTab] = useState<Tab>('banned')
 
@@ -67,6 +92,9 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // confirm dialog
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
 
   const loadLimited = async () => {
     setLoading(true)
@@ -175,7 +203,6 @@ export default function AdminUsersPage() {
         is_suspended: next,
         reason: next ? (limitedReason.trim() || null) : null,
         suspended_at: next ? new Date().toISOString() : null,
-        // Limited is a separate mode; do not keep banned together
         is_banned: next ? false : selected.moderation.is_banned,
         ban_reason: next ? null : selected.moderation.ban_reason,
         banned_at: next ? null : selected.moderation.banned_at,
@@ -224,7 +251,6 @@ export default function AdminUsersPage() {
         is_banned: next,
         ban_reason: next ? (banReason.trim() || null) : null,
         banned_at: next ? new Date().toISOString() : null,
-        // Banned is exclusive: clear suspended
         is_suspended: next ? false : selected.moderation.is_suspended,
         reason: next ? null : selected.moderation.reason,
         suspended_at: next ? null : selected.moderation.suspended_at,
@@ -260,9 +286,6 @@ export default function AdminUsersPage() {
 
   const hideContent = async () => {
     if (!selected) return
-    const ok = window.confirm('הסתרת כל הפוסטים של המשתמש מהציבור (לא יופיע ב־trash).\nלהמשיך?')
-    if (!ok) return
-
     setSaving(true)
     setError(null)
     try {
@@ -280,14 +303,12 @@ export default function AdminUsersPage() {
       setError(e instanceof Error ? e.message : 'שגיאה לא ידועה')
     } finally {
       setSaving(false)
+      setConfirmAction(null)
     }
   }
 
   const purgePosts = async () => {
     if (!selected) return
-    const ok = window.confirm('מחיקה לצמיתות של כל הפוסטים ותוכן קשור של המשתמש. פעולה בלתי הפיכה.\nלהמשיך?')
-    if (!ok) return
-
     setSaving(true)
     setError(null)
     try {
@@ -305,6 +326,7 @@ export default function AdminUsersPage() {
       setError(e instanceof Error ? e.message : 'שגיאה לא ידועה')
     } finally {
       setSaving(false)
+      setConfirmAction(null)
     }
   }
 
@@ -313,11 +335,9 @@ export default function AdminUsersPage() {
 
     if (!selected.moderation.is_banned) {
       setError('מחיקה מלאה מותרת רק אחרי "משתמש חסום" (Ban לצמיתות).')
+      setConfirmAction(null)
       return
     }
-
-    const ok = window.confirm('מחיקה מלאה של המשתמש וכל התוכן שלו. פעולה בלתי הפיכה.\n\nלהמשיך?')
-    if (!ok) return
 
     setSaving(true)
     setError(null)
@@ -342,92 +362,106 @@ export default function AdminUsersPage() {
       setError(e instanceof Error ? e.message : 'שגיאה לא ידועה')
     } finally {
       setSaving(false)
+      setConfirmAction(null)
     }
   }
 
-  return (
-    <div className="mx-auto max-w-6xl p-2 sm:p-4" dir="rtl">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black">משתמשים</h1>
-          <p className="mt-1 text-sm text-neutral-600">
-            1) משתמש מוגבל (זמני) · 2) משתמש חסום (באן לצמיתות) · 3) מחיקה מלאה
-          </p>
-        </div>
+  function statusBadge(u: UserRow) {
+    if (u.moderation.is_banned) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+          <ShieldBan size={12} /> חסום
+        </span>
+      )
+    }
+    if (u.moderation.is_suspended) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+          <ShieldAlert size={12} /> מוגבל
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+        <ShieldCheck size={12} /> רגיל
+      </span>
+    )
+  }
 
-        <div className="inline-flex rounded-full border border-black/10 bg-white p-1 text-sm font-bold">
+  const confirmTitle =
+    confirmAction === 'hide'
+      ? 'הסתרת תוכן'
+      : confirmAction === 'purge'
+        ? 'מחיקת פוסטים לצמיתות'
+        : 'מחיקה מלאה של משתמש'
+
+  const confirmDesc =
+    confirmAction === 'hide'
+      ? 'הסתרת כל הפוסטים של המשתמש מהציבור (לא יופיע ב־trash). להמשיך?'
+      : confirmAction === 'purge'
+        ? 'מחיקה לצמיתות של כל הפוסטים ותוכן קשור של המשתמש. פעולה בלתי הפיכה.'
+        : 'מחיקה מלאה של המשתמש וכל התוכן שלו. פעולה בלתי הפיכה.'
+
+  return (
+    <div className="space-y-5" dir="rtl">
+      <PageHeader
+        title="משתמשים"
+        description="1) משתמש מוגבל (זמני) · 2) משתמש חסום (באן לצמיתות) · 3) מחיקה מלאה"
+      />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterTabs value={tab} onChange={setTab} options={TAB_OPTIONS} />
+        {tab !== 'search' && (
           <button
             type="button"
-            onClick={() => setTab('banned')}
-            className={'rounded-full px-4 py-2 ' + (tab === 'banned' ? 'bg-black text-white' : 'text-neutral-800 hover:bg-neutral-50')}
+            disabled={loading}
+            onClick={() => void (tab === 'banned' ? loadBanned() : loadLimited())}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
+            aria-label="רענן"
           >
-            חסומים
+            <RefreshCw size={14} />
           </button>
-          <button
-            type="button"
-            onClick={() => setTab('limited')}
-            className={'rounded-full px-4 py-2 ' + (tab === 'limited' ? 'bg-black text-white' : 'text-neutral-800 hover:bg-neutral-50')}
-          >
-            מוגבלים
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('search')}
-            className={'rounded-full px-4 py-2 ' + (tab === 'search' ? 'bg-black text-white' : 'text-neutral-800 hover:bg-neutral-50')}
-          >
-            חיפוש
-          </button>
-        </div>
+        )}
       </div>
 
-      {error ? (
-        <div className="mb-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
-      ) : null}
+      {error && <ErrorBanner message={error} />}
 
-      <div className="grid gap-4 md:grid-cols-[360px_1fr]">
-        {/* Left */}
-        <div className="rounded-3xl border border-black/5 bg-white/70 p-3 shadow-sm">
-          {tab === 'search' ? (
-            <>
-              <label className="text-sm font-bold">חיפוש משתמש</label>
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="חיפוש לפי username או display name…"
-                className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black/20"
-              />
-              <div className="mt-2 text-xs text-neutral-500">לפחות 2 תווים</div>
-            </>
-          ) : (
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-bold">{tab === 'banned' ? 'רשימת חסומים' : 'רשימת מוגבלים'}</div>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => void (tab === 'banned' ? loadBanned() : loadLimited())}
-                className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-bold hover:bg-neutral-50 disabled:opacity-60"
-              >
-                רענן
-              </button>
+      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+        {/* Left — list panel */}
+        <div className="rounded-xl border border-neutral-200 bg-white">
+          {tab === 'search' && (
+            <div className="border-b border-neutral-100 p-3">
+              <div className="relative">
+                <Search size={14} className="absolute top-1/2 right-3 -translate-y-1/2 text-neutral-400" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="חיפוש לפי username או display name…"
+                  className="w-full rounded-lg border border-neutral-200 bg-white py-2 pr-8 pl-3 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
+                />
+              </div>
+              <div className="mt-1.5 text-[11px] text-neutral-400">לפחות 2 תווים</div>
             </div>
           )}
 
-          <div className="mt-3 max-h-[70vh] overflow-auto rounded-2xl border border-black/5 bg-white">
+          <div className="max-h-[65vh] overflow-y-auto">
             {loading ? (
-              <div className="p-3 text-sm text-neutral-600">טוען…</div>
+              <div className="p-3">
+                <TableSkeleton rows={4} />
+              </div>
             ) : list.length === 0 ? (
-              <div className="p-3 text-sm text-neutral-600">אין תוצאות.</div>
+              <EmptyState
+                title="אין תוצאות"
+                icon={<Users size={32} strokeWidth={1.5} />}
+              />
             ) : (
               <ul className="divide-y divide-neutral-100">
                 {list.map((u) => {
                   const label = (u.display_name || u.username || u.id.slice(0, 8)).toString()
-                  const sub =
-                    u.moderation.is_banned
-                      ? 'חסום'
-                      : u.moderation.is_suspended
-                        ? 'מוגבל'
-                        : 'רגיל'
-                  const subIso = u.moderation.is_banned ? u.moderation.banned_at : u.moderation.suspended_at
+                  const subIso = u.moderation.is_banned
+                    ? u.moderation.banned_at
+                    : u.moderation.suspended_at
+                  const active = selected?.id === u.id
 
                   return (
                     <li key={u.id}>
@@ -435,15 +469,17 @@ export default function AdminUsersPage() {
                         type="button"
                         onClick={() => void selectUser(u)}
                         className={
-                          'w-full text-right px-3 py-2 hover:bg-neutral-50 ' +
-                          (selected?.id === u.id ? 'bg-neutral-50' : '')
+                          'w-full px-4 py-3 text-right transition-colors hover:bg-neutral-50 ' +
+                          (active ? 'bg-neutral-50 border-r-2 border-r-neutral-900' : '')
                         }
                       >
-                        <div className="font-bold text-sm text-neutral-900 truncate">{label}</div>
-                        <div className="mt-0.5 text-xs text-neutral-500">
-                          {sub}
-                          {subIso ? ` · ${fmt(subIso)}` : ''}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-semibold text-neutral-900">{label}</span>
+                          {statusBadge(u)}
                         </div>
+                        {subIso && (
+                          <div className="mt-0.5 text-[11px] text-neutral-400">{fmt(subIso)}</div>
+                        )}
                       </button>
                     </li>
                   )
@@ -453,46 +489,56 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        {/* Right */}
-        <div className="rounded-3xl border border-black/5 bg-white/70 p-4 shadow-sm">
+        {/* Right — detail panel */}
+        <div className="rounded-xl border border-neutral-200 bg-white p-5">
           {!selected ? (
-            <div className="text-sm text-neutral-600">בחר משתמש כדי לנהל סטטוס.</div>
+            <EmptyState
+              title="בחר משתמש כדי לנהל סטטוס"
+              icon={<Users size={36} strokeWidth={1.5} />}
+            />
           ) : (
             <div className="space-y-5">
-              <div>
-                <div className="text-lg font-black">
-                  {(selected.display_name || selected.username || selected.id.slice(0, 8)).toString()}
+              {/* User header */}
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-neutral-900">
+                    {(selected.display_name || selected.username || selected.id.slice(0, 8)).toString()}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-neutral-400">
+                    נרשם: {fmt(selected.created_at)} · id: <span className="font-mono">{selected.id.slice(0, 12)}…</span>
+                  </p>
                 </div>
-                <div className="mt-1 text-sm text-neutral-600">
-                  נרשם: {fmt(selected.created_at)} · id: {selected.id}
-                </div>
+                {statusBadge(selected)}
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                {/* Limited */}
-                <div className="rounded-2xl border border-black/10 bg-white p-4">
-                  <div className="font-black">משתמש מוגבל (זמני)</div>
-                  <div className="mt-1 text-xs text-neutral-600">
-                    מאפשר שיטוט באתר, אבל חוסם כתיבה/הגדרות/דפים מוגנים. מאפשר “צור קשר”.
+                {/* Limited card */}
+                <div className="rounded-xl border border-neutral-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-neutral-900">
+                    <ShieldAlert size={16} className="text-amber-500" />
+                    משתמש מוגבל (זמני)
                   </div>
+                  <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed">
+                    מאפשר שיטוט באתר, אבל חוסם כתיבה/הגדרות/דפים מוגנים. מאפשר ״צור קשר״.
+                  </p>
 
-                  <label className="mt-3 block text-xs font-bold text-neutral-700">סיבה</label>
+                  <label className="mt-3 block text-xs font-medium text-neutral-500">סיבה</label>
                   <textarea
                     value={limitedReason}
                     onChange={(e) => setLimitedReason(e.target.value)}
                     readOnly={selected.moderation.is_suspended || selected.moderation.is_banned}
-                    className="mt-1 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-60"
+                    className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400 read-only:bg-neutral-50"
                     rows={3}
-                    placeholder={selected.moderation.is_suspended ? "הסיבה נעולה (כבר הוגדר)." : "למה המשתמש מוגבל…"}
+                    placeholder={selected.moderation.is_suspended ? 'הסיבה נעולה (כבר הוגדר).' : 'למה המשתמש מוגבל…'}
                   />
 
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3">
                     {selected.moderation.is_suspended ? (
                       <button
                         type="button"
                         disabled={saving || selected.moderation.is_banned}
                         onClick={() => void toggleLimited(false)}
-                        className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-black text-white hover:bg-black disabled:opacity-60"
+                        className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
                       >
                         שחרר הגבלה
                       </button>
@@ -501,7 +547,7 @@ export default function AdminUsersPage() {
                         type="button"
                         disabled={saving || selected.moderation.is_banned}
                         onClick={() => void toggleLimited(true)}
-                        className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-black text-white hover:bg-black disabled:opacity-60"
+                        className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
                       >
                         הגבל משתמש
                       </button>
@@ -509,30 +555,33 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                {/* Banned */}
-                <div className="rounded-2xl border border-red-200 bg-red-50/50 p-4">
-                  <div className="font-black text-red-900">משתמש חסום (באן לצמיתות)</div>
-                  <div className="mt-1 text-xs text-red-800/80">
-                    המשתמש נעול למסך /banned בלבד + /banned/contact. אין גישה לשום מקום אחר.
+                {/* Banned card */}
+                <div className="rounded-xl border border-red-200 bg-red-50/30 p-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-red-900">
+                    <ShieldBan size={16} className="text-red-500" />
+                    משתמש חסום (באן לצמיתות)
                   </div>
+                  <p className="mt-1 text-[11px] text-red-700/70 leading-relaxed">
+                    המשתמש נעול למסך /banned בלבד + /banned/contact. אין גישה לשום מקום אחר.
+                  </p>
 
-                  <label className="mt-3 block text-xs font-bold text-red-900">סיבת באן</label>
+                  <label className="mt-3 block text-xs font-medium text-red-800">סיבת באן</label>
                   <textarea
                     value={banReason}
                     onChange={(e) => setBanReason(e.target.value)}
                     readOnly={selected.moderation.is_banned}
-                    className="mt-1 w-full rounded-xl border border-red-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-red-200 disabled:opacity-60"
+                    className="mt-1 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 read-only:bg-red-50/50"
                     rows={3}
-                    placeholder={selected.moderation.is_banned ? "הסיבה נעולה (כבר הוגדר)." : "למה המשתמש בבאן…"}
+                    placeholder={selected.moderation.is_banned ? 'הסיבה נעולה (כבר הוגדר).' : 'למה המשתמש בבאן…'}
                   />
 
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="mt-3">
                     {selected.moderation.is_banned ? (
                       <button
                         type="button"
                         disabled={saving}
                         onClick={() => void toggleBanned(false)}
-                        className="rounded-full bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
+                        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                       >
                         הסר באן
                       </button>
@@ -541,7 +590,7 @@ export default function AdminUsersPage() {
                         type="button"
                         disabled={saving}
                         onClick={() => void toggleBanned(true)}
-                        className="rounded-full bg-red-600 px-4 py-2 text-sm font-black text-white hover:bg-red-700 disabled:opacity-60"
+                        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                       >
                         חסום לצמיתות
                       </button>
@@ -550,55 +599,74 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <div className="font-black">תוכן / מחיקה</div>
-                <div className="mt-1 text-xs text-neutral-600">
-                  “הסתר תוכן” לא שולח ל־trash (המשתמש לא יוכל לשחזר). “מחיקה לצמיתות” מוחקת פוסטים ותלויות.
+              {/* Content / Delete section */}
+              <div className="rounded-xl border border-neutral-200 bg-white p-4">
+                <div className="flex items-center gap-2 text-sm font-bold text-neutral-900">
+                  <Trash2 size={16} className="text-neutral-500" />
+                  תוכן / מחיקה
                 </div>
+                <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed">
+                  ״הסתר תוכן״ לא שולח ל־trash (המשתמש לא יוכל לשחזר). ״מחיקה לצמיתות״ מוחקת פוסטים ותלויות.
+                </p>
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => void hideContent()}
-                    className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-black hover:bg-neutral-50 disabled:opacity-60"
+                    onClick={() => setConfirmAction('hide')}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
                   >
+                    <EyeOff size={13} />
                     הסתר תוכן (רך)
                   </button>
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => void purgePosts()}
-                    className="rounded-full border border-black/10 bg-white px-4 py-2 text-sm font-black hover:bg-neutral-50 disabled:opacity-60"
+                    onClick={() => setConfirmAction('purge')}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
                   >
+                    <Trash2 size={13} />
                     מחיקת פוסטים לצמיתות
                   </button>
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => void deleteUser()}
-                    className="rounded-full bg-black px-4 py-2 text-sm font-black text-white hover:bg-neutral-900 disabled:opacity-60"
+                    onClick={() => setConfirmAction('delete')}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3 py-2 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
                   >
+                    <UserX size={13} />
                     מחיקה מלאה (משתמש)
                   </button>
                 </div>
 
-                {selected.moderation.is_banned ? (
-                  <div className="mt-2 text-xs text-neutral-600">
-                    סטטוס: חסום מאז {fmt(selected.moderation.banned_at)}
-                  </div>
-                ) : selected.moderation.is_suspended ? (
-                  <div className="mt-2 text-xs text-neutral-600">
-                    סטטוס: מוגבל מאז {fmt(selected.moderation.suspended_at)}
-                  </div>
-                ) : (
-                  <div className="mt-2 text-xs text-neutral-600">סטטוס: רגיל</div>
-                )}
+                <div className="mt-3 text-[11px] text-neutral-400">
+                  {selected.moderation.is_banned
+                    ? `סטטוס: חסום מאז ${fmt(selected.moderation.banned_at)}`
+                    : selected.moderation.is_suspended
+                      ? `סטטוס: מוגבל מאז ${fmt(selected.moderation.suspended_at)}`
+                      : 'סטטוס: רגיל'}
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Confirm dialogs */}
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title={confirmTitle}
+        description={confirmDesc}
+        confirmLabel={confirmAction === 'hide' ? 'הסתר' : confirmAction === 'purge' ? 'מחק לצמיתות' : 'מחק משתמש'}
+        destructive
+        loading={saving}
+        onConfirm={() => {
+          if (confirmAction === 'hide') void hideContent()
+          else if (confirmAction === 'purge') void purgePosts()
+          else if (confirmAction === 'delete') void deleteUser()
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   )
 }

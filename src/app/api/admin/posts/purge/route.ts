@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       action: 'post_purged',
       reason,
       created_at: new Date().toISOString(),
-    })
+    } as never)
   } catch {
     // ignore
   }

@@ -5,7 +5,6 @@ import { useMemo } from "react"
 import AppBackground from "@/components/AppBackground"
 import SiteHeader from "@/components/SiteHeader"
 import SiteFooter from "@/components/SiteFooter"
-import AnalyticsPageviewClient from "@/components/analytics/AnalyticsPageviewClient"
 
 type Props = { children: React.ReactNode }
 
@@ -13,6 +12,8 @@ function isCleanRoute(pathname: string): boolean {
   // Pages that must be fully clean (no header/footer/background)
   if (pathname.startsWith("/banned")) return true
   if (pathname.startsWith("/restricted")) return true
+  // Admin has its own shell (no SiteHeader/SiteFooter)
+  if (pathname.startsWith("/admin")) return true
   return false
 }
 
@@ -36,7 +37,6 @@ export default function ClientChrome({ children }: Props) {
   if (auth) {
     return (
       <div className="min-h-screen flex flex-col">
-        <AnalyticsPageviewClient />
         <SiteHeader />
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>
@@ -45,7 +45,6 @@ export default function ClientChrome({ children }: Props) {
 
   return (
     <>
-      <AnalyticsPageviewClient />
       <AppBackground />
       <div className="min-h-screen flex flex-col">
         <SiteHeader />

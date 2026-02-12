@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     resolved_at: status === "resolved" ? new Date().toISOString() : null,
   }
 
-  const { error } = await admin.from("user_reports").update(patch).eq("id", id)
+  const { error } = await admin.from("user_reports").update(patch as never).eq("id", id)
   if (error) return adminError(error.message, 500, "db_error")
 
   return adminOk({})

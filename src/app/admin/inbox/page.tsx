@@ -4,6 +4,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Avatar from '@/components/Avatar'
 import { adminFetch } from '@/lib/admin/adminFetch'
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
+import PageHeader from '@/components/admin/PageHeader'
+import ErrorBanner from '@/components/admin/ErrorBanner'
+import EmptyState from '@/components/admin/EmptyState'
+import { TableSkeleton } from '@/components/admin/AdminSkeleton'
+import {
+  Search,
+  RefreshCw,
+  MessageSquare,
+  Send,
+  ArrowLeft,
+} from 'lucide-react'
 
 type UserHit = {
   id: string
@@ -69,6 +80,7 @@ export default function AdminInboxPage() {
 
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const listRef = useRef<HTMLDivElement | null>(null)
 
@@ -79,13 +91,14 @@ export default function AdminInboxPage() {
 
   const loadThreads = useCallback(async () => {
     setThreadsLoading(true)
+    setError(null)
     try {
       const r = await adminFetch('/api/admin/inbox/threads')
       const j = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בטעינת שיחות'))
       setThreads(Array.isArray(j?.threads) ? (j.threads as Thread[]) : [])
-    } catch (e: any) {
-      alert(e?.message ?? 'שגיאה')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'שגיאה')
       setThreads([])
     } finally {
       setThreadsLoading(false)
@@ -94,21 +107,20 @@ export default function AdminInboxPage() {
 
   const loadMessages = useCallback(async (conversationId: string) => {
     setMessagesLoading(true)
+    setError(null)
     try {
       const r = await adminFetch(`/api/admin/inbox/messages?conversation_id=${encodeURIComponent(conversationId)}`)
       const j = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בטעינת הודעות'))
       setMessages(Array.isArray(j?.messages) ? (j.messages as Msg[]) : [])
-      // after fetch, scroll to bottom
       setTimeout(() => {
         const el = listRef.current
         if (!el) return
         el.scrollTop = el.scrollHeight
       }, 0)
-      // refresh threads (unread counts might have changed)
       void loadThreads()
-    } catch (e: any) {
-      alert(e?.message ?? 'שגיאה')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'שגיאה')
       setMessages([])
     } finally {
       setMessagesLoading(false)
@@ -134,13 +146,14 @@ export default function AdminInboxPage() {
       return
     }
     setSearching(true)
+    setError(null)
     try {
       const r = await adminFetch(`/api/admin/inbox/users?q=${encodeURIComponent(term)}`)
       const j = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בחיפוש משתמשים'))
       setUserHits(Array.isArray(j?.users) ? (j.users as UserHit[]) : [])
-    } catch (e: any) {
-      alert(e?.message ?? 'שגיאה')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'שגיאה')
       setUserHits([])
     } finally {
       setSearching(false)
@@ -149,7 +162,7 @@ export default function AdminInboxPage() {
 
   const startOrOpen = useCallback(async (userId: string) => {
     if (!systemUserId) {
-      alert('חסר NEXT_PUBLIC_SYSTEM_USER_ID ב-env')
+      setError('חסר NEXT_PUBLIC_SYSTEM_USER_ID ב-env')
       return
     }
     try {
@@ -166,8 +179,8 @@ export default function AdminInboxPage() {
       setQ('')
       setUserHits([])
       void loadThreads()
-    } catch (e: any) {
-      alert(e?.message ?? 'שגיאה')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'שגיאה')
     }
   }, [loadThreads, systemUserId])
 
@@ -176,6 +189,7 @@ export default function AdminInboxPage() {
     const body = text.trim()
     if (body.length < 1) return
     setSending(true)
+    setError(null)
     try {
       const r = await adminFetch('/api/admin/inbox/send', {
         method: 'POST',
@@ -186,8 +200,8 @@ export default function AdminInboxPage() {
       if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בשליחה'))
       setText('')
       await loadMessages(selectedConversationId)
-    } catch (e: any) {
-      alert(e?.message ?? 'שגיאה')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'שגיאה')
     } finally {
       setSending(false)
     }
@@ -198,39 +212,52 @@ export default function AdminInboxPage() {
     return (selectedThread.other_display_name ?? '').trim() || (selectedThread.other_username ?? '').trim() || 'שיחה'
   }, [selectedThread])
 
-  return (
-    <div className="h-[calc(100dvh-170px)] min-h-0">
-      <div className="text-lg font-black">אינבוקס תמיכת מערכת</div>
-      <div className="mt-1 text-sm text-muted-foreground">
-        חיפוש משתמשים · פתיחת שיחה · היסטוריה · שליחת הודעות כ"מערכת האתר".
-      </div>
+  // On mobile: show chat panel when a thread is selected, otherwise show sidebar
+  const showChatOnMobile = selectedConversationId !== null
 
-      <div className="mt-4 grid h-[calc(100%-64px)] min-h-0 gap-4 md:grid-cols-[360px_1fr]">
+  return (
+    <div className="space-y-4" dir="rtl">
+      <PageHeader
+        title="אינבוקס תמיכת מערכת"
+        description="חיפוש משתמשים · פתיחת שיחה · היסטוריה · שליחת הודעות כ״מערכת האתר״."
+      />
+
+      {error && <ErrorBanner message={error} />}
+
+      <div className="grid h-[calc(100dvh-160px)] min-h-[400px] gap-4 md:grid-cols-[minmax(320px,360px)_1fr]">
         {/* Left: threads + user search */}
-        <aside className="min-h-0 overflow-hidden rounded-3xl border border-black/5 bg-white/60 shadow-sm">
-          <div className="border-b border-black/5 bg-white/70 p-3">
-            <div className="text-sm font-black">פתח/י שיחה</div>
-            <div className="mt-2 flex gap-2">
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void searchUsers()
-                }}
-                placeholder="חפש username / שם תצוגה…"
-                className="w-full rounded-2xl border border-black/10 bg-white px-3 py-2 text-sm outline-none"
-              />
+        <aside className={
+          'flex min-w-0 min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white ' +
+          (showChatOnMobile ? 'hidden md:flex' : 'flex')
+        }>
+          {/* Search section */}
+          <div className="border-b border-neutral-100 p-3">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search size={14} className="absolute top-1/2 right-3 -translate-y-1/2 text-neutral-400" />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void searchUsers()
+                  }}
+                  placeholder="חפש username / שם תצוגה…"
+                  className="w-full rounded-lg border border-neutral-200 bg-white py-2 pr-8 pl-3 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
+                />
+              </div>
               <button
                 onClick={() => void searchUsers()}
-                className="shrink-0 rounded-2xl bg-black px-3 py-2 text-sm font-bold text-white hover:opacity-90"
+                disabled={searching}
+                className="shrink-0 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
               >
                 חפש
               </button>
             </div>
-            {searching ? <div className="mt-2 text-xs text-muted-foreground">מחפש…</div> : null}
 
-            {userHits.length > 0 ? (
-              <div className="mt-3 space-y-2">
+            {searching && <div className="mt-2 text-[11px] text-neutral-400">מחפש…</div>}
+
+            {userHits.length > 0 && (
+              <div className="mt-3 space-y-1.5">
                 {userHits.map((u) => {
                   const name = (u.display_name ?? '').trim() || (u.username ?? '').trim()
                   return (
@@ -238,38 +265,43 @@ export default function AdminInboxPage() {
                       key={u.id}
                       type="button"
                       onClick={() => void startOrOpen(u.id)}
-                      className="flex w-full items-center gap-3 rounded-2xl border border-black/5 bg-white px-3 py-2 text-right hover:bg-neutral-50"
+                      className="flex w-full items-center gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-right transition-colors hover:bg-neutral-50"
                     >
-                      <Avatar src={u.avatar_url} name={name} size={36} shape="square" />
+                      <Avatar src={u.avatar_url} name={name} size={32} shape="square" />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black">{name}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">@{u.username}</div>
+                        <div className="truncate text-sm font-semibold text-neutral-900">{name}</div>
+                        <div className="truncate text-[11px] text-neutral-400">@{u.username}</div>
                       </div>
-                      <span className="text-xs font-bold text-neutral-600">פתח</span>
+                      <span className="text-xs font-medium text-neutral-500">פתח</span>
                     </button>
                   )
                 })}
               </div>
-            ) : null}
+            )}
           </div>
 
+          {/* Threads list */}
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             <div className="mb-2 flex items-center justify-between">
-              <div className="text-sm font-black">שיחות</div>
+              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">שיחות</span>
               <button
                 type="button"
                 onClick={() => void loadThreads()}
-                className="rounded-full border border-black/10 bg-white px-3 py-1 text-xs font-bold hover:bg-neutral-50"
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50"
+                aria-label="רענן"
               >
-                רענן
+                <RefreshCw size={12} />
               </button>
             </div>
             {threadsLoading ? (
-              <div className="rounded-2xl border bg-white p-3 text-sm text-muted-foreground">טוען…</div>
+              <TableSkeleton rows={3} />
             ) : threads.length === 0 ? (
-              <div className="rounded-2xl border bg-white p-3 text-sm text-muted-foreground">אין שיחות עדיין.</div>
+              <EmptyState
+                title="אין שיחות עדיין"
+                icon={<MessageSquare size={28} strokeWidth={1.5} />}
+              />
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {threads.map((t) => {
                   const name =
                     (t.other_display_name ?? '').trim() || (t.other_username ?? '').trim() || 'שיחה'
@@ -284,24 +316,24 @@ export default function AdminInboxPage() {
                       type="button"
                       onClick={() => setSelectedConversationId(t.conversation_id)}
                       className={
-                        'w-full rounded-2xl border p-3 text-right transition ' +
+                        'w-full rounded-lg p-3 text-right transition-colors ' +
                         (active
-                          ? 'bg-white border-neutral-300 ring-1 ring-neutral-300'
-                          : 'bg-white border-black/5 hover:bg-neutral-50')
+                          ? 'bg-neutral-100 border border-neutral-300'
+                          : 'border border-transparent hover:bg-neutral-50')
                       }
                     >
                       <div className="flex items-center gap-3">
-                        <Avatar src={t.other_avatar_url} name={name} size={40} shape="square" />
+                        <Avatar src={t.other_avatar_url} name={name} size={36} shape="square" />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="truncate text-sm font-black">{name}</div>
-                            {hasUnread ? (
-                              <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-black px-2 py-0.5 text-[11px] font-bold text-white">
+                            <span className="truncate text-sm font-semibold text-neutral-900">{name}</span>
+                            {hasUnread && (
+                              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-neutral-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
                                 {unread > 99 ? '99+' : unread}
                               </span>
-                            ) : null}
+                            )}
                           </div>
-                          <div className="mt-1 truncate text-xs text-muted-foreground">{lastBody}</div>
+                          <div className="mt-0.5 truncate text-[11px] text-neutral-400">{lastBody}</div>
                         </div>
                       </div>
                     </button>
@@ -313,26 +345,58 @@ export default function AdminInboxPage() {
         </aside>
 
         {/* Right: chat */}
-        <section className="min-h-0 overflow-hidden rounded-3xl border border-black/5 bg-white/60 shadow-sm">
+        <section className={
+          'flex min-w-0 min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white ' +
+          (showChatOnMobile ? 'flex' : 'hidden md:flex')
+        }>
           {!selectedConversationId ? (
             <div className="flex h-full items-center justify-center p-6 text-center">
-              <div>
-                <div className="text-lg font-black">בחר שיחה</div>
-                <div className="mt-1 text-sm text-muted-foreground">או חפש משתמש כדי לפתוח שיחה חדשה</div>
-              </div>
+              <EmptyState
+                title="בחר שיחה"
+                description="או חפש משתמש כדי לפתוח שיחה חדשה"
+                icon={<MessageSquare size={40} strokeWidth={1.5} />}
+              />
             </div>
           ) : (
-            <div className="flex h-full min-h-0 flex-col overflow-hidden">
-              <div className="border-b border-black/5 bg-white/70 px-4 py-3">
-                <div className="text-sm font-black truncate">{headerName}</div>
-                <div className="text-[11px] text-muted-foreground">{selectedThread?.other_username ? `@${selectedThread.other_username}` : ''}</div>
+            <>
+              {/* Chat header */}
+              <div className="flex items-center gap-3 border-b border-neutral-100 px-4 py-3">
+                {/* Back button on mobile */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedConversationId(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 md:hidden"
+                  aria-label="חזרה"
+                >
+                  <ArrowLeft size={16} />
+                </button>
+                <Avatar
+                  src={selectedThread?.other_avatar_url ?? null}
+                  name={headerName}
+                  size={32}
+                  shape="square"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold text-neutral-900">{headerName}</div>
+                  <div className="text-[11px] text-neutral-400">
+                    {selectedThread?.other_username ? `@${selectedThread.other_username}` : ''}
+                  </div>
+                </div>
               </div>
 
-              <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto p-4" style={{ backgroundColor: '#FBFAF8' }}>
+              {/* Messages */}
+              <div
+                ref={listRef}
+                className="min-h-0 flex-1 overflow-y-auto p-4"
+                style={{ backgroundColor: '#FAFAF9' }}
+              >
                 {messagesLoading ? (
-                  <div className="rounded-2xl border bg-white p-3 text-sm text-muted-foreground">טוען הודעות…</div>
+                  <TableSkeleton rows={3} />
                 ) : messages.length === 0 ? (
-                  <div className="rounded-2xl border bg-white p-3 text-sm text-muted-foreground">אין עדיין הודעות.</div>
+                  <EmptyState
+                    title="אין עדיין הודעות"
+                    icon={<MessageSquare size={28} strokeWidth={1.5} />}
+                  />
                 ) : (
                   <div className="space-y-3">
                     {messages.map((m) => {
@@ -341,12 +405,17 @@ export default function AdminInboxPage() {
                         <div key={m.id} className={isMine ? 'flex justify-start' : 'flex justify-end'}>
                           <div
                             className={
-                              'max-w-[85%] rounded-2xl border px-3 py-2 text-sm shadow-sm whitespace-pre-wrap ' +
-                              (isMine ? 'bg-white border-black/10' : 'bg-black text-white border-black')
+                              'max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm whitespace-pre-wrap shadow-sm ' +
+                              (isMine
+                                ? 'bg-white border border-neutral-200 text-neutral-900'
+                                : 'bg-neutral-900 text-white')
                             }
                           >
                             <div>{m.body}</div>
-                            <div className={isMine ? 'mt-1 text-[10px] text-muted-foreground' : 'mt-1 text-[10px] text-white/70'}>
+                            <div className={
+                              'mt-1.5 text-[10px] ' +
+                              (isMine ? 'text-neutral-400' : 'text-white/60')
+                            }>
                               {formatDay(m.created_at)} · {formatTime(m.created_at)}
                             </div>
                           </div>
@@ -357,14 +426,15 @@ export default function AdminInboxPage() {
                 )}
               </div>
 
-              <div className="border-t border-black/5 bg-white/70 p-3">
+              {/* Composer */}
+              <div className="border-t border-neutral-100 bg-white p-3">
                 <div className="flex items-end gap-2">
                   <textarea
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     rows={2}
                     placeholder="כתוב הודעה…"
-                    className="w-full resize-none rounded-2xl border border-black/10 bg-white p-3 text-sm outline-none"
+                    className="w-full resize-none rounded-lg border border-neutral-200 bg-white p-3 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
                     onKeyDown={(e) => {
                       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                         e.preventDefault()
@@ -376,20 +446,17 @@ export default function AdminInboxPage() {
                     type="button"
                     onClick={() => void send()}
                     disabled={sending || text.trim().length === 0}
-                    className={
-                      'shrink-0 rounded-2xl px-4 py-3 text-sm font-black text-white ' +
-                      (sending || text.trim().length === 0 ? 'bg-black/30 cursor-not-allowed' : 'bg-black hover:opacity-90')
-                    }
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed"
+                    aria-label="שלח"
                   >
-                    שלח
+                    <Send size={16} />
                   </button>
                 </div>
-
-                <div className="mt-2 text-[11px] text-muted-foreground">
-                  שליחה כ"מערכת האתר" (System User). קיצור: Ctrl/⌘ + Enter.
+                <div className="mt-1.5 text-[11px] text-neutral-400">
+                  שליחה כ״מערכת האתר״ (System User). קיצור: Ctrl/⌘ + Enter.
                 </div>
               </div>
-            </div>
+            </>
           )}
         </section>
       </div>

@@ -17,14 +17,14 @@ export async function GET(req: Request) {
   const firstErr = postsTotal.error || postsPublished.error || postsDeleted.error || usersTotal.error
   if (firstErr) return adminError(firstErr.message, 500, "db_error")
 
+  // Keep a stable response shape for the Admin UI.
+  // The client expects `stats.*` keys.
   return adminOk({
-    posts: {
-      total: postsTotal.count ?? 0,
-      published: postsPublished.count ?? 0,
-      deleted: postsDeleted.count ?? 0,
-    },
-    users: {
-      total: usersTotal.count ?? 0,
+    stats: {
+      users_total: usersTotal.count ?? 0,
+      posts_total: postsTotal.count ?? 0,
+      posts_published: postsPublished.count ?? 0,
+      posts_deleted: postsDeleted.count ?? 0,
     },
   })
 }

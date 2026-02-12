@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   const chunkSize = 500
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize)
-    const { error } = await auth.admin.from("notifications").insert(chunk)
+    const { error } = await auth.admin.from("notifications").insert(chunk as never)
     if (error) return adminError(error.message, 500, "db_error")
   }
 

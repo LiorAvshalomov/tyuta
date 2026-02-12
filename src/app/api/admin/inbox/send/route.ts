@@ -43,7 +43,7 @@ export async function POST(req: Request) {
 
   const { data, error } = await auth.admin
     .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: systemUserId, body: text })
+    .insert({ conversation_id: conversationId, sender_id: systemUserId, body: text } as never)
     .select('id')
     .single()
 

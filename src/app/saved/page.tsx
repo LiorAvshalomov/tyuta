@@ -125,7 +125,7 @@ export default function SavedPostsPage() {
 
         if (error) throw error
         if (alive) {
-          setRows((data ?? []) as SavedPostRow[])
+          setRows((data ?? []) as unknown as SavedPostRow[])
           setPg((prev) => ({ ...prev, total: typeof count === 'number' ? count : prev.total }))
         }
       } catch (e: unknown) {

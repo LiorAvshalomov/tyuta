@@ -40,7 +40,7 @@ export async function GET(req: Request) {
   // Mark user->system messages as read (admin opened the thread)
   await auth.admin
     .from('messages')
-    .update({ read_at: new Date().toISOString() })
+    .update({ read_at: new Date().toISOString() } as never)
     .eq('conversation_id', conversationId)
     .is('read_at', null)
     .neq('sender_id', systemUserId)

@@ -42,7 +42,7 @@ export async function POST(req: Request) {
         banned_at: isSuspended ? null : undefined,
         banned_by: isSuspended ? null : undefined,
         updated_at: nowIso,
-      },
+      } as never,
       { onConflict: 'user_id' }
     )
 
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     action: isSuspended ? 'suspend' : 'unsuspend',
     reason: reason,
     created_at: nowIso,
-  })
+  } as never)
 
   return NextResponse.json({ ok: true })
 }

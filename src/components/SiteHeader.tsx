@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Avatar from '@/components/Avatar'
 import { resolveUserIdentity, SYSTEM_USER_ID } from '@/lib/systemIdentity'
@@ -603,7 +603,7 @@ export default function SiteHeader() {
                 {user && (
                   <>
                     {/* התראות */}
-                    <NotificationsBell />
+                    <Suspense><NotificationsBell /></Suspense>
 
                     {/* הודעות */}
                     <div className="relative" ref={messagesRef}>
@@ -777,7 +777,7 @@ export default function SiteHeader() {
 
             {/* Left: search */}
             <div className="flex justify-self-end">
-              <SearchPostsBar />
+              <Suspense><SearchPostsBar /></Suspense>
             </div>
           </div>
         </div>

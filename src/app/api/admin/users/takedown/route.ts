@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       deleted_at: null,
       deleted_by: null,
       deleted_reason: reason,
-    })
+    } as never)
     .eq('author_id', userId)
 
   if (postsErr) {
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     action: 'takedown',
     reason,
     created_at: nowIso,
-  })
+  } as never)
 
   return NextResponse.json({ ok: true })
 }

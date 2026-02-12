@@ -15,12 +15,12 @@ export async function POST(req: Request) {
     return adminError("bad request", 400, "bad_request")
   }
 
-  const patch: Record<string, unknown> = {
+  const patch = {
     status,
     resolved_at: status === "resolved" ? new Date().toISOString() : null,
   }
 
-  const { error } = await admin.from("contact_messages").update(patch).eq("id", id)
+  const { error } = await admin.from("contact_messages").update(patch as never).eq("id", id)
   if (error) return adminError(error.message, 500, "db_error")
 
   return adminOk({})

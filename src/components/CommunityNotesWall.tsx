@@ -214,8 +214,8 @@ export default function CommunityNotesWall() {
             return
           }
 
-          const next = p.new ?? null
-          const prev = p.old ?? null
+          const next = (p.new ?? null) as { user_id?: string; updated_at?: string } | null
+          const prev = (p.old ?? null) as { user_id?: string; updated_at?: string } | null
           const userId = next?.user_id ?? prev?.user_id
           const updatedAt = next?.updated_at ?? prev?.updated_at
           if (!userId) return

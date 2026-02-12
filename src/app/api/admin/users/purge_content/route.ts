@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     action: 'purge_content',
     reason: null,
     created_at: nowIso,
-  })
+  } as never)
 
   return NextResponse.json({ ok: true, deleted_posts: postIds.length })
 }

@@ -1,45 +1,112 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import Link from "next/link"
+import Avatar from "@/components/Avatar"
 import { adminFetch } from "@/lib/admin/adminFetch"
-
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
+import PageHeader from '@/components/admin/PageHeader'
+import FilterTabs from '@/components/admin/FilterTabs'
+import ErrorBanner from '@/components/admin/ErrorBanner'
+import EmptyState from '@/components/admin/EmptyState'
+import { TableSkeleton } from '@/components/admin/AdminSkeleton'
+import {
+  Flag,
+  CheckCircle2,
+  RotateCcw,
+  MessageSquare,
+  FileText,
+  User,
+  X,
+  RefreshCw,
+} from 'lucide-react'
+import AdminReportDrawer from '@/components/admin/AdminReportDetailClient'
+
+/* ── types ── */
+
+type MiniProfile = {
+  id: string
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+}
+
 type ReportRow = {
   id: string
   created_at: string
   category?: string | null
   details?: string | null
   status?: "open" | "resolved" | string
-
+  conversation_id?: string | null
+  message_id?: string | null
+  reporter_id?: string | null
+  reported_user_id?: string | null
   reporter_display_name?: string | null
   reported_display_name?: string | null
   reporter_username?: string | null
   reported_username?: string | null
-
+  reporter_profile?: MiniProfile | null
+  reported_profile?: MiniProfile | null
   message_preview?: string | null
+  message_excerpt?: string | null
 }
 
 type ReportsApiResponse = {
   ok?: boolean
-  error?: any
+  error?: { code?: string; message?: string } | string
   reports?: ReportRow[]
 }
-
 
 function isReportsApiResponse(v: unknown): v is ReportsApiResponse {
   return typeof v === "object" && v !== null
 }
 
+/* ── source type ── */
+
+type SourceType = "all" | "inbox" | "posts" | "users"
+
+const SOURCE_OPTIONS: { value: SourceType; label: string }[] = [
+  { value: "all", label: "הכל" },
+  { value: "inbox", label: "אינבוקס" },
+  { value: "posts", label: "פוסטים / תגובות" },
+  { value: "users", label: "משתמשים" },
+]
+
+const STATUS_OPTIONS: { value: "open" | "resolved"; label: string }[] = [
+  { value: "open", label: "פתוחים" },
+  { value: "resolved", label: "טופלו" },
+]
+
+function detectSource(r: ReportRow): "inbox" | "posts" | "users" {
+  if (r.conversation_id != null) return "inbox"
+  if (r.conversation_id == null && r.details?.includes('post:')) return "posts"
+  return "users"
+}
+
+function fmtName(p: MiniProfile | null | undefined, fallback?: string | null) {
+  if (p?.display_name) return p.display_name
+  if (p?.username) return `@${p.username}`
+  return fallback || '—'
+}
+
+/* ── component ── */
+
 export default function ReportsPage() {
   const [status, setStatus] = useState<"open" | "resolved">("open")
+  const [source, setSource] = useState<SourceType>("all")
   const [rows, setRows] = useState<ReportRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeReportId, setActiveReportId] = useState<string | null>(null)
 
   const title = useMemo(() => (status === "open" ? "דיווחים פתוחים" : "דיווחים שטופלו"), [status])
 
-  async function load() {
+  const filtered = useMemo(() => {
+    if (source === "all") return rows
+    return rows.filter((r) => detectSource(r) === source)
+  }, [rows, source])
+
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -47,7 +114,6 @@ export default function ReportsPage() {
       const res = await adminFetch(`/api/admin/reports?status=${status}`)
       const contentType = res.headers.get("content-type") || ""
 
-      // אם זה לא JSON – נציג שגיאה ברורה (בד"כ auth/edge/500)
       if (!contentType.includes("application/json")) {
         const text = await res.text()
         throw new Error(`API החזיר תשובה לא-JSON (${res.status}): ${text.slice(0, 120)}`)
@@ -65,12 +131,11 @@ export default function ReportsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [status])
 
   async function toggleResolve(id: string, nextStatus: "open" | "resolved") {
     setError(null)
 
-    // עדכון אופטימי
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: nextStatus } : r)))
 
     try {
@@ -91,7 +156,6 @@ export default function ReportsPage() {
 
       await load()
     } catch (e: unknown) {
-      // rollback פשוט: נטען מחדש
       await load()
       const msg = e instanceof Error ? e.message : "שגיאה לא ידועה"
       setError(msg)
@@ -100,112 +164,237 @@ export default function ReportsPage() {
 
   useEffect(() => {
     load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status])
+  }, [load])
+
+  function parsePostSlug(details?: string | null) {
+    if (!details) return null
+    const m = details.match(/post:\s*(.+)/)
+    return m ? m[1].trim() : null
+  }
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black">{title}</h1>
-          <p className="mt-1 text-sm text-neutral-600">דיווחים מהצ׳אט (מודרציה)</p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            className={`rounded-full border px-4 py-2 text-sm font-bold ${
-              status === "open" ? "bg-black text-white" : "bg-white"
-            }`}
-            onClick={() => setStatus("open")}
-          >
-            פתוחים
-          </button>
-          <button
-            className={`rounded-full border px-4 py-2 text-sm font-bold ${
-              status === "resolved" ? "bg-black text-white" : "bg-white"
-            }`}
-            onClick={() => setStatus("resolved")}
-          >
-            טופלו
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-2xl border bg-white/70 p-4 shadow-sm">
-        {error && (
-          <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {error}
+    <div className="space-y-5">
+      <PageHeader
+        title={title}
+        description="דיווחים מהצ׳אט (מודרציה)"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterTabs value={source} onChange={setSource} options={SOURCE_OPTIONS} />
+            <FilterTabs value={status} onChange={setStatus} options={STATUS_OPTIONS} />
           </div>
-        )}
+        }
+      />
 
-        {loading ? (
-          <div className="text-sm text-neutral-600">טוען…</div>
-        ) : rows.length === 0 ? (
-          <div className="text-sm text-neutral-600">אין דיווחים להצגה.</div>
-        ) : (
-          <div className="space-y-3">
-            {rows.map((r) => {
-              const reporter = r.reporter_display_name || r.reporter_username || "משתמש/ת"
-              const reported = r.reported_display_name || r.reported_username || "משתמש/ת"
-              const preview = r.message_preview || r.details || ""
-              const when = new Date(r.created_at).toLocaleString("he-IL")
+      {error && <ErrorBanner message={error} onRetry={load} />}
 
-              return (
-                <div key={r.id} className="rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-bold">
-                      <span className="text-neutral-500">דיווח:</span>{" "}
-                      <span className="text-neutral-900">{r.category || "כללי"}</span>
-                    </div>
-                    <div className="text-xs text-neutral-500">{when}</div>
+      {loading ? (
+        <TableSkeleton rows={4} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          title="אין דיווחים להצגה"
+          description={status === "open" ? "כל הדיווחים טופלו" : "עדיין לא סומנו דיווחים כטופלו"}
+          icon={<Flag size={36} strokeWidth={1.5} />}
+        />
+      ) : (
+        <div className="grid gap-3">
+          {filtered.map((r) => {
+            const src = detectSource(r)
+            const reporterName = fmtName(r.reporter_profile, r.reporter_display_name || r.reporter_username)
+            const reportedName = fmtName(r.reported_profile, r.reported_display_name || r.reported_username)
+            const when = new Date(r.created_at).toLocaleString("he-IL")
+
+            return (
+              <div
+                key={r.id}
+                className="rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm"
+              >
+                {/* Header row */}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {/* Source badge */}
+                    {src === "inbox" && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                        <MessageSquare size={11} /> אינבוקס
+                      </span>
+                    )}
+                    {src === "posts" && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                        <FileText size={11} /> פוסט / תגובה
+                      </span>
+                    )}
+                    {src === "users" && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
+                        <User size={11} /> משתמש
+                      </span>
+                    )}
+                    <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                      {r.category || "כללי"}
+                    </span>
+                    <span className="text-xs text-neutral-400">{when}</span>
                   </div>
+                  <span
+                    className={
+                      'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ' +
+                      (r.status === 'resolved'
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-amber-50 text-amber-700')
+                    }
+                  >
+                    {r.status === 'resolved' ? 'טופל' : 'פתוח'}
+                  </span>
+                </div>
 
-                  <div className="mt-2 text-sm text-neutral-800">
-                    <span className="font-bold">{reporter}</span> דיווח/ה על{" "}
-                    <span className="font-bold">{reported}</span>
+                {/* Reporter → Reported */}
+                <div className="mt-2 flex items-center gap-2 text-sm text-neutral-800">
+                  <div className="flex items-center gap-1.5">
+                    <Avatar
+                      src={r.reporter_profile?.avatar_url ?? null}
+                      name={reporterName}
+                      size={20}
+                      shape="circle"
+                    />
+                    <span className="font-semibold">{reporterName}</span>
                   </div>
-
-                  {preview ? (
-                    <div className="mt-2 whitespace-pre-wrap rounded-xl bg-neutral-50 px-3 py-2 text-sm text-neutral-800">
-                      {preview}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={`/admin/reports/${r.id}`}
-                        className="rounded-full border bg-white px-4 py-2 text-sm font-bold hover:bg-neutral-50"
-                      >
-                        פירוט
-                      </Link>
-
-                      {r.status !== "resolved" ? (
-                        <button
-                          className="rounded-full border bg-white px-4 py-2 text-sm font-bold hover:bg-neutral-50"
-                          onClick={() => toggleResolve(r.id, "resolved")}
-                        >
-                          סמן טופל
-                        </button>
-                      ) : (
-                        <button
-                          className="rounded-full border bg-white px-4 py-2 text-sm font-bold hover:bg-neutral-50"
-                          onClick={() => toggleResolve(r.id, "open")}
-                        >
-                          החזר לפתוח
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="text-xs text-neutral-500">
-                      סטטוס: <span className="font-bold">{r.status || "open"}</span>
-                    </div>
+                  <span className="text-neutral-400">דיווח/ה על</span>
+                  <div className="flex items-center gap-1.5">
+                    <Avatar
+                      src={r.reported_profile?.avatar_url ?? null}
+                      name={reportedName}
+                      size={20}
+                      shape="circle"
+                    />
+                    <span className="font-semibold">{reportedName}</span>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
+
+                {/* Context — varies by source */}
+                {src === "inbox" && (r.message_preview || r.message_excerpt) && (
+                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                    {r.message_excerpt || r.message_preview}
+                  </div>
+                )}
+                {src === "posts" && (r.message_preview || r.message_excerpt) && (
+                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                    {r.message_excerpt || r.message_preview}
+                  </div>
+                )}
+                {src === "users" && r.details && (
+                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                    {r.details}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {src === "inbox" && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      onClick={() => setActiveReportId(r.id)}
+                    >
+                      <MessageSquare size={13} />
+                      פירוט + הקשר
+                    </button>
+                  )}
+
+                  {src === "posts" && (() => {
+                    const slug = parsePostSlug(r.details)
+                    return slug ? (
+                      <Link
+                        href={`/post/${slug}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      >
+                        <FileText size={13} />
+                        צפה בפוסט
+                      </Link>
+                    ) : null
+                  })()}
+
+                  {src === "users" && (
+                    <Link
+                      href="/admin/users"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                    >
+                      <User size={13} />
+                      ניהול משתמש
+                    </Link>
+                  )}
+
+                  {src !== "inbox" && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      onClick={() => setActiveReportId(r.id)}
+                    >
+                      פירוט
+                    </button>
+                  )}
+
+                  {r.status !== "resolved" ? (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      onClick={() => toggleResolve(r.id, "resolved")}
+                    >
+                      <CheckCircle2 size={13} />
+                      סמן טופל
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      onClick={() => toggleResolve(r.id, "open")}
+                    >
+                      <RotateCcw size={13} />
+                      החזר לפתוח
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Detail Drawer */}
+      {activeReportId && (
+        <ReportDrawer
+          id={activeReportId}
+          onClose={() => setActiveReportId(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Drawer wrapper ── */
+
+function ReportDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Drawer panel */}
+      <div className="absolute inset-y-0 right-0 w-full max-w-lg overflow-y-auto bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-3">
+          <h2 className="text-sm font-bold text-neutral-900">פרטי דיווח</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100"
+            aria-label="סגור"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-5">
+          <AdminReportDrawer id={id} isDrawer />
+        </div>
       </div>
     </div>
   )

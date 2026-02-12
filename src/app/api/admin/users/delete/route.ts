@@ -37,7 +37,6 @@ export async function POST(req: Request) {
   // Best-effort: if some tables don't exist in a given environment, ignore those failures.
   const safeDelete = async (table: string, filter: Record<string, string>) => {
     try {
-      // @ts-expect-error dynamic table
       await auth.admin.from(table).delete().match(filter)
     } catch {
       // ignore

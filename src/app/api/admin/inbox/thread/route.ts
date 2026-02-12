@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   }
 
   // Create new conversation + add 2 members
-  const { data: conv, error: cErr } = await auth.admin.from('conversations').insert({}).select('id').single()
+  const { data: conv, error: cErr } = await auth.admin.from('conversations').insert({} as never).select('id').single()
   if (cErr || !conv?.id) return NextResponse.json({ error: cErr?.message ?? 'failed to create conversation' }, { status: 500 })
 
   const conversationId = String((conv as any).id)
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
   const { error: mErr } = await auth.admin.from('conversation_members').insert([
     { conversation_id: conversationId, user_id: systemUserId },
     { conversation_id: conversationId, user_id: userId },
-  ])
+  ] as never)
   if (mErr) return NextResponse.json({ error: mErr.message }, { status: 500 })
 
   return NextResponse.json({ conversation_id: conversationId })

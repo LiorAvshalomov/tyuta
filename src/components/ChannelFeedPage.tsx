@@ -639,7 +639,7 @@ export default async function ChannelFeedPage({
             </section>
           </div>
 
-          <StickySidebar className="space-y-6">
+          <StickySidebar containerId="main-content" className="space-y-6">
             <section>
               <SectionTitle title="פוסטים אחרונים" href={`/search?sort=recent&channel=${encodeURIComponent(channelSlug)}`} />
               <div className="space-y-2">

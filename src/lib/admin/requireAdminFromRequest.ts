@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 
 type RequireAdminOk = {
   ok: true
   user: { id: string; email?: string | null }
-  admin: ReturnType<typeof createClient>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: SupabaseClient<any, any, any>
 }
 
 type RequireAdminFail = {

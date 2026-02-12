@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         status,
         published_at,
         updated_at: now,
-      })
+      } as never)
       .eq("id", postId)
 
     if (updErr) return adminError(updErr.message, 500, "db_error")
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         deleted_by: null,
         deleted_reason: null,
         updated_at: now,
-      })
+      } as never)
       .eq("id", postId)
 
     if (updErr) return adminError(updErr.message, 500, "db_error")
