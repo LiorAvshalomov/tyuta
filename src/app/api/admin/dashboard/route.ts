@@ -74,13 +74,13 @@ export async function GET(req: Request) {
     postPurges,
     userPurges,
   ] = await Promise.all([
-    userClient.rpc("admin_kpis_v2", { p_start, p_end }) as Promise<RpcResult<unknown>>,
-    userClient.rpc("admin_pageviews_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_active_users_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_signups_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_posts_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_post_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_user_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_kpis_v2", { p_start, p_end }) as unknown as Promise<RpcResult<unknown>>,
+    userClient.rpc("admin_pageviews_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_active_users_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_signups_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_posts_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_post_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_user_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
   ]);
 
   const firstErr =
