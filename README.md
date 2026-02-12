@@ -1,4 +1,4 @@
-# PenDemic
+# tyuta.net
 
 A Hebrew-first writing and publishing platform. Mobile-first, RTL-native, with rich text editing, community features, moderation, and analytics.
 
