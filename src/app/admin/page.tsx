@@ -22,11 +22,6 @@ import { getAdminErrorMessage } from "@/lib/admin/adminUi";
 
 type Bucket = "day" | "week" | "month";
 
-type AdminStatsResponse = {
-  posts?: { total?: number; published?: number; deleted?: number };
-  users?: { total?: number };
-};
-
 type DashboardKpis = {
   pageviews: number;
   visits: number;
@@ -46,28 +41,27 @@ type DashboardKpis = {
 type TrafficPoint = { bucketStart: string; pageviews: number; sessions: number; uniqueUsers: number };
 type ActiveUsersPoint = { bucketStart: string; activeUsers: number };
 type SignupsPoint = { bucketStart: string; signups: number };
-type PostsPoint = {
-  bucketStart: string;
-  postsCreated: number;
-  postsPublished: number;
-  postsSoftDeleted: number;
-};
+type PostsPoint = { bucketStart: string; postsCreated: number; postsPublished: number; postsSoftDeleted: number };
+type PurgesPoint = { bucketStart: string; postsPurged: number; usersPurged: number };
 
 type DashboardSeries = {
   traffic: TrafficPoint[];
   activeUsers: ActiveUsersPoint[];
   signups: SignupsPoint[];
   posts: PostsPoint[];
+  purges: PurgesPoint[];
 };
 
 type DashboardResponse = {
   kpis?: unknown;
   series?: unknown;
+
   // Back-compat if older shape exists
   trafficSeries?: unknown;
   activeUsersSeries?: unknown;
   signupsSeries?: unknown;
   postsSeries?: unknown;
+  purgesSeries?: unknown;
 };
 
 function toNum(v: unknown): number {
@@ -82,11 +76,9 @@ function toNum(v: unknown): number {
 function formatInt(n: number): string {
   return new Intl.NumberFormat("he-IL").format(n);
 }
-
 function formatPct(n: number): string {
   return `${new Intl.NumberFormat("he-IL", { maximumFractionDigits: 2 }).format(n)}%`;
 }
-
 function formatMinutes(n: number): string {
   return new Intl.NumberFormat("he-IL", { maximumFractionDigits: 2 }).format(n);
 }
@@ -96,7 +88,6 @@ function isoStartOfDay(d: Date): string {
   x.setHours(0, 0, 0, 0);
   return x.toISOString();
 }
-
 function isoEndOfDay(d: Date): string {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
@@ -111,7 +102,6 @@ function isSeriesEmpty<T extends Record<string, unknown>>(arr: T[], keys: Array<
 function normalizeDashboard(payload: DashboardResponse): { kpis: DashboardKpis; series: DashboardSeries } {
   const rawKpis = (payload.kpis ?? {}) as Record<string, unknown>;
 
-  // Support snake_case if server returns that
   const kpis: DashboardKpis = {
     pageviews: toNum(rawKpis.pageviews ?? rawKpis.page_views),
     visits: toNum(rawKpis.visits ?? rawKpis.sessions ?? rawKpis.session_count),
@@ -130,25 +120,11 @@ function normalizeDashboard(payload: DashboardResponse): { kpis: DashboardKpis; 
 
   const rawSeries = (payload.series ?? {}) as Record<string, unknown>;
 
-  const trafficSrc =
-    (rawSeries.traffic as unknown[]) ??
-    (payload.trafficSeries as unknown[]) ??
-    ([] as unknown[]);
-
-  const activeSrc =
-    (rawSeries.activeUsers as unknown[]) ??
-    (payload.activeUsersSeries as unknown[]) ??
-    ([] as unknown[]);
-
-  const signupsSrc =
-    (rawSeries.signups as unknown[]) ??
-    (payload.signupsSeries as unknown[]) ??
-    ([] as unknown[]);
-
-  const postsSrc =
-    (rawSeries.posts as unknown[]) ??
-    (payload.postsSeries as unknown[]) ??
-    ([] as unknown[]);
+  const trafficSrc = (rawSeries.traffic as unknown[]) ?? (payload.trafficSeries as unknown[]) ?? [];
+  const activeSrc = (rawSeries.activeUsers as unknown[]) ?? (payload.activeUsersSeries as unknown[]) ?? [];
+  const signupsSrc = (rawSeries.signups as unknown[]) ?? (payload.signupsSeries as unknown[]) ?? [];
+  const postsSrc = (rawSeries.posts as unknown[]) ?? (payload.postsSeries as unknown[]) ?? [];
+  const purgesSrc = (rawSeries.purges as unknown[]) ?? (payload.purgesSeries as unknown[]) ?? [];
 
   const traffic: TrafficPoint[] = (Array.isArray(trafficSrc) ? trafficSrc : []).map((r) => {
     const row = (r ?? {}) as Record<string, unknown>;
@@ -186,7 +162,16 @@ function normalizeDashboard(payload: DashboardResponse): { kpis: DashboardKpis; 
     };
   });
 
-  return { kpis, series: { traffic, activeUsers, signups, posts } };
+  const purges: PurgesPoint[] = (Array.isArray(purgesSrc) ? purgesSrc : []).map((r) => {
+    const row = (r ?? {}) as Record<string, unknown>;
+    return {
+      bucketStart: String(row.bucketStart ?? row.bucket_start ?? ""),
+      postsPurged: toNum(row.postsPurged ?? row.posts_purged),
+      usersPurged: toNum(row.usersPurged ?? row.users_purged),
+    };
+  });
+
+  return { kpis, series: { traffic, activeUsers, signups, posts, purges } };
 }
 
 function SkeletonCard() {
@@ -215,7 +200,6 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 export default function AdminHome() {
   const [openReports, setOpenReports] = useState<number | null>(null);
   const [openContact, setOpenContact] = useState<number | null>(null);
-  const [stats, setStats] = useState<AdminStatsResponse | null>(null);
 
   const [bucket, setBucket] = useState<Bucket>("day");
   const [start, setStart] = useState<string>(() => isoStartOfDay(new Date(Date.now() - 1000 * 60 * 60 * 24 * 30)));
@@ -226,20 +210,18 @@ export default function AdminHome() {
   const [dashLoading, setDashLoading] = useState<boolean>(true);
   const [refreshNonce, setRefreshNonce] = useState<number>(0);
 
-  // Quick counts + totals
+  // Quick counts (non-fatal)
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [r1, r2, r3] = await Promise.all([
+        const [r1, r2] = await Promise.all([
           adminFetch("/api/admin/reports?status=open&limit=200"),
           adminFetch("/api/admin/contact?status=open&limit=200"),
-          adminFetch("/api/admin/stats"),
         ]);
 
         const j1 = (await r1.json().catch(() => ({}))) as unknown;
         const j2 = (await r2.json().catch(() => ({}))) as unknown;
-        const j3 = (await r3.json().catch(() => ({}))) as unknown;
 
         if (!alive) return;
 
@@ -250,10 +232,8 @@ export default function AdminHome() {
         const contactArr = (j2 as { messages?: unknown[] } | null)?.messages ?? [];
         setOpenReports(Array.isArray(reportsArr) ? reportsArr.length : 0);
         setOpenContact(Array.isArray(contactArr) ? contactArr.length : 0);
-
-        if (r3.ok) setStats(j3 as AdminStatsResponse);
-      } catch (e) {
-        // Non-fatal for the page; keep dashboard loading separate
+      } catch {
+        // ignore (quick counts are non-fatal)
       }
     })();
 
@@ -279,12 +259,10 @@ export default function AdminHome() {
         if (!alive) return;
         if (!res.ok) throw new Error(getAdminErrorMessage(body, "Failed to load dashboard"));
 
-        const normalized = normalizeDashboard(body);
-        setDash(normalized);
-      } catch (e) {
+        setDash(normalizeDashboard(body));
+      } catch (err) {
         if (!alive) return;
-        const msg = e instanceof Error ? e.message : "שגיאה בטעינת דשבורד";
-        setDashErr(msg);
+        setDashErr(err instanceof Error ? err.message : "שגיאה בטעינת דשבורד");
       } finally {
         if (!alive) return;
         setDashLoading(false);
@@ -297,10 +275,12 @@ export default function AdminHome() {
     };
   }, [start, end, bucket, refreshNonce]);
 
-  const trafficData = dash?.series.traffic ?? [];
-  const activeData = dash?.series.activeUsers ?? [];
-  const signupsData = dash?.series.signups ?? [];
-  const postsData = dash?.series.posts ?? [];
+  // Keep memo deps stable
+  const trafficData = useMemo(() => dash?.series.traffic ?? [], [dash]);
+  const activeData = useMemo(() => dash?.series.activeUsers ?? [], [dash]);
+  const signupsData = useMemo(() => dash?.series.signups ?? [], [dash]);
+  const postsData = useMemo(() => dash?.series.posts ?? [], [dash]);
+  const purgesData = useMemo(() => dash?.series.purges ?? [], [dash]);
 
   const isTrafficEmpty = useMemo(() => isSeriesEmpty(trafficData, ["pageviews", "sessions"]), [trafficData]);
   const isActiveEmpty = useMemo(() => isSeriesEmpty(activeData, ["activeUsers"]), [activeData]);
@@ -309,6 +289,7 @@ export default function AdminHome() {
     () => isSeriesEmpty(postsData, ["postsCreated", "postsPublished", "postsSoftDeleted"]),
     [postsData]
   );
+  const isPurgesEmpty = useMemo(() => isSeriesEmpty(purgesData, ["postsPurged", "usersPurged"]), [purgesData]);
 
   const k = dash?.kpis;
 
@@ -326,13 +307,13 @@ export default function AdminHome() {
         <div className="mt-1 text-sm text-muted-foreground">נקודת התחלה מהירה לניהול האתר + אנליטיקס.</div>
       </div>
 
-      {/* Quick access */}
       <div className="grid gap-3 sm:grid-cols-2">
         <Link href="/admin/reports" className="rounded-2xl border border-black/5 bg-white/60 p-4 shadow-sm hover:bg-white">
           <div className="text-sm font-black">דיווחים פתוחים</div>
           <div className="mt-1 text-3xl font-black">{openReports ?? "—"}</div>
           <div className="mt-2 text-xs text-muted-foreground">ניהול דיווחים לפי קטגוריות</div>
         </Link>
+
         <Link href="/admin/contact" className="rounded-2xl border border-black/5 bg-white/60 p-4 shadow-sm hover:bg-white">
           <div className="text-sm font-black">פניות “צור קשר” פתוחות</div>
           <div className="mt-1 text-3xl font-black">{openContact ?? "—"}</div>
@@ -340,15 +321,6 @@ export default function AdminHome() {
         </Link>
       </div>
 
-      {/* Totals */}
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Card title="משתמשים" value={stats?.users?.total != null ? formatInt(stats.users.total) : "—"} />
-        <Card title="פוסטים (סה״כ)" value={stats?.posts?.total != null ? formatInt(stats.posts.total) : "—"} />
-        <Card title="פורסמו" value={stats?.posts?.published != null ? formatInt(stats.posts.published) : "—"} />
-        <Card title="נמחקו (soft)" value={stats?.posts?.deleted != null ? formatInt(stats.posts.deleted) : "—"} />
-      </div>
-
-      {/* Filters */}
       <div className="rounded-2xl border border-black/5 bg-white/60 p-4 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="flex flex-wrap items-end gap-3">
@@ -361,6 +333,7 @@ export default function AdminHome() {
                 onChange={(e) => setStart(new Date(e.target.value).toISOString())}
               />
             </label>
+
             <label className="grid gap-1 text-xs font-bold text-muted-foreground">
               סוף
               <input
@@ -370,6 +343,7 @@ export default function AdminHome() {
                 onChange={(e) => setEnd(new Date(e.target.value).toISOString())}
               />
             </label>
+
             <label className="grid gap-1 text-xs font-bold text-muted-foreground">
               Bucket
               <select
@@ -417,7 +391,6 @@ export default function AdminHome() {
         </div>
       </div>
 
-      {/* KPI */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {dashLoading ? (
           <>
@@ -441,7 +414,7 @@ export default function AdminHome() {
         ) : k ? (
           <>
             <Card title="כניסות (Pageviews)" value={formatInt(k.pageviews)} sub="סה״כ בטווח" />
-            <Card title="ביקורים (Sessions)" value={formatInt(k.visits)} sub="ביקורים ייחודיים" />
+            <Card title="ביקורים (Sessions)" value={formatInt(k.visits)} sub="Sessions בטווח" />
             <Card title="Bounce" value={formatPct(k.bounceRate)} sub="אחוז ביקור עם צפייה אחת" />
             <Card title="אורך ביקור (דקות)" value={formatMinutes(k.avgSessionMinutes)} sub="ממוצע" />
 
@@ -454,11 +427,12 @@ export default function AdminHome() {
             <Card title="פוסטים נוקו (purge)" value={formatInt(k.postsPurged)} />
             <Card title="משתמשים מושעים" value={formatInt(k.usersSuspended)} />
             <Card title="משתמשים חסומים" value={formatInt(k.usersBanned)} />
+
+            <Card title="משתמשים נוקו (purge)" value={formatInt(k.usersPurged)} />
           </>
         ) : null}
       </div>
 
-      {/* Charts */}
       {!dashLoading && !dashErr && dash ? (
         <div className="grid gap-3 lg:grid-cols-2">
           <ChartCard title="Traffic (Pageviews + Sessions)">
@@ -525,6 +499,24 @@ export default function AdminHome() {
                   <Bar dataKey="postsCreated" name="Created" stackId="a" />
                   <Bar dataKey="postsPublished" name="Published" stackId="a" />
                   <Bar dataKey="postsSoftDeleted" name="Soft Deleted" stackId="a" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </ChartCard>
+
+          <ChartCard title="מחיקות מערכת (Purge)">
+            {isPurgesEmpty ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">אין נתונים בטווח הזה</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={purgesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="bucketStart" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="postsPurged" name="Posts purged" />
+                  <Bar dataKey="usersPurged" name="Users purged" />
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -1,131 +1,185 @@
-import { NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest"
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest";
 
-type Bucket = "day" | "week" | "month"
+type Bucket = "day" | "week" | "month";
 
-type AdminKpisV2 = {
-  pageviews: number
-  visits: number
-  bounce_rate: number
-  avg_session_minutes: number
-  unique_users: number
-  signups: number
-  posts_created: number
-  posts_published: number
-  posts_soft_deleted: number
-  posts_purged: number
-  users_suspended: number
-  users_banned: number
-  users_purged: number
+type RpcResult<T> = { data: T | null; error: { message: string } | null };
+
+function pickBucket(raw: string | null): Bucket {
+  if (raw === "week" || raw === "month") return raw;
+  return "day";
 }
 
-type PageviewsPoint = {
-  bucket_start: string
-  pageviews: number
-  sessions: number
-  unique_users: number
+function mustISO(raw: string | null, fallback: Date): string {
+  if (!raw) return fallback.toISOString();
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? fallback.toISOString() : d.toISOString();
 }
 
-type ActiveUsersPoint = {
-  bucket_start: string
-  active_users: number
+function asRecord(v: unknown): Record<string, unknown> {
+  return typeof v === "object" && v !== null ? (v as Record<string, unknown>) : {};
 }
 
-type SignupsPoint = {
-  bucket_start: string
-  signups: number
+function num(v: unknown): number {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
 }
 
-type PostsPoint = {
-  bucket_start: string
-  posts_created: number
-  posts_published: number
-  posts_soft_deleted: number
-}
-
-function parseBucket(v: string | null): Bucket {
-  if (v === "day" || v === "week" || v === "month") return v
-  return "day"
-}
-
-function parseDateOrNull(v: string | null): Date | null {
-  if (!v) return null
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? null : d
-}
-
-function getBearer(req: Request): string {
-  const auth = req.headers.get("authorization") || ""
-  return auth.startsWith("Bearer ") ? auth.slice(7) : ""
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
 }
 
 export async function GET(req: Request) {
-  // 1) verify admin using existing server-side guard (env-based admin list)
-  const auth = await requireAdminFromRequest(req)
-  if (!auth.ok) return auth.response
+  const gate = await requireAdminFromRequest(req);
+  if (!gate.ok) return gate.response;
 
-  const token = getBearer(req)
-  if (!token) {
-    return NextResponse.json({ error: "missing token" }, { status: 401 })
-  }
+  const url = new URL(req.url);
+  const bucket = pickBucket(url.searchParams.get("bucket"));
 
-  const url = new URL(req.url)
-  const bucket = parseBucket(url.searchParams.get("bucket"))
+  const now = new Date();
+  const startFallback = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const now = new Date()
-  const start = parseDateOrNull(url.searchParams.get("start")) ?? new Date(now.getTime() - 1000 * 60 * 60 * 24 * 30)
-  const end = parseDateOrNull(url.searchParams.get("end")) ?? now
+  const p_start = mustISO(url.searchParams.get("start"), startFallback);
+  const p_end = mustISO(url.searchParams.get("end"), now);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !anonKey) {
     return NextResponse.json(
       { error: "missing server env (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)" },
       { status: 500 }
-    )
+    );
   }
 
-  // 2) call analytics RPC as the authenticated admin user
-  // This is required because DB functions use auth.uid() via assert_admin().
-  const asUser = createClient(supabaseUrl, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  })
+  const auth = req.headers.get("authorization") || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
 
-  const pStart = start.toISOString()
-  const pEnd = end.toISOString()
+  const userClient = createClient(supabaseUrl, anonKey, {
+    auth: { persistSession: false },
+    global: { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  });
 
-  // 3) fetch everything in parallel
-  const [kpisRes, trafficRes, activeUsersRes, signupsRes, postsRes] = await Promise.all([
-    asUser.rpc("admin_kpis_v2", { p_start: pStart, p_end: pEnd }),
-    asUser.rpc("admin_pageviews_timeseries", { p_start: pStart, p_end: pEnd, p_bucket: bucket }),
-    asUser.rpc("admin_active_users_timeseries", { p_start: pStart, p_end: pEnd, p_bucket: bucket }),
-    asUser.rpc("admin_signups_timeseries", { p_start: pStart, p_end: pEnd, p_bucket: bucket }),
-    asUser.rpc("admin_posts_timeseries", { p_start: pStart, p_end: pEnd, p_bucket: bucket }),
-  ])
+  const [
+    kpis,
+    traffic,
+    activeUsers,
+    signups,
+    posts,
+    postPurges,
+    userPurges,
+  ] = await Promise.all([
+    userClient.rpc("admin_kpis_v2", { p_start, p_end }) as Promise<RpcResult<unknown>>,
+    userClient.rpc("admin_pageviews_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_active_users_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_signups_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_posts_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_post_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
+    userClient.rpc("admin_user_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as Promise<RpcResult<unknown[]>>,
+  ]);
 
-  // 4) handle rpc errors explicitly (often thrown as Postgres error strings)
-  const firstError =
-    kpisRes.error || trafficRes.error || activeUsersRes.error || signupsRes.error || postsRes.error
+  const firstErr =
+    kpis.error ||
+    traffic.error ||
+    activeUsers.error ||
+    signups.error ||
+    posts.error ||
+    postPurges.error ||
+    userPurges.error;
 
-  if (firstError) {
-    const msg = firstError.message || "rpc_error"
-    const isAuth = msg.includes("not_authenticated") || msg.includes("not admin") || msg.includes("not_admin")
-    return NextResponse.json({ error: msg }, { status: isAuth ? 403 : 500 })
+  if (firstErr) {
+    return NextResponse.json({ error: firstErr.message }, { status: 500 });
   }
 
-  const kpisRow = (Array.isArray(kpisRes.data) ? kpisRes.data[0] : null) as AdminKpisV2 | null
+  const kpisRow = Array.isArray(kpis.data) ? (kpis.data[0] as unknown) : kpis.data;
+  const k = asRecord(kpisRow);
+
+  const trafficSeries = (traffic.data ?? []).map((row) => {
+    const r = asRecord(row);
+    return {
+      bucketStart: str(r.bucket_start),
+      pageviews: num(r.pageviews),
+      sessions: num(r.sessions),
+      uniqueUsers: num(r.unique_users),
+    };
+  });
+
+  const activeUsersSeries = (activeUsers.data ?? []).map((row) => {
+    const r = asRecord(row);
+    return { bucketStart: str(r.bucket_start), activeUsers: num(r.active_users) };
+  });
+
+  const signupsSeries = (signups.data ?? []).map((row) => {
+    const r = asRecord(row);
+    return { bucketStart: str(r.bucket_start), signups: num(r.signups) };
+  });
+
+  const postsSeries = (posts.data ?? []).map((row) => {
+    const r = asRecord(row);
+    return {
+      bucketStart: str(r.bucket_start),
+      postsCreated: num(r.posts_created),
+      postsPublished: num(r.posts_published),
+      postsSoftDeleted: num(r.posts_soft_deleted),
+    };
+  });
+
+  // Build purges series aligned to traffic buckets (so the chart always has consistent x-axis)
+  const postByBucket = new Map<string, number>();
+  for (const row of postPurges.data ?? []) {
+    const r = asRecord(row);
+    postByBucket.set(str(r.bucket_start), num(r.posts_purged));
+  }
+
+  const userByBucket = new Map<string, number>();
+  for (const row of userPurges.data ?? []) {
+    const r = asRecord(row);
+    userByBucket.set(str(r.bucket_start), num(r.users_purged));
+  }
+
+  const bucketKeys =
+    trafficSeries.length > 0
+      ? trafficSeries.map((p) => p.bucketStart)
+      : Array.from(new Set([...postByBucket.keys(), ...userByBucket.keys()])).sort();
+
+  const purgesSeries = bucketKeys.map((bucketStart) => ({
+    bucketStart,
+    postsPurged: postByBucket.get(bucketStart) ?? 0,
+    usersPurged: userByBucket.get(bucketStart) ?? 0,
+  }));
 
   return NextResponse.json({
-    range: { start: pStart, end: pEnd, bucket },
-    kpis: kpisRow,
-    series: {
-      traffic: (trafficRes.data ?? []) as PageviewsPoint[],
-      activeUsers: (activeUsersRes.data ?? []) as ActiveUsersPoint[],
-      signups: (signupsRes.data ?? []) as SignupsPoint[],
-      posts: (postsRes.data ?? []) as PostsPoint[],
+    kpis: {
+      pageviews: num(k.pageviews),
+      visits: num(k.visits),
+      bounceRate: num(k.bounce_rate),
+      avgSessionMinutes: num(k.avg_session_minutes),
+      uniqueUsers: num(k.unique_users),
+      signups: num(k.signups),
+      postsCreated: num(k.posts_created),
+      postsPublished: num(k.posts_published),
+      postsSoftDeleted: num(k.posts_soft_deleted),
+      postsPurged: num(k.posts_purged),
+      usersSuspended: num(k.users_suspended),
+      usersBanned: num(k.users_banned),
+      usersPurged: num(k.users_purged),
     },
-  })
+    series: {
+      traffic: trafficSeries.map((p) => ({
+        bucketStart: p.bucketStart,
+        pageviews: p.pageviews,
+        sessions: p.sessions,
+        uniqueUsers: p.uniqueUsers,
+      })),
+      activeUsers: activeUsersSeries,
+      signups: signupsSeries,
+      posts: postsSeries,
+      purges: purgesSeries,
+    },
+  });
 }

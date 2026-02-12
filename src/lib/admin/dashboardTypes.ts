@@ -40,11 +40,18 @@ export type PostsPoint = {
   postsSoftDeleted: number;
 };
 
+export type PurgesPoint = {
+  bucketStart: string;
+  postsPurged: number;
+  usersPurged: number;
+};
+
 export type DashboardSeries = {
   traffic: TrafficPoint[];
   activeUsers: ActiveUsersPoint[];
   signups: SignupsPoint[];
   posts: PostsPoint[];
+  purges: PurgesPoint[];
 };
 
 export type DashboardPayload = {
