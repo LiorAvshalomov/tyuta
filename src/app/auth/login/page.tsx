@@ -96,12 +96,6 @@ export default function LoginPage() {
             <div className="text-xs text-black/55">{PASSWORD_HINT_HE}</div>
           </div>
 
-          <div className="text-sm">
-            <Link href="/auth/forgot-password" className="font-semibold text-blue-700 hover:underline">
-              שכחת סיסמה?
-            </Link>
-          </div>
-
           {err ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{err}</div>
           ) : null}
@@ -114,6 +108,12 @@ export default function LoginPage() {
             {loading ? 'נכנסים…' : 'כניסה'}
           </button>
         </form>
+
+        <div className="text-sm text-black/70">
+          <Link href="/auth/forgot-password" className="font-semibold text-blue-700 hover:underline">
+            שכחת סיסמה?
+          </Link>
+        </div>
 
         <div className="text-sm text-black/70">
           אין לך משתמש?{' '}

@@ -1,42 +1,78 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import AuthLayout from '@/components/AuthLayout'
 import { sendPasswordResetEmail } from '@/lib/auth'
-import { supabase } from '@/lib/supabaseClient'
 
+const COOLDOWN_SECONDS = 60
+
+function getBaseUrlFromBrowser(): string {
+  // Prefer the actual domain the user is currently on (prod / preview / localhost).
+  if (typeof window !== 'undefined') return window.location.origin
+  return 'https://tyuta.net'
+}
+
+function toSecondsLeft(untilTs: number): number {
+  const diffMs = untilTs - Date.now()
+  return Math.max(0, Math.ceil(diffMs / 1000))
+}
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
+  const [sentMsg, setSentMsg] = useState<string | null>(null)
+
+  // timestamp (ms) until next attempt is allowed
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
+  const secondsLeft = useMemo(() => (cooldownUntil ? toSecondsLeft(cooldownUntil) : 0), [cooldownUntil])
+
+  useEffect(() => {
+    if (!cooldownUntil) return
+    if (secondsLeft <= 0) {
+      setCooldownUntil(null)
+      return
+    }
+    const t = window.setTimeout(() => {
+      // tick
+      setCooldownUntil(prev => prev)
+    }, 250)
+    return () => window.clearTimeout(t)
+  }, [cooldownUntil, secondsLeft])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
-    setMsg(null)
+    setSentMsg(null)
 
-    const em = email.trim()
-    if (!em) {
-      setErr('אנא הזן/י אימייל')
+    if (cooldownUntil && secondsLeft > 0) {
+      setErr(`אפשר לבקש שוב בעוד ${secondsLeft} שניות`)
       return
     }
 
     setLoading(true)
     try {
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tyuta.net'
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
-      const redirectTo = `${baseUrl}/auth/reset-password`;
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      const baseUrl = getBaseUrlFromBrowser()
+      const redirectTo = `${baseUrl}/auth/reset-password`
 
-      const { error } = await sendPasswordResetEmail(em, redirectTo)
+      const { error } = await sendPasswordResetEmail(email.trim(), redirectTo)
       if (error) {
-        setErr(error.message)
+        const msg = error.message || 'שגיאה בשליחת המייל'
+
+        // Supabase rate limit message: make it UX-friendly and enforce cooldown locally.
+        if (/For security purposes/i.test(msg) || /only request this after/i.test(msg)) {
+          setCooldownUntil(Date.now() + COOLDOWN_SECONDS * 1000)
+          setSentMsg('אם האימייל קיים אצלנו—נשלח קישור לאיפוס. אפשר לבקש שוב בעוד כדקה.')
+          return
+        }
+
+        setErr(msg)
         return
       }
-      setMsg('אם קיים משתמש עם האימייל הזה — נשלח אליו קישור לאיפוס סיסמה. בדוק/י את המייל.')
+
+      setCooldownUntil(Date.now() + COOLDOWN_SECONDS * 1000)
+      setSentMsg('אם האימייל קיים אצלנו—נשלח קישור לאיפוס סיסמה. בדוק/י את תיבת הדואר (וגם ספאם).')
     } finally {
       setLoading(false)
     }
@@ -46,8 +82,8 @@ export default function ForgotPasswordPage() {
     <AuthLayout mode="forgot">
       <div className="space-y-5">
         <div className="space-y-1">
-          <h2 className="pd-auth-title text-2xl font-extrabold">שכחת סיסמה?</h2>
-          <p className="pd-auth-subtitle text-sm">נשלח לך מייל עם קישור לאיפוס.</p>
+          <h2 className="pd-auth-title text-2xl font-extrabold">איפוס סיסמה</h2>
+          <p className="pd-auth-subtitle text-sm">נשלח לך קישור במייל להגדרת סיסמה חדשה.</p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-3">
@@ -67,23 +103,28 @@ export default function ForgotPasswordPage() {
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{err}</div>
           ) : null}
 
-          {msg ? (
+          {sentMsg ? (
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              {msg}
+              {sentMsg}
             </div>
           ) : null}
 
           <button
-            className="pd-auth-btn w-full rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-95"
-            disabled={loading}
+            className="pd-auth-btn w-full rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={loading || (!!cooldownUntil && secondsLeft > 0)}
             type="submit"
           >
-            {loading ? 'שולחים…' : 'שליחת קישור לאיפוס'}
+            {loading
+              ? 'שולחים…'
+              : cooldownUntil && secondsLeft > 0
+                ? `אפשר שוב בעוד ${secondsLeft}s`
+                : 'שליחת קישור איפוס'}
           </button>
         </form>
 
         <div className="text-sm text-black/70">
-          <Link href="/auth/login" className="font-semibold text-blue-700 hover:underline">חזרה לכניסה</Link>
+          חזרה ל־{' '}
+          <Link href="/auth/login" className="font-semibold text-blue-700 hover:underline">כניסה</Link>
         </div>
       </div>
     </AuthLayout>

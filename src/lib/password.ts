@@ -1,18 +1,14 @@
-export const PASSWORD_HINT_HE = 'מינימום 8 תווים. חובה אותיות ומספרים.'
+export const PASSWORD_HINT_HE = 'לפחות 8 תווים, עם אותיות ומספרים'
 
-export function validatePassword(
-  password: string
-): { ok: true } | { ok: false; message: string } {
-  if (password.length < 8) {
-    return { ok: false, message: 'הסיסמה חייבת להיות לפחות 8 תווים.' }
-  }
-
-  const hasLetter = /[A-Za-z]/.test(password)
-  const hasDigit = /\d/.test(password)
-
-  if (!hasLetter || !hasDigit) {
-    return { ok: false, message: 'הסיסמה חייבת לכלול גם אותיות וגם מספרים.' }
-  }
-
+/**
+ * Requirements:
+ * - min 8 chars
+ * - must include at least one letter and one digit
+ */
+export function validatePassword(pw: string): { ok: true } | { ok: false; message: string } {
+  if (pw.length < 8) return { ok: false, message: PASSWORD_HINT_HE }
+  const hasLetter = /[A-Za-z]/.test(pw)
+  const hasDigit = /\d/.test(pw)
+  if (!hasLetter || !hasDigit) return { ok: false, message: PASSWORD_HINT_HE }
   return { ok: true }
 }

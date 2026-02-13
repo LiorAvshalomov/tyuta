@@ -28,13 +28,7 @@ export default function AuthLayout({
               </div>
 
               <h1 className="pd-auth-title mt-6 text-4xl font-extrabold leading-tight">
-                {mode === 'login'
-                  ? 'נעים לראות אותך שוב.'
-                  : mode === 'signup'
-                    ? 'ברוכים הבאים.'
-                    : mode === 'forgot'
-                      ? 'איפוס סיסמה.'
-                      : 'קביעת סיסמה חדשה.'}
+                {mode === 'login' ? 'נעים לראות אותך שוב.' : mode === 'signup' ? 'ברוכים הבאים.' : 'כמעט שם.'}
               </h1>
 
               <p className="pd-auth-subtitle mt-4 text-base leading-7">
