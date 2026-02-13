@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import AuthLayout from '@/components/AuthLayout'
 import { signIn } from '@/lib/auth'
+import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 
 const WITTY = [
   'כאן מילים מקבלות מקום.',
@@ -36,6 +37,13 @@ export default function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
+
+    const pwCheck = validatePassword(password)
+    if (!pwCheck.ok) {
+      setErr(pwCheck.message)
+      return
+    }
+
     setLoading(true)
     try {
       const { error } = await signIn(email.trim(), password)
@@ -85,6 +93,13 @@ export default function LoginPage() {
               onChange={e => setPassword(e.target.value)}
               required
             />
+            <div className="text-xs text-black/55">{PASSWORD_HINT_HE}</div>
+          </div>
+
+          <div className="text-sm">
+            <Link href="/auth/forgot-password" className="font-semibold text-blue-700 hover:underline">
+              שכחת סיסמה?
+            </Link>
           </div>
 
           {err ? (

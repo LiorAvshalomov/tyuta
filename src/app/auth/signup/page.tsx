@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import AuthLayout from '@/components/AuthLayout'
 import { isUsernameTaken, signUp, slugifyUsername } from '@/lib/auth'
+import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 
 const WITTY = [
   'פותחים דף חדש.',
@@ -43,6 +44,9 @@ export default function SignupPage() {
     if (!dn) return setErr('אנא הזן/י שם תצוגה')
     if (!un || un.length < 3) return setErr('שם משתמש חייב להיות לפחות 3 תווים (a-z, 0-9, _)')
     if (!email.trim() || !password) return setErr('אנא מלא/י אימייל וסיסמה')
+
+    const pwCheck = validatePassword(password)
+    if (!pwCheck.ok) return setErr(pwCheck.message)
 
     setLoading(true)
     try {
@@ -127,6 +131,7 @@ export default function SignupPage() {
               onChange={e => setPassword(e.target.value)}
               required
             />
+            <div className="text-xs text-black/55">{PASSWORD_HINT_HE}</div>
           </div>
 
           {err ? (
