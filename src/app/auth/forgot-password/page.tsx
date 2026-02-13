@@ -25,7 +25,8 @@ export default function ForgotPasswordPage() {
     setLoading(true)
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tyuta.net'
-      const redirectTo = `${origin}/auth/reset-password`
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+const redirectTo = `${baseUrl}/auth/reset-password`;
       const { error } = await sendPasswordResetEmail(em, redirectTo)
       if (error) {
         setErr(error.message)
