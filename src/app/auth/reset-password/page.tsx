@@ -11,15 +11,31 @@ import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 type PageState = 'loading' | 'ready' | 'error' | 'done'
 
 const RESET_GATE_STORAGE_KEY = 'tyuta:password_reset_required'
+const RESET_GATE_COOKIE = 'tyuta_reset_required'
+
+function setResetGateCookie(): void {
+  if (typeof document === 'undefined') return
+  const maxAge = 60 * 15
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${RESET_GATE_COOKIE}=1; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`
+}
+
+function clearResetGateCookie(): void {
+  if (typeof document === 'undefined') return
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${RESET_GATE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
+}
 
 function clearResetGate(): void {
   if (typeof window === 'undefined') return
   window.localStorage.removeItem(RESET_GATE_STORAGE_KEY)
+  clearResetGateCookie()
 }
 
 function setResetGate(): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(RESET_GATE_STORAGE_KEY, String(Date.now()))
+  setResetGateCookie()
 }
 
 function parseHashParams(hash: string): Record<string, string> {
@@ -80,6 +96,7 @@ export default function ResetPasswordPage() {
           clearResetGate()
           return
         }
+        setResetGate()
         setState('ready')
         return
       }
@@ -100,6 +117,7 @@ export default function ResetPasswordPage() {
             clearResetGate()
             return
           }
+          setResetGate()
           setState('ready')
           return
         }

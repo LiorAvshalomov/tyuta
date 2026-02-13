@@ -19,6 +19,20 @@ const CHECK_INTERVAL_MS = 25_000
 // Product requirement: do NOT allow free navigation around the site before they set a new password.
 // We enforce a "reset gate" client-side using the PASSWORD_RECOVERY auth event.
 const RESET_GATE_STORAGE_KEY = 'tyuta:password_reset_required'
+const RESET_GATE_COOKIE = 'tyuta_reset_required'
+
+function setResetGateCookie(): void {
+  if (typeof document === 'undefined') return
+  const maxAge = 60 * 15
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${RESET_GATE_COOKIE}=1; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`
+}
+
+function clearResetGateCookie(): void {
+  if (typeof document === 'undefined') return
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${RESET_GATE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
+}
 
 function isResetRoute(pathname: string): boolean {
   return pathname.startsWith('/auth/reset-password')
@@ -44,11 +58,13 @@ function hasResetGate(): boolean {
 function setResetGate(): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(RESET_GATE_STORAGE_KEY, String(Date.now()))
+  setResetGateCookie()
 }
 
 function clearResetGate(): void {
   if (typeof window === 'undefined') return
   window.localStorage.removeItem(RESET_GATE_STORAGE_KEY)
+  clearResetGateCookie()
 }
 
 export default function AuthSync({ children }: Props) {
