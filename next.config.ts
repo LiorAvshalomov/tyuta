@@ -1,100 +1,102 @@
-/** @type {import('next').NextConfig} */
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
-let supabaseOrigin = ''
-try {
-  supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : ''
-} catch {}
+import type { NextConfig } from 'next'
+
+/**
+ * Security headers + CSP (Content Security Policy)
+ * Notes:
+ * - We allow connections to BOTH Supabase projects (A + B) so dev/prod won't break
+ *   if env vars point to a different project.
+ * - Keep this list tight. If you add another external provider, add it explicitly.
+ */
+
+const SUPABASE_URLS = [
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+  // Database A
+  'https://dowhdgcvxgzaikmpnchv.supabase.co',
+  // Database B
+  'https://asqtprzdoseiikrktgrs.supabase.co',
+].filter(Boolean)
+
+const supabaseOrigins = Array.from(
+  new Set(
+    SUPABASE_URLS.map((u) => {
+      try {
+        return new URL(u).origin
+      } catch {
+        return ''
+      }
+    }).filter(Boolean),
+  ),
+)
+
+const supabaseWssOrigins = supabaseOrigins
+  .map((o) => o.replace(/^https:\/\//, 'wss://'))
+  .filter(Boolean)
 
 const connectSrc = [
   "'self'",
-  supabaseOrigin,
-  supabaseOrigin ? supabaseOrigin.replace('https://', 'wss://') : '',
+  ...supabaseOrigins,
+  ...supabaseWssOrigins,
   'https://api-free.deepl.com',
-  'https://pixabay.com',
-].filter(Boolean).join(' ')
+].join(' ')
 
 const imgSrc = [
   "'self'",
   'data:',
   'blob:',
+  ...supabaseOrigins,
   'https://api.dicebear.com',
   'https://pixabay.com',
+  'https://cdn.pixabay.com',
   'https://images.pexels.com',
-  supabaseOrigin,
-].filter(Boolean).join(' ')
+].join(' ')
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
-      // DiceBear (fallback לאוואטר)
-      {
-        protocol: 'https',
-        hostname: 'api.dicebear.com',
-      },
+      // DiceBear (fallback avatars)
+      { protocol: 'https', hostname: 'api.dicebear.com' },
 
-      {
-        protocol: 'https',
-        hostname: 'pixabay.com',
-      },
+      // Pixabay (page + CDN)
+      { protocol: 'https', hostname: 'pixabay.com' },
+      { protocol: 'https', hostname: 'cdn.pixabay.com' },
 
-       {
-        protocol: 'https',
-        hostname: 'images.pexels.com',
-      },
+      // Pexels images CDN
+      { protocol: 'https', hostname: 'images.pexels.com' },
 
-      // Supabase Storage (avatars)
-      {
-        protocol: 'https',
-        hostname: 'dowhdgcvxgzaikmpnchv.supabase.co',
-        pathname: '/storage/v1/object/public/**',
-      },
+      // Supabase Storage (public objects)
+      { protocol: 'https', hostname: 'dowhdgcvxgzaikmpnchv.supabase.co', pathname: '/storage/v1/object/public/**' },
+      { protocol: 'https', hostname: 'asqtprzdoseiikrktgrs.supabase.co', pathname: '/storage/v1/object/public/**' },
     ],
   },
 
   async headers() {
     return [
       {
-        // Apply security headers to all routes
         source: '/(.*)',
         headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           {
-            key: 'X-Frame-Options',
-            value: 'DENY',
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              `img-src ${imgSrc}`,
+              "font-src 'self'",
+              `connect-src ${connectSrc}`,
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join('; '),
           },
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), payment=()',
-          },
-          {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload',
-          },
-          {
-  key: 'Content-Security-Policy',
-  value: [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
-    `img-src ${imgSrc}`,
-    "font-src 'self'",
-    `connect-src ${connectSrc}`,
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; '),
-},
         ],
       },
     ]
   },
 }
 
-module.exports = nextConfig
+export default nextConfig
