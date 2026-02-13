@@ -15,14 +15,40 @@ type Props = { children: React.ReactNode }
 
 const CHECK_INTERVAL_MS = 25_000
 
+// When a user opens a Supabase password recovery link, Supabase creates a session.
+// Product requirement: do NOT allow free navigation around the site before they set a new password.
+// We enforce a "reset gate" client-side using the PASSWORD_RECOVERY auth event.
+const RESET_GATE_STORAGE_KEY = 'tyuta:password_reset_required'
+
+function isResetRoute(pathname: string): boolean {
+  return pathname.startsWith('/auth/reset-password')
+}
+
 function isAuthRoute(pathname: string): boolean {
   return (
     pathname.startsWith('/auth/login') ||
     pathname.startsWith('/auth/register') ||
     pathname.startsWith('/auth/signup') ||
+    pathname.startsWith('/auth/forgot-password') ||
+    pathname.startsWith('/auth/reset-password') ||
     pathname === '/login' ||
     pathname === '/register'
   )
+}
+
+function hasResetGate(): boolean {
+  if (typeof window === 'undefined') return false
+  return Boolean(window.localStorage.getItem(RESET_GATE_STORAGE_KEY))
+}
+
+function setResetGate(): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(RESET_GATE_STORAGE_KEY, String(Date.now()))
+}
+
+function clearResetGate(): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(RESET_GATE_STORAGE_KEY)
 }
 
 export default function AuthSync({ children }: Props) {
@@ -35,8 +61,17 @@ export default function AuthSync({ children }: Props) {
   useEffect(() => {
     let cancelled = false
 
+    // Enforce reset-gate on navigation. If the user is in recovery flow,
+    // keep them on /auth/reset-password until they successfully set a new password.
+    if (hasResetGate() && !isResetRoute(pathname)) {
+      router.replace('/auth/reset-password')
+    }
+
     const handleLostAuth = (reason: 'SIGNED_OUT' | 'TOKEN_REFRESH_FAILED' | 'SESSION_GONE') => {
       if (cancelled) return
+
+      // If auth is lost, the reset gate (if any) should be cleared as well.
+      clearResetGate()
 
       // Persist + broadcast for cross-tab.
       setAuthState('out')
@@ -66,12 +101,22 @@ export default function AuthSync({ children }: Props) {
     void init()
 
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      // Supabase emits PASSWORD_RECOVERY when a recovery link was opened.
+      // Force user into reset page and block navigation until password is updated.
+      if ((event as string) === 'PASSWORD_RECOVERY') {
+        setResetGate()
+        if (!isResetRoute(pathname)) router.replace('/auth/reset-password')
+        return
+      }
+
       // Relevant events for "lost auth" UX.
       if (event === 'SIGNED_OUT') {
+        clearResetGate()
         handleLostAuth('SIGNED_OUT')
         return
       }
       if ((event as string) === 'TOKEN_REFRESH_FAILED') {
+        clearResetGate()
         handleLostAuth('TOKEN_REFRESH_FAILED')
         return
       }

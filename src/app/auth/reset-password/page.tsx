@@ -10,6 +10,18 @@ import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 
 type PageState = 'loading' | 'ready' | 'error' | 'done'
 
+const RESET_GATE_STORAGE_KEY = 'tyuta:password_reset_required'
+
+function clearResetGate(): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(RESET_GATE_STORAGE_KEY)
+}
+
+function setResetGate(): void {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(RESET_GATE_STORAGE_KEY, String(Date.now()))
+}
+
 function parseHashParams(hash: string): Record<string, string> {
   const raw = hash.startsWith('#') ? hash.slice(1) : hash
   const out: Record<string, string> = {}
@@ -42,10 +54,14 @@ export default function ResetPasswordPage() {
     async function initSessionFromUrl() {
       setErr(null)
 
+      // If user landed here via a recovery link, make sure the gate is enabled.
+      setResetGate()
+
       // If Supabase sent an error in the hash, show it nicely.
       if (hashError) {
         setErr(hashError)
         setState('error')
+        clearResetGate()
         return
       }
 
@@ -61,6 +77,7 @@ export default function ResetPasswordPage() {
         if (error) {
           setErr(error.message)
           setState('error')
+          clearResetGate()
           return
         }
         setState('ready')
@@ -80,6 +97,7 @@ export default function ResetPasswordPage() {
           if (error) {
             setErr(error.message)
             setState('error')
+            clearResetGate()
             return
           }
           setState('ready')
@@ -90,6 +108,7 @@ export default function ResetPasswordPage() {
       // If we got here, we don't have a usable token.
       setErr('הקישור לא תקין או פג תוקף. בקש/י איפוס מחדש.')
       setState('error')
+      clearResetGate()
     }
 
     void initSessionFromUrl()
@@ -119,10 +138,15 @@ export default function ResetPasswordPage() {
         setErr(error.message)
         return
       }
+
+      // Password was updated. Clear gate and sign out the recovery session.
+      // This avoids "free access" via recovery link and forces a clean login with the new password.
+      clearResetGate()
+      await supabase.auth.signOut()
+
       setState('done')
-      // Optional: send user to home after a short delay.
       window.setTimeout(() => {
-        router.replace('/')
+        router.replace('/auth/login?reset=1')
         router.refresh()
       }, 900)
     } finally {
