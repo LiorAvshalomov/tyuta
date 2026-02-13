@@ -1,122 +1,182 @@
 /* PenDemic Auth UI — lightweight, RTL-first, literary vibe.
    Safe: no global resets beyond our scoped classes. */
 
-:root{
+:root {
   --pd-paper: #fbf7ef;
   --pd-ink: #1f2328;
-  --pd-muted: rgba(31,35,40,.62);
-  --pd-card: rgba(255,255,255,.74);
-  --pd-border: rgba(31,35,40,.10);
+  --pd-muted: rgba(31, 35, 40, 0.62);
+  --pd-card: rgba(255, 255, 255, 0.74);
+  --pd-border: rgba(31, 35, 40, 0.1);
   --pd-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
-  --pd-shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.10);
+  --pd-shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.1);
 }
 
 /* Background */
-.pd-auth-shell{
+.pd-auth-shell {
   min-height: 100vh;
   background:
-    radial-gradient(900px 600px at 20% 20%, rgba(56, 189, 248, .14), transparent 60%),
-    radial-gradient(900px 700px at 85% 30%, rgba(34, 197, 94, .12), transparent 62%),
-    radial-gradient(800px 600px at 55% 85%, rgba(251, 146, 60, .12), transparent 60%),
-    linear-gradient(180deg, rgba(251,247,239,1), rgba(253,252,250,1));
+    radial-gradient(900px 600px at 20% 20%, rgba(56, 189, 248, 0.14), transparent 60%),
+    radial-gradient(900px 700px at 85% 30%, rgba(34, 197, 94, 0.12), transparent 62%),
+    radial-gradient(800px 600px at 55% 85%, rgba(251, 146, 60, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(251, 247, 239, 1), rgba(253, 252, 250, 1));
 }
 
-.pd-auth-noise{
-  position:absolute; inset:0;
-  pointer-events:none;
-  opacity:.22;
-  mix-blend-mode:multiply;
+.pd-auth-noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: multiply;
   background-image:
-    radial-gradient(circle at 10% 10%, rgba(0,0,0,.04), transparent 40%),
-    radial-gradient(circle at 80% 20%, rgba(0,0,0,.03), transparent 50%),
-    radial-gradient(circle at 40% 80%, rgba(0,0,0,.035), transparent 55%);
+    radial-gradient(circle at 10% 10%, rgba(0, 0, 0, 0.04), transparent 40%),
+    radial-gradient(circle at 80% 20%, rgba(0, 0, 0, 0.03), transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(0, 0, 0, 0.035), transparent 55%);
   filter: blur(18px);
 }
 
 /* Card */
-.pd-auth-card{
+.pd-auth-card {
   background: var(--pd-card);
   backdrop-filter: blur(10px);
   border: 1px solid var(--pd-border);
   box-shadow: var(--pd-shadow);
 }
 
-.pd-auth-title{
+.pd-auth-title {
   color: var(--pd-ink);
   letter-spacing: -0.02em;
 }
 
-.pd-auth-subtitle{
+.pd-auth-subtitle {
   color: var(--pd-muted);
 }
 
-.pd-auth-input{
-  border: 1px solid rgba(31,35,40,.14);
-  background: rgba(255,255,255,.85);
-  transition: box-shadow .15s ease, border-color .15s ease, background .15s ease;
+.pd-auth-input {
+  border: 1px solid rgba(31, 35, 40, 0.14);
+  background: rgba(255, 255, 255, 0.85);
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
-.pd-auth-input:focus{
-  outline:none;
-  border-color: rgba(56,189,248,.55);
-  box-shadow: 0 0 0 6px rgba(56,189,248,.16);
-  background: rgba(255,255,255,.95);
+.pd-auth-input:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.16);
+  background: rgba(255, 255, 255, 0.95);
 }
 
-.pd-auth-btn{
+.pd-auth-btn {
   box-shadow: var(--pd-shadow-soft);
 }
-.pd-auth-btn:disabled{
-  opacity:.6;
-  cursor:not-allowed;
+.pd-auth-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Witty lines */
 @keyframes pdFadeUp {
-  from { opacity: 0; transform: translateY(6px); filter: blur(2px); }
-  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
-.pd-witty{
-  animation: pdFadeUp .45s ease-out both;
+.pd-witty {
+  animation: pdFadeUp 0.45s ease-out both;
 }
 
 /* Intro animation (first load only) */
 @keyframes pdIntroIn {
-  from { opacity: 0; transform: translateY(10px) scale(.985); filter: blur(6px); }
-  to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
 }
-.pd-intro{
-  animation: pdIntroIn .9s cubic-bezier(.2,.8,.2,1) both;
+.pd-intro {
+  animation: pdIntroIn 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.pd-intro-stagger > *{
-  animation: pdIntroIn .9s cubic-bezier(.2,.8,.2,1) both;
+.pd-intro-stagger > * {
+  animation: pdIntroIn 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.pd-intro-stagger > *:nth-child(1){ animation-delay: .02s; }
-.pd-intro-stagger > *:nth-child(2){ animation-delay: .08s; }
-.pd-intro-stagger > *:nth-child(3){ animation-delay: .14s; }
-.pd-intro-stagger > *:nth-child(4){ animation-delay: .20s; }
+.pd-intro-stagger > *:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.pd-intro-stagger > *:nth-child(2) {
+  animation-delay: 0.08s;
+}
+.pd-intro-stagger > *:nth-child(3) {
+  animation-delay: 0.14s;
+}
+.pd-intro-stagger > *:nth-child(4) {
+  animation-delay: 0.2s;
+}
 
 /* Floating stationery */
 @keyframes pdFloat {
-  0%   { transform: translate3d(0,0,0) rotate(0deg); }
-  50%  { transform: translate3d(0,-14px,0) rotate(2.2deg); }
-  100% { transform: translate3d(0,0,0) rotate(0deg); }
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) rotate(2.2deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
 }
 @keyframes pdSwayRtl {
-  0%   { transform: translate3d(0,0,0) rotate(0deg); }
-  50%  { transform: translate3d(-18px,0,0) rotate(-1.6deg); }
-  100% { transform: translate3d(0,0,0) rotate(0deg); }
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(-18px, 0, 0) rotate(-1.6deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
 }
 @keyframes pdDriftDiagRtl {
-  0%   { transform: translate3d(0,0,0) rotate(0deg); }
-  50%  { transform: translate3d(-22px,-10px,0) rotate(1.8deg); }
-  100% { transform: translate3d(0,0,0) rotate(0deg); }
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(-22px, -10px, 0) rotate(1.8deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
 }
 
-.pd-float    { animation: pdFloat 14s ease-in-out infinite; will-change: transform; }
-.pd-sway-rtl { animation: pdSwayRtl 18s ease-in-out infinite; will-change: transform; }
-.pd-drift-rtl{ animation: pdDriftDiagRtl 22s ease-in-out infinite; will-change: transform; }
+.pd-float {
+  animation: pdFloat 14s ease-in-out infinite;
+  will-change: transform;
+}
+.pd-sway-rtl {
+  animation: pdSwayRtl 18s ease-in-out infinite;
+  will-change: transform;
+}
+.pd-drift-rtl {
+  animation: pdDriftDiagRtl 22s ease-in-out infinite;
+  will-change: transform;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .pd-float, .pd-sway-rtl, .pd-drift-rtl, .pd-intro, .pd-intro-stagger > * { animation: none !important; }
+  .pd-float,
+  .pd-sway-rtl,
+  .pd-drift-rtl,
+  .pd-intro,
+  .pd-intro-stagger > * {
+    animation: none !important;
+  }
 }
-

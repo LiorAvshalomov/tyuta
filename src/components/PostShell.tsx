@@ -31,16 +31,17 @@ export default function PostShell({ header, actions, sidebar, children, below }:
           {sidebar ? (
             <aside className="order-last w-full lg:order-none lg:col-start-1 lg:row-start-1 lg:w-[360px] lg:shrink-0">
               {/* Sticky רגיל (בלי גלילה פנימית) */}
-              <div className="rounded-2xl bg-neutral-100/50 backdrop-blur-[2px] border-r border-neutral-200/70 p-2 lg:sticky lg:top-14" dir="rtl">
+              {/* NOTE: Avoid backdrop-filter/blur on the post page to keep scroll 120/144Hz-snappy. */}
+              <div className="rounded-2xl bg-neutral-100 border-r border-neutral-200/70 p-2 lg:sticky lg:top-14" dir="rtl">
                 {sidebar}
               </div>
             </aside>
           ) : null}
 
           {/* תוכן – מימין */}
-          <article className="order-first min-w-0 rounded-3xl border border-neutral-200 bg-white/80 shadow-sm backdrop-blur-sm lg:order-none lg:col-start-2 lg:row-start-1" dir="rtl">
+          <article className="order-first min-w-0 rounded-3xl border border-neutral-200 bg-white shadow-sm lg:order-none lg:col-start-2 lg:row-start-1" dir="rtl">
             {(header || actions) ? (
-              <header className="rounded-t-3xl bg-neutral-100/90 px-6 py-6 sm:px-10 border-b border-neutral-200">
+              <header className="rounded-t-3xl bg-neutral-100 px-6 py-6 sm:px-10 border-b border-neutral-200">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1 text-right">{header}</div>
                   {actions ? <div className="shrink-0">{actions}</div> : null}

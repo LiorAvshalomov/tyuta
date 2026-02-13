@@ -68,7 +68,7 @@ function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
 
 function SectionTitle({ title, href }: { title: string; href?: string }) {
   return (
-    <div className="mb-3 overflow-hidden rounded-2xl border bg-white/70 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/60">
+     <div className="mb-3 overflow-hidden rounded-2xl border bg-white/70 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="bg-black/5 px-4 py-2 font-bold">
         {href ? (
           <Link href={href} className="hover:underline">
@@ -101,8 +101,7 @@ function CoverFrame({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
-        alt=""
-        width={w}
+        alt=""width={w}
         height={h}
         loading="lazy"
         style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -125,7 +124,7 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
         <div className="text-right">
           <div className="flex items-start justify-between gap-3">
             {showMedals ? (
-              <div dir="ltr" className="shrink-0 flex items-center gap-2 text-xs text-muted-foreground">
+              <div dir="ltr"className="shrink-0 flex items-center gap-2 text-xs text-muted-foreground">
                 {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
                 {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
                 {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
@@ -134,8 +133,7 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
 
             <Link
               href={`/post/${post.slug}`}
-              className="min-w-0 flex-1 block text-2xl font-extrabold leading-tight break-words line-clamp-2 hover:underline text-right"
-            >
+              className="min-w-0 flex-1 block text-2xl font-extrabold leading-tight break-words line-clamp-2 hover:underline text-right">
               {post.title}
             </Link>
           </div>
@@ -160,7 +158,7 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
 
         <div className="mt-2 flex flex-1 items-start justify-end">
           <Link href={`/post/${post.slug}`} className="inline-block">
-            <CoverFrame src={post.cover_image_url} w={400} h={280} rounded="rounded" />
+            <CoverFrame src={post.cover_image_url} w={400} h={280} rounded="rounded"/>
           </Link>
         </div>
 
@@ -188,13 +186,13 @@ function SmallTopCard({ post }: { post: CardPost }) {
       <div className="flex h-full flex-col">
         <div className="flex flex-row-reverse items-start gap-3">
           <Link href={`/post/${post.slug}`} className="inline-block">
-            <CoverFrame src={post.cover_image_url} w={220} h={150} rounded="rounded" />
+            <CoverFrame src={post.cover_image_url} w={220} h={150} rounded="rounded"/>
           </Link>
 
           <div className="min-w-0 flex-1 text-right">
             <div className="flex items-start justify-between gap-2">
               {showMedals ? (
-                <div dir="ltr" className="shrink-0 flex items-center gap-2 text-[11px] text-muted-foreground">
+                <div dir="ltr"className="shrink-0 flex items-center gap-2 text-[11px] text-muted-foreground">
                   {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
                   {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
                   {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
@@ -203,8 +201,7 @@ function SmallTopCard({ post }: { post: CardPost }) {
 
               <Link
                 href={`/post/${post.slug}`}
-                className="min-w-0 flex-1 block text-sm font-bold leading-snug line-clamp-2 hover:underline text-right"
-              >
+                className="min-w-0 flex-1 block text-sm font-bold leading-snug line-clamp-2 hover:underline text-right">
                 {post.title}
               </Link>
             </div>
@@ -238,7 +235,7 @@ function TileCard({ post }: { post: CardPost }) {
   return (
     <Link href={`/post/${post.slug}`} className="block overflow-hidden rounded border bg-white shadow-sm hover:shadow-md">
       <div className="flex justify-center p-2">
-        <CoverFrame src={post.cover_image_url} w={210} h={140} rounded="rounded" />
+        <CoverFrame src={post.cover_image_url} w={210} h={140} rounded="rounded"/>
       </div>
       <div className="px-3 pb-3 text-center">
         <div className="text-sm font-bold line-clamp-2">{post.title}</div>
@@ -254,13 +251,13 @@ function ListRow({ post }: { post: CardPost }) {
     <article className="rounded border bg-white p-3 shadow-sm hover:shadow-md">
       <div className="flex flex-row-reverse items-start gap-3">
         <Link href={`/post/${post.slug}`} className="inline-block">
-          <CoverFrame src={post.cover_image_url} w={165} h={110} rounded="rounded" />
+          <CoverFrame src={post.cover_image_url} w={165} h={110} rounded="rounded"/>
         </Link>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             {showMedals ? (
-              <div dir="ltr" className="shrink-0 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <div dir="ltr"className="shrink-0 flex items-center gap-2 text-[11px] text-muted-foreground">
                 {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
                 {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
                 {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
@@ -269,8 +266,7 @@ function ListRow({ post }: { post: CardPost }) {
 
             <Link
               href={`/post/${post.slug}`}
-              className="min-w-0 flex-1 block text-base font-bold leading-snug break-words line-clamp-2 hover:underline text-right"
-            >
+              className="min-w-0 flex-1 block text-base font-bold leading-snug break-words line-clamp-2 hover:underline text-right">
               {post.title}
             </Link>
           </div>
@@ -328,7 +324,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
     <div className="block rounded border bg-white p-2 hover:shadow-sm">
       <Link href={`/post/${post.slug}`} className="block">
         <div className="flex flex-row-reverse items-start gap-2">
-          <CoverFrame src={post.cover_image_url} w={70} h={48} rounded="rounded" />
+          <CoverFrame src={post.cover_image_url} w={70} h={48} rounded="rounded"/>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-bold leading-snug line-clamp-2">{post.title}</div>
             {post.excerpt ? <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{post.excerpt}</div> : null}
@@ -374,7 +370,7 @@ export default async function ChannelFeedPage({
 
   if (channelErr || !channelRow?.id) {
     return (
-      <main className="min-h-screen bg-neutral-50" dir="rtl">
+      <main className="min-h-screen bg-neutral-50"dir="rtl">
         <div className="mx-auto max-w-6xl px-4 py-10">
           <h1 className="text-xl font-bold">לא נמצאה קטגוריה</h1>
           <div className="mt-2 text-sm text-muted-foreground">
@@ -413,7 +409,7 @@ export default async function ChannelFeedPage({
 
   if (error) {
     return (
-      <main className="min-h-screen bg-neutral-50" dir="rtl">
+      <main className="min-h-screen bg-neutral-50"dir="rtl">
         <div className="mx-auto max-w-6xl px-4 py-10">
           <h1 className="text-xl font-bold">שגיאה בטעינת {channelName}</h1>
           <pre className="mt-4 rounded border bg-white p-4 text-xs">{JSON.stringify(error, null, 2)}</pre>
@@ -548,7 +544,7 @@ export default async function ChannelFeedPage({
   })()
 
   return (
-    <main className="min-h-screen" dir="rtl">
+    <main className="min-h-screen"dir="rtl">
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-extrabold">{channelName}</h1>
@@ -559,8 +555,7 @@ export default async function ChannelFeedPage({
               {subcategories.map(s => (
                 <span
                   key={s}
-                  className="rounded-full border bg-white/70 px-3 py-1 text-sm backdrop-blur supports-[backdrop-filter]:bg-white/60"
-                >
+                  className="rounded-full border bg-white/70 px-3 py-1 text-sm">
                   {s}
                 </span>
               ))}
@@ -569,7 +564,7 @@ export default async function ChannelFeedPage({
         </div>
 
         {/* A) TOP 3 POSTS */}
-        <div className="flex flex-col gap-4 lg:flex-row" dir="rtl">
+        <div className="flex flex-col gap-4 lg:flex-row"dir="rtl">
           <div className="lg:w-1/2">{featured ? <FeaturedTopCard post={featured} /> : null}</div>
 
           <div className="lg:w-1/2">
@@ -602,7 +597,7 @@ export default async function ChannelFeedPage({
         </div>
 
         {/* MAIN + SIDEBAR */}
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px] lg:items-start" dir="rtl">
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px] lg:items-start"dir="rtl">
           <div className="space-y-8">
             <section>
               {subcategories?.length ? (
@@ -637,9 +632,9 @@ export default async function ChannelFeedPage({
             </section>
           </div>
 
-          <StickySidebar containerId="main-content" className="space-y-6">
+          <StickySidebar containerId="main-content"className="space-y-6">
             <section>
-              <SectionTitle title="פוסטים אחרונים" href={`/search?sort=recent&channel=${encodeURIComponent(channelSlug)}`} />
+              <SectionTitle title="פוסטים אחרונים"href={`/search?sort=recent&channel=${encodeURIComponent(channelSlug)}`} />
               <div className="space-y-2">
                 {recentMini.length ? (
                   recentMini.map(p => <RecentMiniRow key={p.id} post={p} />)
@@ -663,7 +658,7 @@ export default async function ChannelFeedPage({
                         ) : (
                           <div className="font-bold">{w.name}</div>
                         )}
-                        <div dir="ltr" className="mt-1 text-xs text-muted-foreground">
+                        <div dir="ltr"className="mt-1 text-xs text-muted-foreground">
                           🥇 {w.gold}  🥈 {w.silver}  🥉 {w.bronze}
                         </div>
                       </div>
