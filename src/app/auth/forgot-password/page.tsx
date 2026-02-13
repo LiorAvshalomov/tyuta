@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useState } from 'react'
 import AuthLayout from '@/components/AuthLayout'
 import { sendPasswordResetEmail } from '@/lib/auth'
+import { supabase } from '@/lib/supabaseClient'
+
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -26,7 +28,9 @@ export default function ForgotPasswordPage() {
     try {
       const origin = typeof window !== 'undefined' ? window.location.origin : 'https://tyuta.net'
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
-const redirectTo = `${baseUrl}/auth/reset-password`;
+      const redirectTo = `${baseUrl}/auth/reset-password`;
+      await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+
       const { error } = await sendPasswordResetEmail(em, redirectTo)
       if (error) {
         setErr(error.message)
