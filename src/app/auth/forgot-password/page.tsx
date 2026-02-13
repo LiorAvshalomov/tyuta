@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import AuthLayout from '@/components/AuthLayout'
 import { sendPasswordResetEmail } from '@/lib/auth'
 
@@ -18,6 +18,16 @@ function toSecondsLeft(untilTs: number): number {
   return Math.max(0, Math.ceil(diffMs / 1000))
 }
 
+function isRateLimitMessage(msg: string): boolean {
+  const m = msg.toLowerCase()
+  return (
+    m.includes('for security purposes') ||
+    m.includes('only request this after') ||
+    m.includes('rate limit') ||
+    m.includes('too many requests')
+  )
+}
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -26,25 +36,29 @@ export default function ForgotPasswordPage() {
 
   // timestamp (ms) until next attempt is allowed
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null)
-  const secondsLeft = useMemo(() => (cooldownUntil ? toSecondsLeft(cooldownUntil) : 0), [cooldownUntil])
+  // local tick to force re-render while cooldown is active
+  const [cooldownTick, setCooldownTick] = useState(0)
+  const secondsLeft = cooldownUntil ? toSecondsLeft(cooldownUntil) : 0
 
   useEffect(() => {
     if (!cooldownUntil) return
-    if (secondsLeft <= 0) {
-      setCooldownUntil(null)
-      return
-    }
-    const t = window.setTimeout(() => {
-      // tick
-      setCooldownUntil(prev => prev)
-    }, 250)
-    return () => window.clearTimeout(t)
-  }, [cooldownUntil, secondsLeft])
+    const id = window.setInterval(() => setCooldownTick(t => t + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [cooldownUntil])
+
+  useEffect(() => {
+    // stop cooldown when it expires
+    if (!cooldownUntil) return
+    if (secondsLeft <= 0) setCooldownUntil(null)
+  }, [cooldownUntil, secondsLeft, cooldownTick])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
     setSentMsg(null)
+
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail) return
 
     if (cooldownUntil && secondsLeft > 0) {
       setErr(`אפשר לבקש שוב בעוד ${secondsLeft} שניות`)
@@ -56,12 +70,12 @@ export default function ForgotPasswordPage() {
       const baseUrl = getBaseUrlFromBrowser()
       const redirectTo = `${baseUrl}/auth/reset-password`
 
-      const { error } = await sendPasswordResetEmail(email.trim(), redirectTo)
+      const { error } = await sendPasswordResetEmail(normalizedEmail, redirectTo)
       if (error) {
         const msg = error.message || 'שגיאה בשליחת המייל'
 
         // Supabase rate limit message: make it UX-friendly and enforce cooldown locally.
-        if (/For security purposes/i.test(msg) || /only request this after/i.test(msg)) {
+        if (isRateLimitMessage(msg)) {
           setCooldownUntil(Date.now() + COOLDOWN_SECONDS * 1000)
           setSentMsg('אם האימייל קיים אצלנו—נשלח קישור לאיפוס. אפשר לבקש שוב בעוד כדקה.')
           return
@@ -111,7 +125,7 @@ export default function ForgotPasswordPage() {
 
           <button
             className="pd-auth-btn w-full rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={loading || (!!cooldownUntil && secondsLeft > 0)}
+            disabled={loading || !email.trim() || (!!cooldownUntil && secondsLeft > 0)}
             type="submit"
           >
             {loading
