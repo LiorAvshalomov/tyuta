@@ -1,7 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import Link from 'next/link'
 import Badge from '@/components/Badge'
-import { getPostDisplayDate } from '@/lib/posts'
 import { formatDateTimeHe, formatRelativeHe, isNewPost } from '@/lib/time'
 
 export type PostCardMedals = { gold: number; silver: number; bronze: number }
@@ -13,7 +12,6 @@ export type PostCardPost = {
   title: string
   excerpt?: string | null
   created_at: string
-  published_at?: string | null
   cover_image_url?: string | null
   channel_name?: string | null
   author_name?: string | null
@@ -102,11 +100,6 @@ export default function PostCard({
   variant?: Variant
 }) {
   const hasCover = Boolean(post.cover_image_url)
-  const displayDate = getPostDisplayDate({
-    published_at: post.published_at ?? null,
-    created_at: post.created_at,
-  })
-
   const medals = post.medals ?? null
   const showMedals = Boolean(
     medals && ((medals.gold ?? 0) > 0 || (medals.silver ?? 0) > 0 || (medals.bronze ?? 0) > 0)
@@ -128,8 +121,8 @@ export default function PostCard({
               <Badge>{post.channel_name}</Badge>
             )
           ) : null}
-          <span title={formatDateTimeHe(displayDate)}>{formatRelativeHe(displayDate)}</span>
-          {isNewPost(displayDate) ? <Badge>חדש</Badge> : null}
+          <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+          {isNewPost(post.created_at) ? <Badge>חדש</Badge> : null}
         </div>
 
         <div className="mt-2 text-2xl font-extrabold leading-tight break-words">
@@ -264,7 +257,7 @@ export default function PostCard({
               <span>{post.author_name ?? 'אנונימי'}</span>
             )}
             <span className="mx-2">•</span>
-            <span title={formatDateTimeHe(displayDate)}>{formatRelativeHe(displayDate)}</span>
+            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
           </div>
 
           {post.excerpt ? (

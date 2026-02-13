@@ -33,6 +33,7 @@ type CardPost = {
   title: string
   excerpt: string | null
   created_at: string
+  published_at: string | null
   cover_image_url: string | null
   channel_slug: string | null
   channel_name: string | null
@@ -285,7 +286,7 @@ function ListRow({ post }: { post: CardPost }) {
             )}
 
             <span className="mx-2">•</span>
-            <span title={formatDateTimeHe(getPostDisplayDate(post))}>{formatRelativeHe(getPostDisplayDate(post))}</span>
+            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
 
             {post.channel_name && post.channel_slug ? (
               <>
@@ -344,7 +345,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
           </>
         ) : null}
         <span className="mx-1">•</span>
-        <span title={formatDateTimeHe(getPostDisplayDate(post))}>{formatRelativeHe(getPostDisplayDate(post))}</span>
+        <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
       </div>
     </div>
   )
@@ -498,8 +499,12 @@ export default async function ChannelFeedPage({
   })
 
   const cardPosts = cardPostsAll.filter(p => p.channel_slug === channelSlug)
-  const byRecent = [...cardPosts].sort((a, b) => new Date(getPostDisplayDate(b)).getTime() - new Date(getPostDisplayDate(a)).getTime())
-  const byScore = [...cardPosts].sort((a, b) => b.score - a.score || new Date(getPostDisplayDate(b)).getTime() - new Date(getPostDisplayDate(a)).getTime())
+  const byRecent = [...cardPosts].sort(
+    (a, b) => new Date(getPostDisplayDate(b)).getTime() - new Date(getPostDisplayDate(a)).getTime()
+  )
+  const byScore = [...cardPosts].sort(
+    (a, b) => b.score - a.score || new Date(getPostDisplayDate(b)).getTime() - new Date(getPostDisplayDate(a)).getTime()
+  )
 
   // --- TOP BLOCK (3 posts) ---
   const used = new Set<string>()
