@@ -138,6 +138,8 @@ export default function SiteHeader() {
     (pathname ?? '').startsWith('/auth/login') ||
     (pathname ?? '').startsWith('/auth/register') ||
     (pathname ?? '').startsWith('/auth/signup') ||
+    (pathname ?? '').startsWith('/auth/forgot-password') ||
+    (pathname ?? '').startsWith('/auth/reset-password') ||
     pathname === '/login' ||
     pathname === '/register'
   const [user, setUser] = useState<MiniUser | null>(null)

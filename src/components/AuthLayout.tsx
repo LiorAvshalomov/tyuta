@@ -8,7 +8,7 @@ export default function AuthLayout({
   mode,
 }: {
   children: ReactNode
-  mode: 'login' | 'signup'
+  mode: 'login' | 'signup' | 'forgot' | 'reset'
 }) {
   return (
     <div className="pd-auth-shell relative h-full overflow-hidden" dir="rtl">
@@ -24,11 +24,17 @@ export default function AuthLayout({
             <section className="pd-intro-stagger hidden lg:block rounded-3xl p-10">
               <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/60 px-4 py-2 text-sm font-semibold text-black/80 shadow-sm">
                 <span aria-hidden>✍️</span>
-                PenDemic
+                Tyuta
               </div>
 
               <h1 className="pd-auth-title mt-6 text-4xl font-extrabold leading-tight">
-                {mode === 'login' ? 'נעים לראות אותך שוב.' : 'ברוכים הבאים.'}
+                {mode === 'login'
+                  ? 'נעים לראות אותך שוב.'
+                  : mode === 'signup'
+                    ? 'ברוכים הבאים.'
+                    : mode === 'forgot'
+                      ? 'איפוס סיסמה.'
+                      : 'קביעת סיסמה חדשה.'}
               </h1>
 
               <p className="pd-auth-subtitle mt-4 text-base leading-7">

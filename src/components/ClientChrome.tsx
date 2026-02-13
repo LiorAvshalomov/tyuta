@@ -22,6 +22,8 @@ function isAuthRoute(pathname: string): boolean {
   if (pathname.startsWith("/auth/login")) return true
   if (pathname.startsWith("/auth/register")) return true
   if (pathname.startsWith("/auth/signup")) return true
+  if (pathname.startsWith("/auth/forgot-password")) return true
+  if (pathname.startsWith("/auth/reset-password")) return true
   if (pathname === "/login" || pathname === "/register") return true
   return false
 }
