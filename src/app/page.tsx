@@ -1,9 +1,12 @@
 // src/app/page.tsx
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import HomeWriteCTA from '@/components/HomeWriteCTA'
 import StickySidebar from '@/components/StickySidebar'
+import { truncateText } from '@/lib/validation'
 
 
 type PostRow = {
@@ -101,11 +104,6 @@ function Avatar({
   )
 }
 
-function truncateText(text: string, maxChars: number) {
-  const t = text.trim()
-  if (t.length <= maxChars) return t
-  return `${t.slice(0, Math.max(0, maxChars - 1))}…`
-}
 
 function MedalsInline({
   medals,
@@ -464,12 +462,12 @@ function RecentMiniRow({ post }: { post: CardPost }) {
                   className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto"
                 >
                   <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
-                  <span className="font-semibold transition-colors group-hover/author:text-neutral-900">{post.author_name}</span>
+                  <span className="font-semibold transition-colors group-hover/author:text-neutral-900 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{truncateText(post.author_name, 8)}</span>
                 </Link>
               ) : (
                 <div className="inline-flex items-center gap-2">
                   <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
-                  <span className="font-semibold">{post.author_name}</span>
+                  <span className="font-semibold truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{truncateText(post.author_name, 8)}</span>
                 </div>
               )}
 
@@ -1102,21 +1100,21 @@ export default async function HomePage(props: HomePageProps = {}) {
                               </div>
 
                               {w.username ? (
-                                <Link href={`/u/${w.username}`} className="group/writer inline-flex items-center gap-2">
+                                <Link href={`/u/${w.username}`} className="group/writer inline-flex items-center gap-2 min-w-0">
                                   <Avatar url={w.avatar_url} name={w.name} size={36} />
-                                  <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700">
-                                    {w.name}
+                                  <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">
+                                    {truncateText(w.name, 8)}
                                   </span>
                                 </Link>
                               ) : (
-                                <div className="inline-flex items-center gap-2">
+                                <div className="inline-flex items-center gap-2 min-w-0">
                                   <Avatar url={w.avatar_url} name={w.name} size={36} />
-                                  <span className="text-sm font-bold">{w.name}</span>
+                                  <span className="text-sm font-bold truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">{truncateText(w.name, 8)}</span>
                                 </div>
                               )}
                             </div>
 
-                            <div dir="ltr" className="text-xs text-gray-700 flex items-center gap-2">
+                            <div dir="ltr" className="shrink-0 text-xs text-gray-700 flex items-center gap-2">
                               {w.gold ? <span>🥇 {w.gold}</span> : null}
                               {w.silver ? <span>🥈 {w.silver}</span> : null}
                               {w.bronze ? <span>🥉 {w.bronze}</span> : null}
@@ -1220,21 +1218,21 @@ export default async function HomePage(props: HomePageProps = {}) {
                               </div>
 
                               {w.username ? (
-                                <Link href={`/u/${w.username}`} className="group/writer inline-flex items-center gap-2">
+                                <Link href={`/u/${w.username}`} className="group/writer inline-flex items-center gap-2 min-w-0">
                                   <Avatar url={w.avatar_url} name={w.name} size={36} />
-                                  <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700">
-                                    {w.name}
+                                  <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">
+                                    {truncateText(w.name, 8)}
                                   </span>
                                 </Link>
                               ) : (
-                                <div className="inline-flex items-center gap-2">
+                                <div className="inline-flex items-center gap-2 min-w-0">
                                   <Avatar url={w.avatar_url} name={w.name} size={36} />
-                                  <span className="text-sm font-bold">{w.name}</span>
+                                  <span className="text-sm font-bold truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">{truncateText(w.name, 8)}</span>
                                 </div>
                               )}
                             </div>
 
-                            <div dir="ltr" className="text-xs text-gray-700 flex items-center gap-2">
+                            <div dir="ltr" className="shrink-0 text-xs text-gray-700 flex items-center gap-2">
                               {w.gold ? <span>🥇 {w.gold}</span> : null}
                               {w.silver ? <span>🥈 {w.silver}</span> : null}
                               {w.bronze ? <span>🥉 {w.bronze}</span> : null}
@@ -1242,7 +1240,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                             </div>
                           </div>
                         ))}
-                        
+
                       </div>
                     ) : (
                       <div className="text-sm text-gray-500">אין עדיין פעילות לשבוע הזה.</div>

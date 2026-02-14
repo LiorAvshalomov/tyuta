@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { slugifyUsername } from '@/lib/auth'
+import { USERNAME_MAX, DISPLAY_NAME_MAX } from '@/lib/validation'
 import Avatar from '@/components/Avatar'
 import AvatarUpload from '@/components/AvatarUpload'
 
@@ -12,16 +14,6 @@ type ProfileRow = {
   display_name: string | null
   avatar_url: string | null
   bio: string | null
-}
-
-function slugifyUsername(input: string) {
-  // only a-z 0-9 _
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '')
-    .slice(0, 20)
 }
 
 const BIO_MAX = 120
@@ -106,8 +98,18 @@ export default function ProfileSettingsPage() {
       return
     }
 
+    if (dn.length > DISPLAY_NAME_MAX) {
+      setErr(`שם תצוגה יכול להיות עד ${DISPLAY_NAME_MAX} תווים`)
+      return
+    }
+
     if (!un || un.length < 3) {
       setErr('שם משתמש חייב להיות לפחות 3 תווים (a-z, 0-9, _)')
+      return
+    }
+
+    if (un.length > USERNAME_MAX) {
+      setErr(`שם משתמש יכול להיות עד ${USERNAME_MAX} תווים`)
       return
     }
 
@@ -275,10 +277,14 @@ export default function ProfileSettingsPage() {
             <label className="block text-sm font-medium">שם תצוגה</label>
             <input
               className="mt-1 w-full rounded-xl border px-3 py-2"
-              placeholder="למשל: יוסי, אנונימי, זבלה 🙂"
+              placeholder="למשל: יוסי, אנונימי"
               value={displayName}
               onChange={e => setDisplayName(e.target.value)}
+              maxLength={DISPLAY_NAME_MAX}
             />
+            <div className={`mt-1 text-xs ${displayName.length >= DISPLAY_NAME_MAX ? 'text-red-600' : 'text-muted-foreground'}`}>
+              עד {DISPLAY_NAME_MAX} תווים. כרגע: <b>{displayName.length}</b>
+            </div>
           </div>
 
           <div>
@@ -290,10 +296,14 @@ export default function ProfileSettingsPage() {
               placeholder="למשל: pen_writer_12"
               value={username}
               onChange={e => setUsername(e.target.value)}
+              maxLength={USERNAME_MAX}
             />
             <div className="mt-1 text-xs text-muted-foreground">
               מותר: a-z, 0-9, underscore. נשמר כ:{' '}
               <b>{slugifyUsername(username) || '—'}</b>
+            </div>
+            <div className={`mt-1 text-xs ${slugifyUsername(username).length >= USERNAME_MAX ? 'text-red-600' : 'text-muted-foreground'}`}>
+              עד {USERNAME_MAX} תווים. כרגע: <b>{slugifyUsername(username).length}</b>
             </div>
           </div>
 

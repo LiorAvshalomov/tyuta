@@ -241,16 +241,18 @@ useEffect(() => {
     try {
       const token = currentN
       if (token) {
-        const keyPrimary = `pendemic:comment-highlight:${token}`
+        const keyPrimary = `tyuta:comment-highlight:${token}`
+        const keyPendemic = `pendemic:comment-highlight:${token}`
         const keyLegacy = `notif:${token}`
 
         const rawPrimary = window.sessionStorage.getItem(keyPrimary)
-        const rawLegacy = rawPrimary ? null : window.sessionStorage.getItem(keyLegacy)
-        const raw = rawPrimary ?? rawLegacy
+        const rawPendemic = rawPrimary ? null : window.sessionStorage.getItem(keyPendemic)
+        const rawLegacy = (rawPrimary || rawPendemic) ? null : window.sessionStorage.getItem(keyLegacy)
+        const raw = rawPrimary ?? rawPendemic ?? rawLegacy
 
         if (raw) {
           // Remember which key we used so we can clean it up later (important for React strict mode).
-          tokenStorageKeyRef.current = rawPrimary ? keyPrimary : keyLegacy
+          tokenStorageKeyRef.current = rawPrimary ? keyPrimary : rawPendemic ? keyPendemic : keyLegacy
 
           let list: unknown[] = []
           let ts = 0
@@ -978,7 +980,7 @@ async function submitReport() {
 
 <>
   <style>{`
-    @keyframes pendemicGlow {
+    @keyframes tyutaGlow {
       0%  { transform: scale(1);     box-shadow: 0 0 0 0     rgba(251,191,36,0.35); }
       35% { transform: scale(1.005); box-shadow: 0 0 24px -2px rgba(251,191,36,0.28); }
       100%{ transform: scale(1);     box-shadow: 0 0 12px -3px rgba(251,191,36,0.10); }
@@ -1280,7 +1282,7 @@ async function submitReport() {
                 id={`comment-${c.id}`}
                 className={
                   `relative rounded-2xl border p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
-                  (highlightIds.has(`comment-${c.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[pendemicGlow_900ms_ease-out] motion-reduce:animate-none' : '')
+                  (highlightIds.has(`comment-${c.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[tyutaGlow_900ms_ease-out] motion-reduce:animate-none' : '')
                 }
               >
 {isAdmin && !isTemp && !isMine ? (
@@ -1389,7 +1391,7 @@ async function submitReport() {
                           id={`comment-${r.id}`}
                           className={
                             `relative rounded-2xl border bg-white p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
-                            (highlightIds.has(`comment-${r.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[pendemicGlow_900ms_ease-out] motion-reduce:animate-none' : '')
+                            (highlightIds.has(`comment-${r.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[tyutaGlow_900ms_ease-out] motion-reduce:animate-none' : '')
                           }
                         >
 {isAdmin && !rTemp && !rMine ? (

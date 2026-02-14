@@ -20,7 +20,7 @@ export type PostCardPost = {
   medals?: Partial<PostCardMedals> | null
 }
 
-type Variant = 'mypen-row' | 'mypen-featured' | 'tile'
+type Variant = 'list-row' | 'list-featured' | 'tile'
 
 /**
  * NOTE:
@@ -94,7 +94,7 @@ function CoverFrame({
 
 export default function PostCard({
   post,
-  variant = 'mypen-row',
+  variant = 'list-row',
 }: {
   post: PostCardPost
   variant?: Variant
@@ -107,8 +107,8 @@ export default function PostCard({
 
   const chHref = channelHrefByName(post.channel_name)
 
-  if (variant === 'mypen-featured') {
-    // MyPen-style featured: title/excerpt/author above a constrained image.
+  if (variant === 'list-featured') {
+    // Featured: title/excerpt/author above a constrained image.
     return (
       <article className="block rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -180,7 +180,7 @@ export default function PostCard({
   }
 
   if (variant === 'tile') {
-    // Small category tiles (square-ish like MyPen)
+    // Small category tiles
     return (
       <article className="group block overflow-hidden rounded border bg-white shadow-sm transition hover:shadow-md">
         <div className="relative">
@@ -210,7 +210,7 @@ export default function PostCard({
     )
   }
 
-  // Default: MyPen list row
+  // Default: list row
   return (
     <article className="block rounded border bg-white p-3 shadow-sm transition hover:shadow-md">
       <div className="flex flex-row-reverse items-start gap-3">

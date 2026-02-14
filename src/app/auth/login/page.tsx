@@ -80,6 +80,7 @@ export default function LoginPage() {
               className="pd-auth-input w-full rounded-2xl px-4 py-3 text-sm"
               type="email"
               autoComplete="email"
+              placeholder='הזן מייל'
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
@@ -92,6 +93,7 @@ export default function LoginPage() {
               className="pd-auth-input w-full rounded-2xl px-4 py-3 text-sm"
               type="password"
               autoComplete="current-password"
+              placeholder='הזן סיסמא'
               value={password}
               onChange={e => setPassword(e.target.value)}
               required

@@ -108,6 +108,7 @@ export default function ForgotPasswordPage() {
               className="pd-auth-input w-full rounded-2xl px-4 py-3 text-sm"
               type="email"
               autoComplete="email"
+              placeholder='example@email.com'
               value={email}
               onChange={e => setEmail(e.target.value)}
               required

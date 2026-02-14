@@ -6,6 +6,7 @@ import AppBackground from "@/components/AppBackground"
 import AnalyticsPageviewClient from "@/components/analytics/AnalyticsPageviewClient"
 import SiteHeader from "@/components/SiteHeader"
 import SiteFooter from "@/components/SiteFooter"
+import BetaWelcomeModal from "@/components/BetaWelcomeModal"
 
 type Props = { children: React.ReactNode }
 
@@ -51,6 +52,7 @@ export default function ClientChrome({ children }: Props) {
     <>
       <AnalyticsPageviewClient />
       <AppBackground />
+      <BetaWelcomeModal />
       <div className="min-h-screen flex flex-col">
         <SiteHeader />
         <main className="flex-1">{children}</main>

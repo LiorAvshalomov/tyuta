@@ -1,6 +1,8 @@
 import HomePage from '@/app/page'
 import type { Metadata } from "next";
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: "סיפורים",
   description: "עמוד מסונן לפי סיפורים, הכי חם החודש בקטגוריית 'סיפורים'",

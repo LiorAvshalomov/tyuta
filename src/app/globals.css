@@ -153,7 +153,7 @@ html {
   }
 }
 
-/* --- PenDemic Auth: light, literary floating stationery (performance-friendly) --- */
+/* --- Tyuta Auth: light, literary floating stationery (performance-friendly) --- */
 @layer utilities {
   @keyframes pd-float {
     0% {
@@ -211,7 +211,7 @@ html {
   }
 }
 
-/* PenDemic auth background (lightweight, GPU-friendly) */
+/* Tyuta auth background (lightweight, GPU-friendly) */
 .pd-ink-stroke {
   stroke: rgb(0 0 0 / 0.55);
 }
