@@ -71,11 +71,12 @@ export default function BetaWelcomeModal() {
           </p>
           <p className="text-sm text-black/70 leading-6">
             אם גילית מקום לשיפור או באג נשמח אם תכתבו לנו דרך{' '}
-            <a>
+            
             <Link href="/contact" className="font-semibold text-blue-700 hover:underline">צור קשר</Link>
-            </a> או <a>
+              {" או  "}
+            
             <Link href="https://www.facebook.com/groups/1588674635508026" className="font-semibold text-blue-700 hover:underline">קבוצת הפייסבוק שלנו</Link>
-            </a>
+            {" או"}
             , ונטפל בהקדם.
           </p>
         </div>
