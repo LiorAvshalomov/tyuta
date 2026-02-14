@@ -410,8 +410,10 @@ const setErrFor = (msg: string | null) => {
 }
 
 // report (same flow as ChatClient)
+type ReportReasonCode = 'abusive_language' | 'spam_promo' | 'hate_incitement' | 'privacy_exposure' | 'other'
 const [reportOpen, setReportOpen] = useState(false)
-const [reportCategory, setReportCategory] = useState<'abuse' | 'spam' | 'hate' | 'privacy' | 'other'>('abuse')
+// UI reasons (keep the old 5 options) + persist into DB as reason_code
+const [reportReason, setReportReason] = useState<ReportReasonCode>('abusive_language')
 const [reportDetails, setReportDetails] = useState('')
 const [reportSending, setReportSending] = useState(false)
 const [reportOk, setReportOk] = useState<string | null>(null)
@@ -426,8 +428,22 @@ async function submitReport() {
   setReportErr(null)
   try {
     setReportSending(true)
+    const reasonLabel = reportReason === 'abusive_language'
+      ? 'שפה פוגענית / הקנטה'
+      : reportReason === 'spam_promo'
+        ? 'ספאם / פרסום'
+        : reportReason === 'hate_incitement'
+          ? 'שנאה / הסתה'
+          : reportReason === 'privacy_exposure'
+            ? 'חשיפת מידע אישי'
+            : 'אחר'
+
+    const category: 'harassment' | 'spam' | 'self-harm' | 'other' =
+      reportReason === 'spam_promo' ? 'spam' : reportReason === 'other' || reportReason === 'privacy_exposure' ? 'other' : 'harassment'
+
     const details = [
       reportDetails.trim() || null,
+      `reason_label: ${reasonLabel}`,
       `post: ${postSlug}`,
       `title: ${String(postTitle || '').slice(0, 120)}`,
     ]
@@ -438,7 +454,8 @@ async function submitReport() {
       reporter_id: userId,
       reported_user_id: reportedComment.author_id,
       conversation_id: null,
-      category: reportCategory,
+      category,
+      reason_code: reportReason,
       details: details || null,
       message_id: reportedComment.id,
       message_created_at: reportedComment.created_at,
@@ -1023,14 +1040,14 @@ async function submitReport() {
             <label className="block">
               <div className="mb-1 text-xs font-bold text-neutral-700">סוג דיווח</div>
               <select
-                value={reportCategory}
-                onChange={(e) => setReportCategory(e.target.value as typeof reportCategory)}
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value as typeof reportReason)}
                 className="w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
               >
-                <option value="abuse">שפה פוגענית / הקנטה</option>
-                <option value="spam">ספאם / פרסום</option>
-                <option value="hate">שנאה / הסתה</option>
-                <option value="privacy">חשיפת מידע אישי</option>
+                <option value="abusive_language">שפה פוגענית / הקנטה</option>
+                <option value="spam_promo">ספאם / פרסום</option>
+                <option value="hate_incitement">שנאה / הסתה</option>
+                <option value="privacy_exposure">חשיפת מידע אישי</option>
                 <option value="other">אחר</option>
               </select>
             </label>

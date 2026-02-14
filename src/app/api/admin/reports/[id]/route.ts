@@ -30,6 +30,7 @@ type ReportRow = {
   id: string
   created_at: string
   category: string
+  reason_code: string | null
   details: string | null
   status: "open" | "resolved"
   resolved_at: string | null
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const reportRes = await admin
     .from<ReportRow>("user_reports")
     .select(
-      "id, created_at, category, details, status, resolved_at, resolved_by, reporter_id, reported_user_id, conversation_id, message_id, message_created_at, message_excerpt"
+      "id, created_at, category, reason_code, details, status, resolved_at, resolved_by, reporter_id, reported_user_id, conversation_id, message_id, message_created_at, message_excerpt"
     )
     .eq("id", id)
     .maybeSingle()

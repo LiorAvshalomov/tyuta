@@ -196,10 +196,13 @@ export default function PostPage() {
   const [medals, setMedals] = useState<{ gold: number; silver: number; bronze: number }>({ gold: 0, silver: 0, bronze: 0 })
 
   // report post
+  type ReportReasonCode = 'abusive_language' | 'spam_promo' | 'hate_incitement' | 'privacy_exposure' | 'other'
+
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [reportOpen, setReportOpen] = useState(false)
-  const [reportCategory, setReportCategory] = useState<'abuse' | 'spam' | 'hate' | 'privacy' | 'other'>('abuse')
+  // UI reasons (keep the old 5 options) + persist into DB as reason_code
+  const [reportReason, setReportReason] = useState<ReportReasonCode>('abusive_language')
   const [reportDetails, setReportDetails] = useState('')
   const [reportSending, setReportSending] = useState(false)
   const [reportOk, setReportOk] = useState<string | null>(null)
@@ -447,9 +450,22 @@ export default function PostPage() {
     setReportErr(null)
     try {
       setReportSending(true)
+      const reasonLabel = reportReason === 'abusive_language'
+        ? 'שפה פוגענית / הקנטה'
+        : reportReason === 'spam_promo'
+          ? 'ספאם / פרסום'
+          : reportReason === 'hate_incitement'
+            ? 'שנאה / הסתה'
+            : reportReason === 'privacy_exposure'
+              ? 'חשיפת מידע אישי'
+              : 'אחר'
+
+      const category: 'harassment' | 'spam' | 'self-harm' | 'other' =
+        reportReason === 'spam_promo' ? 'spam' : reportReason === 'other' || reportReason === 'privacy_exposure' ? 'other' : 'harassment'
       const titleLine = `post_title: ${String(post.title ?? 'ללא כותרת').slice(0, 160)}`
       const details = [
         reportDetails.trim() || null,
+        `reason_label: ${reasonLabel}`,
         'entity: post',
         `post: ${slug}`,
         titleLine,
@@ -464,7 +480,8 @@ export default function PostPage() {
         reporter_id: myUserId,
         reported_user_id: post.author_id,
         conversation_id: null,
-        category: reportCategory,
+        category,
+        reason_code: reportReason,
         details: details || null,
         message_id: post.id,
         message_created_at: publishedAt,
@@ -685,14 +702,14 @@ export default function PostPage() {
                 <label className="block">
                   <div className="mb-1 text-xs font-bold text-neutral-700">סוג דיווח</div>
                   <select
-                    value={reportCategory}
-                    onChange={(e) => setReportCategory(e.target.value as typeof reportCategory)}
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value as typeof reportReason)}
                     className="w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
                   >
-                    <option value="abuse">שפה פוגענית / הקנטה</option>
-                    <option value="spam">ספאם / פרסום</option>
-                    <option value="hate">שנאה / הסתה</option>
-                    <option value="privacy">חשיפת מידע אישי</option>
+                    <option value="abusive_language">שפה פוגענית / הקנטה</option>
+                    <option value="spam_promo">ספאם / פרסום</option>
+                    <option value="hate_incitement">שנאה / הסתה</option>
+                    <option value="privacy_exposure">חשיפת מידע אישי</option>
                     <option value="other">אחר</option>
                   </select>
                 </label>
