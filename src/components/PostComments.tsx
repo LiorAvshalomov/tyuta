@@ -25,6 +25,12 @@ type CommentRow = {
 
 type Props = { postId: string; postSlug: string; postTitle: string }
 
+type DeleteTarget = {
+  id: string
+  snippet: string
+  authorName: string
+}
+
 type LikeSummaryRow = { comment_id: string; likes_count: number }
 
 type RealtimePayload<T> = {
@@ -59,12 +65,28 @@ function makeTempId() {
   return `temp-${uuid}`
 }
 
+
+function clipOneLine(s: string, maxChars: number) {
+  const oneLine = s.replace(/\s+/g, ' ').trim()
+  if (oneLine.length <= maxChars) return oneLine
+  return oneLine.slice(0, Math.max(0, maxChars - 1)).trimEnd() + '…'
+}
+
 export default function PostComments({ postId, postSlug, postTitle }: Props) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
 
   const [userId, setUserId] = useState<string | null>(null)
   const [me, setMe] = useState<AuthorMini | null>(null)
+
+  // Admins can moderate (e.g., delete other users' comments) via RPC.
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  // Admin moderation UI (3-dots menu like /notes)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const [text, setText] = useState('')
   const [items, setItems] = useState<CommentRow[]>([])
@@ -173,6 +195,24 @@ export default function PostComments({ postId, postSlug, postTitle }: Props) {
   const hlParam = searchParams?.get('hl') ?? ''
   const nParam = searchParams?.get('n') ?? ''
   const tParam = searchParams?.get('t') ?? ''
+
+
+// Close admin menu on outside click / tap
+useEffect(() => {
+  if (!openMenuId) return
+  const onDown = (e: MouseEvent | TouchEvent) => {
+    const target = e.target as HTMLElement | null
+    if (!target) return
+    if (target.closest('[data-comment-menu]')) return
+    setOpenMenuId(null)
+  }
+  document.addEventListener('mousedown', onDown)
+  document.addEventListener('touchstart', onDown, { passive: true })
+  return () => {
+    document.removeEventListener('mousedown', onDown)
+    document.removeEventListener('touchstart', onDown)
+  }
+}, [openMenuId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -509,6 +549,18 @@ async function submitReport() {
     const { data: auth } = await supabase.auth.getUser()
     const u = auth.user
     setUserId(u?.id ?? null)
+
+    // admin check (used for moderator actions like deleting comments)
+    if (u?.id) {
+      const { data: adminRow } = await supabase
+        .from('admins')
+        .select('user_id')
+        .eq('user_id', u.id)
+        .maybeSingle()
+      setIsAdmin(!!adminRow)
+    } else {
+      setIsAdmin(false)
+    }
 
     // load my profile for optimistic author
     if (u?.id) {
@@ -880,6 +932,31 @@ async function submitReport() {
     }
   }
 
+  const adminRemove = async (commentId: string, reason: string) => {
+  setErrFor(null)
+  if (!isAdmin) return
+
+  const clean = reason.trim()
+  if (clean.length < 3) {
+    setErrFor('חובה לציין סיבה (לפחות 3 תווים)')
+    return
+  }
+
+  const snapshot = items
+  // optimistic remove
+  setItems(prev => prev.filter(x => x.id !== commentId))
+
+  const { error } = await supabase.rpc('admin_delete_comment', {
+    p_comment_id: commentId,
+    p_reason: clean,
+  })
+
+  if (error) {
+    setErrFor(error.message)
+    setItems(snapshot)
+  }
+}
+
   return (
 
 <>
@@ -1185,10 +1262,48 @@ async function submitReport() {
                 key={c.id}
                 id={`comment-${c.id}`}
                 className={
-                  `rounded-2xl border p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
+                  `relative rounded-2xl border p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
                   (highlightIds.has(`comment-${c.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[pendemicGlow_900ms_ease-out] motion-reduce:animate-none' : '')
                 }
               >
+{isAdmin && !isTemp && !isMine ? (
+  <div className="absolute left-2 top-2" data-comment-menu>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        setOpenMenuId((prev) => (prev === c.id ? null : c.id))
+      }}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50"
+      aria-label="פעולות אדמין"
+      title="פעולות אדמין"
+    >
+      ⋯
+    </button>
+
+    {openMenuId === c.id ? (
+      <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg">
+        <button
+          type="button"
+          className="w-full px-3 py-2 text-right text-sm font-semibold text-red-600 hover:bg-red-50"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpenMenuId(null)
+            setDeleteTarget({
+              id: c.id,
+              snippet: clipOneLine(c.content, 80),
+              authorName: name,
+            })
+            setDeleteReason('')
+          }}
+        >
+          מחק תגובה
+        </button>
+      </div>
+    ) : null}
+  </div>
+) : null}
+
                 {headerRow}
 
                 {body}
@@ -1256,10 +1371,48 @@ async function submitReport() {
                           key={r.id}
                           id={`comment-${r.id}`}
                           className={
-                            `rounded-2xl border bg-white p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
+                            `relative rounded-2xl border bg-white p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
                             (highlightIds.has(`comment-${r.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[pendemicGlow_900ms_ease-out] motion-reduce:animate-none' : '')
                           }
                         >
+{isAdmin && !rTemp && !rMine ? (
+  <div className="absolute left-2 top-2" data-comment-menu>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        setOpenMenuId((prev) => (prev === r.id ? null : r.id))
+      }}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50"
+      aria-label="פעולות אדמין"
+      title="פעולות אדמין"
+    >
+      ⋯
+    </button>
+
+    {openMenuId === r.id ? (
+      <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg">
+        <button
+          type="button"
+          className="w-full px-3 py-2 text-right text-sm font-semibold text-red-600 hover:bg-red-50"
+          onClick={(e) => {
+            e.stopPropagation()
+            setOpenMenuId(null)
+            setDeleteTarget({
+              id: r.id,
+              snippet: clipOneLine(r.content, 80),
+              authorName: rName,
+            })
+            setDeleteReason('')
+          }}
+        >
+          מחק תגובה
+        </button>
+      </div>
+    ) : null}
+  </div>
+) : null}
+
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
                               <Avatar src={rAvatar} name={rName} />
@@ -1298,7 +1451,7 @@ async function submitReport() {
                                   </button>
                                 </>
                               ) : null}
-                              {!rMine && !rTemp && userId ? (
+{!rMine && !rTemp && userId ? (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1424,7 +1577,59 @@ async function submitReport() {
           })
         )}
       </div>
-    </section>
+    
+
+{/* Admin delete modal */}
+{deleteTarget ? (
+  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" dir="rtl">
+    <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+      <div className="text-base font-black">מחיקת תגובה</div>
+      <div className="mt-1 text-sm text-muted-foreground">
+        תגובה מאת {deleteTarget.authorName}: ״{deleteTarget.snippet}״
+      </div>
+
+      <textarea
+        className="mt-3 w-full rounded-xl border border-black/10 bg-white p-3 text-sm outline-none focus:ring-2 focus:ring-black/20"
+        rows={4}
+        value={deleteReason}
+        onChange={(e) => setDeleteReason(e.target.value)}
+        placeholder="סיבה למחיקה…"
+      />
+
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          className="flex-1 rounded-xl border border-black/10 px-3 py-2 text-sm font-semibold"
+          onClick={() => {
+            setDeleteTarget(null)
+            setDeleteReason('')
+          }}
+          disabled={deleting}
+        >
+          ביטול
+        </button>
+
+        <button
+          type="button"
+          className="flex-1 rounded-xl bg-black px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+          disabled={deleting || deleteReason.trim().length < 3}
+          onClick={async () => {
+            if (!deleteTarget) return
+            setDeleting(true)
+            await adminRemove(deleteTarget.id, deleteReason)
+            setDeleting(false)
+            setDeleteTarget(null)
+            setDeleteReason('')
+          }}
+        >
+          {deleting ? 'מוחק…' : 'מחק'}
+        </button>
+      </div>
+    </div>
+  </div>
+) : null}
+
+</section>
     </>
   )
 }

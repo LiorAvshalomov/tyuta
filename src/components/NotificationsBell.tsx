@@ -626,7 +626,25 @@ const token = storeHighlightToken(ids)
           {reason ? <div className="text-neutral-600 mt-0.5">סיבה: {reason}</div> : null}
         </div>
       )
+
     }
+
+    // ✅ comment deleted (admin/system)
+    if (action === "comment_deleted") {
+      const snippet = str((payload as Record<string, unknown>).comment_snippet) || "תגובה"
+      const reason = reasonFromPayload(payload)
+      const title = titleFromPayload(payload)
+      return (
+        <div className="text-right leading-snug">
+          <div className="font-semibold truncate">
+            מערכת האתר מחקה לך תגובה{title ? ` בפוסט ״${title}״` : ""}: ״{snippet}״
+          </div>
+          {reason ? <div className="text-neutral-600 mt-0.5">סיבה: {reason}</div> : null}
+        </div>
+      )
+    }
+
+    
 
     const t = titleFromPayload(payload) ?? ""
     const m = messageFromPayload(payload)
