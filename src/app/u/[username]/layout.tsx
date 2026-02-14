@@ -1,71 +1,86 @@
-import type { Metadata } from 'next'
-import type { ReactNode } from 'react'
+import type { Metadata } from "next"
+import { createClient } from "@supabase/supabase-js"
+import React from "react"
 
-import { supabase } from '@/lib/supabaseClient'
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
-const SITE_URL = 'https://tyuta.net'
+type Params = { username: string }
 
-type LayoutProps = {
-  children: ReactNode
-  params: { username: string }
-}
-
-type ProfileSeoRow = {
-  username: string
+type ProfileRow = {
+  username: string | null
   display_name: string | null
   bio: string | null
   avatar_url: string | null
-  created_at: string | null
-  personal_updated_at: string | null
 }
 
-export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
-  const username = params?.username
-  const canonical = `${SITE_URL}/u/${encodeURIComponent(username)}`
+function absoluteUrl(path: string): string {
+  const base = "https://tyuta.net"
+  if (path.startsWith("http")) return path
+  if (!path.startsWith("/")) return `${base}/${path}`
+  return `${base}${path}`
+}
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('username, display_name, bio, avatar_url, created_at, personal_updated_at')
-    .eq('username', username)
-    .maybeSingle()
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const username = params.username
+  const url = absoluteUrl(`/u/${encodeURIComponent(username)}`)
 
-  if (error || !data) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !anonKey) {
     return {
-      title: 'פרופיל לא נמצא',
-      robots: { index: false, follow: false },
-      alternates: { canonical },
-      openGraph: { type: 'website', url: canonical },
+      title: "Tyuta",
+      alternates: { canonical: url },
+      openGraph: { type: "profile", url },
+      twitter: { card: "summary" },
     }
   }
 
-  const p = data as ProfileSeoRow
-  const name = (p.display_name ?? '').trim() || `@${p.username}`
-  const title = `${name}`
-  const description = (p.bio ?? '').trim() || 'פרופיל משתמש ב‑Tyuta'
-  const imageUrl = p.avatar_url ? p.avatar_url : `${SITE_URL}/apple-touch-icon.png`
+  const supabase = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } })
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("username,display_name,bio,avatar_url")
+    .eq("username", username)
+    .maybeSingle<ProfileRow>()
+
+  if (!data || !data.username) {
+    return {
+      title: "פרופיל לא נמצא | Tyuta",
+      alternates: { canonical: url },
+      robots: { index: false, follow: false },
+      openGraph: { type: "website", url, title: "פרופיל לא נמצא | Tyuta" },
+      twitter: { card: "summary" },
+    }
+  }
+
+  const title = (data.display_name?.trim() || data.username.trim()) + " | Tyuta"
+  const description = (data.bio?.trim() || "המקום לכל הגרסאות שלך").slice(0, 200)
+  const image = data.avatar_url ? absoluteUrl(data.avatar_url) : absoluteUrl("/og-default.png")
 
   return {
     title,
     description,
-    alternates: { canonical },
+    alternates: { canonical: url },
     openGraph: {
-      type: 'profile',
-      url: canonical,
+      type: "profile",
+      url,
       title,
       description,
-      siteName: 'Tyuta',
-      locale: 'he_IL',
-      images: [{ url: imageUrl }],
+      images: [{ url: image }],
+      locale: "he_IL",
+      siteName: "Tyuta",
     },
     twitter: {
-      card: 'summary_large_image',
+      card: "summary",
       title,
       description,
-      images: [imageUrl],
+      images: [image],
     },
   }
 }
 
-export default function ProfileLayout({ children }: LayoutProps) {
+export default function UserLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
