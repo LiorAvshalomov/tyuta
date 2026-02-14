@@ -56,8 +56,11 @@ export default function AuthLayout({
                     : "כמעט שם."}
               </h1>
 
-              <p className="pd-auth-subtitle mt-4 text-base leading-7">
-                מקום שקט לכתיבה, פריקה וסיפורים. בלי רעש, בלי לחץ — רק אתה והמילים.
+<p className="pd-auth-subtitle mt-4 text-base leading-7">     
+              המקום לכל הגרסאות שלך,
+              </p>
+              <p className="pd-auth-subtitle  text-base leading-7">     
+              מקום שקט לכתיבה, פריקה וסיפורים. 
               </p>
 
               <ul className="mt-6 space-y-3 text-sm text-black/70">
