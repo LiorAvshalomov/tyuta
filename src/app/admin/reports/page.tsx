@@ -82,6 +82,17 @@ function detectSource(r: ReportRow): "inbox" | "posts" | "users" {
   return "users"
 }
 
+function isPostReport(details?: string | null) {
+  return !!details && /\bentity:\s*post\b/i.test(details)
+}
+
+function parseDetailValue(details: string | null | undefined, key: string) {
+  if (!details) return null
+  const re = new RegExp(`^${key}:\\s*(.+)$`, 'm')
+  const m = details.match(re)
+  return m ? m[1].trim() : null
+}
+
 function fmtName(p: MiniProfile | null | undefined, fallback?: string | null) {
   if (p?.display_name) return p.display_name
   if (p?.username) return `@${p.username}`
@@ -272,9 +283,20 @@ export default function ReportsPage() {
                     {r.message_excerpt || r.message_preview}
                   </div>
                 )}
-                {src === "posts" && (r.message_preview || r.message_excerpt) && (
-                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
-                    {r.message_excerpt || r.message_preview}
+                {src === "posts" && (r.message_preview || r.message_excerpt || r.details) && (
+                  <div className="mt-2 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                    {isPostReport(r.details) ? (
+                      <div className="space-y-1">
+                        <div className="font-bold text-neutral-900">
+                          {parseDetailValue(r.details, 'post_title') || 'ללא כותרת'}
+                        </div>
+                        {r.message_excerpt ? (
+                          <div className="line-clamp-3 whitespace-pre-wrap">{r.message_excerpt}</div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="line-clamp-3 whitespace-pre-wrap">{r.message_excerpt || r.message_preview}</div>
+                    )}
                   </div>
                 )}
                 {src === "users" && r.details && (
