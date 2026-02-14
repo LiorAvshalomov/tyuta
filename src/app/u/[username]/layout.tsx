@@ -9,7 +9,7 @@ const SITE_URL = "https://tyuta.net"
 
 type LayoutProps = {
   children: ReactNode
-  params: { username: string }
+  params: Promise<{ username: string }>
 }
 
 type ProfileSeoRow = {
@@ -33,7 +33,7 @@ function getServerSupabase() {
 }
 
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
-  const username = params.username
+  const { username } = await params
   const canonical = `${SITE_URL}/u/${encodeURIComponent(username)}`
 
   const supabase = getServerSupabase()

@@ -9,7 +9,7 @@ const SITE_URL = "https://tyuta.net"
 
 type LayoutProps = {
   children: ReactNode
-  params: { slug: string }
+  params: Promise<{ slug: string }>
 }
 
 type PostSeoRow = {
@@ -35,7 +35,7 @@ function getServerSupabase() {
 }
 
 export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
-  const slug = params.slug
+  const { slug } = await params
   const canonical = `${SITE_URL}/post/${encodeURIComponent(slug)}`
 
   const supabase = getServerSupabase()

@@ -9,7 +9,7 @@ import ProfileInfoCardsSection from '@/components/ProfileInfoCardsSection'
 
 
 type PageProps = {
-  params: { username: string }
+  params: Promise<{ username: string }>
 }
 type Profile = {
   id: string
@@ -71,7 +71,7 @@ function StatPill({ label, value }: { label: string; value: number }) {
 }
 
 export default async function PublicProfilePage({ params }: PageProps) {
-  const username = params.username
+  const { username } = await params
 
   const supabase = getSupabase()
   if (!supabase) {
