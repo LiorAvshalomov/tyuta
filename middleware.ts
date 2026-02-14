@@ -36,16 +36,13 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If we can detect recovery hints in QUERY (PKCE), force reset.
+  // If we can detect a password-recovery flow in QUERY (PKCE), force reset.
   // NOTE: hash fragments (#access_token) are not visible to middleware.
-  const hasRecoveryHint =
-    searchParams.get("type") === "recovery" ||
-    searchParams.has("code") ||
-    searchParams.has("token") ||
-    searchParams.has("access_token") ||
-    searchParams.has("refresh_token");
+  // IMPORTANT: Only redirect for recovery/invite types — NOT signup or magiclink.
+  const flowType = searchParams.get("type");
+  const isRecoveryFlow = flowType === "recovery" || flowType === "invite";
 
-  if (hasRecoveryHint && pathname !== "/auth/reset-password") {
+  if (isRecoveryFlow && pathname !== "/auth/reset-password") {
     const url = req.nextUrl.clone();
     url.pathname = "/auth/reset-password";
     url.search = req.nextUrl.search;
