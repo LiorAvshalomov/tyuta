@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     default: "Tyuta - המקום לכל הגרסאות שלך",
     template: "%s | Tyuta",
   },
-  description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, אינטימית ורגישה.",
+  description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, מרחב כתיבה רגיש ובטוח.",
   alternates: {
     canonical: "/",
   },
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: "Tyuta",
     title: "Tyuta - המקום לכל הגרסאות שלך",
-    description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, אינטימית ורגישה.",
+    description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, מרחב כתיבה רגיש ובטוח.",
     locale: "he_IL",
     images: [
       {
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Tyuta - המקום לכל הגרסאות שלך",
-    description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, אינטימית ורגישה.",
+    description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, מרחב כתיבה רגיש ובטוח.",
     images: ["/apple-touch-icon.png"],
   },
   icons: {

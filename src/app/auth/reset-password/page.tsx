@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { updatePassword } from '@/lib/auth'
 import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 
+
 type PageState = 'loading' | 'ready' | 'error' | 'done'
 
 const RESET_GATE_STORAGE_KEY = 'tyuta:password_reset_required'

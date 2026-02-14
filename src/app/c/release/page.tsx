@@ -1,4 +1,13 @@
 import HomePage from '@/app/page'
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "פריקה",
+  description: "עמוד מסונן לפי פריקה, הכי חם החודש בקטגוריית 'פריקה'",
+  alternates: {
+    canonical: "/c/release",
+  },
+};
 
 export default async function ReleasePage() {
   return (

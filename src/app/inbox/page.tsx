@@ -1,4 +1,13 @@
 import InboxThreads from '@/components/InboxThreads'
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "הודעות",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function InboxPage() {
   return (

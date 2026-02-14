@@ -1,4 +1,13 @@
 import HomePage from '@/app/page'
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "כתבות",
+  description: "עמוד מסונן לפי כתבות, הכי חם החודש בקטגוריית 'כתבות'",
+  alternates: {
+    canonical: "/c/magazine",
+  },
+};
 
 export default async function MagazinePage() {
   return (

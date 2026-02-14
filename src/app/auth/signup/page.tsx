@@ -142,6 +142,18 @@ export default function SignupPage() {
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{msg}</div>
           ) : null}
 
+          <p className="text-xs leading-5 text-black/60">
+            בלחיצה על <span className="font-semibold text-black/75">"יצירת משתמש"</span> את/ה מאשר/ת שקראת והסכמת ל־{' '}
+            <Link href="/terms" className="font-semibold text-blue-700 hover:underline">
+              תנאי השימוש
+            </Link>{' '}
+            ול־{' '}
+            <Link href="/privacy" className="font-semibold text-blue-700 hover:underline">
+              מדיניות הפרטיות
+            </Link>
+            .
+          </p>
+
           <button
             className="pd-auth-btn w-full rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-95"
             disabled={loading}

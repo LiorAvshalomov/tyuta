@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import AuthLayout from '@/components/AuthLayout'
 import { sendPasswordResetEmail } from '@/lib/auth'
 
+
 const COOLDOWN_SECONDS = 60
 
 function getBaseUrlFromBrowser(): string {
