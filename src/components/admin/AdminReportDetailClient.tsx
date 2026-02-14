@@ -74,6 +74,23 @@ function fmtDateTime(iso?: string | null) {
   return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })
 }
 
+function isPostReport(details?: string | null) {
+  return !!details && /\bentity:\s*post\b/i.test(details)
+}
+
+function parseDetailValue(details: string | null | undefined, key: string) {
+  if (!details) return null
+  const re = new RegExp(`^${key}:\\s*(.+)$`, 'm')
+  const m = details.match(re)
+  return m ? m[1].trim() : null
+}
+
+function parsePostSlug(details?: string | null) {
+  if (!details) return null
+  const m = details.match(/post:\s*(.+)/)
+  return m ? m[1].trim() : null
+}
+
 function isApiOk(v: unknown): v is ApiOk {
   if (!v || typeof v !== 'object') return false
   const o = v as Record<string, unknown>
@@ -169,7 +186,7 @@ export default function AdminReportDetailClient({
       {!isDrawer && (
         <PageHeader
           title={`דיווח #${shortId}`}
-          description="צפייה בדיווח + הקשר הודעות (±5)."
+          description="צפייה בדיווח + פרטים רלוונטיים."
           actions={
             <div className="flex items-center gap-2">
               <Link
@@ -277,8 +294,31 @@ export default function AdminReportDetailClient({
                 ציטוט / פרטים
               </div>
               <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">
-                {report.message_excerpt || report.details || '—'}
+                {isPostReport(report.details)
+                  ? (parseDetailValue(report.details, 'post_title')
+                      ? `${parseDetailValue(report.details, 'post_title')}`
+                      : (report.message_excerpt || report.details || '—'))
+                  : (report.message_excerpt || report.details || '—')}
               </div>
+              {isPostReport(report.details) && report.message_excerpt ? (
+                <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">
+                  {report.message_excerpt}
+                </div>
+              ) : null}
+              {isPostReport(report.details) && (() => {
+                const slug = parsePostSlug(report.details)
+                return slug ? (
+                  <div className="mt-3">
+                    <Link
+                      href={`/post/${slug}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                    >
+                      <FileText size={13} />
+                      צפה בפוסט
+                    </Link>
+                  </div>
+                ) : null
+              })()}
             </div>
 
             {/* Actions */}
@@ -319,58 +359,60 @@ export default function AdminReportDetailClient({
             </div>
           </div>
 
-          {/* Messages context */}
-          <div className="space-y-3">
-            <h2 className="flex items-center gap-2 text-sm font-bold text-neutral-900">
-              <MessageSquare size={16} className="text-neutral-500" />
-              הקשר הודעות
-            </h2>
+          {/* Messages context (Inbox only) */}
+          {report.conversation_id ? (
+            <div className="space-y-3">
+              <h2 className="flex items-center gap-2 text-sm font-bold text-neutral-900">
+                <MessageSquare size={16} className="text-neutral-500" />
+                הקשר הודעות
+              </h2>
 
-            {messages.length === 0 ? (
-              <EmptyState
-                title="אין הודעות להציג"
-                description="אין conversation_id או שאין נתונים."
-                icon={<MessageSquare size={28} strokeWidth={1.5} />}
-              />
-            ) : (
-              <div className="grid gap-2">
-                {messages.map((m) => {
-                  const isReported = m.id === report.message_id
-                  return (
-                    <div
-                      key={m.id}
-                      className={
-                        isReported
-                          ? 'rounded-xl border-2 border-amber-400 bg-amber-50/50 p-3.5'
-                          : 'rounded-xl border border-neutral-200 bg-white p-3.5'
-                      }
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Avatar
-                            src={m.sender_profile?.avatar_url ?? null}
-                            name={fmtName(m.sender_profile, m.sender_id)}
-                            size={24}
-                            shape="circle"
-                          />
-                          <span className="text-xs font-semibold text-neutral-900">
-                            {fmtName(m.sender_profile, m.sender_id)}
-                          </span>
-                          {isReported && (
-                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                              הודעה מדווחת
+              {messages.length === 0 ? (
+                <EmptyState
+                  title="אין הודעות להציג"
+                  description="אין נתונים." 
+                  icon={<MessageSquare size={28} strokeWidth={1.5} />}
+                />
+              ) : (
+                <div className="grid gap-2">
+                  {messages.map((m) => {
+                    const isReported = m.id === report.message_id
+                    return (
+                      <div
+                        key={m.id}
+                        className={
+                          isReported
+                            ? 'rounded-xl border-2 border-amber-400 bg-amber-50/50 p-3.5'
+                            : 'rounded-xl border border-neutral-200 bg-white p-3.5'
+                        }
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Avatar
+                              src={m.sender_profile?.avatar_url ?? null}
+                              name={fmtName(m.sender_profile, m.sender_id)}
+                              size={24}
+                              shape="circle"
+                            />
+                            <span className="text-xs font-semibold text-neutral-900">
+                              {fmtName(m.sender_profile, m.sender_id)}
                             </span>
-                          )}
+                            {isReported && (
+                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                הודעה מדווחת
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] text-neutral-400">{fmtDateTime(m.created_at)}</span>
                         </div>
-                        <span className="text-[11px] text-neutral-400">{fmtDateTime(m.created_at)}</span>
+                        <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{m.body}</div>
                       </div>
-                      <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{m.body}</div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ) : null}
         </>
       )}
     </div>

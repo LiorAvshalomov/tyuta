@@ -60,7 +60,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const admin = auth.admin as unknown as AdminClient
 
   const reportRes = await admin
-    .from<ReportRow>("reports")
+    .from<ReportRow>("user_reports")
     .select(
       "id, created_at, category, details, status, resolved_at, resolved_by, reporter_id, reported_user_id, conversation_id, message_id, message_created_at, message_excerpt"
     )

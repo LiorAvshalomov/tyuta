@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 
 import { supabase } from '@/lib/supabaseClient'
@@ -195,6 +195,16 @@ export default function PostPage() {
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [medals, setMedals] = useState<{ gold: number; silver: number; bronze: number }>({ gold: 0, silver: 0, bronze: 0 })
 
+  // report post
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportCategory, setReportCategory] = useState<'abuse' | 'spam' | 'hate' | 'privacy' | 'other'>('abuse')
+  const [reportDetails, setReportDetails] = useState('')
+  const [reportSending, setReportSending] = useState(false)
+  const [reportOk, setReportOk] = useState<string | null>(null)
+  const [reportErr, setReportErr] = useState<string | null>(null)
+
 
   const [isMobile, setIsMobile] = useState(false)
 
@@ -208,6 +218,18 @@ export default function PostPage() {
     mq.addEventListener?.('change', apply)
     return () => mq.removeEventListener?.('change', apply)
   }, [])
+
+  // close dropdown on outside click
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDown = (e: MouseEvent) => {
+      const root = menuRef.current
+      if (!root) return
+      if (e.target instanceof Node && !root.contains(e.target)) setMenuOpen(false)
+    }
+    window.addEventListener('pointerdown', onDown)
+    return () => window.removeEventListener('pointerdown', onDown)
+  }, [menuOpen])
 
   useEffect(() => {
     let alive = true
@@ -417,6 +439,53 @@ export default function PostPage() {
 
   const publishedAt = post.published_at ?? post.created_at
 
+  const canReportPost = !!myUserId && post.author_id !== myUserId
+
+  async function submitPostReport() {
+    if (!canReportPost || !myUserId || !post) return
+    setReportOk(null)
+    setReportErr(null)
+    try {
+      setReportSending(true)
+      const titleLine = `post_title: ${String(post.title ?? 'ללא כותרת').slice(0, 160)}`
+      const details = [
+        reportDetails.trim() || null,
+        'entity: post',
+        `post: ${slug}`,
+        titleLine,
+      ]
+        .filter(Boolean)
+        .join('\n')
+
+      const excerpt = (post.excerpt ?? '').trim()
+      const messageExcerpt = excerpt ? excerpt.slice(0, 280) : String(post.title ?? 'ללא כותרת').slice(0, 280)
+
+      const { error } = await supabase.from('user_reports').insert({
+        reporter_id: myUserId,
+        reported_user_id: post.author_id,
+        conversation_id: null,
+        category: reportCategory,
+        details: details || null,
+        message_id: post.id,
+        message_created_at: publishedAt,
+        message_excerpt: messageExcerpt,
+      })
+
+      if (error) throw error
+      setReportOk('תודה על הדיווח ועל התרומה לקהילה 🙏\nנבדוק את זה בהקדם.')
+      setReportDetails('')
+      window.setTimeout(() => {
+        setReportOpen(false)
+        setReportErr(null)
+        setReportOk(null)
+      }, 2200)
+    } catch (e: unknown) {
+      setReportErr(e instanceof Error ? e.message : 'לא הצלחנו לשלוח דיווח')
+    } finally {
+      setReportSending(false)
+    }
+  }
+
   const channelHref =
     post.channel_id === 1
       ? '/c/release'
@@ -443,13 +512,44 @@ export default function PostPage() {
         <h1 className="min-w-0 flex-1 text-right text-[32px] sm:text-[36px] font-black tracking-tight text-neutral-950 break-words">
           {post.title ?? 'ללא כותרת'}
         </h1>
-        {hasMedals && (
-          <div dir="ltr" className="mt-2 flex shrink-0 items-center gap-2 text-sm">
-            {medals.gold > 0 && <span>🥇 {medals.gold}</span>}
-            {medals.silver > 0 && <span>🥈 {medals.silver}</span>}
-            {medals.bronze > 0 && <span>🥉 {medals.bronze}</span>}
-          </div>
-        )}
+        <div className="mt-1 flex shrink-0 items-center gap-2" dir="ltr">
+          {/* menu (left of medals) */}
+          {canReportPost ? (
+            <div ref={menuRef} className="relative">
+              <button
+                type="button"
+                aria-label="תפריט פוסט"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="p-1 text-muted-foreground hover:text-foreground transition-colors hover:scale-90 transition-transform cursor-pointer "
+              >
+                <span className="text-[18px] leading-none">⋮</span>
+              </button>
+
+              {menuOpen ? (
+                <div className="absolute left-0 top-10 z-20 w-44 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-lg">
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-right text-sm font-semibold text-neutral-800 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setReportOpen(true)
+                    }}
+                  >
+                    דווח על הפוסט
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {hasMedals ? (
+            <div className="flex shrink-0 items-center gap-2 text-sm">
+              {medals.gold > 0 && <span>🥇 {medals.gold}</span>}
+              {medals.silver > 0 && <span>🥈 {medals.silver}</span>}
+              {medals.bronze > 0 && <span>🥉 {medals.bronze}</span>}
+            </div>
+          ) : null}
+        </div>
         </div>
         {post.excerpt ? (
           <p className="mt-2 text-right text-[16px] leading-8 text-neutral-700">{post.excerpt}</p>
@@ -534,11 +634,124 @@ export default function PostPage() {
   )
 
   return (
-    <PostShell
-      header={header}
-      actions={<PostOwnerMenu postId={post.id} postSlug={slug} authorId={post.author_id} />}
-      sidebar={sidebar}
-    >
+    <>
+      {/* Report post modal (same flow/styling as report comment) */}
+      {reportOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          dir="rtl"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setReportOpen(false)
+              setReportErr(null)
+              setReportOk(null)
+            }
+          }}
+        >
+          <div className="w-full max-w-lg rounded-3xl border bg-white p-5 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-black">דיווח על פוסט</div>
+                <div className="mt-1 text-xs text-neutral-600">
+                  הדיווח יישלח לצוות האתר. אנחנו מתייחסים לדיווחים ברצינות ומטפלים בהם בהקדם.
+                </div>
+
+                <div className="mt-3 rounded-2xl border bg-black/5 p-3 text-xs text-neutral-700">
+                  <div className="font-bold">הפוסט שדווח</div>
+                  <div className="mt-1 whitespace-pre-wrap font-semibold text-neutral-900">
+                    {post.title ?? 'ללא כותרת'}
+                  </div>
+                  <div className="mt-1 text-[11px] text-neutral-500">{formatDateTimeHe(publishedAt)}</div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="mr-auto rounded-full border px-3 py-1 text-xs font-bold hover:bg-black/5"
+                onClick={() => {
+                  setReportOpen(false)
+                  setReportErr(null)
+                  setReportOk(null)
+                }}
+              >
+                סגור
+              </button>
+            </div>
+
+            {!canReportPost ? (
+              <div className="mt-4 rounded-2xl border bg-black/5 p-3 text-sm">לא ניתן לדווח על עצמך.</div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <label className="block">
+                  <div className="mb-1 text-xs font-bold text-neutral-700">סוג דיווח</div>
+                  <select
+                    value={reportCategory}
+                    onChange={(e) => setReportCategory(e.target.value as typeof reportCategory)}
+                    className="w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                  >
+                    <option value="abuse">שפה פוגענית / הקנטה</option>
+                    <option value="spam">ספאם / פרסום</option>
+                    <option value="hate">שנאה / הסתה</option>
+                    <option value="privacy">חשיפת מידע אישי</option>
+                    <option value="other">אחר</option>
+                  </select>
+                </label>
+
+                <label className="block">
+                  <div className="mb-1 text-xs font-bold text-neutral-700">פרטים (אופציונלי)</div>
+                  <textarea
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    rows={4}
+                    maxLength={2000}
+                    className="w-full resize-none rounded-2xl border bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-black/10 whitespace-pre-wrap"
+                    placeholder="תיאור קצר שיעזור לנו לטפל…"
+                  />
+                  <div className="mt-1 text-xs text-neutral-500">{reportDetails.length}/2000</div>
+                </label>
+
+                {reportErr ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                    {reportErr}
+                  </div>
+                ) : null}
+                {reportOk ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                    {reportOk}
+                  </div>
+                ) : null}
+
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    className="rounded-full border px-4 py-2 text-sm font-bold hover:bg-black/5"
+                    onClick={() => setReportOpen(false)}
+                  >
+                    ביטול
+                  </button>
+                  <button
+                    type="button"
+                    disabled={reportSending}
+                    onClick={submitPostReport}
+                    className={[
+                      'rounded-full px-5 py-2 text-sm font-black text-white',
+                      reportSending ? 'bg-black/30' : 'bg-black hover:bg-black/90',
+                    ].join(' ')}
+                  >
+                    {reportSending ? 'שולח…' : 'שלח/י דיווח'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      <PostShell
+        header={header}
+        actions={<PostOwnerMenu postId={post.id} postSlug={slug} authorId={post.author_id} />}
+        sidebar={sidebar}
+      >
       {/* תוכן – לב האתר */}
       <div className="mt-6 min-h-[45vh] pb-4">
         <RichText content={post.content_json as RichNode} />
@@ -572,6 +785,7 @@ export default function PostPage() {
         </div>
         </div>
       </div>
-    </PostShell>
+      </PostShell>
+    </>
   )
 }
