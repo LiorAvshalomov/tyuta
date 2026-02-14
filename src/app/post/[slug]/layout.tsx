@@ -1,82 +1,82 @@
 import type { Metadata } from "next"
+import type { ReactNode } from "react"
 import { createClient } from "@supabase/supabase-js"
-import React from "react"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-type Params = { slug: string }
+const SITE_URL = "https://tyuta.net"
 
-type PostRow = {
+type LayoutProps = {
+  children: ReactNode
+  params: { slug: string }
+}
+
+type PostSeoRow = {
   title: string | null
   excerpt: string | null
   cover_image_url: string | null
   published_at: string | null
   updated_at: string | null
+  slug: string
 }
 
-function absoluteUrl(path: string): string {
-  const base = "https://tyuta.net"
-  if (path.startsWith("http")) return path
-  if (!path.startsWith("/")) return `${base}/${path}`
-  return `${base}${path}`
+function absUrl(pathOrUrl: string): string {
+  if (pathOrUrl.startsWith("http")) return pathOrUrl
+  if (!pathOrUrl.startsWith("/")) return `${SITE_URL}/${pathOrUrl}`
+  return `${SITE_URL}${pathOrUrl}`
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+function getServerSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key, { auth: { persistSession: false } })
+}
+
+export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
   const slug = params.slug
-  const url = absoluteUrl(`/post/${encodeURIComponent(slug)}`)
+  const canonical = `${SITE_URL}/post/${encodeURIComponent(slug)}`
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  // Safe fallback if env missing
-  if (!supabaseUrl || !anonKey) {
-    return {
-      title: "Tyuta",
-      alternates: { canonical: url },
-      openGraph: { type: "article", url },
-      twitter: { card: "summary_large_image" },
-    }
+  const supabase = getServerSupabase()
+  if (!supabase) {
+    return { alternates: { canonical } }
   }
 
-  const supabase = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } })
-
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("posts")
-    .select("title,excerpt,cover_image_url,published_at,updated_at")
+    .select("slug,title,excerpt,cover_image_url,published_at,updated_at")
     .eq("slug", slug)
+    .eq("status", "published")
     .is("deleted_at", null)
-    .maybeSingle<PostRow>()
+    .maybeSingle<PostSeoRow>()
 
-  // If not found/published: noindex and generic metadata
-  if (!data || !data.published_at) {
+  if (error || !data) {
     return {
       title: "פוסט לא נמצא | Tyuta",
-      alternates: { canonical: url },
+      alternates: { canonical },
       robots: { index: false, follow: false },
-      openGraph: { type: "website", url, title: "פוסט לא נמצא | Tyuta" },
+      openGraph: { type: "website", url: canonical },
       twitter: { card: "summary" },
     }
   }
 
-  const title = data.title?.trim() || "Tyuta"
-  const description =
-    (data.excerpt?.trim() || "המקום לכל הגרסאות שלך").slice(0, 200)
-
-  const image = data.cover_image_url ? absoluteUrl(data.cover_image_url) : absoluteUrl("/og-default.png")
+  const title = (data.title ?? "").trim() || "Tyuta"
+  const description = ((data.excerpt ?? "").trim() || "המקום לכל הגרסאות שלך").slice(0, 200)
+  const image = data.cover_image_url ? absUrl(data.cover_image_url) : absUrl("/apple-touch-icon.png")
 
   return {
     title,
     description,
-    alternates: { canonical: url },
+    alternates: { canonical },
     openGraph: {
       type: "article",
-      url,
+      url: canonical,
       title,
       description,
-      images: [{ url: image }],
-      locale: "he_IL",
       siteName: "Tyuta",
+      locale: "he_IL",
+      images: [{ url: image }],
     },
     twitter: {
       card: "summary_large_image",
@@ -87,6 +87,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   }
 }
 
-export default function PostLayout({ children }: { children: React.ReactNode }) {
+export default function PostLayout({ children }: LayoutProps) {
   return <>{children}</>
 }

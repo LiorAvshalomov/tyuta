@@ -1,76 +1,79 @@
 import type { Metadata } from "next"
+import type { ReactNode } from "react"
 import { createClient } from "@supabase/supabase-js"
-import React from "react"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-type Params = { username: string }
+const SITE_URL = "https://tyuta.net"
 
-type ProfileRow = {
-  username: string | null
+type LayoutProps = {
+  children: ReactNode
+  params: { username: string }
+}
+
+type ProfileSeoRow = {
+  username: string
   display_name: string | null
   bio: string | null
   avatar_url: string | null
 }
 
-function absoluteUrl(path: string): string {
-  const base = "https://tyuta.net"
-  if (path.startsWith("http")) return path
-  if (!path.startsWith("/")) return `${base}/${path}`
-  return `${base}${path}`
+function absUrl(pathOrUrl: string): string {
+  if (pathOrUrl.startsWith("http")) return pathOrUrl
+  if (!pathOrUrl.startsWith("/")) return `${SITE_URL}/${pathOrUrl}`
+  return `${SITE_URL}${pathOrUrl}`
 }
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+function getServerSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key, { auth: { persistSession: false } })
+}
+
+export async function generateMetadata({ params }: LayoutProps): Promise<Metadata> {
   const username = params.username
-  const url = absoluteUrl(`/u/${encodeURIComponent(username)}`)
+  const canonical = `${SITE_URL}/u/${encodeURIComponent(username)}`
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !anonKey) {
-    return {
-      title: "Tyuta",
-      alternates: { canonical: url },
-      openGraph: { type: "profile", url },
-      twitter: { card: "summary" },
-    }
+  const supabase = getServerSupabase()
+  if (!supabase) {
+    return { alternates: { canonical } }
   }
 
-  const supabase = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } })
-
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("profiles")
     .select("username,display_name,bio,avatar_url")
     .eq("username", username)
-    .maybeSingle<ProfileRow>()
+    .maybeSingle<ProfileSeoRow>()
 
-  if (!data || !data.username) {
+  if (error || !data) {
     return {
       title: "פרופיל לא נמצא | Tyuta",
-      alternates: { canonical: url },
+      alternates: { canonical },
       robots: { index: false, follow: false },
-      openGraph: { type: "website", url, title: "פרופיל לא נמצא | Tyuta" },
+      openGraph: { type: "website", url: canonical },
       twitter: { card: "summary" },
     }
   }
 
-  const title = (data.display_name?.trim() || data.username.trim()) + " | Tyuta"
-  const description = (data.bio?.trim() || "המקום לכל הגרסאות שלך").slice(0, 200)
-  const image = data.avatar_url ? absoluteUrl(data.avatar_url) : absoluteUrl("/og-default.png")
+  const name = (data.display_name ?? "").trim() || `@${data.username}`
+  const title = `${name} | Tyuta`
+  const description = ((data.bio ?? "").trim() || "פרופיל משתמש ב‑Tyuta").slice(0, 200)
+  const image = data.avatar_url ? absUrl(data.avatar_url) : absUrl("/apple-touch-icon.png")
 
   return {
     title,
     description,
-    alternates: { canonical: url },
+    alternates: { canonical },
     openGraph: {
       type: "profile",
-      url,
+      url: canonical,
       title,
       description,
-      images: [{ url: image }],
-      locale: "he_IL",
       siteName: "Tyuta",
+      locale: "he_IL",
+      images: [{ url: image }],
     },
     twitter: {
       card: "summary",
@@ -81,6 +84,6 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   }
 }
 
-export default function UserLayout({ children }: { children: React.ReactNode }) {
+export default function UserLayout({ children }: LayoutProps) {
   return <>{children}</>
 }

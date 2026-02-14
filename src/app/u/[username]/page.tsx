@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+
 import { createClient } from '@supabase/supabase-js'
 
 import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
@@ -6,7 +6,7 @@ import ProfileFollowBar from '@/components/ProfileFollowBar'
 import ProfileBottomTabsClient from '@/components/ProfileBottomTabsClient'
 import ProfileInfoCardsSection from '@/components/ProfileInfoCardsSection'
 
-const SITE_URL = 'https://tyuta.net'
+
 
 type PageProps = {
   params: { username: string }
@@ -38,60 +38,6 @@ function safeText(s?: string | null) {
   return (s ?? '').trim()
 }
 
-function trunc(s: string, n: number) {
-  const v = (s ?? '').trim()
-  return v.length > n ? `${v.slice(0, n - 1)}…` : v
-}
-
-
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const username = params.username
-  const canonical = `${SITE_URL}/u/${encodeURIComponent(username)}`
-
-  const supabase = getSupabase()
-  if (!supabase) {
-    return { alternates: { canonical } }
-  }
-
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('username, display_name, bio, avatar_url')
-    .eq('username', username)
-    .maybeSingle()
-
-  if (error || !profile) {
-    return {
-      title: 'פרופיל לא נמצא',
-      alternates: { canonical },
-      robots: { index: false, follow: false },
-    }
-  }
-
-  const display = safeText(profile.display_name) || `@${profile.username}`
-  const title = `${display}`
-  const description = trunc(profile.bio ?? '', 160) || `פרופיל של ${display} ב‑Tyuta`
-  const imageUrl = profile.avatar_url ?? `${SITE_URL}/apple-touch-icon.png`
-
-  return {
-    title,
-    description,
-    alternates: { canonical },
-    openGraph: {
-      type: 'profile',
-      url: canonical,
-      title,
-      description,
-      locale: 'he_IL',
-      images: [{ url: imageUrl }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-      description,
-      images: [imageUrl],
-    },
-  }
-}
 
 /* ─────────────────────────────────────────────────────────────
    Medal Pills - shows gold/silver/bronze counts
