@@ -57,16 +57,33 @@ function hasResetGate(): boolean {
   return Boolean(window.localStorage.getItem(RESET_GATE_STORAGE_KEY)) || hasResetGateCookie()
 }
 
-function urlLooksLikeRecoveryFlow(): boolean {
-  if (typeof window === 'undefined') return false
+function getFlowTypeFromUrl(): string | null {
+  if (typeof window === 'undefined') return null
   const href = window.location.href
-  return (
-    href.includes('type=recovery') ||
-    href.includes('access_token=') ||
-    href.includes('refresh_token=') ||
-    href.includes('?code=') ||
-    href.includes('&code=')
-  )
+
+  // Check query string
+  try {
+    const url = new URL(href)
+    const queryType = url.searchParams.get('type')
+    if (queryType) return queryType
+  } catch {
+    // ignore malformed URLs
+  }
+
+  // Check hash fragment (Supabase implicit flow puts params after #)
+  const hashIndex = href.indexOf('#')
+  if (hashIndex !== -1) {
+    const hashParams = new URLSearchParams(href.slice(hashIndex + 1))
+    const hashType = hashParams.get('type')
+    if (hashType) return hashType
+  }
+
+  return null
+}
+
+function urlIsRecoveryOrInviteFlow(): boolean {
+  const flowType = getFlowTypeFromUrl()
+  return flowType === 'recovery' || flowType === 'invite'
 }
 
 function setResetGate(): void {
@@ -91,9 +108,9 @@ export default function AuthSync({ children }: Props) {
   useEffect(() => {
     let cancelled = false
 
-    // If the user landed anywhere with a recovery link (misconfigured template / redirect),
-    // activate the reset gate and force them into the reset page.
-    if (urlLooksLikeRecoveryFlow()) {
+    // If the user landed with a recovery or invite link, activate the reset gate.
+    // Signup and magiclink flows must NOT be treated as recovery.
+    if (urlIsRecoveryOrInviteFlow()) {
       setResetGate()
       if (!isResetRoute(pathname)) {
         router.replace('/auth/reset-password')
