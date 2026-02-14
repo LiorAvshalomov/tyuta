@@ -1,8 +1,8 @@
-import PostClient from "./PostClient"
 import { createClient } from "@supabase/supabase-js"
+import PostClient from "./PostClient"
 
-export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 const SITE_URL = "https://tyuta.net"
 
@@ -10,36 +10,25 @@ type PageProps = {
   params: Promise<{ slug: string }>
 }
 
-type AuthorRow = {
-  username: string | null
-  display_name: string | null
-}
-
 type PostSeoRow = {
-  slug: string
+  author_id: string
   title: string | null
   excerpt: string | null
   cover_image_url: string | null
   published_at: string | null
   updated_at: string | null
-  created_at: string
-  is_anonymous: boolean | null
-  author: AuthorRow[] | AuthorRow | null
+  author: { username: string | null; display_name: string | null }[] | null
+}
+
+type ProfileRow = {
+  username: string | null
+  display_name: string | null
 }
 
 function absUrl(pathOrUrl: string): string {
   if (pathOrUrl.startsWith("http")) return pathOrUrl
   if (!pathOrUrl.startsWith("/")) return `${SITE_URL}/${pathOrUrl}`
   return `${SITE_URL}${pathOrUrl}`
-}
-
-function pickAuthor(a: AuthorRow[] | AuthorRow | null | undefined): AuthorRow | null {
-  if (!a) return null
-  return Array.isArray(a) ? (a[0] ?? null) : a
-}
-
-function safeText(v: string | null | undefined): string {
-  return (v ?? "").trim()
 }
 
 function getServerSupabase() {
@@ -49,82 +38,102 @@ function getServerSupabase() {
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
+function pickAuthor(
+  joined: { username: string | null; display_name: string | null }[] | null,
+): { username: string | null; display_name: string | null } | null {
+  if (!joined || joined.length === 0) return null
+  return joined[0] ?? null
+}
+
 export default async function PostPage({ params }: PageProps) {
   const { slug } = await params
 
-  const supabase = getServerSupabase()
   const canonical = `${SITE_URL}/post/${encodeURIComponent(slug)}`
+  const supabase = getServerSupabase()
 
-  let jsonLd: Record<string, unknown> | null = null
+  // Always render the client page; JSON-LD is best-effort
+  if (!supabase) return <PostClient />
 
-  if (supabase) {
-    const { data } = await supabase
-      .from("posts")
-      .select(
-        "slug,title,excerpt,cover_image_url,published_at,updated_at,created_at,is_anonymous,author:profiles(username,display_name)"
-      )
-      .eq("slug", slug)
-      .eq("status", "published")
-      .is("deleted_at", null)
-      .maybeSingle<PostSeoRow>()
+  const { data } = await supabase
+    .from("posts")
+    .select(
+      `
+        author_id,
+        title,
+        excerpt,
+        cover_image_url,
+        published_at,
+        updated_at,
+        author:profiles!posts_author_id_fkey ( username, display_name )
+      `,
+    )
+    .eq("slug", slug)
+    .eq("status", "published")
+    .is("deleted_at", null)
+    .maybeSingle<PostSeoRow>()
 
-    if (data && data.published_at) {
-      const title = safeText(data.title) || "Tyuta"
-      const description = (safeText(data.excerpt) || "המקום לכל הגרסאות שלך").slice(0, 200)
-      const image = data.cover_image_url ? absUrl(data.cover_image_url) : absUrl("/apple-touch-icon.png")
+  if (!data) return <PostClient />
 
-      const a = pickAuthor(data.author)
-      const authorName = safeText(a?.display_name) || safeText(a?.username) || "Tyuta"
-      const authorUsername = safeText(a?.username)
+  const headline = (data.title ?? "").trim() || "Tyuta"
+  const description = ((data.excerpt ?? "").trim() || "המקום לכל הגרסאות שלך").slice(0, 200)
+  const image = data.cover_image_url ? absUrl(data.cover_image_url) : absUrl("/apple-touch-icon.png")
+  const datePublished = data.published_at ? new Date(data.published_at).toISOString() : undefined
+  const dateModified = (data.updated_at ?? data.published_at)
+    ? new Date((data.updated_at ?? data.published_at)!).toISOString()
+    : undefined
 
-      const datePublished = data.published_at
-      const dateModified = data.updated_at ?? data.published_at ?? data.created_at
+  // Prefer display_name from joined relation; fallback to a direct profiles fetch by author_id
+  let authorName = ""
+  let authorUsername: string | null = null
 
-      jsonLd = {
-        "@context": "https://schema.org",
-        "@type": "Article",
-        mainEntityOfPage: {
-          "@type": "WebPage",
-          "@id": canonical,
-        },
-        headline: title,
-        description,
-        image: [image],
-        datePublished,
-        dateModified,
-        inLanguage: "he-IL",
-        author: authorUsername
-          ? {
-              "@type": "Person",
-              name: authorName,
-              url: `${SITE_URL}/u/${encodeURIComponent(authorUsername)}`,
-            }
-          : {
-              "@type": "Person",
-              name: authorName,
-            },
-        publisher: {
-          "@type": "Organization",
-          name: "Tyuta",
-          url: SITE_URL,
-          logo: {
-            "@type": "ImageObject",
-            url: absUrl("/apple-touch-icon.png"),
-          },
-        },
-      }
-    }
+  const joinedAuthor = pickAuthor(data.author)
+  authorName = (joinedAuthor?.display_name ?? "").trim()
+  authorUsername = joinedAuthor?.username ?? null
+
+  if (!authorName) {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("username,display_name")
+      .eq("id", data.author_id)
+      .maybeSingle<ProfileRow>()
+
+    authorName = (prof?.display_name ?? "").trim()
+    authorUsername = prof?.username ?? authorUsername
+  }
+
+  if (!authorName) {
+    authorName = (authorUsername ?? "").trim() || "Tyuta"
+  }
+
+  const authorUrl = authorUsername ? `${SITE_URL}/u/${encodeURIComponent(authorUsername)}` : undefined
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
+    headline,
+    description,
+    image: [image],
+    datePublished,
+    dateModified,
+    author: authorUrl
+      ? { "@type": "Person", name: authorName, url: authorUrl }
+      : { "@type": "Person", name: authorName },
+    publisher: {
+      "@type": "Organization",
+      name: "Tyuta",
+      url: SITE_URL,
+      logo: { "@type": "ImageObject", url: absUrl("/apple-touch-icon.png") },
+    },
   }
 
   return (
     <>
-      {jsonLd ? (
-        <script
-          type="application/ld+json"
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      ) : null}
+      <script
+        type="application/ld+json"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <PostClient />
     </>
   )
