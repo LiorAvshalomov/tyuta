@@ -7,7 +7,7 @@ const supabase = createClient(
 )
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://tyuta.co.il" // שים כאן את הדומיין האמיתי שלך
+   const baseUrl = "https://tyuta.net"
 
   // שליפת פוסטים פומביים
   const { data: posts } = await supabase
