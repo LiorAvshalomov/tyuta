@@ -1,16 +1,16 @@
-import { supabase } from '@/lib/supabaseClient'
+import type { Metadata } from 'next'
+import { createClient } from '@supabase/supabase-js'
+
 import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
 import ProfileFollowBar from '@/components/ProfileFollowBar'
 import ProfileBottomTabsClient from '@/components/ProfileBottomTabsClient'
 import ProfileInfoCardsSection from '@/components/ProfileInfoCardsSection'
-import type { Metadata } from 'next'
 
 const SITE_URL = 'https://tyuta.net'
 
 type PageProps = {
-  params: Promise<{ username: string }>
+  params: { username: string }
 }
-
 type Profile = {
   id: string
   username: string
@@ -27,6 +27,13 @@ type Profile = {
   personal_favorite_category?: string | null
 }
 
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !anonKey) return null
+  return createClient(supabaseUrl, anonKey, { auth: { persistSession: false } })
+}
+
 function safeText(s?: string | null) {
   return (s ?? '').trim()
 }
@@ -36,9 +43,15 @@ function trunc(s: string, n: number) {
   return v.length > n ? `${v.slice(0, n - 1)}…` : v
 }
 
-export async function generateMetadata({ params }: { params: { username: string } }): Promise<Metadata> {
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const username = params.username
   const canonical = `${SITE_URL}/u/${encodeURIComponent(username)}`
+
+  const supabase = getSupabase()
+  if (!supabase) {
+    return { alternates: { canonical } }
+  }
 
   const { data: profile, error } = await supabase
     .from('profiles')
@@ -112,8 +125,17 @@ function StatPill({ label, value }: { label: string; value: number }) {
 }
 
 export default async function PublicProfilePage({ params }: PageProps) {
-  const { username } = await params
+  const username = params.username
 
+  const supabase = getSupabase()
+  if (!supabase) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10" dir="rtl">
+        <h1 className="text-2xl font-bold">שגיאת מערכת</h1>
+        <p className="mt-2 text-sm text-muted-foreground">לא ניתן להתחבר כרגע.</p>
+      </div>
+    )
+  }
   const { data: profile, error: pErr } = await supabase
     .from('profiles')
     .select(
