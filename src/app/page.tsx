@@ -455,23 +455,23 @@ function RecentMiniRow({ post }: { post: CardPost }) {
                 </p>
               ) : null}
             </div>
-            <div className="mt-1 text-[12px] text-gray-500 flex items-center justify-between">
+            <div className="mt-1 text-[12px] text-gray-500 flex items-center justify-between flex-nowrap min-w-0">
               {post.author_username ? (
                 <Link
                   href={`/u/${post.author_username}`}
-                  className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto"
+                  className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto min-w-0 overflow-hidden"
                 >
                   <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
                   <span className="font-semibold transition-colors group-hover/author:text-neutral-900 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{truncateText(post.author_name, 8)}</span>
                 </Link>
               ) : (
-                <div className="inline-flex items-center gap-2">
+                <div className="inline-flex items-center gap-2 min-w-0 overflow-hidden">
                   <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
                   <span className="font-semibold truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{truncateText(post.author_name, 8)}</span>
                 </div>
               )}
 
-              <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+              <span className="shrink-0 whitespace-nowrap" title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
             </div>
           </div>
         </div>
