@@ -85,9 +85,9 @@ export default function FollowButton({
       className={[
         base,
         isFollowing
-          ? 'border bg-white hover:bg-neutral-50'
-          : 'bg-black text-white hover:bg-black/90',
-        loading ? 'opacity-60 cursor-not-allowed' : '',
+            ? 'border bg-white hover:bg-neutral-50 text-black'
+            : '!bg-black !text-white hover:!bg-black/90 hover:!text-white',
+          loading ? 'opacity-60 cursor-not-allowed' : '',
       ].join(' ')}
     >
       {isFollowing ? 'הסר מעקב' : 'עקוב'}
