@@ -3,105 +3,107 @@ import { createClient } from "@supabase/supabase-js"
 
 export const revalidate = 3600 // שעה
 
-type SitemapPostRow = {
-  slug: string
-  author_id: string
+type PostWithAuthorRow = {
+  slug: string | null
   published_at: string | null
   updated_at: string | null
-}
-
-type SitemapProfileRow = {
-  id: string
-  username: string | null
-  updated_at: string | null
+  // Supabase returns relations sometimes as arrays depending on schema introspection.
+  // We model it as an array and take the first element.
+  author: { username: string | null; updated_at: string | null }[] | null
 }
 
 function pickLastModified(p: { published_at: string | null; updated_at: string | null }): string | undefined {
   return (p.published_at ?? p.updated_at) ?? undefined
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { persistSession: false } }
-)
+function getAuthor(row: PostWithAuthorRow): { username: string | null; updated_at: string | null } | null {
+  if (!row.author || row.author.length === 0) return null
+  return row.author[0] ?? null
+}
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://tyuta.net"
   const nowIso = new Date().toISOString()
 
-  // 1) Published posts only (public content)
-  const { data: postsData, error: postsErr } = await supabase
+  // אם אין Service Role בפרודקשן – נחזיר sitemap בסיסי כדי לא להפיל את הדף
+  if (!supabaseUrl || !serviceRole) {
+    return [
+      { url: baseUrl, lastModified: nowIso, changeFrequency: "daily", priority: 1 },
+      { url: `${baseUrl}/about`, changeFrequency: "monthly", priority: 0.4 },
+      { url: `${baseUrl}/terms`, changeFrequency: "yearly", priority: 0.2 },
+      { url: `${baseUrl}/privacy`, changeFrequency: "yearly", priority: 0.2 },
+      { url: `${baseUrl}/contact`, changeFrequency: "yearly", priority: 0.2 },
+    ]
+  }
+
+  const admin = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } })
+
+  // פוסטים פומביים + join ל-author (profiles) כדי להוציא usernames בלי לשאול profiles בנפרד
+  const { data, error } = await admin
     .from("posts")
-    .select("slug,author_id,published_at,updated_at")
+    .select(
+      `
+        slug,
+        published_at,
+        updated_at,
+        author:profiles!posts_author_id_fkey ( username, updated_at )
+      `
+    )
     .is("deleted_at", null)
-    .not("published_at", "is", null)
+    .eq("status", "published")
     .order("published_at", { ascending: false })
 
-  if (postsErr) {
-    // Keep sitemap alive even if DB fails
+  if (error || !data) {
     return [{ url: baseUrl, lastModified: nowIso, changeFrequency: "daily", priority: 1 }]
   }
 
-  const posts = (postsData ?? []) as SitemapPostRow[]
+  const rows = data as unknown as PostWithAuthorRow[]
 
-  const postUrls: MetadataRoute.Sitemap = posts
-    .filter((p) => typeof p.slug === "string" && p.slug.trim().length > 0)
-    .map((p) => ({
-      url: `${baseUrl}/post/${p.slug}`,
-      lastModified: pickLastModified(p),
+  // Posts in sitemap
+  const postUrls: MetadataRoute.Sitemap = rows
+    .filter((r) => typeof r.slug === "string" && r.slug.trim().length > 0)
+    .map((r) => ({
+      url: `${baseUrl}/post/${r.slug}`,
+      lastModified: pickLastModified({ published_at: r.published_at, updated_at: r.updated_at }),
       changeFrequency: "weekly",
       priority: 0.8,
     }))
 
-  // 2) Build authorId -> lastModified map from public posts (so we only include profiles that matter)
-  const authorLast: Record<string, string> = {}
-  for (const p of posts) {
-    if (!p.author_id) continue
-    const lm = pickLastModified(p)
-    if (!lm) continue
-    const prev = authorLast[p.author_id]
-    if (!prev || new Date(lm).getTime() > new Date(prev).getTime()) {
-      authorLast[p.author_id] = lm
+  // Profiles from posts authors (dedupe)
+  const profileMap = new Map<string, string | undefined>() // username -> lastModified
+
+  for (const r of rows) {
+    const author = getAuthor(r)
+    const username = author?.username?.trim() ?? ""
+    if (!username) continue
+
+    const postLm = pickLastModified({ published_at: r.published_at, updated_at: r.updated_at })
+    const authorLm = author?.updated_at ?? undefined
+
+    let lastModified: string | undefined = postLm ?? authorLm
+    if (postLm && authorLm) {
+      lastModified = new Date(postLm).getTime() > new Date(authorLm).getTime() ? postLm : authorLm
+    }
+
+    const prev = profileMap.get(username)
+    if (!prev) {
+      profileMap.set(username, lastModified)
+      continue
+    }
+    if (lastModified && new Date(lastModified).getTime() > new Date(prev).getTime()) {
+      profileMap.set(username, lastModified)
     }
   }
 
-  const authorIds = Object.keys(authorLast)
-
-  // If no public posts, no public profiles in sitemap
-  let profileUrls: MetadataRoute.Sitemap = []
-
-  if (authorIds.length > 0) {
-    // Pull only the profiles that have published posts
-    const { data: profilesData, error: profilesErr } = await supabase
-      .from("profiles")
-      .select("id,username,updated_at")
-      .in("id", authorIds)
-
-    if (!profilesErr) {
-      const profiles = (profilesData ?? []) as SitemapProfileRow[]
-
-      profileUrls = profiles
-        .filter((p) => typeof p.username === "string" && p.username.trim().length > 0)
-        .map((p) => {
-          const username = (p.username ?? "").trim()
-          const postLm = authorLast[p.id]
-          const profileLm = p.updated_at ?? undefined
-
-          let lastModified: string | undefined = postLm ?? profileLm
-          if (postLm && profileLm) {
-            lastModified = new Date(postLm).getTime() > new Date(profileLm).getTime() ? postLm : profileLm
-          }
-
-          return {
-            url: `${baseUrl}/u/${encodeURIComponent(username)}`,
-            lastModified,
-            changeFrequency: "weekly",
-            priority: 0.6,
-          }
-        })
-    }
-  }
+  const profileUrls: MetadataRoute.Sitemap = Array.from(profileMap.entries()).map(([username, lastModified]) => ({
+    url: `${baseUrl}/u/${encodeURIComponent(username)}`,
+    lastModified,
+    changeFrequency: "weekly",
+    priority: 0.6,
+  }))
 
   return [
     { url: baseUrl, lastModified: nowIso, changeFrequency: "daily", priority: 1 },
