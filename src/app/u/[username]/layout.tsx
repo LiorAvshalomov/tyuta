@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
 
   if (error || !data) {
     return {
-      title: "פרופיל לא נמצא | Tyuta",
+      title: "פרופיל לא נמצא",
       alternates: { canonical },
       robots: { index: false, follow: false },
       openGraph: { type: "website", url: canonical },
@@ -57,19 +57,19 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     }
   }
 
+  // IMPORTANT: do NOT append " | Tyuta" here if RootLayout already uses title.template
   const name = (data.display_name ?? "").trim() || `@${data.username}`
-  const title = `${name} | Tyuta`
   const description = ((data.bio ?? "").trim() || "פרופיל משתמש ב‑Tyuta").slice(0, 200)
   const image = data.avatar_url ? absUrl(data.avatar_url) : absUrl("/apple-touch-icon.png")
 
   return {
-    title,
+    title: name,
     description,
     alternates: { canonical },
     openGraph: {
       type: "profile",
       url: canonical,
-      title,
+      title: `${name} | Tyuta`, // OG title can include brand safely (doesn't affect browser tab template)
       description,
       siteName: "Tyuta",
       locale: "he_IL",
@@ -77,7 +77,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     },
     twitter: {
       card: "summary",
-      title,
+      title: `${name} | Tyuta`,
       description,
       images: [image],
     },
