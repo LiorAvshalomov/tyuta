@@ -480,8 +480,8 @@ export default function NotificationsBell() {
   // Close when other header UI opens (hamburger / dropdowns) or on route changes.
   useEffect(() => {
     const onClose = () => setOpen(false)
-    window.addEventListener('pendemic:close-notifications', onClose as EventListener)
-    return () => window.removeEventListener('pendemic:close-notifications', onClose as EventListener)
+    window.addEventListener('tyuta:close-notifications', onClose as EventListener)
+    return () => window.removeEventListener('tyuta:close-notifications', onClose as EventListener)
   }, [])
 
   useEffect(() => {
@@ -530,7 +530,7 @@ export default function NotificationsBell() {
       const token = makeShortToken()
       // sessionStorage only (requirement): short token in URL, full list stored here.
       window.sessionStorage.setItem(
-        `pendemic:comment-highlight:${token}`,
+        `tyuta:comment-highlight:${token}`,
         JSON.stringify({ ids: commentIds, ts: Date.now() })
       )
       return token
@@ -876,8 +876,8 @@ const token = storeHighlightToken(ids)
           setOpen(next)
           if (next) {
             if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('pendemic:close-mobile-menu'))
-              window.dispatchEvent(new CustomEvent('pendemic:close-header-dropdowns'))
+              window.dispatchEvent(new CustomEvent('tyuta:close-mobile-menu'))
+              window.dispatchEvent(new CustomEvent('tyuta:close-header-dropdowns'))
             }
             void load()
           }

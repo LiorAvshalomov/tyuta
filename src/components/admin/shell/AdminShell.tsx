@@ -84,9 +84,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         {/* Logo / Brand */}
         <div className="flex h-14 items-center gap-2 border-b border-neutral-200 px-5">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-black text-white">
-            P
+            T
           </div>
-          <span className="text-sm font-bold text-neutral-900">PenDemic Admin</span>
+          <span className="text-sm font-bold text-neutral-900">Tyuta Admin</span>
         </div>
 
         {/* Navigation */}
@@ -165,7 +165,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 <div className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-black text-white">
                   P
                 </div>
-                <span className="text-sm font-bold text-neutral-900">PenDemic Admin</span>
+                <span className="text-sm font-bold text-neutral-900">Tyuta Admin</span>
               </div>
               <button
                 type="button"

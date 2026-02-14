@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import NotificationsBell from "@/components/NotificationsBell"
 import { broadcastAuthEvent, setAuthState } from '@/lib/auth/authEvents'
+import { truncateText } from '@/lib/validation'
 
 
 type MiniUser = {
@@ -177,7 +178,7 @@ export default function SiteHeader() {
     setMobileProfileOpen(false)
     // Also close notifications overlay if open.
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('pendemic:close-notifications'))
+      window.dispatchEvent(new CustomEvent('tyuta:close-notifications'))
     }
   }, [])
 
@@ -194,11 +195,11 @@ export default function SiteHeader() {
       setMessagesOpen(false)
     }
 
-    window.addEventListener('pendemic:close-mobile-menu', onCloseMobile as EventListener)
-    window.addEventListener('pendemic:close-header-dropdowns', onCloseDropdowns as EventListener)
+    window.addEventListener('tyuta:close-mobile-menu', onCloseMobile as EventListener)
+    window.addEventListener('tyuta:close-header-dropdowns', onCloseDropdowns as EventListener)
     return () => {
-      window.removeEventListener('pendemic:close-mobile-menu', onCloseMobile as EventListener)
-      window.removeEventListener('pendemic:close-header-dropdowns', onCloseDropdowns as EventListener)
+      window.removeEventListener('tyuta:close-mobile-menu', onCloseMobile as EventListener)
+      window.removeEventListener('tyuta:close-header-dropdowns', onCloseDropdowns as EventListener)
     }
   }, [])
 
@@ -464,7 +465,7 @@ export default function SiteHeader() {
                 <button
                   onClick={() => {
                     if (typeof window !== 'undefined') {
-                      window.dispatchEvent(new CustomEvent('pendemic:close-notifications'))
+                      window.dispatchEvent(new CustomEvent('tyuta:close-notifications'))
                     }
                     setMobileMenuOpen(v => !v)
                   }}
@@ -674,7 +675,7 @@ export default function SiteHeader() {
                       className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 px-2 py-1.5 transition-all"
                     >
                       <Avatar src={user.avatarUrl} name={user.displayName} size={26} />
-                      <span className="text-sm font-semibold">{user.displayName}</span>
+                      <span className="text-sm font-semibold">{truncateText(user.displayName, 13)}</span>
                       <ChevronDown
                         size={15}
                         strokeWidth={2.5}

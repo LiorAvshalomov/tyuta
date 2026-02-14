@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { slugifyUsername } from '@/lib/auth'
+import { USERNAME_MAX, DISPLAY_NAME_MAX } from '@/lib/validation'
 import Avatar from '@/components/Avatar'
 import AvatarUpload from '@/components/AvatarUpload'
 
@@ -14,19 +16,7 @@ type ProfileRow = {
   bio: string | null
 }
 
-function slugifyUsername(input: string) {
-  // only a-z 0-9 _
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '')
-    .slice(0, 25)
-}
-
 const BIO_MAX = 120
-const DISPLAY_NAME_MAX = 25
-const USERNAME_MAX = 25
 
 export default function ProfileSettingsPage() {
   const router = useRouter()

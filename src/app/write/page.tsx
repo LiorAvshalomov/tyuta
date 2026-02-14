@@ -79,7 +79,7 @@ function snapshotOf(opts: {
 
 declare global {
   interface Window {
-    __PENDEMIC_UNSAVED__?: { enabled: boolean; message: string }
+    __TYUTA_UNSAVED__?: { enabled: boolean; message: string }
   }
 }
 
@@ -247,13 +247,13 @@ export default function WritePage() {
   // Expose a global guard so navbar button-driven navigations can respect it.
   useEffect(() => {
     if (typeof window === 'undefined') return
-    window.__PENDEMIC_UNSAVED__ = {
+    window.__TYUTA_UNSAVED__ = {
       enabled: shouldWarnNavigation,
       message: 'יש לך שינויים שלא נשמרו. לצאת בכל זאת?',
     }
     return () => {
       // don't force-disable; just mark disabled when unmount
-      window.__PENDEMIC_UNSAVED__ = { enabled: false, message: '' }
+      window.__TYUTA_UNSAVED__ = { enabled: false, message: '' }
     }
   }, [shouldWarnNavigation])
 

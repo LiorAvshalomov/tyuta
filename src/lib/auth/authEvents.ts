@@ -1,7 +1,32 @@
 export type AuthBroadcastEventType = 'SIGNED_OUT' | 'TOKEN_REFRESH_FAILED'
 
-const AUTH_EVENT_KEY = 'pendemic:auth:event'
-const AUTH_STATE_KEY = 'pendemic:auth:state'
+const AUTH_EVENT_KEY = 'tyuta:auth:event'
+const AUTH_STATE_KEY = 'tyuta:auth:state'
+
+// Legacy keys for backward-compat migration
+const LEGACY_AUTH_EVENT_KEY = 'pendemic:auth:event'
+const LEGACY_AUTH_STATE_KEY = 'pendemic:auth:state'
+
+/** One-time migration: copy legacy pendemic:* auth keys to tyuta:* and remove old ones */
+function migrateAuthKeys(): void {
+  try {
+    const pairs: [string, string][] = [
+      [LEGACY_AUTH_EVENT_KEY, AUTH_EVENT_KEY],
+      [LEGACY_AUTH_STATE_KEY, AUTH_STATE_KEY],
+    ]
+    for (const [oldK, newK] of pairs) {
+      const v = localStorage.getItem(oldK)
+      if (v != null && localStorage.getItem(newK) == null) {
+        localStorage.setItem(newK, v)
+      }
+      localStorage.removeItem(oldK)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+if (typeof window !== 'undefined') migrateAuthKeys()
 
 type AuthBroadcastPayload = {
   type: AuthBroadcastEventType

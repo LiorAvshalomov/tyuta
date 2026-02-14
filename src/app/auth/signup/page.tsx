@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import AuthLayout from '@/components/AuthLayout'
 import { isUsernameTaken, signUp, slugifyUsername } from '@/lib/auth'
 import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
+import { USERNAME_MAX, DISPLAY_NAME_MAX } from '@/lib/validation'
 
 const WITTY = [
   'פותחים דף חדש.',
@@ -25,8 +26,7 @@ export default function SignupPage() {
   const [err, setErr] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
-  // Keep username slug stable and enforce the same 25-char limit used in UI.
-  const normalizedUsername = useMemo(() => slugifyUsername(username).slice(0, 25), [username])
+  const normalizedUsername = useMemo(() => slugifyUsername(username).slice(0, USERNAME_MAX), [username])
 
   // NOTE: must be deterministic on the first render to avoid SSR hydration mismatch.
   const [lineIdx, setLineIdx] = useState(0)
@@ -48,9 +48,9 @@ export default function SignupPage() {
     const un = normalizedUsername
 
     if (!dn) return setErr('אנא הזן/י שם תצוגה')
-    if (dn.length > 25) return setErr('שם תצוגה יכול להיות עד 25 תווים')
+    if (dn.length > DISPLAY_NAME_MAX) return setErr(`שם תצוגה יכול להיות עד ${DISPLAY_NAME_MAX} תווים`)
     if (!un || un.length < 3) return setErr('שם משתמש חייב להיות לפחות 3 תווים (a-z, 0-9, _)')
-    if (un.length > 25) return setErr('שם משתמש יכול להיות עד 25 תווים')
+    if (un.length > USERNAME_MAX) return setErr(`שם משתמש יכול להיות עד ${USERNAME_MAX} תווים`)
     if (!email.trim() || !password) return setErr('אנא מלא/י אימייל וסיסמה')
 
     const pwCheck = validatePassword(password)
@@ -100,10 +100,10 @@ export default function SignupPage() {
               value={displayName}
               onChange={e => setDisplayName(e.target.value)}
               placeholder="למשל: lior / ליאור / אנונימי"
-              maxLength={25}
+              maxLength={DISPLAY_NAME_MAX}
               required
             />
-            
+
           </div>
 
           <div className="space-y-1">
@@ -113,7 +113,7 @@ export default function SignupPage() {
               value={username}
               onChange={e => setUsername(e.target.value)}
               placeholder="book_writer_12"
-              maxLength={25}
+              maxLength={USERNAME_MAX}
               required
             />
             

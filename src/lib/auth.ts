@@ -1,13 +1,14 @@
 import { supabase } from '@/lib/supabaseClient'
 
+import { USERNAME_MAX } from '@/lib/validation'
+
 export function slugifyUsername(input: string) {
   return input
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9_]/g, '')
-    // Keep usernames short to avoid layout breaks across the product.
-    .slice(0, 25)
+    .slice(0, USERNAME_MAX)
 }
 
 export async function signIn(email: string, password: string) {

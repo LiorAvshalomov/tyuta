@@ -1,4 +1,4 @@
-# CLAUDE.md - PenDemic Project Guide
+# CLAUDE.md - Tyuta Project Guide
 
 ## Architecture
 

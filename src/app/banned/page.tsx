@@ -123,7 +123,7 @@ export default function BannedPage() {
       <div className="w-full max-w-xl">
         <div className="rounded-3xl border border-red-500/25 bg-red-500/10 p-7 shadow-2xl">
           <div className="text-xs font-semibold tracking-widest text-red-200/80">
-            PENDEMIC · SYSTEM NOTICE
+            TYUTA · SYSTEM NOTICE
           </div>
 
           <h1 className="mt-3 text-2xl sm:text-3xl font-black text-red-100">
