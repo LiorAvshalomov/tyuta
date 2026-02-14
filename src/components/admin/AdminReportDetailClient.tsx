@@ -31,6 +31,7 @@ type Report = {
   id: string
   created_at: string
   category: string
+  reason_code: string | null
   details: string | null
   status: 'open' | 'resolved'
   resolved_at: string | null
@@ -74,6 +75,23 @@ function fmtDateTime(iso?: string | null) {
   return d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })
 }
 
+function reasonLabelFromCode(code?: string | null) {
+  switch (code) {
+    case 'abusive_language':
+      return 'שפה פוגענית / הקנטה'
+    case 'spam_promo':
+      return 'ספאם / פרסום'
+    case 'hate_incitement':
+      return 'שנאה / הסתה'
+    case 'privacy_exposure':
+      return 'חשיפת מידע אישי'
+    case 'other':
+      return 'אחר'
+    default:
+      return null
+  }
+}
+
 function isPostReport(details?: string | null) {
   return !!details && /\bentity:\s*post\b/i.test(details)
 }
@@ -83,6 +101,28 @@ function parseDetailValue(details: string | null | undefined, key: string) {
   const re = new RegExp(`^${key}:\\s*(.+)$`, 'm')
   const m = details.match(re)
   return m ? m[1].trim() : null
+}
+
+function extractUserWrittenDetails(details: string | null | undefined) {
+  if (!details) return null
+  const lines = details
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+
+  // Remove our structured metadata lines so we can display what the user actually wrote.
+  const cleaned = lines.filter((l) => {
+    const low = l.toLowerCase()
+    if (low.startsWith('entity:')) return false
+    if (low.startsWith('post:')) return false
+    if (low.startsWith('post_title:')) return false
+    if (low.startsWith('title:')) return false
+    if (low.startsWith('reason_label:')) return false
+    return true
+  })
+
+  const txt = cleaned.join('\n').trim()
+  return txt.length ? txt : null
 }
 
 function parsePostSlug(details?: string | null) {
@@ -226,6 +266,14 @@ export default function AdminReportDetailClient({
               <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
                 {report.category}
               </span>
+              {(() => {
+                const reason = reasonLabelFromCode(report.reason_code) || parseDetailValue(report.details, 'reason_label')
+                return reason ? (
+                  <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                    {reason}
+                  </span>
+                ) : null
+              })()}
               <span className="text-xs text-neutral-400">{fmtDateTime(report.created_at)}</span>
               {report.status === 'open' ? (
                 <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
@@ -293,18 +341,33 @@ export default function AdminReportDetailClient({
                 <FileText size={12} />
                 ציטוט / פרטים
               </div>
-              <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">
-                {isPostReport(report.details)
-                  ? (parseDetailValue(report.details, 'post_title')
-                      ? `${parseDetailValue(report.details, 'post_title')}`
-                      : (report.message_excerpt || report.details || '—'))
-                  : (report.message_excerpt || report.details || '—')}
-              </div>
-              {isPostReport(report.details) && report.message_excerpt ? (
-                <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">
-                  {report.message_excerpt}
+              {isPostReport(report.details) ? (
+                <div className="mt-2 space-y-2">
+                  <div className="whitespace-pre-wrap text-sm font-bold text-neutral-900">
+                    {parseDetailValue(report.details, 'post_title') || 'ללא כותרת'}
+                  </div>
+
+                  {report.message_excerpt ? (
+                    <div className="whitespace-pre-wrap text-sm text-neutral-700">
+                      {report.message_excerpt}
+                    </div>
+                  ) : null}
+
+                  {(() => {
+                    const userTxt = extractUserWrittenDetails(report.details)
+                    return userTxt ? (
+                      <div className="rounded-lg border border-neutral-200 bg-white p-3">
+                        <div className="text-[11px] font-bold text-neutral-500">מה המשתמש כתב</div>
+                        <div className="mt-1 whitespace-pre-wrap text-sm text-neutral-800">{userTxt}</div>
+                      </div>
+                    ) : null
+                  })()}
                 </div>
-              ) : null}
+              ) : (
+                <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">
+                  {report.message_excerpt || report.details || '—'}
+                </div>
+              )}
               {isPostReport(report.details) && (() => {
                 const slug = parsePostSlug(report.details)
                 return slug ? (

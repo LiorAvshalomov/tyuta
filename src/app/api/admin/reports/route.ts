@@ -30,6 +30,7 @@ export async function GET(req: Request) {
         id,
         created_at,
         category,
+        reason_code,
         details,
         status,
         resolved_at,
@@ -49,7 +50,7 @@ export async function GET(req: Request) {
   if (error) return adminError(error.message, 500, "db_error")
 
   type ReportRow = {
-    id: string; created_at: string; category: string; details: string | null;
+    id: string; created_at: string; category: string; reason_code: string | null; details: string | null;
     status: string; resolved_at: string | null; reporter_id: string;
     reported_user_id: string; conversation_id: string | null;
     message_id: string | null; message_created_at: string | null;

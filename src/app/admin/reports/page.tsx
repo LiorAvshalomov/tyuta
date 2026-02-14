@@ -34,6 +34,7 @@ type ReportRow = {
   id: string
   created_at: string
   category?: string | null
+  reason_code?: string | null
   details?: string | null
   status?: "open" | "resolved" | string
   conversation_id?: string | null
@@ -91,6 +92,48 @@ function parseDetailValue(details: string | null | undefined, key: string) {
   const re = new RegExp(`^${key}:\\s*(.+)$`, 'm')
   const m = details.match(re)
   return m ? m[1].trim() : null
+}
+
+function extractUserWrittenDetails(details: string | null | undefined) {
+  if (!details) return null
+  const lines = details
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+
+  const cleaned = lines.filter((l) => {
+    const low = l.toLowerCase()
+    if (low.startsWith('entity:')) return false
+    if (low.startsWith('post:')) return false
+    if (low.startsWith('post_title:')) return false
+    if (low.startsWith('title:')) return false
+    if (low.startsWith('reason_label:')) return false
+    return true
+  })
+
+  const txt = cleaned.join('\n').trim()
+  return txt.length ? txt : null
+}
+
+function reasonLabelFromCode(code?: string | null) {
+  switch (code) {
+    case 'abusive_language':
+      return 'שפה פוגענית / הקנטה'
+    case 'spam_promo':
+      return 'ספאם / פרסום'
+    case 'hate_incitement':
+      return 'שנאה / הסתה'
+    case 'privacy_exposure':
+      return 'חשיפת מידע אישי'
+    case 'other':
+      return 'אחר'
+    default:
+      return null
+  }
+}
+
+function reportReasonLabel(r: ReportRow) {
+  return reasonLabelFromCode(r.reason_code) || parseDetailValue(r.details, 'reason_label')
 }
 
 function fmtName(p: MiniProfile | null | undefined, fallback?: string | null) {
@@ -240,6 +283,15 @@ export default function ReportsPage() {
                     <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
                       {r.category || "כללי"}
                     </span>
+                    {(() => {
+                      const reason = reportReasonLabel(r)
+                      return reason ? (
+                        <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                          {reason}
+                        </span>
+                      ) : null
+                    })()}
+
                     <span className="text-xs text-neutral-400">{when}</span>
                   </div>
                   <span
@@ -293,6 +345,14 @@ export default function ReportsPage() {
                         {r.message_excerpt ? (
                           <div className="line-clamp-3 whitespace-pre-wrap">{r.message_excerpt}</div>
                         ) : null}
+                        {(() => {
+                          const userTxt = extractUserWrittenDetails(r.details)
+                          return userTxt ? (
+                            <div className="line-clamp-2 whitespace-pre-wrap text-[13px] text-neutral-600">
+                              {userTxt}
+                            </div>
+                          ) : null
+                        })()}
                       </div>
                     ) : (
                       <div className="line-clamp-3 whitespace-pre-wrap">{r.message_excerpt || r.message_preview}</div>
