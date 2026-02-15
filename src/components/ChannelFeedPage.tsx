@@ -525,6 +525,7 @@ export default async function ChannelFeedPage({
   })
 
   const cardPosts = cardPostsAll.filter(p => p.channel_slug === channelSlug)
+  const hasAnyPosts = cardPosts.length > 0
   const byRecent = [...cardPosts].sort(
     (a, b) => new Date(getPostDisplayDate(b)).getTime() - new Date(getPostDisplayDate(a)).getTime()
   )
@@ -593,6 +594,8 @@ export default async function ChannelFeedPage({
           ) : null}
         </div>
 
+        {hasAnyPosts ? (
+        <>
         {/* A) TOP 3 POSTS */}
         <div className="flex flex-col gap-4 lg:flex-row"dir="rtl">
           <div className="lg:w-1/2">{featured ? <FeaturedTopCard post={featured} /> : null}</div>
@@ -646,6 +649,11 @@ export default async function ChannelFeedPage({
                       </div>
                     )
                   })}
+                  {subcategories.every(sc => !byRecent.some(p => p.subcategory_name === sc)) && (
+                    <div className="rounded-2xl border border-black/10 bg-white/60 p-6 text-center">
+                      <div className="text-sm font-bold text-gray-800">אין עדיין פוסטים בתת־קטגוריות.</div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div>
@@ -701,6 +709,13 @@ export default async function ChannelFeedPage({
             </section>
           </StickySidebar>
         </div>
+        </>
+        ) : (
+          <div className="rounded-2xl border border-black/10 bg-white/60 p-8 text-center">
+            <div className="text-lg font-black text-gray-800">אין עדיין פוסטים בקטגוריית {channelName}</div>
+            <div className="mt-2 text-sm text-gray-600">ברגע שיפורסמו פוסטים בקטגוריה הזו, הם יופיעו כאן.</div>
+          </div>
+        )}
       </div>
     </main>
   )
