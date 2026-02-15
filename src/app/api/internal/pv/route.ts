@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "pageview_insert_failed" }, { status: 500 })
   }
 const isProd = process.env.NODE_ENV === "production";
-  const res = NextResponse.json({ ok: true })
+  const res = NextResponse.json({ ok: true, new_session: isNewSession })
   if (isNewSession) {
 res.cookies.set("pd_sid", sessionId, {
   httpOnly: true,
