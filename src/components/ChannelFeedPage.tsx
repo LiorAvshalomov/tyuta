@@ -90,6 +90,7 @@ function CoverFrame({
   rounded = 'rounded',
   alt = '',
   sizes,
+  quality,
 }: {
   src: string | null
   w: number
@@ -97,6 +98,7 @@ function CoverFrame({
   rounded?: string
   alt?: string
   sizes?: string
+  quality?: number
 }) {
   if (!src || !src.trim()) {
     return <div className={`${rounded} border bg-neutral-100`} style={{ width: w, height: h }} />
@@ -108,6 +110,7 @@ function CoverFrame({
         alt={alt}
         fill
         sizes={sizes ?? `${w}px`}
+        quality={quality}
         className="object-cover"
       />
     </div>
@@ -180,7 +183,7 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
 
         <div className="mt-2 flex flex-1 items-start justify-end">
           <Link href={`/post/${post.slug}`} className="inline-block">
-            <CoverFrame src={post.cover_image_url} w={400} h={280} rounded="rounded" alt={post.title} sizes="(max-width: 768px) 100vw, 400px"/>
+            <CoverFrame src={post.cover_image_url} w={400} h={280} rounded="rounded" alt={post.title} sizes="(max-width: 768px) 100vw, 400px" quality={85}/>
           </Link>
         </div>
 
@@ -208,7 +211,7 @@ function SmallTopCard({ post }: { post: CardPost }) {
       <div className="flex h-full flex-col">
         <div className="flex flex-row-reverse items-start gap-3">
           <Link href={`/post/${post.slug}`} className="inline-block">
-            <CoverFrame src={post.cover_image_url} w={220} h={150} rounded="rounded" alt={post.title}/>
+            <CoverFrame src={post.cover_image_url} w={220} h={150} rounded="rounded" alt={post.title} quality={85}/>
           </Link>
 
           <div className="min-w-0 flex-1 text-right">
@@ -273,7 +276,7 @@ function ListRow({ post }: { post: CardPost }) {
     <article className="rounded border bg-white p-3 shadow-sm hover:shadow-md">
       <div className="flex flex-row-reverse items-start gap-3">
         <Link href={`/post/${post.slug}`} className="inline-block">
-          <CoverFrame src={post.cover_image_url} w={165} h={110} rounded="rounded" alt={post.title}/>
+          <CoverFrame src={post.cover_image_url} w={165} h={110} rounded="rounded" alt={post.title} quality={85}/>
         </Link>
 
         <div className="min-w-0 flex-1">
@@ -346,7 +349,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
     <div className="flex flex-col rounded border bg-white p-2 hover:shadow-sm">
       <Link href={`/post/${post.slug}`} className="block">
         <div className="flex flex-row-reverse items-stretch gap-2">
-          <CoverFrame src={post.cover_image_url} w={72} h={72} rounded="rounded" alt={post.title}/>
+          <CoverFrame src={post.cover_image_url} w={72} h={72} rounded="rounded" alt={post.title} sizes="(max-width: 640px) 100px, 120px" quality={90}/>
           <div className="min-w-0 flex-1 flex flex-col">
             <div className="text-xs font-bold leading-snug line-clamp-2">{post.title}</div>
             <MedalsCompact medals={post.medals} />

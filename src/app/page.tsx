@@ -96,7 +96,12 @@ function Avatar({
       title={name}
     >
       {url ? (
-        <Image src={url} alt={name} fill sizes="48px" className="object-cover" />
+        url.includes('api.dicebear.com') || url.includes('/svg') || url.endsWith('.svg') ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={name} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <Image src={url} alt={name} fill sizes="48px" className="object-cover" />
+        )
       ) : (
         <span style={{ fontSize: Math.max(12, Math.floor(size / 2.4)) }}>{initials}</span>
       )}
@@ -180,6 +185,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
                   fill
                   priority
                   sizes="(max-width: 768px) 100vw, 50vw"
+                  quality={85}
                   className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                 />
               ) : null}
@@ -260,7 +266,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
       <Link href={`/post/${post.slug}`} className="block">
         <div className="relative aspect-[4/3] bg-gray-100">
           {post.cover_image_url ? (
-            <Image src={post.cover_image_url} alt={post.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
+            <Image src={post.cover_image_url} alt={post.title} fill sizes="(max-width: 768px) 100vw, 33vw" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
           ) : null}
         </div>
       </Link>
@@ -351,6 +357,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
                     alt={post.title}
                     fill
                     sizes="(max-width: 640px) 136px, 168px"
+                    quality={85}
                     className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                   />
                 ) : null}
@@ -456,7 +463,8 @@ function RecentMiniRow({ post }: { post: CardPost }) {
                     src={post.cover_image_url}
                     alt={post.title}
                     fill
-                    sizes="94px"
+                    sizes="(max-width: 640px) 120px, 140px"
+                    quality={90}
                     className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                   />
                 ) : null}
@@ -936,9 +944,10 @@ export default async function HomePage(props: HomePageProps = {}) {
   const recentMini = recentPosts.slice(0, 8)
 
   // Home fallback: if weekly ranking returns no posts (e.g., zero reactions this week), fill category sections from recent posts.
-  const storiesFinal = stories.length > 0 ? stories : recentPosts.filter(p => p.channel_slug === 'stories').slice(0, 5)
-  const releaseFinal = release.length > 0 ? release : recentPosts.filter(p => p.channel_slug === 'release').slice(0, 5)
-  const magazineFinal = magazine.length > 0 ? magazine : recentPosts.filter(p => p.channel_slug === 'magazine').slice(0, 5)
+  // Filter out IDs already shown in Featured / Leading posts to avoid duplicates.
+  const storiesFinal = stories.length > 0 ? stories : recentPosts.filter(p => p.channel_slug === 'stories' && !used.has(p.id)).slice(0, 5)
+  const releaseFinal = release.length > 0 ? release : recentPosts.filter(p => p.channel_slug === 'release' && !used.has(p.id)).slice(0, 5)
+  const magazineFinal = magazine.length > 0 ? magazine : recentPosts.filter(p => p.channel_slug === 'magazine' && !used.has(p.id)).slice(0, 5)
 
   // Writers of week: medals first, fallback to total weekly reactions.
   // We compute this off rankedAll (broad) and then enrich with profile info via posts.
