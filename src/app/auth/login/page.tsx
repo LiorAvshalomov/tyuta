@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import AuthLayout from '@/components/AuthLayout'
 import { signIn } from '@/lib/auth'
 import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
+import { event as gaEvent } from '@/lib/gtag'
 
 const WITTY = [
   'תן/י לזה לצאת בעדינות.',
@@ -54,6 +55,7 @@ export default function LoginPage() {
         setErr(error.message)
         return
       }
+      gaEvent('login_success')
       const next = searchParams.get('next')
       const safeNext = next && next.startsWith('/') ? next : '/'
       router.replace(safeNext)

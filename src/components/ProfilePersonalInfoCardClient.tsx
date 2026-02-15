@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { event as gaEvent } from '@/lib/gtag'
 import ProfilePersonalInfoCard from '@/components/ProfilePersonalInfoCard'
 
 type PersonalInfo = {
@@ -169,6 +170,8 @@ export default function ProfilePersonalInfoCardClient({
       setError(upErr.message)
       return
     }
+
+    gaEvent('profile_updated')
 
     setInfo(prev => ({
       ...prev,

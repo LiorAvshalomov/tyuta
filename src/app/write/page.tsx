@@ -7,6 +7,7 @@ import type { JSONContent } from '@tiptap/react'
 import Editor from '@/components/Editor'
 import Badge from '@/components/Badge'
 import { supabase } from '@/lib/supabaseClient'
+import { event as gaEvent } from '@/lib/gtag'
 
 type Channel = { id: number; name_he: string }
 type Tag = { id: number; type: 'emotion' | 'theme' | 'genre' | 'topic'; name_he: string; channel_id: number | null }
@@ -1051,6 +1052,8 @@ if (!effectiveChannelId) {
       setSaving(false)
       return
     }
+
+    gaEvent('post_published', { post_id: created.id })
 
     setSaving(false)
     router.push(`/post/${created.slug}`)

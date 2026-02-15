@@ -6,6 +6,7 @@ import AuthLayout from '@/components/AuthLayout'
 import { isUsernameTaken, signUp, slugifyUsername } from '@/lib/auth'
 import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 import { USERNAME_MAX, DISPLAY_NAME_MAX } from '@/lib/validation'
+import { event as gaEvent } from '@/lib/gtag'
 
 const WITTY = [
   'פותחים דף חדש.',
@@ -73,6 +74,7 @@ export default function SignupPage() {
         return
       }
 
+      gaEvent('signup_success')
       setMsg('נרשמת בהצלחה 🎉 אם יש אימות מייל – בדוק/י את המייל ואז אפשר להתחבר.')
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'שגיאה לא צפויה')

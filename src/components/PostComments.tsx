@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { event as gaEvent } from '@/lib/gtag'
 import Avatar from '@/components/Avatar'
 
 type AuthorMini = {
@@ -777,6 +778,8 @@ async function submitReport() {
       setErrFor(error.message)
       return
     }
+
+    gaEvent('comment_created', { post_id: postId })
 
     if (inserted?.id) {
       setItems(prev => prev.map(x => (x.id === tempId ? { ...x, id: inserted.id } : x)))
