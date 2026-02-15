@@ -90,14 +90,13 @@ function Avatar({
 
   return (
     <div
-      className="rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-black shrink-0"
+      className="relative rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-black shrink-0"
       style={{ width: size, height: size }}
       aria-label={name}
       title={name}
     >
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={name} className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
+        <Image src={url} alt={name} fill sizes="48px" className="object-cover" />
       ) : (
         <span style={{ fontSize: Math.max(12, Math.floor(size / 2.4)) }}>{initials}</span>
       )}
@@ -261,8 +260,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
       <Link href={`/post/${post.slug}`} className="block">
         <div className="relative aspect-[4/3] bg-gray-100">
           {post.cover_image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.cover_image_url} alt={post.title} className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
+            <Image src={post.cover_image_url} alt={post.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
           ) : null}
         </div>
       </Link>
@@ -348,11 +346,12 @@ function ListRowCompact({ post }: { post: CardPost }) {
             */}
               <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
                 {post.cover_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={post.cover_image_url}
                     alt={post.title}
-                    className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                    fill
+                    sizes="(max-width: 640px) 136px, 168px"
+                    className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                   />
                 ) : null}
               </div>
@@ -453,11 +452,12 @@ function RecentMiniRow({ post }: { post: CardPost }) {
             <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
               <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
                 {post.cover_image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={post.cover_image_url}
                     alt={post.title}
-                    className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                    fill
+                    sizes="94px"
+                    className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                   />
                 ) : null}
               </div>
