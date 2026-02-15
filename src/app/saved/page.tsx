@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import Avatar from '@/components/Avatar'
 
 type SavedPostRow = {
   created_at: string
@@ -71,13 +72,6 @@ function clampText(s: string | null | undefined, max: number) {
   const t = (s ?? '').trim()
   if (!t) return ''
   return t.length > max ? t.slice(0, max).trimEnd() + '…' : t
-}
-
-function initialsFromName(name: string): string {
-  const cleaned = name.trim()
-  if (!cleaned) return '∗'
-  // Take first 2 characters (works okay for Hebrew/English).
-  return cleaned.slice(0, 2)
 }
 
 export default function SavedPostsPage() {
@@ -282,29 +276,12 @@ export default function SavedPostsPage() {
                               href={`/u/${authorUsername}`}
                               className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs font-semibold text-neutral-900 shadow-sm transition hover:bg-neutral-50"
                             >
-                              <span className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-full ring-1 ring-black/10">
-                                {p.author?.avatar_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={p.author.avatar_url}
-                                    alt={authorDisplay}
-                                    className="h-full w-full object-cover"
-                                  />
-                                ) : (
-                                  <span className="text-xs font-black text-neutral-700">
-                                    {initialsFromName(authorDisplay)}
-                                  </span>
-                                )}
-                              </span>
+                              <Avatar src={p.author?.avatar_url} name={authorDisplay} size={32} />
                               <span className="max-w-[110px] truncate">{authorDisplay}</span>
                             </Link>
                           ) : (
                             <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs font-semibold text-neutral-900 shadow-sm">
-                              <span className="grid h-8 w-8 place-items-center rounded-full ring-1 ring-black/10">
-                                <span className="text-xs font-black text-neutral-700">
-                                  {initialsFromName(authorDisplay)}
-                                </span>
-                              </span>
+                              <Avatar src={p.author?.avatar_url} name={authorDisplay} size={32} />
                               <span className="max-w-[110px] truncate">{authorDisplay}</span>
                             </div>
                           )}

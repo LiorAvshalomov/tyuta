@@ -18,32 +18,22 @@ export default function Avatar({
 }) {
   const safeSrc = src?.trim() ? src.trim() : null
   const radiusClass = shape === 'square' ? 'rounded-xl' : 'rounded-full'
+  const url = safeSrc ?? dicebearUrl(name)
+  const isSvg = url.toLowerCase().includes('.svg') || url.includes('/svg')
 
-  if (!safeSrc) {
-    // Fallback: DiceBear initials (consistent across the site)
-    const url = dicebearUrl(name)
-    return (
+  return (
+    <div
+      className={`relative overflow-hidden shrink-0 ${radiusClass}`}
+      style={{ width: size, height: size }}
+    >
       <Image
         src={url}
         alt={`תמונת פרופיל של ${name}`}
-        width={size}
-        height={size}
-        className={`${radiusClass} object-cover`}
-        unoptimized
+        fill
+        sizes={`${size}px`}
+        className="object-cover"
+        unoptimized={isSvg}
       />
-    )
-  }
-
-  const isSvg = safeSrc.toLowerCase().includes('.svg') || safeSrc.includes('/svg')
-
-  return (
-    <Image
-      src={safeSrc}
-      alt={`תמונת פרופיל של ${name}`}
-      width={size}
-      height={size}
-      className={`${radiusClass} object-cover`}
-      unoptimized={isSvg}
-    />
+    </div>
   )
 }

@@ -8,6 +8,7 @@ import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import HomeWriteCTA from '@/components/HomeWriteCTA'
 import StickySidebar from '@/components/StickySidebar'
 import { truncateText } from '@/lib/validation'
+import Avatar from '@/components/Avatar'
 
 
 type PostRow = {
@@ -76,39 +77,6 @@ function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
   }
   return out
 }
-
-function Avatar({
-  url,
-  name,
-  size = 36,
-}: {
-  url: string | null
-  name: string
-  size?: number
-}) {
-  const initials = name.trim().slice(0, 1) || 'P'
-
-  return (
-    <div
-      className="relative rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-black shrink-0"
-      style={{ width: size, height: size }}
-      aria-label={name}
-      title={name}
-    >
-      {url ? (
-        url.includes('api.dicebear.com') || url.includes('/svg') || url.endsWith('.svg') ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt={name} className="absolute inset-0 w-full h-full object-cover" />
-        ) : (
-          <Image src={url} alt={name} fill sizes="48px" className="object-cover" />
-        )
-      ) : (
-        <span style={{ fontSize: Math.max(12, Math.floor(size / 2.4)) }}>{initials}</span>
-      )}
-    </div>
-  )
-}
-
 
 function MedalsInline({
   medals,
@@ -198,7 +166,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
           {/* Author FIRST (as you asked) */}
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-3 min-w-0">
-              <Avatar url={post.author_avatar_url} name={post.author_name} size={40} />
+              <Avatar src={post.author_avatar_url} name={post.author_name} size={40} />
               <div className="min-w-0">
                 {post.author_username ? (
                   <Link href={`/u/${post.author_username}`} className="font-bold text-sm hover:text-sky-700 transition-colors">
@@ -305,12 +273,12 @@ function SimplePostCard({ post }: { post: CardPost }) {
         <div className="mt-auto pt-3 flex items-center justify-start gap-2 text-xs text-gray-700">
           {post.author_username ? (
             <Link href={`/u/${post.author_username}`} className="group/author inline-flex items-center gap-2">
-              <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
+              <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
               <span className="font-semibold transition-colors group-hover/author:text-sky-700">{post.author_name}</span>
             </Link>
           ) : (
             <div className="inline-flex items-center gap-2">
-              <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
+              <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
               <span className="font-semibold">{post.author_name}</span>
             </div>
           )}
@@ -410,12 +378,12 @@ function ListRowCompact({ post }: { post: CardPost }) {
                   href={`/u/${post.author_username}`}
                   className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto"
                 >
-                  <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
+                  <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
                   <span className="font-semibold transition-colors group-hover/author:text-neutral-900">{post.author_name}</span>
                 </Link>
               ) : (
                 <div className="inline-flex items-center gap-2">
-                  <Avatar url={post.author_avatar_url} name={post.author_name} size={24} />
+                  <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
                   <span className="font-semibold">{post.author_name}</span>
                 </div>
               )}
@@ -493,12 +461,12 @@ function RecentMiniRow({ post }: { post: CardPost }) {
                   href={`/u/${post.author_username}`}
                   className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto min-w-0 overflow-hidden"
                 >
-                  <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
+                  <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
                   <span className="font-semibold transition-colors group-hover/author:text-neutral-900 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{truncateText(post.author_name, 8)}</span>
                 </Link>
               ) : (
                 <div className="inline-flex items-center gap-2 min-w-0 overflow-hidden">
-                  <Avatar url={post.author_avatar_url} name={post.author_name} size={22} />
+                  <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
                   <span className="font-semibold truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{truncateText(post.author_name, 8)}</span>
                 </div>
               )}
@@ -1134,14 +1102,14 @@ export default async function HomePage(props: HomePageProps = {}) {
 
                               {w.username ? (
                                 <Link href={`/u/${w.username}`} className="group/writer inline-flex items-center gap-2 min-w-0">
-                                  <Avatar url={w.avatar_url} name={w.name} size={36} />
+                                  <Avatar src={w.avatar_url} name={w.name} size={36} />
                                   <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">
                                     {truncateText(w.name, 8)}
                                   </span>
                                 </Link>
                               ) : (
                                 <div className="inline-flex items-center gap-2 min-w-0">
-                                  <Avatar url={w.avatar_url} name={w.name} size={36} />
+                                  <Avatar src={w.avatar_url} name={w.name} size={36} />
                                   <span className="text-sm font-bold truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">{truncateText(w.name, 8)}</span>
                                 </div>
                               )}
@@ -1252,14 +1220,14 @@ export default async function HomePage(props: HomePageProps = {}) {
 
                               {w.username ? (
                                 <Link href={`/u/${w.username}`} className="group/writer inline-flex items-center gap-2 min-w-0">
-                                  <Avatar url={w.avatar_url} name={w.name} size={36} />
+                                  <Avatar src={w.avatar_url} name={w.name} size={36} />
                                   <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">
                                     {truncateText(w.name, 8)}
                                   </span>
                                 </Link>
                               ) : (
                                 <div className="inline-flex items-center gap-2 min-w-0">
-                                  <Avatar url={w.avatar_url} name={w.name} size={36} />
+                                  <Avatar src={w.avatar_url} name={w.name} size={36} />
                                   <span className="text-sm font-bold truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">{truncateText(w.name, 8)}</span>
                                 </div>
                               )}
