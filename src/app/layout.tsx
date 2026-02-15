@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Script from "next/script"
+import { Suspense } from "react"
 import { Geist, Geist_Mono, Heebo } from "next/font/google"
 import "./globals.css"
 import AuthSync from "@/components/auth/AuthSync"
@@ -132,7 +133,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ClientChrome>{children}</ClientChrome>
           </SuspensionSync>
         </AuthSync>
-        <PageTracker />
+        <Suspense fallback={null}><PageTracker /></Suspense>
       </body>
     </html>
   )
