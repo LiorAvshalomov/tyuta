@@ -7,6 +7,7 @@ import AuthSync from "@/components/auth/AuthSync"
 import SuspensionSync from "@/components/moderation/SuspensionSync"
 import ClientChrome from "@/components/ClientChrome"
 import PageTracker from "@/components/analytics/PageTracker"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const SITE_URL = "https://tyuta.net"
 
@@ -134,6 +135,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </SuspensionSync>
         </AuthSync>
         <Suspense fallback={null}><PageTracker /></Suspense>
+        <SpeedInsights />
       </body>
     </html>
   )
