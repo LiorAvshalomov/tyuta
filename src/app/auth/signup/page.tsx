@@ -2,11 +2,13 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import AuthLayout from '@/components/AuthLayout'
 import { isUsernameTaken, signUp, slugifyUsername } from '@/lib/auth'
 import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 import { USERNAME_MAX, DISPLAY_NAME_MAX } from '@/lib/validation'
 import { event as gaEvent } from '@/lib/gtag'
+import { supabase } from '@/lib/supabaseClient'
 
 const WITTY = [
   'פותחים דף חדש.',
@@ -19,6 +21,7 @@ const WITTY = [
 ]
 
 export default function SignupPage() {
+  const router = useRouter()
   const [displayName, setDisplayName] = useState('')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -28,6 +31,21 @@ export default function SignupPage() {
   const [msg, setMsg] = useState<string | null>(null)
 
   const normalizedUsername = useMemo(() => slugifyUsername(username).slice(0, USERNAME_MAX), [username])
+
+  // After successful signup, poll for session (email confirmation in another tab) and redirect
+  useEffect(() => {
+    if (!msg) return
+    let cancelled = false
+    const t = window.setInterval(async () => {
+      const { data } = await supabase.auth.getSession()
+      const session = data.session
+      if (cancelled) return
+      if (session?.user?.id) {
+        router.replace('/')
+      }
+    }, 2000)
+    return () => { cancelled = true; window.clearInterval(t) }
+  }, [msg, router])
 
   // NOTE: must be deterministic on the first render to avoid SSR hydration mismatch.
   const [lineIdx, setLineIdx] = useState(0)
@@ -42,6 +60,7 @@ export default function SignupPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (loading || msg) return
     setErr(null)
     setMsg(null)
 
@@ -75,7 +94,9 @@ export default function SignupPage() {
       }
 
       gaEvent('signup_success')
-      setMsg('נרשמת בהצלחה 🎉 אם יש אימות מייל – בדוק/י את המייל ואז אפשר להתחבר.')
+      setMsg(`ההרשמה עברה בהצלחה! 🎉
+שלחנו מייל לאימות החשבון (כדאי לבדוק גם בתיקיית הספאם או בקידומי מכירות).
+מיד לאחר האישור אפשר להתחבר.`)
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'שגיאה לא צפויה')
     } finally {
@@ -170,7 +191,7 @@ export default function SignupPage() {
 
           <button
             className="pd-auth-btn w-full rounded-2xl bg-black px-4 py-3 text-sm font-semibold text-white hover:opacity-95"
-            disabled={loading}
+            disabled={loading || !!msg}
             type="submit"
           >
             {loading ? 'נרשמים…' : 'יצירת משתמש'}

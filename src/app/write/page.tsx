@@ -675,7 +675,6 @@ if (!effectiveChannelId) {
           subcategory_tag_id: subcategoryTagId,
           cover_image_url: coverDbValue,
           cover_source: coverSource,
-          status: 'draft',
         })
         .eq('id', id)
         .eq('author_id', userId)
@@ -914,6 +913,9 @@ if (!effectiveChannelId) {
   const publish = async () => {
     if (!userId) return
 
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
+    setSavePending(false)
+
     let activeCoverStoragePath = coverStoragePath
     let activeCoverSource = coverSource
 
@@ -1044,7 +1046,7 @@ if (!effectiveChannelId) {
       return
     }
 
-    const { error } = await supabase
+    const { data: publishedRow, error } = await supabase
       .from('posts')
       .update({
         title: title.trim(),
@@ -1059,6 +1061,8 @@ if (!effectiveChannelId) {
       })
       .eq('id', created.id)
       .eq('author_id', userId)
+      .select('slug, status')
+      .single()
 
     if (error) {
       setErrorMsg(error.message)
@@ -1066,10 +1070,16 @@ if (!effectiveChannelId) {
       return
     }
 
+    if (publishedRow?.status !== 'published') {
+      setErrorMsg('הפרסום נכשל – הסטטוס לא התעדכן. נסה שוב.')
+      setSaving(false)
+      return
+    }
+
     gaEvent('post_published', { post_id: created.id })
 
     setSaving(false)
-    router.push(`/post/${created.slug}`)
+    router.push(`/post/${publishedRow.slug}`)
   }
 
   const savingText = saving
