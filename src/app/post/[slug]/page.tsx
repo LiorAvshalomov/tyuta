@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 import PostClient from "./PostClient"
 
-export const dynamic = "force-dynamic"
+export const revalidate = 60
 export const runtime = "nodejs"
 
 const SITE_URL = "https://tyuta.net"

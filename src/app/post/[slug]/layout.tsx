@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import type { ReactNode } from "react"
 import { createClient } from "@supabase/supabase-js"
 
-export const dynamic = "force-dynamic"
+export const revalidate = 60
 export const runtime = "nodejs"
 
 const SITE_URL = "https://tyuta.net"

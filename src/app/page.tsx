@@ -1,7 +1,8 @@
 // src/app/page.tsx
-export const dynamic = 'force-dynamic'
+export const revalidate = 60
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import HomeWriteCTA from '@/components/HomeWriteCTA'
@@ -174,8 +175,14 @@ function FeaturedPost({ post }: { post: CardPost }) {
           <Link href={`/post/${post.slug}`} className="block h-full">
             <div className="relative aspect-[16/10] lg:aspect-auto lg:h-full overflow-hidden bg-gray-100">
               {post.cover_image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={post.cover_image_url} alt={post.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
+                <Image
+                  src={post.cover_image_url}
+                  alt={post.title}
+                  fill
+                  priority
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                />
               ) : null}
             </div>
           </Link>
