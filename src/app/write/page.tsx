@@ -260,6 +260,8 @@ export default function WritePage() {
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasLoadedDraftOnce = useRef(false)
+  const subcatReqSeq = useRef(0)
+  const tagsReqSeq = useRef(0)
   // --- Auth guard
   useEffect(() => {
     const run = async () => {
@@ -287,16 +289,19 @@ export default function WritePage() {
         return
       }
 
-      setChannels((ch ?? []) as Channel[])
+      const chRows = (ch ?? []) as Channel[]
+      setChannels(chRows)
 
-      // default selection
-      const firstChannelId = (ch ?? [])[0]?.id ?? null
-      setChannelId(prev => prev ?? firstChannelId)
+      // default selection: prefer URL channel param, fall back to first channel
+      const firstChannelId = chRows[0]?.id ?? null
+      const urlChannelId = resolveChannelIdFromParam(channelParam, chRows)
+      setChannelId(prev => prev ?? (urlChannelId ?? firstChannelId))
 
       setLoading(false)
     }
 
     void load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount; channelParam is stable from initial URL
   }, [])
 
   // Apply URL presets (channel/subcategory) deterministically on navigation.
@@ -327,6 +332,8 @@ useEffect(() => {
 
   // --- Load subcategory (genre) options + tags for the selected channel
   useEffect(() => {
+    const req = ++subcatReqSeq.current
+
     const run = async () => {
       if (!channelId) return
       if (!channels.length) return
@@ -340,6 +347,8 @@ useEffect(() => {
         .eq('type', 'genre')
         .eq('channel_id', channelId)
         .order('name_he')
+
+      if (req !== subcatReqSeq.current) return
 
       if (error) {
         // Don't block the editor; just keep empty options
@@ -369,6 +378,8 @@ useEffect(() => {
   }, [channelId, channels])
 
   useEffect(() => {
+    const req = ++tagsReqSeq.current
+
     const run = async () => {
       if (!channelId) return
       if (!channels.length) return
@@ -382,6 +393,8 @@ useEffect(() => {
         .in('type', allowedTypes)
         .or(`channel_id.is.null,channel_id.eq.${channelId}`)
         .order('name_he')
+
+      if (req !== tagsReqSeq.current) return
 
       if (error) {
         console.error('Failed to load tags', error)
