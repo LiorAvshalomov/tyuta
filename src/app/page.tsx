@@ -421,7 +421,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
         <div className="flex flex-row-reverse items-start gap-3">
           <div className="w-[94px] shrink-0">
             <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
-              <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
+              <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
                 {post.cover_image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -1027,7 +1027,7 @@ export default async function HomePage(props: HomePageProps = {}) {
             </div>
 
             {/* Below: subcategories (HOT monthly) + sidebar */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
               <div className="space-y-8">
                 {forcedSubcategories.map(sc => {
                                     const rankedItems = channelRanks
@@ -1160,7 +1160,7 @@ export default async function HomePage(props: HomePageProps = {}) {
             </div>
 
             {/* Below: categories on the right, sidebar on the left */}
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 items-start">
               {/* Categories */}
               <div className="space-y-8">
                 <div>

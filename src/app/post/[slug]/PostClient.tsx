@@ -356,7 +356,7 @@ export default function PostPage() {
           ? supabase.rpc('pendemic_hot_posts_smart_by_channel', {
               p_channel_id: p.channel_id,
               p_ref_ts: new Date().toISOString(),
-              p_limit: 6,
+              p_limit: 12,
             })
           : Promise.resolve({ data: [], error: null } as { data: { post_id: string }[]; error: null }),
       ])
@@ -382,11 +382,13 @@ export default function PostPage() {
       const authorList = uniqById(authorListRaw)
       setMoreFromAuthor(authorList)
 
+      const authorIdSet = new Set(authorList.map(x => x.id))
+
       // פוסטים חמים בקטגוריה – via RPC (weekly → monthly → recent fallback, all server-side)
       const hotIds = (!hotRes.error && Array.isArray(hotRes.data))
         ? (hotRes.data as { post_id: string }[])
             .map(r => r.post_id)
-            .filter(id => id !== p.id)
+            .filter(id => id !== p.id && !authorIdSet.has(id))
             .slice(0, 5)
         : []
 

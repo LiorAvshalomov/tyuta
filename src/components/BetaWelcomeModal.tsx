@@ -66,17 +66,16 @@ export default function BetaWelcomeModal() {
           <div className="text-lg font-bold">Tyuta בהרצה ✨</div>
           <p className="text-sm text-black/70 leading-6">
             האתר עדיין מתפתח ומשתפר 
-ואתה כבר חלק מההתחלה שלו.  האתר פתוח, עובד, ומחכה למילים שלך. <br />
-            תרגיש/י חופשי ליהנות מהפיצ׳רים, לכתוב, לגלות, ולהתנסות.
+ואת/ה כבר חלק מההתחלה שלו.  האתר פתוח, עובד, ומחכה למילים שלך. <br />
+            תרגיש/י חופשי להנות מהפיצ׳רים, לכתוב, לגלות, ולהתנסות.
           </p>
           <p className="text-sm text-black/70 leading-6">
-            אם גילית מקום לשיפור או באג נשמח אם תכתבו לנו דרך{' '}
+            אם גילית/ה מקום לשיפור או באג נשמח אם תכתבו לנו דרך{' '}
             
             <Link href="/contact" className="font-semibold text-blue-700 hover:underline">צור קשר</Link>
               {" או  "}
             
             <Link href="https://www.facebook.com/groups/1588674635508026" className="font-semibold text-blue-700 hover:underline">קבוצת הפייסבוק שלנו</Link>
-            {" או"}
             , ונטפל בהקדם.
           </p>
         </div>

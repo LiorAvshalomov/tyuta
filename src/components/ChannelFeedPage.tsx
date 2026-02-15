@@ -323,8 +323,8 @@ function RecentMiniRow({ post }: { post: CardPost }) {
   return (
     <div className="block rounded border bg-white p-2 hover:shadow-sm">
       <Link href={`/post/${post.slug}`} className="block">
-        <div className="flex flex-row-reverse items-start gap-2">
-          <CoverFrame src={post.cover_image_url} w={70} h={48} rounded="rounded"/>
+        <div className="flex flex-row-reverse items-stretch gap-2">
+          <CoverFrame src={post.cover_image_url} w={72} h={72} rounded="rounded"/>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-bold leading-snug line-clamp-2">{post.title}</div>
             {post.excerpt ? <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{post.excerpt}</div> : null}
@@ -597,7 +597,7 @@ export default async function ChannelFeedPage({
         </div>
 
         {/* MAIN + SIDEBAR */}
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px] lg:items-start"dir="rtl">
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px] lg:items-start"dir="rtl">
           <div className="space-y-8">
             <section>
               {subcategories?.length ? (
