@@ -129,6 +129,25 @@ function MedalsInline({
   )
 }
 
+function MedalsCompact({ medals }: { medals: { gold: number; silver: number; bronze: number } | null }) {
+  if (!medals) return null
+  const items: { emoji: string; count: number }[] = []
+  if (medals.gold > 0) items.push({ emoji: '🥇', count: medals.gold })
+  if (medals.silver > 0) items.push({ emoji: '🥈', count: medals.silver })
+  if (medals.bronze > 0) items.push({ emoji: '🥉', count: medals.bronze })
+  if (items.length === 0) return null
+  const shown = items.slice(0, 2)
+  const extra = items.length - shown.length
+  return (
+    <div dir="ltr" className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/70">
+      {shown.map(m => (
+        <span key={m.emoji} className="shrink-0">{m.emoji} {m.count}</span>
+      ))}
+      {extra > 0 ? <span className="shrink-0 rounded-full bg-black/5 px-1.5 text-[10px]">+{extra}</span> : null}
+    </div>
+  )
+}
+
 function channelBadgeColor(slug: string | null) {
   if (slug === 'stories') return 'bg-blue-50 text-blue-700'
   if (slug === 'release') return 'bg-rose-50 text-rose-700'
@@ -149,14 +168,14 @@ function SectionHeader({ title, href }: { title: string; href: string }) {
 function FeaturedPost({ post }: { post: CardPost }) {
   return (
     <article className="group bg-slate-100/70 font-sans rounded-2xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-[1px] border border-black/10">
-      <div className="lg:grid lg:grid-cols-2">
+      <div className="lg:grid lg:grid-cols-2 lg:items-stretch lg:min-h-[360px]">
         {/* Image */}
         <div className="order-1 lg:order-2">
-          <Link href={`/post/${post.slug}`} className="block">
-            <div className="relative aspect-[16/10]  lg:h-full bg-gray-100">
+          <Link href={`/post/${post.slug}`} className="block h-full">
+            <div className="relative aspect-[16/10] lg:aspect-auto lg:h-full overflow-hidden bg-gray-100">
               {post.cover_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={post.cover_image_url} alt={post.title} className="w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
+                <img src={post.cover_image_url} alt={post.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
               ) : null}
             </div>
           </Link>
@@ -220,7 +239,9 @@ function FeaturedPost({ post }: { post: CardPost }) {
             <p className="text-gray-600 text-sm sm:text-base lg:text-lg leading-relaxed mb-4 line-clamp-3">
               {truncateText(post.excerpt, 150)}
             </p>
-          ) : null}
+          ) : (
+            <div className="hidden lg:block h-[56px]" aria-hidden="true" />
+          )}
         </div>
       </div>
     </article>
@@ -435,18 +456,12 @@ function RecentMiniRow({ post }: { post: CardPost }) {
           </div>
 
           <div className="min-w-0 flex-1 text-right">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 flex-1 text-sm font-black leading-snug">
-                <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 line-clamp-1 block pointer-events-auto">
-                  {truncateText(post.title, 48)}
-                </Link>
-              </div>
-
-              <div className="shrink-0 pt-0.5">
-                <MedalsInline medals={post.allTimeMedals} />
-              </div>
+            <div className="text-sm font-black leading-snug">
+              <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 line-clamp-2 block pointer-events-auto">
+                {truncateText(post.title, 48)}
+              </Link>
             </div>
-
+            <MedalsCompact medals={post.allTimeMedals} />
 
             <div className="mt-1 min-h-[18px]">
               {post.excerpt ? (

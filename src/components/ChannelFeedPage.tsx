@@ -114,6 +114,24 @@ function hasAnyMedals(m: { gold: number; silver: number; bronze: number }) {
   return (m.gold ?? 0) + (m.silver ?? 0) + (m.bronze ?? 0) > 0
 }
 
+function MedalsCompact({ medals }: { medals: { gold: number; silver: number; bronze: number } }) {
+  const items: { emoji: string; count: number }[] = []
+  if (medals.gold > 0) items.push({ emoji: '🥇', count: medals.gold })
+  if (medals.silver > 0) items.push({ emoji: '🥈', count: medals.silver })
+  if (medals.bronze > 0) items.push({ emoji: '🥉', count: medals.bronze })
+  if (items.length === 0) return null
+  const shown = items.slice(0, 2)
+  const extra = items.length - shown.length
+  return (
+    <div dir="ltr" className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/70">
+      {shown.map(m => (
+        <span key={m.emoji} className="shrink-0">{m.emoji} {m.count}</span>
+      ))}
+      {extra > 0 ? <span className="shrink-0 rounded-full bg-black/5 px-1.5 text-[10px]">+{extra}</span> : null}
+    </div>
+  )
+}
+
 /** הגדול - בצד ימין, גובה קבוע */
 function FeaturedTopCard({ post }: { post: CardPost }) {
   const showMedals = hasAnyMedals(post.medals)
@@ -327,6 +345,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
           <CoverFrame src={post.cover_image_url} w={72} h={72} rounded="rounded"/>
           <div className="min-w-0 flex-1">
             <div className="text-xs font-bold leading-snug line-clamp-2">{post.title}</div>
+            <MedalsCompact medals={post.medals} />
             {post.excerpt ? <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{post.excerpt}</div> : null}
           </div>
         </div>
