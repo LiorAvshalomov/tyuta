@@ -917,6 +917,8 @@ export default async function HomePage(props: HomePageProps = {}) {
   const releaseFinal = release.length > 0 ? release : recentPosts.filter(p => p.channel_slug === 'release' && !used.has(p.id)).slice(0, 5)
   const magazineFinal = magazine.length > 0 ? magazine : recentPosts.filter(p => p.channel_slug === 'magazine' && !used.has(p.id)).slice(0, 5)
 
+  const homeHasAnyPosts = Boolean(featured) || Boolean(top1) || Boolean(top2) || Boolean(top3) || storiesFinal.length > 0 || releaseFinal.length > 0 || magazineFinal.length > 0
+
   // Writers of week: medals first, fallback to total weekly reactions.
   // We compute this off rankedAll (broad) and then enrich with profile info via posts.
   const rankedAllIds = rankedAll.map(r => r.post_id)
@@ -1081,9 +1083,13 @@ export default async function HomePage(props: HomePageProps = {}) {
                   <div className="bg-slate-100/70 rounded-2xl p-5 shadow-sm border border-black/10">
                     <Link href={channelSlug ? `/search?sort=recent&channel=${channelSlug}` : "/search?sort=recent"} className="text-base font-black mb-4 inline-flex hover:text-sky-700 transition-colors">פוסטים אחרונים</Link>
                     <div className="space-y-3">
-                      {recentMini.slice(0, 8).map(p => (
-                        <RecentMiniRow key={p.id} post={p} />
-                      ))}
+                      {recentMini.length > 0 ? (
+                        recentMini.slice(0, 8).map(p => (
+                          <RecentMiniRow key={p.id} post={p} />
+                        ))
+                      ) : (
+                        <div className="text-sm text-gray-500">אין עדיין פוסטים אחרונים.</div>
+                      )}
                     </div>
                   </div>
 
@@ -1125,7 +1131,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-500">אין עדיין פעילות לשבוע הזה.</div>
+                      <div className="text-sm text-gray-500">אין עדיין פעילות לחודש הזה.</div>
                     )}
 
                     <div className="mt-5">
@@ -1138,7 +1144,7 @@ export default async function HomePage(props: HomePageProps = {}) {
             </div>
           </div>
         ) : (
-
+          homeHasAnyPosts ? (
           <div className="space-y-8">
             {/* Top of page: featured + top posts */}
             <div className="space-y-6">
@@ -1199,9 +1205,13 @@ export default async function HomePage(props: HomePageProps = {}) {
                   <div className="bg-slate-100/70 rounded-2xl p-5 shadow-sm border border-black/10">
                     <Link href="/search?sort=recent" className="text-base font-black mb-4 inline-flex hover:text-sky-700 transition-colors">פוסטים אחרונים</Link>
                     <div className="space-y-3">
-                      {recentMini.slice(0, 8).map(p => (
-                        <RecentMiniRow key={p.id} post={p} />
-                      ))}
+                      {recentMini.length > 0 ? (
+                        recentMini.slice(0, 8).map(p => (
+                          <RecentMiniRow key={p.id} post={p} />
+                        ))
+                      ) : (
+                        <div className="text-sm text-gray-500">אין עדיין פוסטים אחרונים.</div>
+                      )}
                     </div>
                   </div>
 
@@ -1255,6 +1265,12 @@ export default async function HomePage(props: HomePageProps = {}) {
               </StickySidebar>
             </div>
           </div>
+          ) : (
+            <div className="rounded-2xl border border-black/10 bg-white/60 p-8 text-center">
+              <div className="text-lg font-black text-gray-800">אין עדיין פוסטים להצגה</div>
+              <div className="mt-2 text-sm text-gray-600">ברגע שיפורסמו פוסטים, הם יופיעו כאן.</div>
+            </div>
+          )
         )}
       </div>
     </main>

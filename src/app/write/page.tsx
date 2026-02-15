@@ -35,6 +35,7 @@ type DraftRow = {
 }
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] }
+const TITLE_MAX = 72
 const EXCERPT_MAX = 160
 
 // Non-subcategory tag types per channel (subcategory itself is stored in posts.subcategory_tag_id and points to tags.type='genre')
@@ -920,7 +921,13 @@ if (!effectiveChannelId) {
   }
 
   const publish = async () => {
+    if (saving) return
     if (!userId) return
+
+    if (title.trim().length > TITLE_MAX) {
+      setErrorMsg(`הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`)
+      return
+    }
 
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     setSavePending(false)
@@ -982,7 +989,12 @@ if (!effectiveChannelId) {
           .eq('author_id', userId)
 
         if (error) {
-          setErrorMsg(error.message)
+          const msg = error.message
+          setErrorMsg(
+            msg.includes('value too long') || msg.includes('check constraint')
+              ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
+              : msg
+          )
           setSaving(false)
           return
         }
@@ -1074,7 +1086,12 @@ if (!effectiveChannelId) {
       .single()
 
     if (error) {
-      setErrorMsg(error.message)
+      const msg = error.message
+      setErrorMsg(
+        msg.includes('value too long') || msg.includes('check constraint')
+          ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
+          : msg
+      )
       setSaving(false)
       return
     }
@@ -1199,10 +1216,16 @@ if (!effectiveChannelId) {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium">כותרת</label>
+              <div className="flex items-center justify-between gap-3">
+                <label className="block text-sm font-medium">כותרת</label>
+                <div className={`text-xs ${title.length >= TITLE_MAX ? 'text-red-600 font-semibold' : title.length >= 65 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                  {title.length}/{TITLE_MAX}
+                </div>
+              </div>
               <input
                 value={title}
-                onChange={e => setTitle(e.target.value)}
+                onChange={e => setTitle(e.target.value.slice(0, TITLE_MAX))}
+                maxLength={TITLE_MAX}
                 placeholder="תן שם לכותרת..."
                 className="mt-2 w-full rounded-2xl border px-4 py-3 text-base outline-none focus:ring-2 focus:ring-black/10"
               />
