@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import Script from "next/script"
 import { Suspense } from "react"
 import { Geist, Geist_Mono, Heebo } from "next/font/google"
+import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import AuthSync from "@/components/auth/AuthSync"
 import SuspensionSync from "@/components/moderation/SuspensionSync"
@@ -134,6 +135,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </SuspensionSync>
         </AuthSync>
         <Suspense fallback={null}><PageTracker /></Suspense>
+        <Analytics />
       </body>
     </html>
   )
