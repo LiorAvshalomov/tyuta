@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 
@@ -11,7 +12,7 @@ import RichText from '@/components/RichText'
 import PostShell from '@/components/PostShell'
 import PostOwnerMenu from '@/components/PostOwnerMenu'
 import PostReactions from '@/components/PostReactions'
-import PostComments from '@/components/PostComments'
+const PostComments = dynamic(() => import('@/components/PostComments'))
 import FollowButton from '@/components/FollowButton'
 import SavePostButton from '@/components/SavePostButton'
 import SharePostButton from '@/components/SharePostButton'
@@ -211,7 +212,32 @@ export default function PostPage() {
 
   const [isMobile, setIsMobile] = useState(false)
 
-  
+  // Lazy-load comments: eager when deep-link present, deferred via IO otherwise
+  const searchParams = useSearchParams()
+  const [commentsReady, setCommentsReady] = useState(false)
+  const [sentinelNode, setSentinelNode] = useState<HTMLDivElement | null>(null)
+
+  // Deep-link detected → show comments immediately
+  useEffect(() => {
+    if (commentsReady) return
+    const hl = searchParams?.get('hl')
+    const n = searchParams?.get('n')
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    if (hl || n || hash.startsWith('#comment-')) {
+      setCommentsReady(true)
+    }
+  }, [commentsReady, searchParams])
+
+  // No deep-link → lazy-load when user scrolls near the comments area
+  useEffect(() => {
+    if (commentsReady || !sentinelNode) return
+    const io = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setCommentsReady(true); io.disconnect() } },
+      { rootMargin: '300px' },
+    )
+    io.observe(sentinelNode)
+    return () => io.disconnect()
+  }, [commentsReady, sentinelNode])
 
   useEffect(() => {
     // Tailwind breakpoint md=768
@@ -800,7 +826,11 @@ export default function PostPage() {
         <div className="mt-0.5 "></div>
         </div>
         <div className="rounded-3xl border border-neutral-200 bg-neutral-100/70 p-1 sm:p-2">
-          <PostComments postId={post.id} postSlug={slug} postTitle={post.title ?? ''} />
+          {commentsReady ? (
+            <PostComments postId={post.id} postSlug={slug} postTitle={post.title ?? ''} />
+          ) : (
+            <div ref={setSentinelNode} className="min-h-[120px]" />
+          )}
         </div>
         </div>
       </div>

@@ -46,7 +46,7 @@ const TAG_TYPES_BY_CHANNEL_NAME_HE: Record<string, Array<Tag['type']>> = {
 
 // Allowed subcategory (genre) names per channel.
 const SUBCATEGORY_NAMES_BY_CHANNEL_NAME_HE: Record<string, string[]> = {
-  'פריקה': ['מחשבות', 'שירים', 'וידויים'],
+  'פריקה': ['וידויים','מחשבות', 'שירים'],
   'סיפורים': ['סיפורים אמיתיים', 'סיפורים קצרים', 'סיפור בהמשכים'],
   'מגזין': ['חדשות', 'ספורט', 'תרבות ובידור', 'דעות', 'טכנולוגיה'],
 }
@@ -367,6 +367,15 @@ useEffect(() => {
         if (!byName.has(r.name_he)) byName.set(r.name_he, { id: r.id, name_he: r.name_he })
       }
       const rows = Array.from(byName.values())
+
+      // Respect the display order defined in SUBCATEGORY_NAMES_BY_CHANNEL_NAME_HE
+      if (allowedSubcats.length) {
+        rows.sort((a, b) => {
+          const ai = allowedSubcats.indexOf(a.name_he)
+          const bi = allowedSubcats.indexOf(b.name_he)
+          return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi)
+        })
+      }
 
       setSubcategoryOptions(rows)
 
