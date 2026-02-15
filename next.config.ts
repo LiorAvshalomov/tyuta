@@ -37,6 +37,8 @@ const connectSrc = [
   ...supabaseOrigins,
   ...supabaseWssOrigins,
   'https://api-free.deepl.com',
+  'https://www.google-analytics.com',
+  'https://region1.google-analytics.com',
 ].join(' ')
 
 const imgSrc = [
@@ -48,6 +50,7 @@ const imgSrc = [
   'https://pixabay.com',
   'https://cdn.pixabay.com',
   'https://images.pexels.com',
+  'https://www.google-analytics.com',
 ].join(' ')
 
 const nextConfig: NextConfig = {
@@ -83,7 +86,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com",
               "style-src 'self' 'unsafe-inline'",
               `img-src ${imgSrc}`,
               "font-src 'self'",
