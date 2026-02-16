@@ -166,7 +166,9 @@ function FeaturedPost({ post }: { post: CardPost }) {
           {/* Author FIRST (as you asked) */}
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-3 min-w-0">
+              <Link href={`/u/${post.author_username}`}>
               <Avatar src={post.author_avatar_url} name={post.author_name} size={40} />
+              </Link>
               <div className="min-w-0">
                 {post.author_username ? (
                   <Link href={`/u/${post.author_username}`} className="font-bold text-sm hover:text-sky-700 transition-colors">
