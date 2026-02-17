@@ -3,14 +3,14 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "אודות",
   description:
-    "Tyuta הוא מרחב כתיבה עם קהילה — מקום למילים שלא נאמרות, לטיוטות, ולכל מה שבדרך.",
+    "טיוטה הוא מרחב כתיבה עם קהילה — מקום למילים שלא נאמרות, לטיוטות, ולכל מה שבדרך.",
   alternates: {
     canonical: "/about",
   },
   openGraph: {
     title: "אודות",
     description:
-      "Tyuta הוא מרחב כתיבה עם קהילה: תגובות, מדליות ודירוגים שנועדו לעודד הקשבה — והפוקוס נשאר על המילים.",
+      "טיוטה הוא מרחב כתיבה עם קהילה: תגובות, מדליות ודירוגים שנועדו לעודד הקשבה — והפוקוס נשאר על המילים.",
     url: "/about",
     siteName: "Tyuta",
     locale: "he_IL",
@@ -28,7 +28,7 @@ export default function AboutPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16">
       <article className="space-y-8 leading-relaxed text-right">
-        <h1 className="text-3xl font-semibold">אודות</h1>
+        <h1 className="text-3xl font-semibold">אודות Tyuta.net (&quot;טיוטה&quot;)</h1>
 
         <p>היי, כיף שבאת.</p>
 
@@ -67,7 +67,7 @@ export default function AboutPage() {
         </p>
 
         <p>
-          ואם קראת עד לכאן, אז כבר אספר שהוויז'ן שלי הוא לייצר קהילה <br />
+          ואם קראת עד לכאן, אז כבר אספר שהוויז&quot;ן שלי הוא לייצר קהילה <br />
           של אנשים כמוך וכמוני.
           <br />
           ומי יודע לאן זה יתפתח.

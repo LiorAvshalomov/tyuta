@@ -264,6 +264,10 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     if (!data.user?.id) return
     await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
     await fetchMessages()
+    // Notify sidebar/header to re-query unread counts
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('tyuta:thread-read'))
+    }
   }, [conversationId, fetchMessages])
 
   function clearStableBottomTimer() {
@@ -702,6 +706,8 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       setText('')
       await fetchMessages()
       setTimeout(() => scrollListToBottom('auto'), 0)
+      // Notify sidebar/header (thread may be new or have new unread)
+      window.dispatchEvent(new CustomEvent('tyuta:thread-read'))
     } finally {
       setSending(false)
       sendingRef.current = false

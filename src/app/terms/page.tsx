@@ -3,14 +3,14 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "תנאי שימוש",
   description:
-    "תנאי שימוש ותקנון Tyuta — כללי שימוש, אחריות, תוכן גולשים, זכויות יוצרים, הסרה, שיפוי וסמכות שיפוט.",
+    "תנאי שימוש ותקנון טיוטה — כללי שימוש, אחריות, תוכן גולשים, זכויות יוצרים, הסרה, שיפוי וסמכות שיפוט.",
   alternates: {
     canonical: "/terms",
   },
   openGraph: {
     title: "תנאי שימוש",
     description:
-      "תנאי השימוש של Tyuta: כללי שימוש, אחריות, זכויות יוצרים, הסרה, שיפוי וסמכות שיפוט.",
+      "תנאי השימוש של טיוטה: כללי שימוש, אחריות, זכויות יוצרים, הסרה, שיפוי וסמכות שיפוט.",
     url: "/terms",
     siteName: "Tyuta",
     locale: "he_IL",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "תנאי שימוש",
     description:
-      "תנאי השימוש של Tyuta: כללי שימוש, אחריות, זכויות יוצרים, הסרה, שיפוי וסמכות שיפוט.",
+      "תנאי השימוש של טיוטה: כללי שימוש, אחריות, זכויות יוצרים, הסרה, שיפוי וסמכות שיפוט.",
   },
 };
 
@@ -31,7 +31,7 @@ export default function TermsPage() {
     <main className="mx-auto max-w-3xl px-6 py-16">
       <article className="space-y-8 leading-relaxed text-right">
         <header className="space-y-3">
-          <h1 className="text-3xl font-semibold">תקנון ותנאי שימוש באתר Tyuta.net</h1>
+          <h1 className="text-3xl font-semibold">תקנון ותנאי שימוש באתר Tyuta.net (&quot;טיוטה&quot;)</h1>
           <p>
             הסכם זה (&quot;ההסכם&quot; או &quot;תנאי השימוש&quot;) מנוסח בלשון זכר מטעמי נוחות בלבד,
             אך הוא פונה לכל המגדרים באופן שווה.

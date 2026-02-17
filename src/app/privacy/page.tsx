@@ -3,14 +3,14 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "מדיניות פרטיות",
   description:
-    "מדיניות הפרטיות של Tyuta — איזה מידע נאסף, למה אנחנו משתמשים בו, עם מי משתפים, וכיצד ניתן לממש זכויות פרטיות.",
+    "מדיניות הפרטיות של טיוטה — איזה מידע נאסף, למה אנחנו משתמשים בו, עם מי משתפים, וכיצד ניתן לממש זכויות פרטיות.",
   alternates: {
     canonical: "/privacy",
   },
   openGraph: {
     title: "מדיניות פרטיות",
     description:
-      "Tyuta מתייחס לפרטיות בכבוד. כאן תמצאו הסבר ברור ושקוף על מידע, עוגיות, שיתוף נתונים וזכויותיכם.",
+      "טיוטה מתייחס לפרטיות בכבוד. כאן תמצאו הסבר ברור ושקוף על מידע, עוגיות, שיתוף נתונים וזכויותיכם.",
     url: "/privacy",
     siteName: "Tyuta",
     locale: "he_IL",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "מדיניות פרטיות",
     description:
-      "איזה מידע Tyuta אוסף, למה, איך נשמר, ומה הזכויות שלך כמשתמש/ת.",
+      "איזה מידע טיוטה אוסף, למה, איך נשמר, ומה הזכויות שלך כמשתמש/ת.",
   },
 };
 
@@ -31,7 +31,7 @@ export default function PrivacyPage() {
     <main className="mx-auto max-w-3xl px-6 py-16">
       <article className="space-y-8 leading-relaxed text-right">
         <header className="space-y-3">
-          <h1 className="text-3xl font-semibold">מדיניות פרטיות – Tyuta.net</h1>
+          <h1 className="text-3xl font-semibold">מדיניות פרטיות – Tyuta.net (&quot;טיוטה&quot;)</h1>
           <p>
             ברוכים הבאים ל־Tyuta.net (&quot;האתר&quot;). אנחנו ב־Tyuta מאמינים שהמילים
             שלכם הן הדבר החשוב ביותר, ולכן אנחנו מתייחסים בכבוד רב לפרטיות שלכם
