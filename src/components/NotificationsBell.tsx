@@ -812,6 +812,8 @@ const token = storeHighlightToken(ids)
                 if (href) {
                   const doNav = () => {
                     const target = navTargetForGroup(g) || href
+                    // Guard: only navigate to relative same-origin paths
+                    if (!target.startsWith('/') || target.startsWith('//')) return
                     void markGroupRead(ids)
                     // Cache-buster forces re-highlight even on same-page navigation
                     const sep = target.includes('?') ? '&' : '?'

@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { useToast } from '@/components/Toast'
 import Avatar from '@/components/Avatar'
 import { resolveUserIdentity } from '@/lib/systemIdentity'
 import { getSupportConversationId } from '@/lib/moderation'
@@ -108,6 +109,7 @@ function computeFirstUnreadIndex(list: Msg[], myId: string | null) {
 
 export default function ChatClient({ conversationId }: { conversationId: string }) {
   const router = useRouter()
+  const { toast } = useToast()
 
   const [messages, setMessages] = useState<Msg[]>([])
   const [text, setText] = useState('')
@@ -186,6 +188,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
   // seen cache
   const seenIdsRef = useRef<Set<string>>(new Set())
+  const sendingRef = useRef(false)
 
   const computeIsAtBottom = useCallback(() => {
     const el = listRef.current
@@ -606,12 +609,14 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
   async function send() {
     const bodyTrimmed = text.trim()
-    if (!bodyTrimmed) return
+    if (!bodyTrimmed || sendingRef.current) return
+    sendingRef.current = true
 
     const { data } = await supabase.auth.getUser()
     const uid = data.user?.id
     if (!uid) {
-      alert('כדי לשלוח הודעה צריך להתחבר 🙂')
+      sendingRef.current = false
+      toast('כדי לשלוח הודעה צריך להתחבר', 'info')
       router.push('/auth/login')
       return
     }
@@ -626,13 +631,15 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         .maybeSingle()
 
       if (!modErr && mod?.is_banned === true && !isSystem) {
-        alert('החשבון שלך הורחק לצמיתות. אפשר לפנות למערכת האתר.')
+        sendingRef.current = false
+        toast('החשבון שלך הורחק לצמיתות. אפשר לפנות למערכת האתר.', 'error')
         router.replace(`/banned?from=${encodeURIComponent(`/inbox/${conversationId}`)}`)
         return
       }
 
       if (!modErr && mod?.is_suspended === true && !isSystem) {
-        alert('החשבון שלך הוגבל. אפשר לפנות למערכת האתר דרך האינבוקס.')
+        sendingRef.current = false
+        toast('החשבון שלך הוגבל. אפשר לפנות למערכת האתר דרך האינבוקס.', 'error')
         router.replace(`/restricted?from=${encodeURIComponent(`/inbox/${conversationId}`)}`)
         return
       }
@@ -651,7 +658,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
       if (error || !messageId) {
         const friendly = mapSupabaseError(error ?? null)
-        alert(friendly ?? `לא הצלחתי לשלוח הודעה.\n${error?.message ?? 'נסי שוב.'}`)
+        toast(friendly ?? `לא הצלחתי לשלוח הודעה.\n${error?.message ?? 'נסי שוב.'}`, 'error')
         if (!friendly) console.error('send_message error:', error)
         return
       }
@@ -661,6 +668,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       setTimeout(() => scrollListToBottom('auto'), 0)
     } finally {
       setSending(false)
+      sendingRef.current = false
     }
   }
 

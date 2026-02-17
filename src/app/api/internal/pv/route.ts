@@ -33,6 +33,13 @@ function isProbablyBot(userAgent: string | null): boolean {
 }
 
 function getClientIp(req: NextRequest): string | null {
+  // Prefer Vercel-set header (populated from connecting socket, not spoofable).
+  const vercel = req.headers.get("x-vercel-forwarded-for")
+  if (vercel) {
+    const first = vercel.split(",")[0]?.trim()
+    if (first) return first
+  }
+  // Fallback for non-Vercel environments (dev, self-hosted).
   const xf = req.headers.get("x-forwarded-for")
   if (xf) {
     const first = xf.split(",")[0]?.trim()

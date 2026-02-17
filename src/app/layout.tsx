@@ -8,6 +8,7 @@ import SuspensionSync from "@/components/moderation/SuspensionSync"
 import ClientChrome from "@/components/ClientChrome"
 import PageTracker from "@/components/analytics/PageTracker"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import ToastProvider from "@/components/Toast"
 
 const SITE_URL = "https://tyuta.net"
 
@@ -133,13 +134,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${heebo.variable} ${geistSans.variable} ${geistMono.variable}  antialiased bg-background text-foreground overflow-x-hidden`}>
         <JsonLd data={organizationSchema} />
         <JsonLd data={websiteSchema} />
-        <AuthSync>
-          <SuspensionSync>
-            <ClientChrome>{children}</ClientChrome>
-          </SuspensionSync>
-        </AuthSync>
-        <Suspense fallback={null}><PageTracker /></Suspense>
-        <SpeedInsights />
+        <ToastProvider>
+          <AuthSync>
+            <SuspensionSync>
+              <ClientChrome>{children}</ClientChrome>
+            </SuspensionSync>
+          </AuthSync>
+          <Suspense fallback={null}><PageTracker /></Suspense>
+          <SpeedInsights />
+        </ToastProvider>
       </body>
     </html>
   )
