@@ -78,7 +78,9 @@ export default function InboxThreads() {
       return
     }
 
-    setRows((data ?? []) as ConvRow[])
+    // Exclude conversations with no messages (last_created_at is NULL)
+    const withMessages = ((data ?? []) as ConvRow[]).filter(r => r.last_created_at != null)
+    setRows(withMessages)
     setLoading(false)
   }, [])
 
@@ -96,9 +98,14 @@ export default function InboxThreads() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, scheduleRefresh)
       .subscribe()
 
+    // Re-query when ChatClient marks a conversation as read
+    const onThreadRead = () => void load()
+    window.addEventListener('tyuta:thread-read', onThreadRead)
+
     return () => {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
       supabase.removeChannel(ch)
+      window.removeEventListener('tyuta:thread-read', onThreadRead)
     }
   }, [load])
 

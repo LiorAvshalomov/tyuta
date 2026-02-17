@@ -291,7 +291,8 @@ export default function SiteHeader() {
       return []
     }
 
-    const safe = (rows ?? []) as unknown as ThreadRow[]
+    // Exclude conversations with no messages (last_created_at is NULL)
+    const safe = ((rows ?? []) as unknown as ThreadRow[]).filter(r => r.last_created_at != null)
     setThreads(safe)
     setMsgUnread(safe.reduce((acc, r) => acc + (r.unread_count ?? 0), 0))
     return safe
@@ -356,9 +357,14 @@ export default function SiteHeader() {
       ch.subscribe()
     })()
 
+    // Re-query when ChatClient marks a conversation as read
+    const onThreadRead = () => void loadThreads()
+    window.addEventListener('tyuta:thread-read', onThreadRead)
+
     return () => {
       active = false
       if (ch) void supabase.removeChannel(ch)
+      window.removeEventListener('tyuta:thread-read', onThreadRead)
     }
     // We intentionally re-subscribe when the visible thread list changes.
   }, [user?.id, loadThreads])
@@ -410,7 +416,7 @@ export default function SiteHeader() {
         </div>
       ) : (
         <div className="space-y-2" dir="rtl">
-          {threads.filter(t => Boolean(t.last_created_at || (t.last_body ?? '').trim())).map(t => {
+          {threads.map(t => {
             const identity = resolveUserIdentity({
               userId: t.other_user_id,
               displayName: t.other_display_name,
