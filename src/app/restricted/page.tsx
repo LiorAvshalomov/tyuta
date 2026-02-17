@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { getModerationReason, getModerationStatus, setSupportConversationId } from '@/lib/moderation'
+import { mapModerationRpcError } from '@/lib/mapSupabaseError'
 
 const SYSTEM_USER_ID = process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? ''
 
@@ -66,8 +67,11 @@ export default function RestrictedPage() {
       router.push(`/inbox/${encodeURIComponent(conversationId)}`)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'שגיאה לא ידועה'
-      if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-        setError('פונקציית צ׳אט חסרה בשרת (start_conversation). צריך להריץ את המיגרציה: 2026-02-11_fix_start_conversation.sql')
+      const friendly = mapModerationRpcError(msg)
+      if (friendly) {
+        setError(friendly)
+      } else if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
+        setError('פונקציית צ׳אט חסרה בשרת (start_conversation). צריך להריץ את המיגרציה.')
       } else {
         setError(msg)
       }

@@ -8,6 +8,7 @@ import {
   getModerationStatus,
   setSupportConversationId,
 } from "@/lib/moderation"
+import { mapModerationRpcError } from "@/lib/mapSupabaseError"
 
 const SYSTEM_USER_ID = process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? ""
 
@@ -88,23 +89,21 @@ export default function BannedPage() {
       })
       if (e) throw e
 
-      const d = data as unknown
-      const rec = (d && typeof d === "object") ? (d as Record<string, unknown>) : null
+      // start_conversation returns uuid directly (string), not an object
       const conversationId =
-        rec && typeof rec["conversation_id"] === "string"
-          ? (rec["conversation_id"] as string)
-          : rec && typeof rec["id"] === "string"
-            ? (rec["id"] as string)
-            : null
+        typeof data === "string" && data.trim()
+          ? data.trim()
+          : null
 
       if (conversationId) {
         setSupportConversationId(conversationId)
         router.push(`/banned/contact?cid=${encodeURIComponent(conversationId)}`)
       } else {
-        router.push("/banned/contact")
+        setError("לא התקבל מזהה שיחה ממערכת האתר.")
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Unknown error")
+      const raw = e instanceof Error ? e.message : "Unknown error"
+      setError(mapModerationRpcError(raw) ?? raw)
     } finally {
       setBusy(false)
     }

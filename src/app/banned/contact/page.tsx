@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import ChatClient from '@/components/ChatClient'
 import { getModerationStatus, getSupportConversationId, setSupportConversationId } from '@/lib/moderation'
 import { supabase } from '@/lib/supabaseClient'
+import { mapModerationRpcError } from '@/lib/mapSupabaseError'
 
 const SYSTEM_USER_ID = (process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? '').trim()
 
@@ -39,11 +40,13 @@ export default function BannedContactPage() {
 
       const { data, error: rpcError } = await supabase.rpc('start_conversation', { other_user_id: SYSTEM_USER_ID })
       if (rpcError) {
-        setError('שגיאה ביצירת שיחה עם מערכת האתר.')
+        const friendly = mapModerationRpcError(rpcError.message ?? '')
+        setError(friendly ?? 'שגיאה ביצירת שיחה עם מערכת האתר.')
         return
       }
 
-      const cid = (data as unknown as { conversation_id?: string } | null)?.conversation_id ?? null
+      // start_conversation returns uuid directly (string), not an object
+      const cid = typeof data === 'string' && data.trim() ? data.trim() : null
       if (!cid) {
         setError('לא התקבל מזהה שיחה ממערכת האתר.')
         return

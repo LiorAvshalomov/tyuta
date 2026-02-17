@@ -4,7 +4,7 @@ import Link from 'next/link'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapSupabaseError, mapModerationRpcError } from '@/lib/mapSupabaseError'
 import { useToast } from '@/components/Toast'
 import Avatar from '@/components/Avatar'
 import { resolveUserIdentity } from '@/lib/systemIdentity'
@@ -693,6 +693,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
       if (error || !messageId) {
         const friendly = mapSupabaseError(error ?? null)
+          ?? mapModerationRpcError(error?.message ?? '')
         toast(friendly ?? `לא הצלחתי לשלוח הודעה.\n${error?.message ?? 'נסי שוב.'}`, 'error')
         if (!friendly) console.error('send_message error:', error)
         return
