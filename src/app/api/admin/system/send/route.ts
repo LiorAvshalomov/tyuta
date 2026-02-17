@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server"
 import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest"
 import { adminError, adminOk } from "@/lib/admin/adminHttp"
+import { rateLimit } from "@/lib/rateLimit"
 
 const TITLE_MIN = 2
 const TITLE_MAX = 120
@@ -18,6 +19,10 @@ export async function POST(req: NextRequest) {
   const userId = (body?.user_id ?? "").toString().trim()
   const title = (body?.title ?? "").toString().trim()
   const message = (body?.message ?? "").toString().trim()
+
+  // Rate limit: 5 broadcasts per 10 minutes per admin
+  const rl = rateLimit(`admin_broadcast:${auth.user.id}`, { maxRequests: 5, windowMs: 600_000 })
+  if (!rl.allowed) return adminError("שליחה מהירה מדי. נסה שוב בעוד כמה דקות.", 429, "rate_limited")
 
   if (title.length < TITLE_MIN) return adminError("כותרת קצרה מדי.", 400, "bad_request")
   if (title.length > TITLE_MAX) return adminError("כותרת ארוכה מדי.", 400, "bad_request")

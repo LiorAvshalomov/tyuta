@@ -8,6 +8,7 @@ import Editor from '@/components/Editor'
 import Badge from '@/components/Badge'
 import { supabase } from '@/lib/supabaseClient'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { useToast } from '@/components/Toast'
 import { event as gaEvent } from '@/lib/gtag'
 
 type Channel = { id: number; name_he: string }
@@ -89,6 +90,7 @@ declare global {
 export default function WritePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
 
   // draft = create/edit draft flow
   // edit  = edit an existing post without forcing it into drafts
@@ -264,6 +266,7 @@ export default function WritePage() {
   const hasLoadedDraftOnce = useRef(false)
   const subcatReqSeq = useRef(0)
   const tagsReqSeq = useRef(0)
+  const publishingRef = useRef(false)
   // --- Auth guard
   useEffect(() => {
     const run = async () => {
@@ -851,7 +854,7 @@ if (!effectiveChannelId) {
 
   const chooseAutoCover = async () => {
     if (!title.trim()) {
-      alert('כדי לבחור קאבר אוטומטי צריך כותרת')
+      toast('כדי לבחור קאבר אוטומטי צריך כותרת', 'error')
       return
     }
     const postId = isEditMode ? effectivePostId : (await ensureDraft())?.id
@@ -922,8 +925,10 @@ if (!effectiveChannelId) {
   }
 
   const publish = async () => {
-    if (saving) return
+    if (saving || publishingRef.current) return
     if (!userId) return
+    publishingRef.current = true
+    try {
 
     if (title.trim().length > TITLE_MAX) {
       setErrorMsg(`הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`)
@@ -1020,10 +1025,10 @@ if (!effectiveChannelId) {
       }
     }
 
-    if (!title.trim()) return alert('כותרת היא חובה')
-    if (!channelId) return alert('בחר ערוץ')
-    if (!subcategoryTagId) return alert('בחר תת־קטגוריה')
-    if (selectedTagIds.length < 1) return alert('חובה לבחור לפחות תגית אחת')
+    if (!title.trim()) { toast('כותרת היא חובה', 'error'); return }
+    if (!channelId) { toast('בחר ערוץ', 'error'); return }
+    if (!subcategoryTagId) { toast('בחר תת־קטגוריה', 'error'); return }
+    if (selectedTagIds.length < 1) { toast('חובה לבחור לפחות תגית אחת', 'error'); return }
 
     setSaving(true)
     setErrorMsg(null)
@@ -1117,6 +1122,10 @@ if (!effectiveChannelId) {
 
     setSaving(false)
     router.push(`/post/${publishedRow.slug}`)
+
+    } finally {
+      publishingRef.current = false
+    }
   }
 
   const savingText = saving
