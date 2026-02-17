@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { rateLimit } from '@/lib/rateLimit'
 
 type PixabayHit = {
   id: number
@@ -31,7 +32,19 @@ async function translateToEnglish(text: string): Promise<string> {
   return json.translations?.[0]?.text ?? text
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  // N4 FIX: Always require auth — this endpoint consumes paid third-party APIs
+  const authResult = await requireUserFromRequest(req)
+  if (!authResult.ok) {
+    return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+  }
+
+  // Rate limit: 20 requests per 60 seconds per user
+  const rl = rateLimit(`cover-auto:${authResult.user.id}`, { maxRequests: 20, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+  }
+
   const pixabayKey = process.env.PIXABAY_API_KEY
   if (!pixabayKey) {
     return NextResponse.json({ error: 'PIXABAY_API_KEY missing' }, { status: 500 })
@@ -76,10 +89,6 @@ export async function GET(req: Request) {
 
     // If postId provided, download image and upload to private storage
     if (postId) {
-      const authResult = await requireUserFromRequest(req)
-      if (!authResult.ok) {
-        return NextResponse.json({ storagePath: null, signedUrl: null })
-      }
       const { user, supabase: scopedClient } = authResult
 
       // Verify post ownership via RLS (only returns rows where author_id = auth.uid())
