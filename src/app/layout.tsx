@@ -72,12 +72,16 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
 }
 
+function safeJsonLdStringify(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c")
+}
+
 function JsonLd({ data }: { data: unknown }) {
   return (
     <script
       type="application/ld+json"
       // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(data) }}
     />
   )
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import { event as gaEvent } from '@/lib/gtag'
 import Avatar from '@/components/Avatar'
 
@@ -775,7 +776,7 @@ async function submitReport() {
 
     if (error) {
       setItems(prev => prev.filter(x => x.id !== tempId))
-      setErrFor(error.message)
+      setErrFor(mapSupabaseError(error) ?? error.message)
       return
     }
 
@@ -930,7 +931,7 @@ async function submitReport() {
     setSending(false)
 
     if (error) {
-      setErrFor(error.message)
+      setErrFor(mapSupabaseError(error) ?? error.message)
       await load()
       return
     }

@@ -20,6 +20,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'חסרים פרמטרים (postId, sourcePath)' }, { status: 400 })
     }
 
+    // C1 FIX: Hard-bind sourcePath to the authenticated user's folder.
+    // Prevents reading/promoting/deleting files belonging to other users
+    // even when the attacker knows the path.
+    const expectedPrefix = `${auth.user.id}/`
+    if (!sourcePath.startsWith(expectedPrefix)) {
+      return NextResponse.json({ error: 'sourcePath אינו שייך למשתמש המחובר' }, { status: 403 })
+    }
+
+    // Also reject path traversal attempts
+    if (sourcePath.includes('..') || sourcePath.includes('//')) {
+      return NextResponse.json({ error: 'sourcePath לא תקין' }, { status: 400 })
+    }
+
     // Verify the user owns this post
     const { data: post } = await auth.supabase
       .from('posts')

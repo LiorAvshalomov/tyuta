@@ -6,6 +6,14 @@ export const runtime = "nodejs"
 
 const SITE_URL = "https://tyuta.net"
 
+/**
+ * Safely serialize JSON for embedding in a <script> tag.
+ * Prevents </script> breakout by escaping < to \u003c.
+ */
+function safeJsonLdStringify(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c")
+}
+
 type PageProps = {
   params: Promise<{ slug: string }>
 }
@@ -132,7 +140,7 @@ export default async function PostPage({ params }: PageProps) {
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(jsonLd) }}
       />
       <PostClient />
     </>

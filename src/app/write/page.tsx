@@ -7,6 +7,7 @@ import type { JSONContent } from '@tiptap/react'
 import Editor from '@/components/Editor'
 import Badge from '@/components/Badge'
 import { supabase } from '@/lib/supabaseClient'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import { event as gaEvent } from '@/lib/gtag'
 
 type Channel = { id: number; name_he: string }
@@ -586,7 +587,7 @@ if (!effectiveChannelId) {
       .single()
 
     if (error || !created) {
-      setErrorMsg(error?.message ?? 'שגיאה ביצירת טיוטה')
+      setErrorMsg(mapSupabaseError(error ?? null) ?? error?.message ?? 'שגיאה ביצירת טיוטה')
       return null
     }
 
@@ -661,7 +662,7 @@ if (!effectiveChannelId) {
 
         const { error } = await supabase.from('posts').update(payload).eq('id', effectivePostId).eq('author_id', userId)
         if (error) {
-          setErrorMsg(error.message)
+          setErrorMsg(mapSupabaseError(error) ?? error.message)
           return
         }
 
@@ -690,7 +691,7 @@ if (!effectiveChannelId) {
         .eq('author_id', userId)
 
       if (error) {
-        setErrorMsg(error.message)
+        setErrorMsg(mapSupabaseError(error) ?? error.message)
         return
       }
 
@@ -989,12 +990,17 @@ if (!effectiveChannelId) {
           .eq('author_id', userId)
 
         if (error) {
-          const msg = error.message
-          setErrorMsg(
-            msg.includes('value too long') || msg.includes('check constraint')
-              ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
-              : msg
-          )
+          const mapped = mapSupabaseError(error)
+          if (mapped) {
+            setErrorMsg(mapped)
+          } else {
+            const msg = error.message
+            setErrorMsg(
+              msg.includes('value too long') || msg.includes('check constraint')
+                ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
+                : msg
+            )
+          }
           setSaving(false)
           return
         }
@@ -1086,12 +1092,17 @@ if (!effectiveChannelId) {
       .single()
 
     if (error) {
-      const msg = error.message
-      setErrorMsg(
-        msg.includes('value too long') || msg.includes('check constraint')
-          ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
-          : msg
-      )
+      const mapped = mapSupabaseError(error)
+      if (mapped) {
+        setErrorMsg(mapped)
+      } else {
+        const msg = error.message
+        setErrorMsg(
+          msg.includes('value too long') || msg.includes('check constraint')
+            ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
+            : msg
+        )
+      }
       setSaving(false)
       return
     }
