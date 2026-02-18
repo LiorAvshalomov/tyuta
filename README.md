@@ -8,6 +8,5 @@ A Hebrew-first writing and publishing platform. Mobile-first, RTL-native, with r
 - **Styling**: Tailwind CSS v4, mobile-first RTL
 - **Editor**: TipTap (rich text)
 - **Backend**: Supabase (PostgreSQL, Auth, Storage, Realtime)
-- **Charts**: Recharts (admin dashboard)
 - **Hosting**: Vercel
 
