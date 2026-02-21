@@ -278,8 +278,16 @@ export default function WritePage() {
   const publishingRef = useRef(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const contentSectionRef = useRef<HTMLElement>(null)
+  const settingsDetailsRef = useRef<HTMLDetailsElement>(null)
+  const channelSelectRef = useRef<HTMLSelectElement>(null)
+  const subcategorySelectRef = useRef<HTMLSelectElement>(null)
+  const tagsAreaRef = useRef<HTMLDivElement>(null)
+  const coverAreaRef = useRef<HTMLDivElement>(null)
   const [highlightTitle, setHighlightTitle] = useState(false)
   const [highlightContent, setHighlightContent] = useState(false)
+  const [highlightChannel, setHighlightChannel] = useState(false)
+  const [highlightSubcategory, setHighlightSubcategory] = useState(false)
+  const [highlightTags, setHighlightTags] = useState(false)
   // --- Auth guard
   useEffect(() => {
     const run = async () => {
@@ -943,9 +951,12 @@ if (!effectiveChannelId) {
     publishingRef.current = true
     try {
 
+    // === Common validations (both edit and publish modes) ===
+
     if (title.trim().length > TITLE_MAX) {
       toast(`הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`, 'error')
       titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      titleInputRef.current?.focus({ preventScroll: true })
       setHighlightTitle(true)
       setTimeout(() => setHighlightTitle(false), 2500)
       return
@@ -1049,10 +1060,55 @@ if (!effectiveChannelId) {
       }
     }
 
-    if (!title.trim()) { toast('כותרת היא חובה', 'error'); return }
-    if (!channelId) { toast('בחר ערוץ', 'error'); return }
-    if (!subcategoryTagId) { toast('בחר תת־קטגוריה', 'error'); return }
-    if (selectedTagIds.length < 1) { toast('חובה לבחור לפחות תגית אחת', 'error'); return }
+    // === Publish-mode validations ===
+
+    // Title required
+    if (!title.trim()) {
+      toast('כותרת היא חובה', 'error')
+      titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      titleInputRef.current?.focus({ preventScroll: true })
+      setHighlightTitle(true)
+      setTimeout(() => setHighlightTitle(false), 2500)
+      return
+    }
+
+    // Content minimum: at least 5 non-whitespace characters
+    const visibleTextLen = extractTextFromDoc(contentJson).replace(/\s/g, '').length
+    if (visibleTextLen < 5) {
+      toast('הטקסט קצר מדי – כתוב/י לפחות כמה מילים לפני שמפרסמים', 'error')
+      contentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightContent(true)
+      setTimeout(() => setHighlightContent(false), 2500)
+      return
+    }
+
+    // Channel / subcategory / tags — open settings and highlight missing fields
+    {
+      let hasSettingsError = false
+      if (!channelId) {
+        setHighlightChannel(true)
+        setTimeout(() => setHighlightChannel(false), 2500)
+        hasSettingsError = true
+      }
+      if (!subcategoryTagId) {
+        setHighlightSubcategory(true)
+        setTimeout(() => setHighlightSubcategory(false), 2500)
+        hasSettingsError = true
+      }
+      if (selectedTagIds.length < 1) {
+        setHighlightTags(true)
+        setTimeout(() => setHighlightTags(false), 2500)
+        hasSettingsError = true
+      }
+      if (hasSettingsError) {
+        if (settingsDetailsRef.current) settingsDetailsRef.current.open = true
+        setTimeout(() => {
+          settingsDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 50)
+        toast('יש למלא את כל ההגדרות לפני פרסום', 'error')
+        return
+      }
+    }
 
     setSaving(true)
     setErrorMsg(null)
@@ -1069,7 +1125,11 @@ if (!effectiveChannelId) {
     let finalCoverSource = coverSource
 
     if (!finalCoverUrl) {
+      // Scroll to cover area and show loading state while auto-importing
+      coverAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setIsCoverLoading(true)
       const auto = await fetchAutoCoverUrl(title.trim(), created.id)
+      setIsCoverLoading(false)
       if (!auto) {
         setErrorMsg('לא הצלחתי לבחור תמונה אוטומטית. נסה שוב או העלה תמונה ידנית.')
         setSaving(false)
@@ -1203,12 +1263,14 @@ if (!effectiveChannelId) {
         <section className="rounded-3xl border bg-white p-4 shadow-sm">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="md:col-span-1">
-              <div className="relative overflow-hidden rounded-2xl border bg-neutral-50">
+              <div ref={coverAreaRef} className="relative overflow-hidden rounded-2xl border bg-neutral-50">
                 {coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={coverUrl ?? undefined} alt="" className="h-44 w-full object-cover" onLoad={() => setIsCoverLoading(false)} onError={() => setIsCoverLoading(false)} />
                 ) : (
-                  <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">אין קאבר</div>
+                  <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
+                    {isCoverLoading ? 'מייבא תמונה…' : 'אין קאבר'}
+                  </div>
                 )}
                 {isCoverLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30">
@@ -1291,7 +1353,7 @@ if (!effectiveChannelId) {
                 className="mt-2 w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
               />
 
-              <details className="mt-4 rounded-2xl border bg-neutral-50 p-4" open={settingsLocked ? false : undefined}>
+              <details ref={settingsDetailsRef} className="mt-4 rounded-2xl border bg-neutral-50 p-4" open={settingsLocked ? false : undefined}>
                 <summary className="cursor-pointer text-sm font-medium">
                   הגדרות (ערוץ · תת־קטגוריה · תגיות){settingsLocked ? ' — נעול' : ''}
                 </summary>
@@ -1306,6 +1368,7 @@ if (!effectiveChannelId) {
                   <div>
                     <label className="block text-sm font-medium">ערוץ</label>
                     <select
+                      ref={channelSelectRef}
                       disabled={settingsLocked}
                       value={channelId ?? ''}
                       onChange={e => {
@@ -1313,7 +1376,7 @@ if (!effectiveChannelId) {
                         setChannelId(next)
                         setSubcategoryTagId(null)
                       }}
-                      className="mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60"
+                      className={`mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60 transition-shadow duration-500 ${highlightChannel ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
                     >
                       {channels.map(c => (
                         <option key={c.id} value={c.id}>
@@ -1326,13 +1389,14 @@ if (!effectiveChannelId) {
                   <div>
                     <label className="block text-sm font-medium">תת־קטגוריה</label>
                     <select
+                      ref={subcategorySelectRef}
                       disabled={settingsLocked}
                       value={subcategoryTagId ?? ''}
                       onChange={e => {
                         const v = e.target.value
                         setSubcategoryTagId(v ? Number(v) : null)
                       }}
-                      className="mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60"
+                      className={`mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60 transition-shadow duration-500 ${highlightSubcategory ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
                     >
                       <option value="" disabled>
                         בחר תת־קטגוריה
@@ -1351,7 +1415,7 @@ if (!effectiveChannelId) {
                     <div className="text-sm font-medium">תגיות</div>
                     <div className="text-xs text-muted-foreground">{selectedTagIds.length}/3</div>
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div ref={tagsAreaRef} className={`mt-3 flex flex-wrap gap-2 rounded-2xl transition-shadow duration-500 ${highlightTags ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)] p-2' : 'p-0'}`}>
                     {tags.map(t => {
                       const selected = selectedTagIds.includes(t.id)
                       const toggleTag = (tagId: TagId): boolean => {

@@ -818,16 +818,16 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
       <div
         style={{
           display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
+          flexDirection: 'column',
+          gap: 6,
           padding: 10,
           border: '1px solid #eee',
           borderRadius: 16,
           background: '#fafafa',
           direction: 'rtl',
-          alignItems: 'center',
         }}
       >
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <Btn
           label="H2"
           active={editor.isActive('heading', { level: 2 })}
@@ -1138,21 +1138,23 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
           </div>
         )}
 
-        <span style={{ flex: 1 }} />
+        </div>
 
-        <Btn
-          label="בטל"
-          disabled={!editor.can().chain().focus().undo().run()}
-          onClick={() => editor.chain().focus().undo().run()}
-        />
-        <Btn
-          label="החזר"
-          disabled={!editor.can().chain().focus().redo().run()}
-          onClick={() => editor.chain().focus().redo().run()}
-        />
-
-        <div style={{ fontSize: 12, opacity: 0.8, marginInlineStart: 10, fontWeight: 800 }}>
-          {words} מילים · {chars} תווים
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ flex: 1 }} />
+          <Btn
+            label="בטל"
+            disabled={!editor.can().chain().focus().undo().run()}
+            onClick={() => editor.chain().focus().undo().run()}
+          />
+          <Btn
+            label="החזר"
+            disabled={!editor.can().chain().focus().redo().run()}
+            onClick={() => editor.chain().focus().redo().run()}
+          />
+          <div style={{ fontSize: 12, opacity: 0.8, marginInlineStart: 10, fontWeight: 800 }}>
+            {words} מילים · {chars} תווים
+          </div>
         </div>
       </div>
 
