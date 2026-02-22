@@ -21,7 +21,7 @@ export default function AuthLayout({
 
   return (
     <div
-      className="pd-auth-shell relative w-full overflow-hidden"
+      className="pd-auth-shell pd-force-light relative w-full overflow-hidden"
       dir="rtl"
       style={{
         height: `calc(100dvh - ${headerH}px)`,

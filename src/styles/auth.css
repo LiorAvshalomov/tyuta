@@ -180,3 +180,33 @@
     animation: none !important;
   }
 }
+
+/* Force light theme on auth content — immune to html.dark.
+   Re-declares all light CSS variables so any descendant using
+   Tailwind CSS-variable-based utilities always resolves to light values. */
+.pd-force-light {
+  color-scheme: light;
+  /* Break the body's inherited computed color (dark text in dark mode).
+     body { color: var(--foreground) } computes to near-white in dark mode and
+     cascades as a resolved value. Setting color here (using our own --foreground
+     override below) resets the inheritance baseline for all auth descendants. */
+  color: var(--foreground);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(0.963 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+}
