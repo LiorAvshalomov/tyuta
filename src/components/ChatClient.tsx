@@ -982,9 +982,20 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-black/5 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#141414]/90">
-        {/* Right side: avatar + name */}
+        {/* Right side: back arrow (mobile) + avatar + name */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="absolute inset-y-2 right-0 w-1 rounded-l-full bg-[#D64545]/70" aria-hidden="true" />
+          {/* Back arrow — mobile only, RTL (points right = back) */}
+          <button
+            type="button"
+            onClick={() => router.push('/inbox')}
+            aria-label="חזרה להודעות"
+            className="md:hidden shrink-0 flex h-11 w-11 items-center justify-center rounded-full -mr-1 hover:bg-black/5 dark:hover:bg-white/10 transition"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
           <Avatar src={identity.avatarUrl} name={otherDisplay} size={40} shape="square" />
 
           <div className="min-w-0">
