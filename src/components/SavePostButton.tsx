@@ -110,7 +110,7 @@ export default function SavePostButton({ postId }: { postId: string }) {
         onClick={toggle}
         className={[
           base,
-          saved ? 'border bg-white hover:bg-neutral-50' : 'bg-white border hover:bg-neutral-50',
+          saved ? 'border bg-white hover:bg-neutral-50 dark:bg-card dark:hover:bg-muted dark:border-border' : 'bg-white border hover:bg-neutral-50 dark:bg-card dark:hover:bg-muted dark:border-border',
           loading ? 'opacity-60 cursor-not-allowed' : '',
         ].join(' ')}
       >

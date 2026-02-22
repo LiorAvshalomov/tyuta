@@ -164,7 +164,7 @@ function renderNode(node: RichNode, key: string): React.ReactNode {
             />
           </div>
           {toYouTubeNoCookieEmbed(src) ? null : (
-            <div className="mt-2 text-sm text-neutral-600">
+            <div className="mt-2 text-sm text-neutral-600 dark:text-muted-foreground">
               <a href={src} target="_blank" rel="noopener noreferrer nofollow" className="underline">
                 פתח/י ביוטיוב
               </a>
@@ -182,11 +182,7 @@ function renderNode(node: RichNode, key: string): React.ReactNode {
         <div
           key={key}
           dir="rtl"
-          style={{
-            marginTop: 32,
-            paddingTop: 20,
-            borderTop: '1px solid #e5e5e5',
-          }}
+          className="mt-8 pt-5 border-t border-neutral-200 dark:border-border"
         >
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
             פרקים בסדרה
@@ -196,7 +192,7 @@ function renderNode(node: RichNode, key: string): React.ReactNode {
               <li key={item.id || i} style={{ marginBottom: 6, lineHeight: 1.7 }}>
                 <a
                   href={`/post/${item.slug}`}
-                  style={{ color: '#2563EB', textDecoration: 'none' }}
+                  className="text-blue-700 dark:text-blue-400"
                 >
                   {item.title}
                 </a>
@@ -221,7 +217,7 @@ export default function RichText({ content }: Props) {
 return (
   <div
     dir="rtl"
-    className="w-full max-w-[72ch] ml-auto text-right break-words text-[16px] leading-8 text-neutral-900 [&_p]:my-2 [&_p]:leading-5 [&_h2]:text-3xl [&_h2]:font-black [&_h2]:mt-10 [&_h2]:mb-4 [&_h3]:text-2xl [&_h3]:font-bold [&_h3]:mt-8 [&_h3]:mb-3 [&_h4]:text-xl [&_h4]:font-bold [&_h4]:mt-7 [&_h4]:mb-2 [&_ul]:my-4 [&_ul]:pr-6 [&_ul]:list-disc [&_ol]:my-4 [&_ol]:pr-6 [&_ol]:list-decimal [&_li]:my-1 [&_li]:leading-7 [&_a]:text-blue-700 [&_a]:underline-offset-4 hover:[&_a]:underline [&_blockquote]:my-6 [&_blockquote]:border-r-4 [&_blockquote]:border-neutral-300 [&_blockquote]:pr-4 [&_blockquote]:text-neutral-700 [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-2xl"
+    className="w-full max-w-[72ch] ml-auto text-right break-words text-[16px] leading-8 text-neutral-900 dark:text-foreground [&_p]:my-2 [&_p]:leading-5 [&_h2]:text-3xl [&_h2]:font-black [&_h2]:mt-10 [&_h2]:mb-4 [&_h3]:text-2xl [&_h3]:font-bold [&_h3]:mt-8 [&_h3]:mb-3 [&_h4]:text-xl [&_h4]:font-bold [&_h4]:mt-7 [&_h4]:mb-2 [&_ul]:my-4 [&_ul]:pr-6 [&_ul]:list-disc [&_ol]:my-4 [&_ol]:pr-6 [&_ol]:list-decimal [&_li]:my-1 [&_li]:leading-7 [&_a]:text-blue-700 dark:[&_a]:text-blue-400 [&_a]:underline-offset-4 hover:[&_a]:underline [&_blockquote]:my-6 [&_blockquote]:border-r-4 [&_blockquote]:border-neutral-300 dark:[&_blockquote]:border-neutral-600/50 [&_blockquote]:pr-4 [&_blockquote]:text-neutral-700 dark:[&_blockquote]:text-muted-foreground [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-2xl"
   >
     {renderNode(normalized, 'root')}
   </div>

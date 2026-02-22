@@ -139,9 +139,9 @@ export default function FollowListClient({
       <h2 className="text-lg font-bold mb-4">{title || (mode === 'followers' ? 'עוקבים' : 'נעקבים')}</h2>
 
       {users.length === 0 ? (
-        <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center">
+        <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center dark:bg-card dark:border-border">
           <div className="text-3xl mb-2">👥</div>
-          <p className="text-sm text-neutral-500">{emptyText}</p>
+          <p className="text-sm text-neutral-500 dark:text-muted-foreground">{emptyText}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -149,9 +149,9 @@ export default function FollowListClient({
             const name = displayNameOnly(u)
 
             return (
-              <div 
-                key={u.id} 
-                className="rounded-xl border border-neutral-200 bg-white p-3 transition-shadow hover:shadow-sm"
+              <div
+                key={u.id}
+                className="rounded-xl border border-neutral-200 bg-white p-3 transition-shadow hover:shadow-sm dark:bg-card dark:border-border"
               >
                 <div className="flex items-center gap-3">
                   {/* Avatar - using ProfileAvatarFrame like in profile */}
@@ -173,11 +173,11 @@ export default function FollowListClient({
                     >
                       {name}
                     </Link>
-                    <div className="text-xs text-neutral-500 mt-0.5 truncate">
+                    <div className="text-xs text-neutral-500 mt-0.5 truncate dark:text-muted-foreground">
                       @{u.username}
                     </div>
-                    <div className="text-xs text-neutral-500 mt-1">
-                      <span className="font-semibold text-neutral-700">{u.followers_count}</span> עוקבים
+                    <div className="text-xs text-neutral-500 mt-1 dark:text-muted-foreground">
+                      <span className="font-semibold text-neutral-700 dark:text-foreground">{u.followers_count}</span> עוקבים
                     </div>
                   </div>
 

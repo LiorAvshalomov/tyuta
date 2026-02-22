@@ -12,7 +12,7 @@ type Props = {
 }
 
 function Placeholder({ text }: { text: string }) {
-  return <span className="text-sm text-neutral-400">{text}</span>
+  return <span className="text-sm text-neutral-400 dark:text-muted-foreground/70">{text}</span>
 }
 
 function Row({
@@ -30,11 +30,11 @@ function Row({
     (typeof value !== 'string' || value.trim().length > 0)
 
   return (
-    <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 transition-colors hover:bg-neutral-100">
-      <div className="text-[11px] font-medium text-neutral-500">{label}</div>
+    <div className="rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted/50 dark:hover:bg-muted">
+      <div className="text-[11px] font-medium text-neutral-500 dark:text-muted-foreground">{label}</div>
       <div className="mt-0.5 min-h-[18px]">
         {hasValue ? (
-          <div className="text-sm text-neutral-800 break-words whitespace-pre-wrap [overflow-wrap:anywhere] line-clamp-2">
+          <div className="text-sm text-neutral-800 break-words whitespace-pre-wrap [overflow-wrap:anywhere] line-clamp-2 dark:text-foreground">
             {value}
           </div>
         ) : (
@@ -65,13 +65,13 @@ export default function ProfilePersonalInfoCard({
 
   return (
     <div
-      className="rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md"
+      className="rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md dark:bg-card dark:border-border"
       dir="rtl"
     >
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-bold m-0">מידע אישי</h3>
         {rightSlot ? rightSlot : !shared ? (
-          <span className="text-xs text-neutral-400">פרטי</span>
+          <span className="text-xs text-neutral-400 dark:text-muted-foreground/70">פרטי</span>
         ) : null}
       </div>
 

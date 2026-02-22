@@ -55,9 +55,9 @@ function Btn({
       style={{
         padding: '6px 10px',
         borderRadius: 10,
-        border: '1px solid #ddd',
-        background: active ? '#111' : subtle ? '#fafafa' : '#fff',
-        color: active ? '#fff' : '#111',
+        border: '1px solid var(--color-border)',
+        background: active ? 'var(--color-foreground)' : subtle ? 'var(--color-muted)' : 'var(--color-background)',
+        color: active ? 'var(--color-background)' : 'var(--color-foreground)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.45 : 1,
         fontSize: 13,
@@ -77,8 +77,9 @@ function Chip({ label, onClick }: { label: string; onClick: () => void }) {
       style={{
         padding: '6px 10px',
         borderRadius: 999,
-        border: '1px solid #e5e5e5',
-        background: '#fff',
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-background)',
+        color: 'var(--color-foreground)',
         cursor: 'pointer',
         fontSize: 12,
         fontWeight: 800,
@@ -565,7 +566,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
       attributes: {
         dir: 'rtl',
         style:
-          'min-height: 320px; padding: 16px; border: 1px solid #ddd; border-radius: 16px; outline: none; line-height: 1.8; background: #fff; font-size: 16px; font-family: var(--font-editor-hebrew), sans-serif;',
+          'min-height: 320px; padding: 16px; border: 1px solid var(--color-border); border-radius: 16px; outline: none; line-height: 1.8; background: var(--color-background); color: var(--color-foreground); font-size: 16px; font-family: var(--font-editor-hebrew), sans-serif;',
       },
     },
     onUpdate({ editor }) {
@@ -821,9 +822,9 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
           flexDirection: 'column',
           gap: 6,
           padding: 10,
-          border: '1px solid #eee',
+          border: '1px solid var(--color-border)',
           borderRadius: 16,
-          background: '#fafafa',
+          background: 'var(--color-muted)',
           direction: 'rtl',
         }}
       >
@@ -926,10 +927,10 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                   className="chapters-panel"
                   style={{
                     zIndex: 50,
-                    border: '1px solid #eee',
+                    border: '1px solid var(--color-border)',
                     borderRadius: 16,
                     padding: 12,
-                    background: '#fff',
+                    background: 'var(--color-card)',
                     boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
                     direction: 'rtl',
                     boxSizing: 'border-box',
@@ -946,19 +947,20 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                       width: '100%',
                       padding: '7px 10px',
                       borderRadius: 10,
-                      border: '1px solid #ddd',
+                      border: '1px solid var(--color-border)',
                       fontSize: 13,
                       direction: 'rtl',
-                      background: '#fff',
+                      background: 'var(--color-background)',
+                      color: 'var(--color-foreground)',
                       boxSizing: 'border-box',
                       marginBottom: 6,
                     }}
                   />
 
                   {/* Available posts – checkboxes */}
-                  <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid #eee', borderRadius: 10, background: '#fafafa' }}>
+                  <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 10, background: 'var(--color-muted)' }}>
                     {userPosts.length === 0 && (
-                      <div style={{ padding: '10px 8px', fontSize: 12, color: '#999', textAlign: 'center' }}>טוען...</div>
+                      <div style={{ padding: '10px 8px', fontSize: 12, color: 'var(--color-muted-foreground)', textAlign: 'center' }}>טוען...</div>
                     )}
                     {availablePosts
                       .filter(p => !chapterSearch.trim() || p.title.includes(chapterSearch.trim()))
@@ -972,7 +974,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                             padding: '6px 8px',
                             cursor: 'pointer',
                             fontSize: 12,
-                            borderBottom: '1px solid #f0f0f0',
+                            borderBottom: '1px solid var(--color-border)',
                           }}
                         >
                           <input
@@ -987,7 +989,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                         </label>
                       ))}
                     {userPosts.length > 0 && availablePosts.filter(p => !chapterSearch.trim() || p.title.includes(chapterSearch.trim())).length === 0 && (
-                      <div style={{ padding: '10px 8px', fontSize: 12, color: '#999', textAlign: 'center' }}>אין פוסטים זמינים</div>
+                      <div style={{ padding: '10px 8px', fontSize: 12, color: 'var(--color-muted-foreground)', textAlign: 'center' }}>אין פוסטים זמינים</div>
                     )}
                   </div>
 
@@ -1001,9 +1003,9 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                       marginTop: 6,
                       padding: '7px 0',
                       borderRadius: 10,
-                      border: '1px solid #ddd',
-                      background: pendingIds.length > 0 ? '#111' : '#f5f5f5',
-                      color: pendingIds.length > 0 ? '#fff' : '#999',
+                      border: '1px solid var(--color-border)',
+                      background: pendingIds.length > 0 ? 'var(--color-foreground)' : 'var(--color-muted)',
+                      color: pendingIds.length > 0 ? 'var(--color-background)' : 'var(--color-muted-foreground)',
                       cursor: pendingIds.length > 0 ? 'pointer' : 'not-allowed',
                       fontSize: 13,
                       fontWeight: 700,
@@ -1014,7 +1016,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
 
                   {/* Selected chapters list */}
                   {chaptersItems.length > 0 && (
-                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 10, marginBottom: 6, color: '#666' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 10, marginBottom: 6, color: 'var(--color-muted-foreground)' }}>
                       פרקים שנבחרו:
                     </div>
                   )}
@@ -1028,8 +1030,8 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                           gap: 4,
                           padding: '4px 8px',
                           borderRadius: 8,
-                          border: '1px solid #eee',
-                          background: '#fafafa',
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-muted)',
                           fontSize: 12,
                         }}
                       >
@@ -1044,8 +1046,9 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                             width: 28,
                             height: 28,
                             borderRadius: 6,
-                            border: '1px solid #ddd',
-                            background: '#fff',
+                            border: '1px solid var(--color-border)',
+                            background: 'var(--color-background)',
+                            color: 'var(--color-foreground)',
                             cursor: i === 0 ? 'not-allowed' : 'pointer',
                             opacity: i === 0 ? 0.3 : 1,
                             fontSize: 13,
@@ -1066,8 +1069,9 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                             width: 28,
                             height: 28,
                             borderRadius: 6,
-                            border: '1px solid #ddd',
-                            background: '#fff',
+                            border: '1px solid var(--color-border)',
+                            background: 'var(--color-background)',
+                            color: 'var(--color-foreground)',
                             cursor: i === chaptersItems.length - 1 ? 'not-allowed' : 'pointer',
                             opacity: i === chaptersItems.length - 1 ? 0.3 : 1,
                             fontSize: 13,
@@ -1087,8 +1091,8 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                             width: 28,
                             height: 28,
                             borderRadius: 6,
-                            border: '1px solid #ddd',
-                            background: '#fff',
+                            border: '1px solid var(--color-border)',
+                            background: 'var(--color-background)',
                             cursor: 'pointer',
                             fontSize: 15,
                             color: '#D92D20',
@@ -1161,10 +1165,10 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
       {showMedia && (
         <div
           style={{
-            border: '1px solid #eee',
+            border: '1px solid var(--color-border)',
             borderRadius: 16,
             padding: 10,
-            background: '#fff',
+            background: 'var(--color-card)',
             display: 'flex',
             flexWrap: 'wrap',
             gap: 8,
@@ -1207,16 +1211,16 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
       {showStyle && (
         <div
           style={{
-            border: '1px solid #eee',
+            border: '1px solid var(--color-border)',
             borderRadius: 16,
             padding: 10,
-            background: '#fff',
+            background: 'var(--color-card)',
             display: 'grid',
             gap: 10,
           }}
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.75, marginInlineEnd: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.75, marginInlineEnd: 6, color: 'var(--color-foreground)' }}>
               צבע טקסט:
             </div>
 
@@ -1228,8 +1232,8 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                 style={{
                   padding: '6px 10px',
                   borderRadius: 999,
-                  border: '1px solid #e5e5e5',
-                  background: '#fff',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-card)',
                   cursor: 'pointer',
                   fontSize: 12,
                   fontWeight: 900,
@@ -1244,7 +1248,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.75, marginInlineEnd: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.75, marginInlineEnd: 6, color: 'var(--color-foreground)' }}>
               הדגשה:
             </div>
 
@@ -1252,11 +1256,12 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
               <button
                 key={h.value}
                 type="button"
+                className="editor-highlight-swatch"
                 onClick={() => editor.chain().focus().toggleHighlight({ color: h.value }).run()}
                 style={{
                   padding: '6px 10px',
                   borderRadius: 999,
-                  border: '1px solid #e5e5e5',
+                  border: '1px solid var(--color-border)',
                   background: h.value,
                   cursor: 'pointer',
                   fontSize: 12,

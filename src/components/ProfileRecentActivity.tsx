@@ -53,13 +53,13 @@ export default function ProfileRecentActivity({ userId, matchHeight }: { userId:
   return (
     <div 
       ref={containerRef}
-      className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md"
+      className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md dark:bg-card dark:border-border"
       style={containerStyle}
       dir="rtl"
     >
       <div className="flex shrink-0 items-center justify-between mb-3">
         <h3 className="text-sm font-bold m-0">פעילות אחרונה</h3>
-        <span className="text-xs text-neutral-400">10 אחרונות</span>
+        <span className="text-xs text-neutral-400 dark:text-muted-foreground/70">10 אחרונות</span>
       </div>
 
       {/* Scrollable area */}
@@ -72,7 +72,7 @@ export default function ProfileRecentActivity({ userId, matchHeight }: { userId:
           <div className="flex h-full items-center justify-center py-8">
             <div className="text-center">
               <div className="text-2xl mb-2">💬</div>
-              <p className="text-sm text-neutral-500">אין עדיין תגובות.</p>
+              <p className="text-sm text-neutral-500 dark:text-muted-foreground">אין עדיין תגובות.</p>
             </div>
           </div>
         ) : (
@@ -80,20 +80,20 @@ export default function ProfileRecentActivity({ userId, matchHeight }: { userId:
             {rows.map((r, i) => (
               <li 
                 key={i} 
-                className="rounded-lg border border-neutral-100 bg-neutral-50 p-2.5 transition-colors hover:bg-neutral-100"
+                className="rounded-lg border border-neutral-100 bg-neutral-50 p-2.5 transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted/50 dark:hover:bg-muted"
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <Link
-                    className="text-xs font-medium text-blue-600 transition-colors hover:text-blue-700 hover:underline truncate max-w-[70%]"
+                    className="text-xs font-medium text-blue-600 dark:text-blue-400 transition-colors hover:text-blue-700 dark:hover:text-blue-300 hover:underline truncate max-w-[70%]"
                     href={`/post/${r.post_slug}`}
                   >
                     {r.post_title}
                   </Link>
-                  <span className="text-[10px] text-neutral-400 shrink-0">
+                  <span className="text-[10px] text-neutral-400 shrink-0 dark:text-muted-foreground/70">
                     {timeAgo(r.created_at)}
                   </span>
                 </div>
-                <p className="text-xs leading-relaxed text-neutral-600 line-clamp-2">
+                <p className="text-xs leading-relaxed text-neutral-600 line-clamp-2 dark:text-muted-foreground">
                   {r.content}
                 </p>
               </li>

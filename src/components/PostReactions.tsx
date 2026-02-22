@@ -342,7 +342,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
 
   if (loading) {
     return (
-      <div className="mt-4 text-right text-sm text-neutral-600" dir="rtl">
+      <div className="mt-4 text-right text-sm text-neutral-600 dark:text-muted-foreground" dir="rtl">
         טוען דירוגים…
       </div>
     )
@@ -352,14 +352,14 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
     <section className="text-right" dir="rtl">
       <div className="flex flex-col items-stretch">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-[15px] font-black text-neutral-950">דירוגים:</div>
-          <div className="whitespace-nowrap text-[12px] text-neutral-600">
+          <div className="text-[15px] font-black text-neutral-950 dark:text-foreground">דירוגים:</div>
+          <div className="whitespace-nowrap text-[12px] text-neutral-600 dark:text-muted-foreground">
             {myVotesCount}/3 נבחרו
           </div>
         </div>
 
         {errorMsg ? (
-          <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-800">
+          <div className="mt-3 rounded-2xl border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-[13px] text-red-800 dark:text-red-300">
             {errorMsg}
           </div>
         ) : null}
@@ -383,7 +383,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                   'group inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border px-2 py-1 text-center transition-all duration-150 ease-out md:min-w-[74px] md:px-3 md:py-2',
                   mine
                     ? 'border-neutral-900 bg-neutral-900 text-white'
-                    : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50',
+                    : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted',
                 ].join(' ')}
                 style={{
                   transform: isAnimating ? 'scale(1.12)' : 'scale(1)',
@@ -392,7 +392,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                 <div className="flex items-center justify-center gap-1.5 text-[15px] leading-none md:text-[18px]">
                   <span className="drop-shadow-sm">{REACTION_EMOJI[r.key] ?? '⭐'}</span>
                   {votes > 0 ? (
-                    <span className={mine ? 'text-[11px] text-white/80 md:text-[12px]' : 'text-[11px] text-neutral-600 md:text-[12px]'}>
+                    <span className={mine ? 'text-[11px] text-white/80 md:text-[12px]' : 'text-[11px] text-neutral-600 dark:text-muted-foreground md:text-[12px]'}>
                       {votes}
                     </span>
                   ) : null}
@@ -401,7 +401,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                   className={
                     mine
                       ? 'mt-1 text-[10px] font-semibold text-white md:text-[12px]'
-                      : 'mt-1 text-[10px] font-semibold text-neutral-800 md:text-[12px]'
+                      : 'mt-1 text-[10px] font-semibold text-neutral-800 dark:text-foreground md:text-[12px]'
                   }
                 >
                   {r.label_he}
@@ -411,7 +411,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
           })}
         </div>
 
-        <div className="mt-3 text-center text-[12px] leading-5 text-neutral-600">
+        <div className="mt-3 text-center text-[12px] leading-5 text-neutral-600 dark:text-muted-foreground">
           בחר עד 3 דירוגים לפוסט, אפשר לבטל בלחיצה נוספת.
         </div>
       </div>

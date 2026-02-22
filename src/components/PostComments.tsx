@@ -1005,29 +1005,29 @@ async function submitReport() {
         }
       }}
     >
-      <div className="w-full max-w-lg rounded-3xl border bg-white p-5 shadow-xl">
+      <div className="w-full max-w-lg rounded-3xl border bg-white dark:bg-card dark:border-border p-5 shadow-xl">
         <div className="flex items-start gap-3">
           <div className="min-w-0">
             <div className="text-sm font-black">דיווח על תגובה בפוסט</div>
-            <div className="mt-1 text-xs text-neutral-600">
+            <div className="mt-1 text-xs text-neutral-600 dark:text-muted-foreground">
               הדיווח יישלח לצוות האתר. אנחנו מתייחסים לדיווחים ברצינות ומטפלים בהם בהקדם.
             </div>
 
             {reportedComment && (
-              <div className="mt-3 rounded-2xl border bg-black/5 p-3 text-xs text-neutral-700">
+              <div className="mt-3 rounded-2xl border bg-black/5 dark:bg-muted p-3 text-xs text-neutral-700 dark:text-muted-foreground">
                 <div className="font-bold">תגובה שדווחה</div>
                 <div className="mt-1 whitespace-pre-wrap">
                   {String(reportedComment.content).slice(0, 280)}
                   {String(reportedComment.content).length > 280 ? '…' : ''}
                 </div>
-                <div className="mt-1 text-[11px] text-neutral-500">{formatHe(reportedComment.created_at)}</div>
+                <div className="mt-1 text-[11px] text-neutral-500 dark:text-muted-foreground">{formatHe(reportedComment.created_at)}</div>
               </div>
             )}
           </div>
 
           <button
             type="button"
-            className="mr-auto rounded-full border px-3 py-1 text-xs font-bold hover:bg-black/5"
+            className="mr-auto rounded-full border px-3 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10"
             onClick={() => {
               setReportOpen(false)
               setReportedComment(null)
@@ -1040,15 +1040,15 @@ async function submitReport() {
         </div>
 
         {!canReportComment ? (
-          <div className="mt-4 rounded-2xl border bg-black/5 p-3 text-sm">לא ניתן לדווח על עצמך.</div>
+          <div className="mt-4 rounded-2xl border bg-black/5 dark:bg-white/5 p-3 text-sm">לא ניתן לדווח על עצמך.</div>
         ) : (
           <div className="mt-4 space-y-3">
             <label className="block">
-              <div className="mb-1 text-xs font-bold text-neutral-700">סוג דיווח</div>
+              <div className="mb-1 text-xs font-bold text-neutral-700 dark:text-muted-foreground">סוג דיווח</div>
               <select
                 value={reportReason}
                 onChange={(e) => setReportReason(e.target.value as typeof reportReason)}
-                className="w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                className="w-full rounded-2xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
               >
                 <option value="abusive_language">שפה פוגענית / הקנטה</option>
                 <option value="spam_promo">ספאם / פרסום</option>
@@ -1059,29 +1059,29 @@ async function submitReport() {
             </label>
 
             <label className="block">
-              <div className="mb-1 text-xs font-bold text-neutral-700">פרטים (אופציונלי)</div>
+              <div className="mb-1 text-xs font-bold text-neutral-700 dark:text-muted-foreground">פרטים (אופציונלי)</div>
               <textarea
                 value={reportDetails}
                 onChange={(e) => setReportDetails(e.target.value)}
                 rows={4}
                 maxLength={2000}
-                className="w-full resize-none rounded-2xl border bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-black/10 whitespace-pre-wrap"
+                className="w-full resize-none rounded-2xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-4 py-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-black/10 whitespace-pre-wrap"
                 placeholder="תיאור קצר שיעזור לנו לטפל…"
               />
-              <div className="mt-1 text-xs text-neutral-500">{reportDetails.length}/2000</div>
+              <div className="mt-1 text-xs text-neutral-500 dark:text-muted-foreground">{reportDetails.length}/2000</div>
             </label>
 
             {reportErr && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{reportErr}</div>
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-400">{reportErr}</div>
             )}
             {reportOk && (
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{reportOk}</div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-400">{reportOk}</div>
             )}
 
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
-                className="rounded-full border px-4 py-2 text-sm font-bold hover:bg-black/5"
+                className="rounded-full border px-4 py-2 text-sm font-bold hover:bg-black/5 dark:hover:bg-white/10"
                 onClick={() => setReportOpen(false)}
               >
                 ביטול
@@ -1104,17 +1104,17 @@ async function submitReport() {
     </div>
   )}
 
-    <section className="mt-6 rounded-2xl border bg-white p-4" dir="rtl">
+    <section className="mt-6 rounded-2xl border bg-white dark:bg-card dark:border-border p-4" dir="rtl">
       <div className="flex items-center justify-between gap-3">
         <h3 className="m-0 text-sm font-bold">תגובות</h3>
         <div className="text-xs text-muted-foreground">{items.length} תגובות</div>
       </div>
 
       {/* Composer */}
-      <div id="comment-composer" className="mt-3 rounded-2xl border bg-neutral-50 p-3 scroll-mt-24">
+      <div id="comment-composer" className="mt-3 rounded-2xl border bg-neutral-50 dark:bg-muted dark:border-border p-3 scroll-mt-24">
         {replyToId ? (
-          <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border bg-white px-3 py-2">
-            <div className="text-xs text-neutral-700">
+          <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border bg-white dark:bg-card dark:border-border px-3 py-2">
+            <div className="text-xs text-neutral-700 dark:text-muted-foreground">
               משיב/ה ל־<span className="font-bold">{replyToName ?? 'אנונימי'}</span>
             </div>
             <button
@@ -1129,7 +1129,7 @@ async function submitReport() {
         ) : null}
 
         <textarea
-          className="w-full resize-none rounded-xl border bg-white px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
+          className="w-full resize-none rounded-xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
           rows={3}
           maxLength={700}
           placeholder={userId ? (replyToId ? 'כתוב תגובת תשובה…' : 'כתוב תגובה…') : 'התחבר כדי להגיב…'}
@@ -1162,7 +1162,7 @@ async function submitReport() {
       </div>
 
       {err ? (
-        <div className="mt-3 rounded-xl border bg-red-50 p-3 text-sm text-red-700">{err}</div>
+        <div className="mt-3 rounded-xl border bg-red-50 dark:bg-red-950/30 dark:border-red-800/40 p-3 text-sm text-red-700 dark:text-red-300">{err}</div>
       ) : null}
 
       {/* List */}
@@ -1246,9 +1246,9 @@ async function submitReport() {
             )
 
             const body = isEditing ? (
-              <div className="mt-3 rounded-2xl border bg-neutral-50 p-3">
+              <div className="mt-3 rounded-2xl border bg-neutral-50 dark:bg-muted dark:border-border p-3">
                 <textarea
-                  className="w-full resize-none rounded-xl border bg-white px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
+                  className="w-full resize-none rounded-xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
                   rows={3}
                   maxLength={700}
                   value={editText}
@@ -1259,7 +1259,7 @@ async function submitReport() {
                   <button
                     type="button"
                     onClick={cancelEdit}
-                    className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-white"
+                    className="rounded-xl border dark:border-border px-3 py-2 text-sm font-semibold hover:bg-white dark:hover:bg-card"
                     disabled={sending}
                   >
                     ביטול
@@ -1275,7 +1275,7 @@ async function submitReport() {
                 </div>
               </div>
             ) : (
-              <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 break-words [overflow-wrap:anywhere]">
+              <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 dark:text-foreground break-words [overflow-wrap:anywhere]">
                 {c.content}
               </div>
             )
@@ -1297,7 +1297,7 @@ async function submitReport() {
         e.stopPropagation()
         setOpenMenuId((prev) => (prev === c.id ? null : c.id))
       }}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white dark:bg-card dark:text-foreground text-neutral-700 shadow-sm hover:bg-neutral-50 dark:hover:bg-muted"
       aria-label="פעולות אדמין"
       title="פעולות אדמין"
     >
@@ -1305,10 +1305,10 @@ async function submitReport() {
     </button>
 
     {openMenuId === c.id ? (
-      <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg">
+      <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded-2xl border border-black/10 dark:border-border bg-white dark:bg-card shadow-lg">
         <button
           type="button"
-          className="w-full px-3 py-2 text-right text-sm font-semibold text-red-600 hover:bg-red-50"
+          className="w-full px-3 py-2 text-right text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
           onClick={(e) => {
             e.stopPropagation()
             setOpenMenuId(null)
@@ -1338,7 +1338,7 @@ async function submitReport() {
                       <button
                         type="button"
                         onClick={() => toggleLike(c.id)}
-                        className={`font-semibold hover:underline ${liked ? 'text-red-600' : 'text-neutral-600'}`}
+                        className={`font-semibold hover:underline ${liked ? 'text-red-600' : 'text-neutral-600 dark:text-muted-foreground'}`}
                         disabled={isTemp || sending}
                       >
                         ❤ לייק
@@ -1365,7 +1365,7 @@ async function submitReport() {
                     <button
                       type="button"
                       onClick={() => startReply(c)}
-                      className="font-semibold text-neutral-600 hover:underline"
+                      className="font-semibold text-neutral-600 dark:text-muted-foreground hover:underline"
                       disabled={isTemp || sending}
                     >
                       הגב
@@ -1377,7 +1377,7 @@ async function submitReport() {
                 {replies.length ? (
                   expandedParents.has(c.id) ? (
                   <div id={`replies-${c.id}`} className="mt-4 scroll-mt-24">
-                  <div className="space-y-2 border-r border-neutral-200 pr-4 mr-6">
+                  <div className="space-y-2 border-r border-neutral-200 dark:border-border pr-4 mr-6">
                     {replies.map(r => {
                       const ra = r.author
                       const rName = ra?.display_name ?? 'אנונימי'
@@ -1394,7 +1394,7 @@ async function submitReport() {
                           key={r.id}
                           id={`comment-${r.id}`}
                           className={
-                            `relative rounded-2xl border bg-white p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
+                            `relative rounded-2xl border bg-white dark:bg-card dark:border-border p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
                             (highlightIds.has(`comment-${r.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[tyutaGlow_900ms_ease-out] motion-reduce:animate-none' : '')
                           }
                         >
@@ -1406,7 +1406,7 @@ async function submitReport() {
         e.stopPropagation()
         setOpenMenuId((prev) => (prev === r.id ? null : r.id))
       }}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-white dark:bg-card dark:text-foreground text-neutral-700 shadow-sm hover:bg-neutral-50 dark:hover:bg-muted"
       aria-label="פעולות אדמין"
       title="פעולות אדמין"
     >
@@ -1414,10 +1414,10 @@ async function submitReport() {
     </button>
 
     {openMenuId === r.id ? (
-      <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg">
+      <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded-2xl border border-black/10 dark:border-border bg-white dark:bg-card shadow-lg">
         <button
           type="button"
-          className="w-full px-3 py-2 text-right text-sm font-semibold text-red-600 hover:bg-red-50"
+          className="w-full px-3 py-2 text-right text-sm font-semibold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
           onClick={(e) => {
             e.stopPropagation()
             setOpenMenuId(null)
@@ -1492,9 +1492,9 @@ async function submitReport() {
                           </div>
 
                           {rEditing ? (
-                            <div className="mt-3 rounded-2xl border bg-neutral-50 p-3">
+                            <div className="mt-3 rounded-2xl border bg-neutral-50 dark:bg-muted dark:border-border p-3">
                               <textarea
-                                className="w-full resize-none rounded-xl border bg-white px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
+                                className="w-full resize-none rounded-xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
                                 rows={3}
                                 maxLength={700}
                                 value={editText}
@@ -1505,7 +1505,7 @@ async function submitReport() {
                                 <button
                                   type="button"
                                   onClick={cancelEdit}
-                                  className="rounded-xl border px-3 py-2 text-sm font-semibold hover:bg-white"
+                                  className="rounded-xl border dark:border-border px-3 py-2 text-sm font-semibold hover:bg-white dark:hover:bg-card"
                                   disabled={sending}
                                 >
                                   ביטול
@@ -1521,7 +1521,7 @@ async function submitReport() {
                               </div>
                             </div>
                           ) : (
-                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 break-words [overflow-wrap:anywhere]">
+                            <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 dark:text-foreground break-words [overflow-wrap:anywhere]">
                               {r.content}
                             </div>
                           )}
@@ -1532,7 +1532,7 @@ async function submitReport() {
                                 <button
                                   type="button"
                                   onClick={() => toggleLike(r.id)}
-                                  className={`font-semibold hover:underline ${rLiked ? 'text-red-600' : 'text-neutral-600'}`}
+                                  className={`font-semibold hover:underline ${rLiked ? 'text-red-600' : 'text-neutral-600 dark:text-muted-foreground'}`}
                                   disabled={rTemp || sending}
                                 >
                                   ❤ לייק
@@ -1573,7 +1573,7 @@ async function submitReport() {
                         el.scrollIntoView({ behavior: mobile ? 'smooth' : 'auto', block: 'start' })
                       })
                     }}
-                    className="mt-2 mr-6 text-xs font-semibold text-neutral-500 hover:underline"
+                    className="mt-2 mr-6 text-xs font-semibold text-neutral-500 dark:text-muted-foreground hover:underline"
                   >
                     הסתר תגובות
                   </button>
@@ -1605,14 +1605,14 @@ async function submitReport() {
 {/* Admin delete modal */}
 {deleteTarget ? (
   <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" dir="rtl">
-    <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+    <div className="w-full max-w-md rounded-2xl bg-white dark:bg-card p-4 shadow-xl">
       <div className="text-base font-black">מחיקת תגובה</div>
       <div className="mt-1 text-sm text-muted-foreground">
         תגובה מאת {deleteTarget.authorName}: ״{deleteTarget.snippet}״
       </div>
 
       <textarea
-        className="mt-3 w-full rounded-xl border border-black/10 bg-white p-3 text-sm outline-none focus:ring-2 focus:ring-black/20"
+        className="mt-3 w-full rounded-xl border border-black/10 dark:border-border bg-white dark:bg-card dark:text-foreground p-3 text-sm outline-none focus:ring-2 focus:ring-black/20"
         rows={4}
         value={deleteReason}
         onChange={(e) => setDeleteReason(e.target.value)}
@@ -1622,7 +1622,7 @@ async function submitReport() {
       <div className="mt-4 flex gap-2">
         <button
           type="button"
-          className="flex-1 rounded-xl border border-black/10 px-3 py-2 text-sm font-semibold"
+          className="flex-1 rounded-xl border border-black/10 dark:border-border dark:text-foreground px-3 py-2 text-sm font-semibold"
           onClick={() => {
             setDeleteTarget(null)
             setDeleteReason('')

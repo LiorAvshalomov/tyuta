@@ -155,8 +155,10 @@ export default function CommunityNotesWall() {
     }
   }, [openMenuId])
 
-  async function loadNotes() {
-    setLoading(true)
+  // silent=true → background refresh; skip the loading skeleton so the wall never flickers.
+  // Only the very first load (silent=false) shows the skeleton.
+  async function loadNotes(silent = false) {
+    if (!silent) setLoading(true)
 
     const { data, error } = await supabase
       .from('community_notes_feed')
@@ -164,7 +166,7 @@ export default function CommunityNotesWall() {
       .order('updated_at', { ascending: false })
       .limit(200)
 
-    setLoading(false)
+    if (!silent) setLoading(false)
 
     if (error) return
 
@@ -263,7 +265,7 @@ export default function CommunityNotesWall() {
     if (rtStatus === 'SUBSCRIBED') return
 
     const pollMs = 8000
-    const t = setInterval(() => loadNotes(), pollMs)
+    const t = setInterval(() => loadNotes(true), pollMs)
     const onFocus = () => loadNotes()
     window.addEventListener('focus', onFocus)
     return () => {
@@ -330,9 +332,9 @@ export default function CommunityNotesWall() {
       return prev
     })
 
-    // refresh from DB for display_name/avatar (in case they changed)
-    // (also helps if realtime isn't enabled)
-    loadNotes()
+    // Refresh from DB for display_name/avatar (in case they changed).
+    // Silent so the wall never flickers on post — we already applied the optimistic update.
+    void loadNotes(true)
   }
 
   async function handleOpenChat(note: NoteRow) {
@@ -395,12 +397,12 @@ export default function CommunityNotesWall() {
     <section className="space-y-4">
       {/* If we haven't checked auth yet, keep UI minimal to avoid flashing private content */}
       {!authChecked ? (
-        <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/80 p-6 text-sm text-muted-foreground shadow-sm backdrop-blur">
+        <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/80 p-6 text-sm text-muted-foreground shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/80">
           טוען…
         </div>
       ) : null}
 
-      <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/90 shadow-sm backdrop-blur">
+      <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/90">
         <div className="px-4 py-3" dir="rtl">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -411,13 +413,13 @@ export default function CommunityNotesWall() {
             </div>
 
             <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1">מקס׳ {NOTE_MAX} תווים</span>
-              <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1">קולדאון 10 דק׳</span>
+              <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1 dark:border-white/10 dark:bg-muted/60">מקס׳ {NOTE_MAX} תווים</span>
+              <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1 dark:border-white/10 dark:bg-muted/60">קולדאון 10 דק׳</span>
             </div>
           </div>
 
           {/* Composer */}
-          <div className="mt-3 rounded-2xl border border-black/10 bg-white/70 p-3">
+          <div className="mt-3 rounded-2xl border border-black/10 bg-white/70 p-3 dark:border-white/10 dark:bg-muted/50">
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -433,7 +435,7 @@ export default function CommunityNotesWall() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span>{body.trim().length}/{NOTE_MAX}</span>
                 {cooldown && (
-                  <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1">
+                  <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1 dark:border-white/10 dark:bg-muted/60">
                     אפשר שוב בעוד {secondsToClock(remainingSeconds)}
                   </span>
                 )}
@@ -452,11 +454,11 @@ export default function CommunityNotesWall() {
       </div>
 
       {/* Wall */}
-      <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/80 p-3 shadow-sm backdrop-blur">
+      <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/80 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/80">
         {loading ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 9 }).map((_, i) => (
-              <div key={i} className="h-28 rounded-2xl border border-black/10 bg-white/60 animate-pulse" />
+              <div key={i} className="h-28 rounded-2xl border border-black/10 bg-white/60 animate-pulse dark:border-white/10 dark:bg-muted/40" />
             ))}
           </div>
         ) : notes.length === 0 ? (
@@ -483,11 +485,11 @@ export default function CommunityNotesWall() {
                       <div
                         key={n.id}
                         className={[
-                          'group relative text-right w-full rounded-2xl border border-black/10 bg-white/70 p-3 shadow-sm transition',
-                          'will-change-transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-black/20',
+                          'group relative text-right w-full rounded-2xl border border-black/10 bg-white/70 p-3 shadow-sm transition dark:border-border dark:bg-card',
+                          'will-change-transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-black/20 dark:focus:ring-white/20',
                           mine ? 'opacity-95' : 'cursor-pointer',
                           (lastPostedIdRef.current === n.id || highlightId === n.id)
-                            ? 'ring-2 ring-black/20 shadow-md scale-[1.01] bg-white/80'
+                            ? 'ring-2 ring-black/20 shadow-md scale-[1.01] bg-white/80 dark:ring-white/20'
                             : '',
                         ].join(' ')}
                         dir="rtl"
@@ -501,17 +503,17 @@ export default function CommunityNotesWall() {
                                 e.stopPropagation()
                                 setOpenMenuId((cur) => (cur === n.id ? null : n.id))
                               }}
-                              className="flex h-8 w-8 items-center justify-center rounded-full text-base text-black hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+                              className="flex h-8 w-8 items-center justify-center rounded-full text-base text-black hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20 dark:text-foreground dark:hover:bg-white/10"
                               aria-label="פעולות אדמין"
                             >
                               ⋯
                             </button>
 
                             {openMenuId === n.id ? (
-                              <div className="mt-1 w-40 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
+                              <div className="mt-1 w-40 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-card">
                                 <button
                                   type="button"
-                                  className="w-full px-3 py-2 text-right text-sm hover:bg-red-50 hover:text-red-700"
+                                  className="w-full px-3 py-2 text-right text-sm hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30 dark:hover:text-red-400"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     setOpenMenuId(null)
@@ -557,7 +559,7 @@ export default function CommunityNotesWall() {
                               onClick={() => handleOpenChat(n)}
                               disabled={!!mine}
                               className={[
-                                'mt-1 w-full text-right text-sm leading-relaxed text-black/90',
+                                'mt-1 w-full text-right text-sm leading-relaxed text-black/90 dark:text-foreground/90',
                                 'whitespace-pre-wrap break-words',
                                 mine ? 'cursor-default' : 'cursor-pointer',
                               ].join(' ')}
@@ -586,14 +588,14 @@ export default function CommunityNotesWall() {
       {/* Admin delete modal */}
       {deleteTarget ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" dir="rtl">
-          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl dark:bg-card dark:border dark:border-border">
             <div className="text-base font-black">מחיקת פתק</div>
             <div className="mt-1 text-sm text-muted-foreground">
               הפתק: ״{clipOneLineNote(deleteTarget.body, 60)}״
             </div>
 
             <textarea
-              className="mt-3 w-full rounded-xl border border-black/10 bg-white p-3 text-sm outline-none focus:ring-2 focus:ring-black/20"
+              className="mt-3 w-full rounded-xl border border-black/10 bg-white p-3 text-sm outline-none focus:ring-2 focus:ring-black/20 dark:border-white/10 dark:bg-muted dark:text-foreground placeholder:text-muted-foreground"
               rows={4}
               value={deleteReason}
               onChange={(e) => setDeleteReason(e.target.value)}
@@ -603,7 +605,7 @@ export default function CommunityNotesWall() {
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                className="flex-1 rounded-xl border border-black/10 px-3 py-2 text-sm font-semibold"
+                className="flex-1 rounded-xl border border-black/10 px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-muted dark:hover:bg-muted/80"
                 onClick={() => {
                   setDeleteTarget(null)
                   setDeleteReason('')

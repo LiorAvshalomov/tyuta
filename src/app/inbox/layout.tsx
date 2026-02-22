@@ -8,7 +8,7 @@ export default function InboxLayout({ children }: { children: React.ReactNode })
       {/* Desktop split layout */}
       <div className="hidden md:grid md:grid-cols-[360px_1fr] md:gap-4 h-full min-h-0 py-2">
         {/* Sidebar */}
-        <aside className="h-full min-h-0 overflow-hidden rounded-3xl border border-black/5 bg-[#FAF9F6] shadow-sm">
+        <aside className="h-full min-h-0 overflow-hidden rounded-3xl border border-black/5 bg-[#FAF9F6] shadow-sm dark:border-white/10 dark:bg-[#1a1a1a]">
           <div className="h-full min-h-0 overflow-hidden">
             <InboxThreads />
           </div>

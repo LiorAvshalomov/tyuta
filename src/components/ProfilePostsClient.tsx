@@ -70,10 +70,10 @@ function timeAgo(dateStr: string): string {
 // מגזין - purple background
 function getChannelStyle(channelName: string | null): string {
   switch (channelName) {
-    case 'פריקה': return 'bg-red-100 text-red-700'
-    case 'סיפורים': return 'bg-blue-100 text-blue-700'
-    case 'מגזין': return 'bg-purple-100 text-purple-700'
-    default: return 'bg-neutral-100 text-neutral-600'
+    case 'פריקה': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    case 'סיפורים': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    case 'מגזין': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+    default: return 'bg-neutral-100 text-neutral-600 dark:bg-muted dark:text-muted-foreground'
   }
 }
 
@@ -109,20 +109,20 @@ function DesktopPostCard({
   const hasMedals = post.medals && (post.medals.gold > 0 || post.medals.silver > 0 || post.medals.bronze > 0)
 
   return (
-    <article className="group relative hidden sm:block rounded-xl border border-neutral-100 bg-neutral-50 p-4 transition-colors hover:bg-neutral-100">
+    <article className="group relative hidden sm:block rounded-xl border border-neutral-100 bg-neutral-50 p-4 transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted/50 dark:hover:bg-muted">
       {/* Owner actions */}
       {isOwner && post.id && (
         <div className="absolute left-3 top-3 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <Link
             href={`/write?edit=${encodeURIComponent(post.id)}&return=${encodeURIComponent(returnTo)}`}
-            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium shadow-sm hover:bg-neutral-50"
+            className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium shadow-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
           >
             ערוך
           </Link>
           <button
             type="button"
             onClick={() => onDelete(post)}
-            className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50"
+            className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 dark:bg-card dark:border-red-800 dark:hover:bg-red-950/30"
           >
             מחק
           </button>
@@ -132,7 +132,7 @@ function DesktopPostCard({
       <div className="flex gap-4">
         {/* Cover Image - Right side */}
         <Link href={`/post/${post.slug}`} className="shrink-0">
-          <div className="relative h-28 w-36 overflow-hidden rounded-lg bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100">
+          <div className="relative h-28 w-36 overflow-hidden rounded-lg bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
             {post.cover_image_url ? (
               <Image
                 src={post.cover_image_url}
@@ -158,12 +158,12 @@ function DesktopPostCard({
 
           {/* Excerpt */}
           {post.excerpt && (
-            <p className="text-sm text-neutral-600 line-clamp-1 mt-1">{post.excerpt}</p>
+            <p className="text-sm text-neutral-600 line-clamp-1 mt-1 dark:text-muted-foreground">{post.excerpt}</p>
           )}
 
           {/* Meta row: Date • Category | Medals */}
           <div className="flex items-center justify-between mt-auto pt-2">
-            <div className="flex items-center gap-2 text-xs text-neutral-500">
+            <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-muted-foreground">
               <span>{timeAgo(post.created_at)}</span>
               {post.channel_name && (
                 <>
@@ -207,20 +207,20 @@ function MobilePostCard({
   const hasMedals = post.medals && (post.medals.gold > 0 || post.medals.silver > 0 || post.medals.bronze > 0)
 
   return (
-    <article className="group relative sm:hidden rounded-xl border border-neutral-100 bg-neutral-50 overflow-hidden">
+    <article className="group relative sm:hidden rounded-xl border border-neutral-100 bg-neutral-50 overflow-hidden dark:border-border dark:bg-muted/50">
       {/* Owner actions */}
       {isOwner && post.id && (
         <div className="absolute left-2 top-2 z-10 flex gap-1">
           <Link
             href={`/write?edit=${encodeURIComponent(post.id)}&return=${encodeURIComponent(returnTo)}`}
-            className="rounded-md border border-neutral-200 bg-white/90 px-2 py-1 text-xs font-medium shadow-sm"
+            className="rounded-md border border-neutral-200 bg-white/90 px-2 py-1 text-xs font-medium shadow-sm dark:bg-card/90 dark:border-border"
           >
             ערוך
           </Link>
           <button
             type="button"
             onClick={() => onDelete(post)}
-            className="rounded-md border border-red-200 bg-white/90 px-2 py-1 text-xs font-medium text-red-600 shadow-sm"
+            className="rounded-md border border-red-200 bg-white/90 px-2 py-1 text-xs font-medium text-red-600 shadow-sm dark:bg-card/90 dark:border-red-800"
           >
             מחק
           </button>
@@ -229,7 +229,7 @@ function MobilePostCard({
 
       {/* Cover Image - Top, full width */}
       <Link href={`/post/${post.slug}`}>
-        <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100">
+        <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
           {post.cover_image_url ? (
             <Image
               src={post.cover_image_url}
@@ -255,13 +255,13 @@ function MobilePostCard({
 
         {/* Excerpt */}
         {post.excerpt && (
-          <p className="text-sm text-neutral-600 line-clamp-2 mb-2">{post.excerpt}</p>
+          <p className="text-sm text-neutral-600 line-clamp-2 mb-2 dark:text-muted-foreground">{post.excerpt}</p>
         )}
 
         {/* Meta row: Date • Category | Medals */}
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-neutral-500">{timeAgo(post.created_at)}</span>
+            <span className="text-neutral-500 dark:text-muted-foreground">{timeAgo(post.created_at)}</span>
             {post.channel_name && (
               <span className={`rounded px-2 py-0.5 font-semibold ${getChannelStyle(post.channel_name)}`}>
                 {post.channel_name}
@@ -570,9 +570,9 @@ export default function ProfilePostsClient({
           type="button"
           onClick={() => setSort('recent')}
           className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-            sort === 'recent' 
-              ? 'bg-blue-600 text-white shadow-sm' 
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+            sort === 'recent'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:bg-card dark:border-border dark:text-muted-foreground dark:hover:bg-muted'
           }`}
         >
           אחרונים
@@ -581,9 +581,9 @@ export default function ProfilePostsClient({
           type="button"
           onClick={() => setSort('reactions')}
           className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-            sort === 'reactions' 
-              ? 'bg-blue-600 text-white shadow-sm' 
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+            sort === 'reactions'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:bg-card dark:border-border dark:text-muted-foreground dark:hover:bg-muted'
           }`}
         >
           הכי פופולרי
@@ -592,9 +592,9 @@ export default function ProfilePostsClient({
           type="button"
           onClick={() => setSort('comments')}
           className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-            sort === 'comments' 
-              ? 'bg-blue-600 text-white shadow-sm' 
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
+            sort === 'comments'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:bg-card dark:border-border dark:text-muted-foreground dark:hover:bg-muted'
           }`}
         >
           הכי הרבה תגובות
@@ -602,7 +602,7 @@ export default function ProfilePostsClient({
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-400">{error}</div>
       )}
 
       {loading ? (
@@ -619,9 +619,9 @@ export default function ProfilePostsClient({
           ))}
         </div>
       ) : (
-        <div className="rounded-xl bg-neutral-50 px-4 py-12 text-center">
+        <div className="rounded-xl bg-neutral-50 px-4 py-12 text-center dark:bg-muted/50">
           <div className="text-3xl mb-2">📝</div>
-          <p className="text-sm text-neutral-500">אין עדיין פוסטים.</p>
+          <p className="text-sm text-neutral-500 dark:text-muted-foreground">אין עדיין פוסטים.</p>
         </div>
       )}
 
@@ -631,7 +631,7 @@ export default function ProfilePostsClient({
             type="button"
             disabled={page >= totalPages}
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-card dark:border-border dark:hover:bg-muted"
           >
             הבא →
           </button>
@@ -642,9 +642,9 @@ export default function ProfilePostsClient({
               type="button"
               onClick={() => setPage(n)}
               className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
-                n === page 
-                  ? 'bg-neutral-900 text-white shadow-sm' 
-                  : 'border border-neutral-200 bg-white hover:bg-neutral-50'
+                n === page
+                  ? 'bg-neutral-900 text-white shadow-sm dark:bg-foreground dark:text-background'
+                  : 'border border-neutral-200 bg-white hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted'
               }`}
             >
               {n}
@@ -655,7 +655,7 @@ export default function ProfilePostsClient({
             type="button"
             disabled={page <= 1}
             onClick={() => setPage(p => Math.max(1, p - 1))}
-            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-card dark:border-border dark:hover:bg-muted"
           >
             ← קודם
           </button>

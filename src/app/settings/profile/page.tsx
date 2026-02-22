@@ -226,7 +226,7 @@ export default function ProfileSettingsPage() {
     return (
       <div className="mx-auto max-w-xl px-4 py-8" dir="rtl">
         <h1 className="text-xl font-bold">הגדרות פרופיל</h1>
-        <div className="mt-3 rounded-xl border bg-red-50 p-3 text-sm text-red-700">
+        <div className="mt-3 rounded-xl border bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50">
           {err}
         </div>
       </div>
@@ -240,7 +240,7 @@ export default function ProfileSettingsPage() {
         כאן אתה יכול לשנות שם תצוגה, שם משתמש, תמונת פרופיל וביו קצר.
       </p>
 
-      <div className="mt-6 rounded-2xl border bg-white p-4">
+      <div className="mt-6 rounded-2xl border bg-white p-4 dark:bg-card dark:border-border">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Avatar src={avatarPreview} name={displayName || 'משתמש'} />
@@ -276,7 +276,7 @@ export default function ProfileSettingsPage() {
           <div>
             <label className="block text-sm font-medium">שם תצוגה</label>
             <input
-              className="mt-1 w-full rounded-xl border px-3 py-2"
+              className="mt-1 w-full rounded-xl border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
               placeholder="למשל: יוסי, אנונימי"
               value={displayName}
               onChange={e => setDisplayName(e.target.value)}
@@ -292,7 +292,7 @@ export default function ProfileSettingsPage() {
               שם משתמש (באנגלית)
             </label>
             <input
-              className="mt-1 w-full rounded-xl border px-3 py-2"
+              className="mt-1 w-full rounded-xl border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
               placeholder="למשל: pen_writer_12"
               value={username}
               onChange={e => setUsername(e.target.value)}
@@ -312,7 +312,7 @@ export default function ProfileSettingsPage() {
               ביו קצר (אופציונלי)
             </label>
             <textarea
-              className="mt-1 w-full rounded-xl border px-3 py-2 leading-6 resize-none overflow-y-auto max-h-32"
+              className="mt-1 w-full rounded-xl border px-3 py-2 leading-6 resize-none overflow-y-auto max-h-32 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
               rows={3}
               placeholder="משפט-שניים עליך… (עד 120 תווים)"
               value={bio}
@@ -325,13 +325,13 @@ export default function ProfileSettingsPage() {
           </div>
 
           {err ? (
-            <div className="rounded-xl border bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-xl border bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50">
               {err}
             </div>
           ) : null}
 
           {msg ? (
-            <div className="rounded-xl border bg-green-50 p-3 text-sm text-green-700">
+            <div className="rounded-xl border bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-400 dark:border-green-900/50">
               {msg}
             </div>
           ) : null}

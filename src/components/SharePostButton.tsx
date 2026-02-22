@@ -44,7 +44,7 @@ export default function SharePostButton({ url, title }: { url: string; title: st
 
   return (
     <div className="relative">
-      <button type="button" onClick={onShare} className={[base, 'bg-white border hover:bg-neutral-50'].join(' ')}>
+      <button type="button" onClick={onShare} className={[base, 'bg-white border hover:bg-neutral-50 dark:bg-card dark:hover:bg-muted dark:border-border'].join(' ')}>
         שיתוף
       </button>
 

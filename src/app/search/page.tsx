@@ -108,7 +108,7 @@ export default function SearchPage() {
   }, [])
 
   // Load subcategory options based on chosen channel.
-  // IMPORTANT: We only show subcategories that are actually used by posts in that channel.
+  // Fetches all active genre tags for the selected channel, sorted by known canonical order.
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -128,45 +128,27 @@ export default function SearchPage() {
         return
       }
 
-      const channelId = Number((ch as ChannelRow).id)
+      const channelRow = ch as ChannelRow
+      const channelId = Number(channelRow.id)
 
       // Cosmetic label per channel
       setSubcatLabel(channelId === 1 ? 'תת-קטגוריה (פריקה)' : channelId === 2 ? 'תת-קטגוריה (סיפורים)' : channelId === 3 ? 'תת-קטגוריה (מגזין)' : 'תת-קטגוריה')
 
-      // 1) Get distinct subcategory_tag_id used by posts in this channel
-      const { data: postsRows, error: postsErr } = await supabase
-        .from('posts')
-        .select('subcategory_tag_id')
-        .is('deleted_at', null)
-        .eq('channel_id', channelId)
-        .not('subcategory_tag_id', 'is', null)
-        .limit(5000)
-
-      if (!alive) return
-      if (postsErr) {
-        setSubcats([{ value: '', label: 'כל תתי-הקטגוריות' }])
-        return
+      // Canonical subcategory order per channel (matches /write)
+      const KNOWN_ORDER: Record<string, string[]> = {
+        'פריקה':    ['וידויים', 'מחשבות', 'שירים'],
+        'סיפורים':  ['סיפורים אמיתיים', 'סיפורים קצרים', 'סיפור בהמשכים'],
+        'מגזין':    ['חדשות', 'תרבות ובידור', 'טכנולוגיה', 'ספורט', 'דעות'],
       }
+      const knownOrder = KNOWN_ORDER[channelRow.name_he] ?? []
 
-      const ids = Array.from(
-        new Set(
-          (postsRows as Array<{ subcategory_tag_id: number | null }> | null | undefined)
-            ?.map((r) => r.subcategory_tag_id)
-            .filter((v): v is number => typeof v === 'number') ?? []
-        )
-      )
-
-      if (ids.length === 0) {
-        setSubcats([{ value: '', label: 'כל תתי-הקטגוריות' }])
-        setSubcatId('')
-        return
-      }
-
-      // 2) Fetch those tags
+      // Fetch all active genre tags for this channel directly
       const { data: tags, error: tagsErr } = await supabase
         .from('tags')
         .select('id, slug, name_he, channel_id, type, is_active')
-        .in('id', ids)
+        .eq('channel_id', channelId)
+        .eq('type', 'genre')
+        .eq('is_active', true)
         .limit(200)
 
       if (!alive) return
@@ -175,10 +157,23 @@ export default function SearchPage() {
         return
       }
 
-      // Sort by Hebrew name
-      const sorted = ((tags as TagRow[] | null | undefined) ?? [])
-        .filter((t) => t.is_active)
-        .sort((a, b) => (a.name_he || '').localeCompare(b.name_he || ''))
+      const tagList = (tags as TagRow[] | null | undefined) ?? []
+
+      if (tagList.length === 0) {
+        setSubcats([{ value: '', label: 'כל תתי-הקטגוריות' }])
+        setSubcatId('')
+        return
+      }
+
+      // Sort: known-order tags first (by index), then any extras alphabetically
+      const sorted = [...tagList].sort((a, b) => {
+        const ai = knownOrder.indexOf(a.name_he)
+        const bi = knownOrder.indexOf(b.name_he)
+        const aIdx = ai === -1 ? Infinity : ai
+        const bIdx = bi === -1 ? Infinity : bi
+        if (aIdx !== bIdx) return aIdx - bIdx
+        return (a.name_he || '').localeCompare(b.name_he || '')
+      })
 
       const opts = sorted.map((t) => ({ value: String(t.id), label: t.name_he }))
       setSubcats([{ value: '', label: 'כל תתי-הקטגוריות' }, ...opts])
@@ -261,6 +256,7 @@ export default function SearchPage() {
           { count: 'exact' }
         )
         .eq('status', 'published')
+        .is('deleted_at', null)
 
       if (channelId) query = query.eq('channel_id', channelId)
       if (subcatValid) query = query.eq('subcategory_tag_id', subcatValid)
@@ -370,7 +366,7 @@ export default function SearchPage() {
 
       <form
         onSubmit={onSubmit}
-        className="rounded-2xl border bg-neutral-50/80 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-neutral-50/70"
+        className="rounded-2xl border bg-neutral-50/80 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-neutral-50/70 dark:bg-muted/80 dark:supports-[backdrop-filter]:bg-muted/70"
       >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
           <div className="md:col-span-2">
@@ -379,13 +375,13 @@ export default function SearchPage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="חפש כותרת..."
-              className="h-11 w-full rounded-xl border px-3"
+              className="h-11 w-full rounded-xl border px-3 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
             />
           </div>
 
           <div>
             <label className="mb-1 block text-sm font-medium">קטגוריה</label>
-            <select value={channel} onChange={(e) => setChannel(e.target.value)} className="h-11 w-full rounded-xl border px-3">
+            <select value={channel} onChange={(e) => setChannel(e.target.value)} className="h-11 w-full rounded-xl border px-3 bg-background text-foreground dark:border-border">
               {(channels.length ? channels : [{ value: '', label: 'טוען...' }]).map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -396,7 +392,7 @@ export default function SearchPage() {
 
           <div>
             <label className="mb-1 block text-sm font-medium">{subcatLabel}</label>
-            <select value={subcatId} onChange={(e) => setSubcatId(e.target.value)} className="h-11 w-full rounded-xl border px-3" disabled={!channel}>
+            <select value={subcatId} onChange={(e) => setSubcatId(e.target.value)} className="h-11 w-full rounded-xl border px-3 bg-background text-foreground dark:border-border" disabled={!channel}>
               {(subcats.length ? subcats : [{ value: '', label: 'בחר קטגורייה קודם' }]).map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -407,7 +403,7 @@ export default function SearchPage() {
 
           <div>
             <label className="mb-1 block text-sm font-medium">מיון</label>
-            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="h-11 w-full rounded-xl border px-3">
+            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="h-11 w-full rounded-xl border px-3 bg-background text-foreground dark:border-border">
               <option value="recent">אחרונים</option>
               <option value="reactions">ריאקשנים</option>
               <option value="comments">תגובות</option>
@@ -436,7 +432,7 @@ export default function SearchPage() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') router.push(`/post/${p.slug}`)
             }}
-            className="cursor-pointer rounded-2xl border bg-white p-4 hover:shadow-sm"
+            className="cursor-pointer rounded-2xl border bg-white p-4 hover:shadow-sm dark:bg-card dark:border-border"
           >
             <div className="flex flex-row-reverse items-start gap-4">
               {p.cover_image_url ? (
@@ -483,7 +479,7 @@ export default function SearchPage() {
           </div>
         ))}
 
-        {!loading && !error && results.length === 0 ? <div className="rounded-2xl border bg-white p-6 text-sm text-muted-foreground">לא נמצאו תוצאות.</div> : null}
+        {!loading && !error && results.length === 0 ? <div className="rounded-2xl border bg-white p-6 text-sm text-muted-foreground dark:bg-card dark:border-border">לא נמצאו תוצאות.</div> : null}
       </div>
 
       <div className="mt-6 flex items-center justify-center gap-2">
@@ -496,7 +492,7 @@ export default function SearchPage() {
             <Link
               key={n}
               href={buildUrl({ page: n })}
-              className={`h-9 min-w-9 rounded-xl border px-3 text-center text-sm leading-9 ${n === urlPage ? 'bg-black text-white' : 'bg-white hover:bg-muted'}`}
+              className={`h-9 min-w-9 rounded-xl border px-3 text-center text-sm leading-9 dark:border-border ${n === urlPage ? 'bg-black text-white dark:bg-foreground dark:text-background' : 'bg-white hover:bg-muted dark:bg-card dark:hover:bg-muted'}`}
             >
               {n}
             </Link>

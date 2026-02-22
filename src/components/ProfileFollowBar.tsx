@@ -98,7 +98,7 @@ export default function ProfileFollowBar({
   return (
     <div className="mt-6">
       {/* Full-width divider */}
-      <div className="-mx-5 border-t border-neutral-200 pt-5 lg:-mx-8">
+      <div className="-mx-5 border-t border-neutral-200 pt-5 lg:-mx-8 dark:border-border">
         <div className="flex items-center justify-between px-2 lg:px-8 pt-4">
           {/* Follow counts (RIGHT side in RTL) */}
           <div className="flex items-center gap-2">
@@ -109,7 +109,7 @@ export default function ProfileFollowBar({
               <span className="text-2xl font-black leading-none transition-colors group-hover:text-blue-600">
                 {formatCount(followersCount)}
               </span>
-              <span className="mt-1 text-xs text-neutral-500 transition-colors group-hover:text-neutral-700">
+              <span className="mt-1 text-xs text-neutral-500 transition-colors group-hover:text-neutral-700 dark:text-muted-foreground dark:group-hover:text-foreground">
                 עוקבים
               </span>
             </Link>
@@ -121,7 +121,7 @@ export default function ProfileFollowBar({
               <span className="text-2xl font-black leading-none transition-colors group-hover:text-blue-600">
                 {formatCount(followingCount)}
               </span>
-              <span className="mt-1 text-xs text-neutral-500 transition-colors group-hover:text-neutral-700">
+              <span className="mt-1 text-xs text-neutral-500 transition-colors group-hover:text-neutral-700 dark:text-muted-foreground dark:group-hover:text-foreground">
                 עוקב אחרי
               </span>
             </Link>

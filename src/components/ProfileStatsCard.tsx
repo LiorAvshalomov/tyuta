@@ -22,7 +22,7 @@ type Props = {
 
 function Tile({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border bg-neutral-50 px-3 py-3">
+    <div className="rounded-2xl border bg-neutral-50 px-3 py-3 dark:bg-muted dark:border-border">
       <div className="text-xs text-muted-foreground truncate">{label}</div>
       <div className="mt-1 text-lg font-bold tabular-nums">{value}</div>
     </div>
@@ -56,7 +56,7 @@ export default function ProfileStatsCard({
   })
 
   return (
-    <div className="rounded-2xl border bg-white p-4 h-[320px] flex flex-col" dir="rtl">
+    <div className="rounded-2xl border bg-white p-4 h-[320px] flex flex-col dark:bg-card dark:border-border" dir="rtl">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold m-0">נתונים</h3>
       </div>

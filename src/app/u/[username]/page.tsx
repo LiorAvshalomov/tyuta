@@ -45,13 +45,13 @@ function safeText(s?: string | null) {
 function MedalPills({ gold, silver, bronze }: { gold: number; silver: number; bronze: number }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
         {bronze} <span className="text-base">🥉</span>
       </span>
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
         {silver} <span className="text-base">🥈</span>
       </span>
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100">
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
         {gold} <span className="text-base">🥇</span>
       </span>
     </div>
@@ -63,7 +63,7 @@ function MedalPills({ gold, silver, bronze }: { gold: number; silver: number; br
    ───────────────────────────────────────────────────────────── */
 function StatPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex items-center justify-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 transition-colors hover:bg-neutral-100">
+    <div className="flex items-center justify-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
       <span className="text-xs text-neutral-500">{label}:</span>
       <span className="text-sm font-bold">{value}</span>
     </div>
@@ -178,7 +178,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
       {/* ════════════════════════════════════════════════════════════
           PROFILE HEADER CARD
           ════════════════════════════════════════════════════════════ */}
-      <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md lg:rounded-3xl lg:p-8">
+      <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md lg:rounded-3xl lg:p-8 dark:bg-card dark:border-border">
         
         {/* ─────────────────────────────────────────
             MOBILE LAYOUT (default, hidden on lg+)
@@ -190,11 +190,11 @@ export default async function PublicProfilePage({ params }: PageProps) {
             
             {/* Name + Username */}
             <h1 className="mt-4 break-words text-2xl font-black leading-tight">{displayName}</h1>
-            <div className="mt-1 text-sm text-neutral-500">@{prof.username}</div>
+            <div className="mt-1 text-sm text-neutral-500 dark:text-muted-foreground">@{prof.username}</div>
 
             {/* Bio */}
             {bio && (
-              <p className="mt-4 max-w-[38ch] break-words text-sm leading-relaxed text-neutral-600 [overflow-wrap:anywhere]">
+              <p className="mt-4 max-w-[38ch] break-words text-sm leading-relaxed text-neutral-600 dark:text-muted-foreground [overflow-wrap:anywhere]">
                 {bio}
               </p>
             )}
@@ -232,10 +232,10 @@ export default async function PublicProfilePage({ params }: PageProps) {
             {/* Name + Username + Bio */}
             <div className="flex min-w-0 flex-1 flex-col pt-2">
               <h1 className="break-words text-4xl font-black leading-tight">{displayName}</h1>
-              <div className="mt-1 text-sm text-neutral-500">@{prof.username}</div>
+              <div className="mt-1 text-sm text-neutral-500 dark:text-muted-foreground">@{prof.username}</div>
               
               {bio && (
-                <p className="mt-4 max-w-[50ch] break-words text-sm leading-relaxed text-neutral-600 [overflow-wrap:anywhere]">
+                <p className="mt-4 max-w-[50ch] break-words text-sm leading-relaxed text-neutral-600 dark:text-muted-foreground [overflow-wrap:anywhere]">
                   {bio}
                 </p>
               )}

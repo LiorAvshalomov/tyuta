@@ -85,7 +85,7 @@ export default function FollowButton({
       className={[
         base,
         isFollowing
-            ? 'border bg-white hover:bg-neutral-50 text-black'
+            ? 'border bg-white hover:bg-neutral-50 text-black dark:bg-card dark:border-border dark:hover:bg-muted dark:text-foreground'
             : '!bg-black !text-white hover:!bg-black/90 hover:!text-white',
           loading ? 'opacity-60 cursor-not-allowed' : '',
       ].join(' ')}

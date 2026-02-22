@@ -152,7 +152,7 @@ const restoreAll = useCallback(async () => {
   )
 
   return (
-    <main className="min-h-screen bg-neutral-50" dir="rtl">
+    <main className="min-h-screen bg-neutral-50 dark:bg-background" dir="rtl">
       <div className="mx-auto max-w-4xl px-4 py-10">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -168,28 +168,28 @@ const restoreAll = useCallback(async () => {
               type="button"
               onClick={() => void restoreAll()}
               disabled={rows.length === 0 || busyId === 'ALL_RESTORE'}
-              className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 disabled:opacity-50"
+              className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 disabled:opacity-50 dark:bg-card dark:border-border dark:hover:bg-muted"
             >
               שחזר הכל
             </button>
-            <Link href="/notebook" className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href="/notebook" className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted">
               למחברת
             </Link>
           </div>
         </header>
 
         {errorMsg ? (
-          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{errorMsg}</div>
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50">{errorMsg}</div>
         ) : null}
 
         {loading ? (
           <div className="text-sm text-muted-foreground">טוען…</div>
         ) : emptyState ? (
-          <div className="rounded-3xl border bg-white p-6 text-sm text-muted-foreground">אין פוסטים שנמחקו.</div>
+          <div className="rounded-3xl border bg-white p-6 text-sm text-muted-foreground dark:bg-card dark:border-border">אין פוסטים שנמחקו.</div>
         ) : (
           <div className="grid gap-3">
             {rows.map(r => (
-              <div key={r.id} className="rounded-3xl border bg-white p-4 shadow-sm">
+              <div key={r.id} className="rounded-3xl border bg-white p-4 shadow-sm dark:bg-card dark:border-border">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">{(r.title ?? '').trim() || 'ללא כותרת'}</div>
@@ -212,7 +212,7 @@ const restoreAll = useCallback(async () => {
                     {r.slug ? (
                       <Link
                         href={`/post/${r.slug}`}
-                        className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50"
+                        className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
                       >
                         צפייה
                       </Link>
@@ -222,7 +222,7 @@ const restoreAll = useCallback(async () => {
                       type="button"
                       onClick={() => void restore(r.id)}
                       disabled={busyId === r.id}
-                      className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-60"
+                      className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:opacity-60 dark:bg-card dark:border-border dark:hover:bg-muted"
                     >
                       שחזור
                     </button>

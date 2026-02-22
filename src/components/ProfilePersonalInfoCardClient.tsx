@@ -43,10 +43,10 @@ function InputShell({
     <div className="space-y-1">
       <div className="flex items-end justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-neutral-800">{label}</div>
-          {hint ? <div className="text-[11px] text-neutral-500">{hint}</div> : null}
+          <div className="text-sm font-semibold text-neutral-800 dark:text-foreground">{label}</div>
+          {hint ? <div className="text-[11px] text-neutral-500 dark:text-muted-foreground">{hint}</div> : null}
         </div>
-        {counter ? <div className="text-[11px] text-neutral-400 shrink-0">{counter}</div> : null}
+        {counter ? <div className="text-[11px] text-neutral-400 dark:text-muted-foreground/70 shrink-0">{counter}</div> : null}
       </div>
       {children}
     </div>
@@ -213,13 +213,13 @@ export default function ProfilePersonalInfoCardClient({
           />
 
           {/* Modal Content - mobile: bottom sheet, desktop: centered */}
-          <div className="relative z-10 flex max-h-[85vh] sm:max-h-[90vh] w-full sm:max-w-md flex-col rounded-t-2xl sm:rounded-2xl border border-neutral-200 bg-white shadow-2xl">
+          <div className="relative z-10 flex max-h-[85vh] sm:max-h-[90vh] w-full sm:max-w-md flex-col rounded-t-2xl sm:rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:bg-card dark:border-border">
             {/* Header - Fixed */}
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-100 p-4">
-              <h3 className="text-base font-bold text-neutral-900">עריכת מידע אישי</h3>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-100 p-4 dark:border-border">
+              <h3 className="text-base font-bold text-neutral-900 dark:text-foreground">עריכת מידע אישי</h3>
               <button
                 type="button"
-                className="rounded-full p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600"
+                className="rounded-full p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-600 dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
                 onClick={() => !saving && setOpen(false)}
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,17 +231,17 @@ export default function ProfilePersonalInfoCardClient({
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto overscroll-contain p-4">
               {/* Share toggle */}
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 p-3 mb-4">
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-neutral-50 p-3 mb-4 dark:border-border dark:bg-muted/50">
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-neutral-800">שיתוף מידע</div>
-                  <div className="text-[11px] text-neutral-500">אם כבוי — יוצג &quot;לא להציג&quot;</div>
+                  <div className="text-sm font-semibold text-neutral-800 dark:text-foreground">שיתוף מידע</div>
+                  <div className="text-[11px] text-neutral-500 dark:text-muted-foreground">אם כבוי — יוצג &quot;לא להציג&quot;</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsShared(v => !v)}
                   className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${isShared
-                    ? 'bg-neutral-900 text-white'
-                    : 'border border-neutral-300 bg-white text-neutral-600'
+                    ? 'bg-neutral-900 text-white dark:bg-foreground dark:text-background'
+                    : 'border border-neutral-300 bg-white text-neutral-600 dark:border-border dark:bg-muted dark:text-muted-foreground'
                     }`}
                 >
                   {isShared ? 'משותף' : 'פרטי'}
@@ -252,7 +252,7 @@ export default function ProfilePersonalInfoCardClient({
               <div className="space-y-3">
                 <InputShell label="קצת עליי" hint="עד 90 תווים" counter={`${about.length}/${LIMITS.about}`}>
                   <textarea
-                    className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm leading-relaxed transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                    className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm leading-relaxed transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
                     rows={2}
                     maxLength={LIMITS.about}
                     value={about}
@@ -264,7 +264,7 @@ export default function ProfilePersonalInfoCardClient({
                 <div className="grid grid-cols-2 gap-3">
                   <InputShell label="גיל">
                     <input
-                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
                       inputMode="numeric"
                       value={age}
                       onChange={e => setAge(e.target.value.replace(/[^0-9]/g, ''))}
@@ -274,7 +274,7 @@ export default function ProfilePersonalInfoCardClient({
 
                   <InputShell label="עיסוק" counter={`${occupation.length}/${LIMITS.occupation}`}>
                     <input
-                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
                       maxLength={LIMITS.occupation}
                       value={occupation}
                       onChange={e => setOccupation(e.target.value)}
@@ -286,7 +286,7 @@ export default function ProfilePersonalInfoCardClient({
                 <div className="grid grid-cols-2 gap-3">
                   <InputShell label="כותב על" counter={`${writingAbout.length}/${LIMITS.writingAbout}`}>
                     <input
-                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
                       maxLength={LIMITS.writingAbout}
                       value={writingAbout}
                       onChange={e => setWritingAbout(e.target.value)}
@@ -296,7 +296,7 @@ export default function ProfilePersonalInfoCardClient({
 
                   <InputShell label="קטגוריה">
                     <select
-                      className="w-full rounded-lg border border-neutral-200 bg-white p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                      className="w-full rounded-lg border border-neutral-200 bg-white p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100 dark:bg-card dark:border-border dark:text-foreground"
                       value={favoriteCategory}
                       onChange={e => setFavoriteCategory(e.target.value)}
                     >
@@ -309,7 +309,7 @@ export default function ProfilePersonalInfoCardClient({
 
                 <InputShell label="ספרים" hint="עד 80 תווים" counter={`${books.length}/${LIMITS.books}`}>
                   <textarea
-                    className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm leading-relaxed transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100"
+                    className="w-full rounded-lg border border-neutral-200 p-2.5 text-sm leading-relaxed transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
                     rows={2}
                     maxLength={LIMITS.books}
                     value={books}
@@ -320,15 +320,15 @@ export default function ProfilePersonalInfoCardClient({
               </div>
 
               {error && (
-                <div className="mt-3 rounded-lg bg-red-50 p-2.5 text-sm text-red-600">{error}</div>
+                <div className="mt-3 rounded-lg bg-red-50 p-2.5 text-sm text-red-600 dark:bg-red-950/30 dark:text-red-400">{error}</div>
               )}
             </div>
 
             {/* Footer - Fixed */}
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-neutral-100 p-4">
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-neutral-100 p-4 dark:border-border">
               <button
                 type="button"
-                className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100"
+                className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-border dark:text-muted-foreground dark:hover:bg-muted"
                 disabled={saving}
                 onClick={() => setOpen(false)}
               >

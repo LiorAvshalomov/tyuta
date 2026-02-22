@@ -182,7 +182,7 @@ export default function SavedPostsPage() {
     if (pg.total <= pg.pageSize) return null
     return (
       <div className={`flex items-center justify-between gap-3 ${className}`}>
-        <div className="text-xs text-neutral-500">
+        <div className="text-xs text-neutral-500 dark:text-muted-foreground">
           עמוד {pg.page + 1} מתוך {totalPages}
         </div>
         <div className="flex items-center gap-2">
@@ -190,7 +190,7 @@ export default function SavedPostsPage() {
             type="button"
             onClick={() => setPg((prev) => ({ ...prev, page: prev.page - 1 }))}
             disabled={!canPrev}
-            className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:-translate-y-[1px] hover:bg-neutral-50 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:-translate-y-[1px] hover:bg-neutral-50 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-card dark:border-border dark:text-foreground dark:hover:bg-muted"
           >
             הקודם
           </button>
@@ -198,7 +198,7 @@ export default function SavedPostsPage() {
             type="button"
             onClick={() => setPg((prev) => ({ ...prev, page: prev.page + 1 }))}
             disabled={!canNext}
-            className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:-translate-y-[1px] hover:bg-neutral-50 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-neutral-900 shadow-sm transition hover:-translate-y-[1px] hover:bg-neutral-50 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-card dark:border-border dark:text-foreground dark:hover:bg-muted"
           >
             הבא
           </button>
@@ -208,22 +208,22 @@ export default function SavedPostsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-50" dir="rtl">
+    <main className="min-h-screen bg-neutral-50 dark:bg-background" dir="rtl">
       <div className="mx-auto max-w-4xl px-4 py-10">
-        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5">
-          <h1 className="text-2xl font-black tracking-tight text-neutral-950">פוסטים שמורים</h1>
-          <p className="mt-1 text-sm text-neutral-600">הפוסטים ששמרת לקריאה מאוחרת.</p>
+        <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5 dark:bg-card dark:ring-white/5">
+          <h1 className="text-2xl font-black tracking-tight text-neutral-950 dark:text-foreground">פוסטים שמורים</h1>
+          <p className="mt-1 text-sm text-neutral-600 dark:text-muted-foreground">הפוסטים ששמרת לקריאה מאוחרת.</p>
 
           {err ? (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50">
               {err}
             </div>
           ) : null}
 
           {loading ? (
-            <div className="mt-6 text-sm text-neutral-600">טוען…</div>
+            <div className="mt-6 text-sm text-neutral-600 dark:text-muted-foreground">טוען…</div>
           ) : rows.length === 0 ? (
-            <div className="mt-6 text-sm text-neutral-600">אין פוסטים שמורים עדיין.</div>
+            <div className="mt-6 text-sm text-neutral-600 dark:text-muted-foreground">אין פוסטים שמורים עדיין.</div>
           ) : (
             <div className="mt-6">
               <PaginationBar className="mb-4" />
@@ -235,10 +235,10 @@ export default function SavedPostsPage() {
                     return (
                       <div
                         key={`${r.post_id}-${r.created_at}`}
-                        className="rounded-2xl border border-neutral-200 bg-white p-4"
+                        className="rounded-2xl border border-neutral-200 bg-white p-4 dark:bg-card dark:border-border"
                       >
-                        <div className="text-[15px] font-extrabold text-neutral-950">פוסט לא זמין</div>
-                        <div className="mt-1 text-sm text-neutral-600">
+                        <div className="text-[15px] font-extrabold text-neutral-950 dark:text-foreground">פוסט לא זמין</div>
+                        <div className="mt-1 text-sm text-neutral-600 dark:text-muted-foreground">
                           נראה שהפוסט שנשמר נמחק או שאינך מורשה לצפות בו.
                         </div>
                       </div>
@@ -253,18 +253,18 @@ export default function SavedPostsPage() {
                   return (
                     <div
                       key={`${r.post_id}-${r.created_at}`}
-                      className="group rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:-translate-y-[1px] hover:border-neutral-300 hover:shadow"
+                      className="group rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm transition hover:-translate-y-[1px] hover:border-neutral-300 hover:shadow dark:bg-card dark:border-border dark:hover:border-border/70"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <Link
                             href={`/post/${p.slug}`}
-                            className="block text-[15px] font-extrabold text-neutral-950 underline-offset-4 hover:underline"
+                            className="block text-[15px] font-extrabold text-neutral-950 underline-offset-4 hover:underline dark:text-foreground"
                           >
                             {clampText(p.title ?? 'ללא כותרת', 80)}
                           </Link>
                           {p.excerpt ? (
-                            <div className="mt-2 text-sm leading-6 text-neutral-600">
+                            <div className="mt-2 text-sm leading-6 text-neutral-600 dark:text-muted-foreground">
                               {clampText(p.excerpt, 140)}
                             </div>
                           ) : null}
@@ -274,27 +274,27 @@ export default function SavedPostsPage() {
                           {authorUsername ? (
                             <Link
                               href={`/u/${authorUsername}`}
-                              className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs font-semibold text-neutral-900 shadow-sm transition hover:bg-neutral-50"
+                              className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs font-semibold text-neutral-900 shadow-sm transition hover:bg-neutral-50 dark:bg-card dark:border-border dark:text-foreground dark:hover:bg-muted"
                             >
                               <Avatar src={p.author?.avatar_url} name={authorDisplay} size={32} />
                               <span className="max-w-[110px] truncate">{authorDisplay}</span>
                             </Link>
                           ) : (
-                            <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs font-semibold text-neutral-900 shadow-sm">
+                            <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2 py-1 text-xs font-semibold text-neutral-900 shadow-sm dark:bg-card dark:border-border dark:text-foreground">
                               <Avatar src={p.author?.avatar_url} name={authorDisplay} size={32} />
                               <span className="max-w-[110px] truncate">{authorDisplay}</span>
                             </div>
                           )}
 
                           {channelLabel ? (
-                            <div className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-700">
+                            <div className="rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-700 dark:bg-muted dark:border-border dark:text-muted-foreground">
                               {channelLabel}
                             </div>
                           ) : null}
                         </div>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-200 pt-3 text-xs text-neutral-500">
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-neutral-200 pt-3 text-xs text-neutral-500 dark:border-border dark:text-muted-foreground">
                         <div className="truncate">נשמר · {savedAt.toLocaleDateString('he-IL')}</div>
 
                         <div className="flex items-center gap-2">
@@ -305,7 +305,7 @@ export default function SavedPostsPage() {
                               void removeBookmark(r.post_id)
                             }}
                             disabled={!!removingPostIds[r.post_id]}
-                            className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-900 shadow-sm transition hover:translate-y-[1px] hover:bg-neutral-50 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-900 shadow-sm transition hover:translate-y-[1px] hover:bg-neutral-50 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-card dark:border-border dark:text-foreground dark:hover:bg-muted"
                           >
                             הסר
                           </button>

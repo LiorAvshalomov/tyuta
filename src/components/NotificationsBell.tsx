@@ -623,7 +623,7 @@ const token = storeHighlightToken(ids)
       return (
         <div className="text-right leading-snug">
           <div className="font-semibold truncate">מערכת האתר מחקה לך את הפתק ״{snippet}״</div>
-          {reason ? <div className="text-neutral-600 mt-0.5">סיבה: {reason}</div> : null}
+          {reason ? <div className="text-neutral-600 dark:text-muted-foreground mt-0.5">סיבה: {reason}</div> : null}
         </div>
       )
 
@@ -639,7 +639,7 @@ const token = storeHighlightToken(ids)
           <div className="font-semibold truncate">
             מערכת האתר מחקה לך תגובה{title ? ` בפוסט ״${title}״` : ""}: ״{snippet}״
           </div>
-          {reason ? <div className="text-neutral-600 mt-0.5">סיבה: {reason}</div> : null}
+          {reason ? <div className="text-neutral-600 dark:text-muted-foreground mt-0.5">סיבה: {reason}</div> : null}
         </div>
       )
     }
@@ -651,7 +651,7 @@ const token = storeHighlightToken(ids)
     return (
       <div className="text-right leading-snug">
         <div className="font-semibold">מערכת האתר ״{t || "הודעה"}״</div>
-        {m ? <div className="text-neutral-600 mt-0.5">{m}</div> : null}
+        {m ? <div className="text-neutral-600 dark:text-muted-foreground mt-0.5">{m}</div> : null}
       </div>
     )
   }
@@ -662,7 +662,7 @@ const token = storeHighlightToken(ids)
     return (
       <div className="text-right leading-snug">
         <div className="font-semibold">הפוסט ״{t}״ נמחק ע&quot;י מערכת האתר</div>
-        {reason ? <div className="text-neutral-600 mt-0.5">סיבה: {reason}</div> : null}
+        {reason ? <div className="text-neutral-600 dark:text-muted-foreground mt-0.5">סיבה: {reason}</div> : null}
       </div>
     )
   }
@@ -733,7 +733,7 @@ const token = storeHighlightToken(ids)
 }, [])
 
 
-  const emptyState = <div className="py-10 text-center text-sm text-neutral-600">אין התראות</div>
+  const emptyState = <div className="py-10 text-center text-sm text-neutral-600 dark:text-muted-foreground">אין התראות</div>
 
   const renderPanel = (mode: 'desktop' | 'mobile') => {
     const isMobile = mode === 'mobile'
@@ -741,36 +741,36 @@ const token = storeHighlightToken(ids)
     return (
       <div
         className={
-          "bg-white shadow-xl border border-neutral-200 overflow-hidden " +
+          "bg-white dark:bg-popover shadow-xl border border-neutral-200 dark:border-border overflow-hidden " +
           (isMobile ? "rounded-none h-[calc(100vh-56px)] flex flex-col" : "rounded-xl")
         }
       >
-        <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 border-b border-neutral-200 px-4 py-3">
+        <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 dark:from-card dark:to-card border-b border-neutral-200 dark:border-border px-4 py-3">
           {isMobile ? (
             <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="p-2 -ml-1 rounded-lg hover:bg-neutral-200 transition-colors"
+                className="p-2 -ml-1 rounded-lg hover:bg-neutral-200 dark:hover:bg-muted transition-colors"
                 aria-label="סגור"
                 title="סגור"
               >
-                <X size={18} className="text-neutral-700" />
+                <X size={18} className="text-neutral-700 dark:text-foreground" />
               </button>
-              <h3 className="text-sm font-bold text-neutral-900">התראות</h3>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-foreground">התראות</h3>
               <button
                 onClick={() => void clearAll()}
-                className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 px-2 py-1 rounded-lg transition-colors"
+                className="text-xs font-semibold text-neutral-600 dark:text-muted-foreground hover:text-neutral-900 dark:hover:text-foreground hover:bg-neutral-200 dark:hover:bg-muted px-2 py-1 rounded-lg transition-colors"
               >
                 נקה הכל
               </button>
             </div>
           ) : (
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-neutral-900">התראות</h3>
+              <h3 className="text-sm font-bold text-neutral-900 dark:text-foreground">התראות</h3>
               <button
                 onClick={() => void clearAll()}
-                className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 px-2 py-1 rounded-lg transition-colors"
+                className="text-xs font-semibold text-neutral-600 dark:text-muted-foreground hover:text-neutral-900 dark:hover:text-foreground hover:bg-neutral-200 dark:hover:bg-muted px-2 py-1 rounded-lg transition-colors"
               >
                 נקה הכל
               </button>
@@ -780,7 +780,7 @@ const token = storeHighlightToken(ids)
 
         <div className={isMobile ? "flex-1 overflow-auto" : "max-h-[440px] overflow-auto"}>
           {loading ? (
-            <div className="py-10 text-center text-sm text-neutral-600">טוען...</div>
+            <div className="py-10 text-center text-sm text-neutral-600 dark:text-muted-foreground">טוען...</div>
           ) : items.length === 0 ? (
             emptyState
           ) : (
@@ -793,8 +793,8 @@ const token = storeHighlightToken(ids)
                 const isSystem = g.type === "system_message" || g.type === "post_deleted"
 
                 const blockClass =
-                  "block w-full rounded-xl border border-neutral-200 bg-white transition px-3 py-2 " +
-                  (isSystem ? "cursor-default" : "group cursor-pointer hover:bg-neutral-50")
+                  "block w-full rounded-xl border border-neutral-200 dark:border-border bg-white dark:bg-card transition px-3 py-2 " +
+                  (isSystem ? "cursor-default" : "group cursor-pointer hover:bg-neutral-50 dark:hover:bg-muted")
 
                 const inner = (
                   <div className="flex items-start gap-3">
@@ -803,8 +803,8 @@ const token = storeHighlightToken(ids)
                     </div>
 
                     <div className="flex-1">
-                      <div className="text-sm text-neutral-900 text-right">{renderContent(g)}</div>
-                      <div className="mt-1 text-xs text-neutral-500 text-right">{formatDateTime(g.created_at)}</div>
+                      <div className="text-sm text-neutral-900 dark:text-foreground text-right">{renderContent(g)}</div>
+                      <div className="mt-1 text-xs text-neutral-500 dark:text-muted-foreground text-right">{formatDateTime(g.created_at)}</div>
                     </div>
                   </div>
                 )
@@ -884,11 +884,11 @@ const token = storeHighlightToken(ids)
             void load()
           }
         }}
-        className="relative p-2 rounded-lg hover:bg-neutral-300 transition-all duration-200"
+        className="relative p-2 rounded-lg hover:bg-neutral-300 dark:hover:bg-muted transition-all duration-200"
         title="התראות"
         aria-label="התראות"
       >
-        <Bell size={20} strokeWidth={2.5} className="text-neutral-700" />
+        <Bell size={20} strokeWidth={2.5} className="text-neutral-700 dark:text-foreground" />
         {unread > 0 ? (
           <span className="absolute top-0 right-0 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
             {unread > 99 ? "99+" : unread}

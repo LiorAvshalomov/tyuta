@@ -1231,7 +1231,7 @@ if (!effectiveChannelId) {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-50" dir="rtl">
+    <main className="min-h-screen bg-neutral-50 dark:bg-background" dir="rtl">
       <div className="mx-auto max-w-4xl px-4 py-8">
         <header className="mb-6 flex items-start justify-between gap-3">
           <div>
@@ -1257,13 +1257,13 @@ if (!effectiveChannelId) {
         </header>
 
         {errorMsg ? (
-          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{errorMsg}</div>
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950/30 dark:border-red-900/50 dark:text-red-400">{errorMsg}</div>
         ) : null}
 
-        <section className="rounded-3xl border bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border bg-white p-4 shadow-sm dark:bg-card dark:border-border">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="md:col-span-1">
-              <div ref={coverAreaRef} className="relative overflow-hidden rounded-2xl border bg-neutral-50">
+              <div ref={coverAreaRef} className="relative overflow-hidden rounded-2xl border bg-neutral-50 dark:bg-muted/50 dark:border-border">
                 {coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={coverUrl ?? undefined} alt="" className="h-44 w-full object-cover" onLoad={() => setIsCoverLoading(false)} onError={() => setIsCoverLoading(false)} />
@@ -1284,12 +1284,12 @@ if (!effectiveChannelId) {
                 <button
                   type="button"
                   onClick={chooseAutoCover}
-                  className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50"
+                  className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
                 >
                   {autoCoverUsed || coverSource === 'pixabay' ? 'החלף תמונה אוטומטית' : 'בחר קאבר אוטומטית'}
                 </button>
 
-                <label className="cursor-pointer rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50">
+                <label className="cursor-pointer rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted">
                   העלה תמונה
                   <input
                     type="file"
@@ -1307,7 +1307,7 @@ if (!effectiveChannelId) {
                   <button
                     type="button"
                     onClick={() => void removeCover()}
-                    className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50"
+                    className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
                   >
                     הסר
                   </button>
@@ -1336,7 +1336,7 @@ if (!effectiveChannelId) {
                 onChange={e => setTitle(e.target.value.slice(0, TITLE_MAX))}
                 maxLength={TITLE_MAX}
                 placeholder="תן שם לכותרת..."
-                className={`mt-2 w-full rounded-2xl border px-4 py-3 text-base outline-none transition-shadow duration-500 focus:ring-2 focus:ring-black/10 ${highlightTitle ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
+                className={`mt-2 w-full rounded-2xl border px-4 py-3 text-base outline-none transition-shadow duration-500 focus:ring-2 focus:ring-black/10 bg-background text-foreground dark:border-border dark:focus:ring-white/10 ${highlightTitle ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
               />
 
               <div className="mt-4 flex items-center justify-between gap-3">
@@ -1350,16 +1350,16 @@ if (!effectiveChannelId) {
                 onChange={e => setExcerpt(clampExcerpt(e.target.value))}
                 placeholder="משפט או שניים שמושכים לקריאה…"
                 rows={3}
-                className="mt-2 w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
+                className="mt-2 w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10 bg-background text-foreground dark:border-border dark:focus:ring-white/10"
               />
 
-              <details ref={settingsDetailsRef} className="mt-4 rounded-2xl border bg-neutral-50 p-4" open={settingsLocked ? false : undefined}>
+              <details ref={settingsDetailsRef} className="mt-4 rounded-2xl border bg-neutral-50 p-4 dark:bg-muted/50 dark:border-border" open={settingsLocked ? false : undefined}>
                 <summary className="cursor-pointer text-sm font-medium">
                   הגדרות (ערוץ · תת־קטגוריה · תגיות){settingsLocked ? ' — נעול' : ''}
                 </summary>
 
                 {settingsLocked ? (
-                  <div className="mt-3 rounded-xl border bg-white p-3 text-xs text-muted-foreground">
+                  <div className="mt-3 rounded-xl border bg-white p-3 text-xs text-muted-foreground dark:bg-card dark:border-border">
                     כדי לשנות קטגוריה/תגיות צריך ליצור פוסט חדש. כאן ניתן לערוך רק תוכן/כותרת/תקציר/קאבר.
                   </div>
                 ) : null}
@@ -1376,7 +1376,7 @@ if (!effectiveChannelId) {
                         setChannelId(next)
                         setSubcategoryTagId(null)
                       }}
-                      className={`mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60 transition-shadow duration-500 ${highlightChannel ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
+                      className={`mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60 transition-shadow duration-500 dark:bg-card dark:border-border dark:text-foreground ${highlightChannel ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
                     >
                       {channels.map(c => (
                         <option key={c.id} value={c.id}>
@@ -1396,7 +1396,7 @@ if (!effectiveChannelId) {
                         const v = e.target.value
                         setSubcategoryTagId(v ? Number(v) : null)
                       }}
-                      className={`mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60 transition-shadow duration-500 ${highlightSubcategory ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
+                      className={`mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60 transition-shadow duration-500 dark:bg-card dark:border-border dark:text-foreground ${highlightSubcategory ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
                     >
                       <option value="" disabled>
                         בחר תת־קטגוריה
@@ -1442,7 +1442,7 @@ if (!effectiveChannelId) {
                           onClick={() => toggleTag(t.id)}
                           className={
                             'rounded-full border px-3 py-1.5 text-sm transition disabled:opacity-60 ' +
-                            (selected ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white hover:bg-neutral-50')
+                            (selected ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white hover:bg-neutral-50 dark:bg-card dark:hover:bg-muted')
                           }
                         >
                           {t.name_he}
@@ -1456,7 +1456,7 @@ if (!effectiveChannelId) {
           </div>
         </section>
 
-        <section ref={contentSectionRef} className={`mt-5 rounded-3xl border bg-white p-4 shadow-sm transition-shadow duration-500 ${highlightContent ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}>
+        <section ref={contentSectionRef} className={`mt-5 rounded-3xl border bg-white p-4 shadow-sm transition-shadow duration-500 dark:bg-card dark:border-border ${highlightContent ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}>
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-sm font-medium">הטקסט</h2>
             <div className="flex items-center gap-3">
@@ -1498,7 +1498,7 @@ if (!effectiveChannelId) {
                   if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') return router.push(`/post/${draftSlug}`)
                   router.push('/notebook')
                 }}
-                className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50"
+                className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
               >
                 ביטול שינויים
               </button>
@@ -1512,7 +1512,7 @@ if (!effectiveChannelId) {
                   }
                   router.push('/notebook')
                 }}
-                className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50"
+                className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
               >
                 למחברת
               </button>

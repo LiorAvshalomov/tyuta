@@ -94,7 +94,7 @@ function MedalsInline({
   const cls = size === 'xs' ? 'text-[11px] gap-2' : 'text-xs gap-3'
 
   return (
-    <div dir="ltr" className={`flex items-center ${cls} text-gray-700`}>
+    <div dir="ltr" className={`flex items-center ${cls} text-muted-foreground`}>
       {gold > 0 ? <span className="inline-flex items-center gap-1">🥇 {gold}</span> : null}
       {silver > 0 ? <span className="inline-flex items-center gap-1">🥈 {silver}</span> : null}
       {bronze > 0 ? <span className="inline-flex items-center gap-1">🥉 {bronze}</span> : null}
@@ -116,22 +116,22 @@ function MedalsCompact({ medals }: { medals: { gold: number; silver: number; bro
       {shown.map(m => (
         <span key={m.emoji} className="shrink-0">{m.emoji} {m.count}</span>
       ))}
-      {extra > 0 ? <span className="shrink-0 rounded-full bg-black/5 px-1.5 text-[10px]">+{extra}</span> : null}
+      {extra > 0 ? <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px]">+{extra}</span> : null}
     </div>
   )
 }
 
 function channelBadgeColor(slug: string | null) {
-  if (slug === 'stories') return 'bg-blue-50 text-blue-700'
-  if (slug === 'release') return 'bg-rose-50 text-rose-700'
-  if (slug === 'magazine') return 'bg-purple-50 text-purple-700'
-  return 'bg-gray-100 text-gray-700'
+  if (slug === 'stories') return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+  if (slug === 'release') return 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+  if (slug === 'magazine') return 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+  return 'bg-muted text-foreground'
 }
 
 function SectionHeader({ title, href }: { title: string; href: string }) {
   return (
     <div className="flex items-center justify-between mb-3">
-      <Link href={href} className="text-lg font-black tracking-tight hover:text-sky-700 transition-colors">
+      <Link href={href} className="text-lg font-black tracking-tight hover:text-sky-700 dark:hover:text-sky-400 transition-colors">
         {title}
       </Link>
     </div>
@@ -140,12 +140,12 @@ function SectionHeader({ title, href }: { title: string; href: string }) {
 
 function FeaturedPost({ post }: { post: CardPost }) {
   return (
-    <article className="group bg-slate-100/70 font-sans rounded-2xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-[1px] border border-black/10">
+    <article className="group bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 font-sans rounded-2xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-[1px] border border-border">
       <div className="lg:grid lg:grid-cols-2 lg:items-stretch lg:min-h-[360px]">
         {/* Image */}
         <div className="order-1 lg:order-2">
           <Link href={`/post/${post.slug}`} className="block h-full">
-            <div className="relative aspect-[16/10] lg:aspect-auto lg:h-full overflow-hidden bg-gray-100">
+            <div className="relative aspect-[16/10] lg:aspect-auto lg:h-full overflow-hidden bg-muted">
               {post.cover_image_url ? (
                 <Image
                   src={post.cover_image_url}
@@ -171,20 +171,20 @@ function FeaturedPost({ post }: { post: CardPost }) {
               </Link>
               <div className="min-w-0">
                 {post.author_username ? (
-                  <Link href={`/u/${post.author_username}`} className="font-bold text-sm hover:text-sky-700 transition-colors">
+                  <Link href={`/u/${post.author_username}`} className="font-bold text-sm hover:text-sky-700 dark:hover:text-sky-400 transition-colors">
                     {post.author_name}
                   </Link>
                 ) : (
                   <span className="font-bold text-sm">{post.author_name}</span>
                 )}
-                <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
 
                   <div className="min-w-0 text-right">
                     <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
                     {post.subcategory ? (
                       <>
                         <span className="mx-2">•</span>
-                        <span className="font-semibold text-gray-700">{post.subcategory.name_he}</span>
+                        <span className="font-semibold text-foreground">{post.subcategory.name_he}</span>
                       </>
                     ) : null}
                   </div>
@@ -211,14 +211,14 @@ function FeaturedPost({ post }: { post: CardPost }) {
 
           {/* Title */}
           <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-tight mb-3">
-            <Link href={`/post/${post.slug}`} className="hover:text-sky-700 transition-colors">
+            <Link href={`/post/${post.slug}`} className="hover:text-sky-700 dark:hover:text-sky-400 transition-colors">
               {post.title}
             </Link>
           </h1>
 
           {/* Excerpt */}
           {post.excerpt ? (
-            <p className="text-gray-600 text-sm sm:text-base lg:text-lg leading-relaxed mb-4 line-clamp-3">
+            <p className="text-muted-foreground text-sm sm:text-base lg:text-lg leading-relaxed mb-4 line-clamp-3">
               {truncateText(post.excerpt, 150)}
             </p>
           ) : (
@@ -232,9 +232,9 @@ function FeaturedPost({ post }: { post: CardPost }) {
 
 function SimplePostCard({ post }: { post: CardPost }) {
   return (
-    <article className="group bg-slate-100/70 rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-[1px] border border-black/10 flex flex-col">
+    <article className="group bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-[1px] border border-border flex flex-col">
       <Link href={`/post/${post.slug}`} className="block">
-        <div className="relative aspect-[4/3] bg-gray-100">
+        <div className="relative aspect-[4/3] bg-muted">
           {post.cover_image_url ? (
             <Image src={post.cover_image_url} alt={post.title} fill sizes="(max-width: 768px) 100vw, 33vw" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
           ) : null}
@@ -242,7 +242,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
       </Link>
 
       <div className="p-4 text-right flex-1 flex flex-col">
-        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
 
           <div className="min-w-0">
             <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
@@ -260,23 +260,23 @@ function SimplePostCard({ post }: { post: CardPost }) {
         </div>
 
         <h3 className="text-base font-black leading-snug line-clamp-2">
-          <Link href={`/post/${post.slug}`} className="hover:text-sky-700 transition-colors">
+          <Link href={`/post/${post.slug}`} className="hover:text-sky-700 dark:hover:text-sky-400 transition-colors">
             {post.title}
           </Link>
         </h3>
 
         {post.excerpt ? (
-          <p className="mt-2 text-xs sm:text-sm text-gray-600 leading-relaxed line-clamp-2">
+          <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2">
             {truncateText(post.excerpt, 90)}
           </p>
         ) : (
           <div className="mt-2 h-[28px]" aria-hidden="true" />
         )}
-        <div className="mt-auto pt-3 flex items-center justify-start gap-2 text-xs text-gray-700">
+        <div className="mt-auto pt-3 flex items-center justify-start gap-2 text-xs text-foreground">
           {post.author_username ? (
-            <Link href={`/u/${post.author_username}`} className="group/author inline-flex items-center gap-2">
+            <Link href={`/u/${post.author_username}`} className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 cursor-pointer">
               <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-              <span className="font-semibold transition-colors group-hover/author:text-sky-700">{post.author_name}</span>
+              <span className="font-semibold transition-colors group-hover/author:text-sky-700 dark:group-hover/author:text-sky-400">{post.author_name}</span>
             </Link>
           ) : (
             <div className="inline-flex items-center gap-2">
@@ -287,7 +287,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
         </div>
 
         {/* Small proof these are "hot" this week */}
-        {/* <div className="mt-2 text-[11px] text-gray-500">
+        {/* <div className="mt-2 text-[11px] text-muted-foreground">
           השבוע: <span className="font-semibold">{post.weekReactionsTotal}</span> ❤️
           <span className="mx-1">•</span>
           <span className="font-semibold">{post.weekCommentsTotal}</span> תגובות
@@ -299,7 +299,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
 
 function ListRowCompact({ post }: { post: CardPost }) {
   return (
-    <article className="group relative bg-slate-100/70 rounded-2xl border border-black/10 p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] hover:ring-1 hover:ring-black/10 active:scale-[0.99]">
+    <article className="group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl border border-border p-4 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] hover:ring-1 hover:ring-border active:scale-[0.99]">
       {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
       <Link
         href={`/post/${post.slug}`}
@@ -320,7 +320,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
               Constrain cover image height to prevent oversized uploads (e.g. desktop images)
               from expanding the card. The aspect ratio keeps a consistent thumbnail size.
             */}
-              <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100">
+              <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted">
                 {post.cover_image_url ? (
                   <Image
                     src={post.cover_image_url}
@@ -336,15 +336,15 @@ function ListRowCompact({ post }: { post: CardPost }) {
           </div>
 
           <div className="min-w-0 flex-1 text-right flex flex-col">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-              <div className="text-xs text-gray-500">
+            <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+              <div className="text-xs text-muted-foreground">
                 <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}
 
                 </span>
                 {post.subcategory ? (
                   <>
                     <span className="mx-2">•</span>
-                    <span className="font-semibold text-gray-700">{post.subcategory.name_he}</span>
+                    <span className="font-semibold text-foreground">{post.subcategory.name_he}</span>
                   </>
                 ) : null}
 
@@ -359,14 +359,14 @@ function ListRowCompact({ post }: { post: CardPost }) {
             </div>
 
             <div className="mt-1 text-[15px] sm:text-base font-black leading-snug line-clamp-2">
-              <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 pointer-events-auto">
+              <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 dark:hover:text-sky-400 pointer-events-auto">
                 {post.title}
               </Link>
             </div>
 
 
             {post.excerpt ? (
-              <p className="mt-1.5 text-xs sm:text-sm text-gray-600 leading-relaxed line-clamp-2 lg:line-clamp-none lg:overflow-visible lg:text-clip">
+              <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2 lg:line-clamp-none lg:overflow-visible lg:text-clip">
                 {post.excerpt}
               </p>
             ) : (
@@ -374,14 +374,14 @@ function ListRowCompact({ post }: { post: CardPost }) {
             )}
 
             {/* Author row UNDER excerpt */}
-            <div className="mt-auto pt-1.5 flex items-center justify-start gap-2 text-xs text-gray-700">
+            <div className="mt-auto pt-1.5 flex items-center justify-start gap-2 text-xs text-foreground">
               {post.author_username ? (
                 <Link
                   href={`/u/${post.author_username}`}
-                  className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto"
+                  className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 pointer-events-auto cursor-pointer"
                 >
                   <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-                  <span className="font-semibold transition-colors group-hover/author:text-neutral-900">{post.author_name}</span>
+                  <span className="font-semibold transition-colors group-hover/author:text-neutral-900 dark:group-hover/author:text-foreground">{post.author_name}</span>
                 </Link>
               ) : (
                 <div className="inline-flex items-center gap-2">
@@ -396,7 +396,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
                 {post.tags.slice(0, 2).map(t => (
                   <span
                     key={t.slug}
-                    className="inline-flex rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-semibold text-gray-700"
+                    className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground"
                   >
                     {t.name_he}
                   </span>
@@ -412,7 +412,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
 
 function RecentMiniRow({ post }: { post: CardPost }) {
   return (
-    <div className="group relative rounded-2xl border border-black/10 bg-slate-100/70 p-3 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] active:scale-[0.99]">
+    <div className="group relative rounded-2xl border border-border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 p-3 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] active:scale-[0.99]">
       {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
       <Link
         href={`/post/${post.slug}`}
@@ -427,7 +427,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
         <div className="flex flex-row-reverse items-stretch gap-3">
           <div className="w-[94px] shrink-0">
             <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
-              <div className="relative aspect-square rounded-xl overflow-hidden bg-gray-100">
+              <div className="relative aspect-square rounded-xl overflow-hidden bg-muted">
                 {post.cover_image_url ? (
                   <Image
                     src={post.cover_image_url}
@@ -444,27 +444,27 @@ function RecentMiniRow({ post }: { post: CardPost }) {
 
           <div className="min-w-0 flex-1 text-right flex flex-col">
             <div className="text-sm font-black leading-snug">
-              <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 line-clamp-2 block pointer-events-auto">
+              <Link href={`/post/${post.slug}`} className="transition-colors hover:text-sky-700 dark:hover:text-sky-400 line-clamp-2 block pointer-events-auto">
                 {truncateText(post.title, 48)}
               </Link>
             </div>
             <MedalsCompact medals={post.allTimeMedals} />
 
             {post.excerpt ? (
-              <p className="mt-1 text-xs text-gray-600 leading-snug line-clamp-1">
+              <p className="mt-1 text-xs text-muted-foreground leading-snug line-clamp-1">
                 {truncateText(post.excerpt, 25)}
               </p>
             ) : (
               <div className="mt-1 h-[18px]" aria-hidden="true" />
             )}
-            <div className="mt-auto pt-1 text-[12px] text-gray-500 flex items-center justify-between flex-nowrap min-w-0">
+            <div className="mt-auto pt-1 text-[12px] text-muted-foreground flex items-center justify-between flex-nowrap min-w-0">
               {post.author_username ? (
                 <Link
                   href={`/u/${post.author_username}`}
-                  className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-black/10 transition-colors duration-200 pointer-events-auto min-w-0 overflow-hidden"
+                  className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 pointer-events-auto min-w-0 overflow-hidden cursor-pointer"
                 >
                   <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
-                  <span className="font-semibold transition-colors group-hover/author:text-neutral-900 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{truncateText(post.author_name, 8)}</span>
+                  <span className="font-semibold transition-colors group-hover/author:text-neutral-900 dark:group-hover/author:text-foreground truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[80px]">{truncateText(post.author_name, 8)}</span>
                 </Link>
               ) : (
                 <div className="inline-flex items-center gap-2 min-w-0 overflow-hidden">
@@ -791,6 +791,8 @@ export default async function HomePage(props: HomePageProps = {}) {
       `
     )
     .in('id', idsNeeded)
+    .is('deleted_at', null)
+    .eq('status', 'published')
 
   if (postsErr) {
     return (
@@ -1006,7 +1008,7 @@ export default async function HomePage(props: HomePageProps = {}) {
               <div className="space-y-1">
                 <div className="text-2xl sm:text-3xl font-black tracking-tight">{channelName}</div>
                 {channelSubtitle ? (
-                  <div className="text-sm text-gray-600">{channelSubtitle}</div>
+                  <div className="text-sm text-muted-foreground">{channelSubtitle}</div>
                 ) : null}
               </div>
             ) : null}
@@ -1059,9 +1061,9 @@ export default async function HomePage(props: HomePageProps = {}) {
                         {rows.length > 0 ? rows.map(p => (
                           <ListRowCompact key={p.id} post={p} />
                         )) : (
-                          <div className="rounded-2xl border border-black/10 bg-white/60 p-4">
-                            <div className="text-sm font-bold text-gray-800">עדיין אין פוסטים כאן</div>
-                            <div className="mt-1 text-xs text-gray-600">רוצה לפתוח את זה עם משהו קצר?</div>
+                          <div className="rounded-2xl border border-border bg-card/60 p-4">
+                            <div className="text-sm font-bold text-foreground">עדיין אין פוסטים כאן</div>
+                            <div className="mt-1 text-xs text-muted-foreground">רוצה לפתוח את זה עם משהו קצר?</div>
                             <Link
                               href={`/write?channel=${encodeURIComponent(channelSlug ?? '')}&subcategory=${encodeURIComponent(sc.name_he)}&return=${encodeURIComponent(`/c/${channelSlug}`)}`}
                               className="mt-3 inline-flex items-center justify-center rounded-xl bg-sky- (p.subcategory?.name_he === sc.name_he || p.tags.some(t => t.name_he === sc.name_he))00 px-3 py-2 text-xs font-black text-black shadow-sm transition hover:bg-sky-800 active:scale-[0.99]"
@@ -1082,21 +1084,21 @@ export default async function HomePage(props: HomePageProps = {}) {
               <StickySidebar containerId="main-content">
                 <div className="space-y-8">
                   {/* Recent posts FIRST */}
-                  <div className="bg-slate-100/70 rounded-2xl p-5 shadow-sm border border-black/10">
-                    <Link href={channelSlug ? `/search?sort=recent&channel=${channelSlug}` : "/search?sort=recent"} className="text-base font-black mb-4 inline-flex hover:text-sky-700 transition-colors">פוסטים אחרונים</Link>
+                  <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
+                    <Link href={channelSlug ? `/search?sort=recent&channel=${channelSlug}` : "/search?sort=recent"} className="text-base font-black mb-4 inline-flex hover:text-sky-700 dark:hover:text-sky-400 transition-colors">פוסטים אחרונים</Link>
                     <div className="space-y-3">
                       {recentMini.length > 0 ? (
                         recentMini.slice(0, 8).map(p => (
                           <RecentMiniRow key={p.id} post={p} />
                         ))
                       ) : (
-                        <div className="text-sm text-gray-500">אין עדיין פוסטים אחרונים.</div>
+                        <div className="text-sm text-muted-foreground">אין עדיין פוסטים אחרונים.</div>
                       )}
                     </div>
                   </div>
 
                   {/* Writers of week */}
-                  <div className="bg-slate-100/70 rounded-2xl p-5 shadow-sm border border-black/10">
+                  <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
                     <div className="text-base font-black mb-4">{isChannelPage ? 'כותבי החודש' : 'כותבי השבוע'}</div>
 
                     {writerScores.length ? (
@@ -1104,14 +1106,14 @@ export default async function HomePage(props: HomePageProps = {}) {
                         {writerScores.map((w, idx) => (
                           <div key={`${w.username ?? w.name}`} className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="w-7 h-7 rounded-full bg-black/5 border border-black/10 flex items-center justify-center text-xs font-black text-gray-700">
+                              <div className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-black text-foreground">
                                 {idx + 1}
                               </div>
 
                               {w.username ? (
                                 <Link href={`/u/${w.username}`} className="group/writer inline-flex items-center gap-2 min-w-0">
                                   <Avatar src={w.avatar_url} name={w.name} size={36} />
-                                  <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">
+                                  <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700 dark:group-hover/writer:text-sky-400 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">
                                     {truncateText(w.name, 8)}
                                   </span>
                                 </Link>
@@ -1123,7 +1125,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                               )}
                             </div>
 
-                            <div dir="ltr" className="shrink-0 text-xs text-gray-700 flex items-center gap-2">
+                            <div dir="ltr" className="shrink-0 text-xs text-foreground flex items-center gap-2">
                               {w.gold ? <span>🥇 {w.gold}</span> : null}
                               {w.silver ? <span>🥈 {w.silver}</span> : null}
                               {w.bronze ? <span>🥉 {w.bronze}</span> : null}
@@ -1133,7 +1135,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-500">אין עדיין פעילות לחודש הזה.</div>
+                      <div className="text-sm text-muted-foreground">אין עדיין פעילות לחודש הזה.</div>
                     )}
 
                     <div className="mt-5">
@@ -1204,21 +1206,21 @@ export default async function HomePage(props: HomePageProps = {}) {
               <StickySidebar containerId="main-content">
                 <div className="space-y-8">
                   {/* Recent posts FIRST */}
-                  <div className="bg-slate-100/70 rounded-2xl p-5 shadow-sm border border-black/10">
-                    <Link href="/search?sort=recent" className="text-base font-black mb-4 inline-flex hover:text-sky-700 transition-colors">פוסטים אחרונים</Link>
+                  <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
+                    <Link href="/search?sort=recent" className="text-base font-black mb-4 inline-flex hover:text-sky-700 dark:hover:text-sky-400 transition-colors">פוסטים אחרונים</Link>
                     <div className="space-y-3">
                       {recentMini.length > 0 ? (
                         recentMini.slice(0, 8).map(p => (
                           <RecentMiniRow key={p.id} post={p} />
                         ))
                       ) : (
-                        <div className="text-sm text-gray-500">אין עדיין פוסטים אחרונים.</div>
+                        <div className="text-sm text-muted-foreground">אין עדיין פוסטים אחרונים.</div>
                       )}
                     </div>
                   </div>
 
                   {/* Writers of week */}
-                  <div className="bg-slate-100/70 rounded-2xl p-5 shadow-sm border border-black/10">
+                  <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
                     <div className="text-base font-black mb-4">כותבי השבוע</div>
 
                     {writerScores.length ? (
@@ -1226,14 +1228,14 @@ export default async function HomePage(props: HomePageProps = {}) {
                         {writerScores.map((w, idx) => (
                           <div key={`${w.username ?? w.name}`} className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="w-7 h-7 rounded-full bg-black/5 border border-black/10 flex items-center justify-center text-xs font-black text-gray-700">
+                              <div className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-black text-foreground">
                                 {idx + 1}
                               </div>
 
                               {w.username ? (
                                 <Link href={`/u/${w.username}`} className="group/writer inline-flex items-center gap-2 min-w-0">
                                   <Avatar src={w.avatar_url} name={w.name} size={36} />
-                                  <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">
+                                  <span className="text-sm font-bold transition-colors group-hover/writer:text-sky-700 dark:group-hover/writer:text-sky-400 truncate whitespace-nowrap overflow-hidden text-ellipsis max-w-[72px]">
                                     {truncateText(w.name, 8)}
                                   </span>
                                 </Link>
@@ -1245,7 +1247,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                               )}
                             </div>
 
-                            <div dir="ltr" className="shrink-0 text-xs text-gray-700 flex items-center gap-2">
+                            <div dir="ltr" className="shrink-0 text-xs text-foreground flex items-center gap-2">
                               {w.gold ? <span>🥇 {w.gold}</span> : null}
                               {w.silver ? <span>🥈 {w.silver}</span> : null}
                               {w.bronze ? <span>🥉 {w.bronze}</span> : null}
@@ -1256,7 +1258,7 @@ export default async function HomePage(props: HomePageProps = {}) {
 
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-500">אין עדיין פעילות לשבוע הזה.</div>
+                      <div className="text-sm text-muted-foreground">אין עדיין פעילות לשבוע הזה.</div>
                     )}
 
                     <div className="mt-5">
@@ -1268,9 +1270,9 @@ export default async function HomePage(props: HomePageProps = {}) {
             </div>
           </div>
           ) : (
-            <div className="rounded-2xl border border-black/10 bg-white/60 p-8 text-center">
-              <div className="text-lg font-black text-gray-800">אין עדיין פוסטים להצגה</div>
-              <div className="mt-2 text-sm text-gray-600">ברגע שיפורסמו פוסטים, הם יופיעו כאן.</div>
+            <div className="rounded-2xl border border-border bg-card/60 p-8 text-center">
+              <div className="text-lg font-black text-foreground">אין עדיין פוסטים להצגה</div>
+              <div className="mt-2 text-sm text-muted-foreground">ברגע שיפורסמו פוסטים, הם יופיעו כאן.</div>
             </div>
           )
         )}

@@ -106,7 +106,7 @@ export default function NotebookPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8" dir="rtl">
-      <div className="rounded-3xl border bg-white p-6 shadow-sm">
+      <div className="rounded-3xl border bg-white p-6 shadow-sm dark:bg-card dark:border-border">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-black">📓 המחברת שלי</h1>
 
@@ -124,13 +124,13 @@ export default function NotebookPage() {
 
         <div className="mt-6">
           {loading && (
-            <div className="rounded-2xl border bg-[#FAF9F6] p-5">
+            <div className="rounded-2xl border bg-[#FAF9F6] p-5 dark:bg-muted dark:border-border">
               <div className="text-sm font-bold">טוען טיוטות…</div>
             </div>
           )}
 
           {empty && (
-            <div className="rounded-2xl border bg-[#FAF9F6] p-5">
+            <div className="rounded-2xl border bg-[#FAF9F6] p-5 dark:bg-muted dark:border-border">
               <div className="text-sm font-bold">אין לך עדיין טיוטות.</div>
               <div className="mt-1 text-sm text-muted-foreground">
                 התחל כתיבה חדשה, ואז “שמור טיוטה”.
@@ -141,7 +141,7 @@ export default function NotebookPage() {
           {!loading && drafts.length > 0 && (
             <div className="space-y-3">
               {drafts.map(d => (
-                <div key={d.id} className="rounded-2xl border p-4">
+                <div key={d.id} className="rounded-2xl border bg-white p-4 dark:bg-card dark:border-border">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black">
@@ -157,7 +157,7 @@ export default function NotebookPage() {
                     <div className="flex shrink-0 items-center gap-2">
                       <button
                         onClick={() => router.push(`/write?draft=${d.id}`)}
-                        className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold hover:bg-neutral-50"
+                        className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
                       >
                         המשך כתיבה
                       </button>
@@ -165,7 +165,7 @@ export default function NotebookPage() {
                       <button
                         disabled={busyId === d.id}
                         onClick={() => onDelete(d.id)}
-                        className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
+                        className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60 dark:bg-card dark:border-border dark:hover:bg-red-950/30"
                       >
                         {busyId === d.id ? 'מוחק…' : 'מחק'}
                       </button>

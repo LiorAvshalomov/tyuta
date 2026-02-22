@@ -111,16 +111,16 @@ export default function InboxThreads() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b px-4 py-3" style={{ backgroundColor: '#F7F6F3' }}>
+      <div className="border-b border-black/5 bg-[#F7F6F3] px-4 py-3 dark:border-white/10 dark:bg-[#1a1a1a]">
         <div className="text-lg font-black">הודעות</div>
         <div className="text-xs text-muted-foreground">השיחות שלך</div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3" style={{ backgroundColor: '#FBFAF8' }}>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-[#FBFAF8] p-3 dark:bg-[#141414]">
         {loading ? (
-          <div className="rounded-2xl border bg-white p-4 text-sm text-muted-foreground">טוען…</div>
+          <div className="rounded-2xl border bg-white p-4 text-sm text-muted-foreground dark:bg-card dark:border-border">טוען…</div>
         ) : rows.length === 0 ? (
-          <div className="rounded-2xl border bg-white p-4 text-sm text-muted-foreground">אין עדיין שיחות.</div>
+          <div className="rounded-2xl border bg-white p-4 text-sm text-muted-foreground dark:bg-card dark:border-border">אין עדיין שיחות.</div>
         ) : (
           <div className="space-y-2">
             {visibleRows.map((r) => {
@@ -138,12 +138,12 @@ export default function InboxThreads() {
               const lastBody = (r.last_body ?? '').trim() || 'אין עדיין הודעות'
 
               const rowClassName = [
-                'group block rounded-2xl border p-3 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-neutral-300',
+                'group block rounded-2xl border p-3 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-[#3B6CE3]/50',
                 isActive
-                  ? 'bg-white border-neutral-300 ring-1 ring-neutral-300'
+                  ? 'bg-white border-neutral-300 ring-1 ring-neutral-300 dark:bg-[#1e2d4d] dark:border-[#3B6CE3]/50 dark:ring-[#3B6CE3]/50'
                   : hasUnread
-                    ? 'bg-white border-neutral-200 hover:bg-neutral-50 hover:shadow-sm hover:-translate-y-[1px] active:translate-y-0 active:shadow-none'
-                    : 'bg-white hover:bg-neutral-50 hover:shadow-sm hover:-translate-y-[1px] active:translate-y-0 active:shadow-none',
+                    ? 'bg-white border-neutral-200 hover:bg-neutral-50 hover:shadow-sm hover:-translate-y-[1px] active:translate-y-0 active:shadow-none dark:bg-card dark:border-border dark:hover:bg-muted'
+                    : 'bg-white hover:bg-neutral-50 hover:shadow-sm hover:-translate-y-[1px] active:translate-y-0 active:shadow-none dark:bg-card dark:border-border dark:hover:bg-muted',
               ].join(' ')
 
               return (
@@ -156,7 +156,7 @@ export default function InboxThreads() {
                         <div
                           className={[
                             'truncate text-sm font-black',
-                            hasUnread ? 'text-neutral-950' : 'text-neutral-900',
+                            hasUnread ? 'text-neutral-950 dark:text-foreground' : 'text-neutral-900 dark:text-foreground',
                           ].join(' ')}
                         >
                           {displayName}
@@ -166,7 +166,7 @@ export default function InboxThreads() {
                           <div
                             className={[
                               'shrink-0 text-[11px]',
-                              hasUnread ? 'text-neutral-900 font-semibold' : 'text-muted-foreground',
+                              hasUnread ? 'text-neutral-900 font-semibold dark:text-foreground' : 'text-muted-foreground',
                             ].join(' ')}
                           >
                             {timeText}
@@ -183,7 +183,7 @@ export default function InboxThreads() {
                       <div
                         className={[
                           'mt-1 truncate text-xs',
-                          hasUnread ? 'text-neutral-900 font-semibold' : 'text-muted-foreground',
+                          hasUnread ? 'text-neutral-900 font-semibold dark:text-foreground' : 'text-muted-foreground',
                         ].join(' ')}
                       >
                         {lastBody}

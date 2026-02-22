@@ -78,13 +78,13 @@ function SidebarSection({
   children: React.ReactNode
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-200/60 bg-white/05 shadow-sm">
+    <div className="rounded-2xl border border-neutral-200/60 dark:border-border bg-white/05 dark:bg-card shadow-sm">
       <div className="flex flex-row-reverse items-center justify-between gap-3 px-4 py-3">
         {action ? <div className="shrink-0">{action}</div> : null}
-        <h3 className="inline-flex items gap-2 rounded-xl  border border-neutral-100/70 bg-neutral-200/70 px-3 py-1.5 text-[12px] font-semibold text-slate-600">{title}</h3>
+        <h3 className="inline-flex items gap-2 rounded-xl border border-neutral-100/70 dark:border-border/50 bg-neutral-200/70 dark:bg-muted px-3 py-1.5 text-[12px] font-semibold text-slate-600 dark:text-muted-foreground">{title}</h3>
       </div>
 
-      <div className="mx-4 border-b border-neutral-100" />
+      <div className="mx-4 border-b border-neutral-100 dark:border-border" />
 
       <div className="px-3 pb-3 pt-2">
         <div className="space-y-1.5">{children}</div>
@@ -119,39 +119,39 @@ function SidebarPostItem({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') goPost()
       }}
-      className="group flex items-start justify-between gap-2.5 rounded-xl border border-neutral-200/70 bg-white/60 p-2 transition-colors duration-150 hover:bg-neutral-100/60 cursor-pointer"
+      className="group flex items-start justify-between gap-2.5 rounded-xl border border-neutral-200/70 dark:border-border bg-white/60 dark:bg-card/50 p-2 transition-colors duration-150 hover:bg-neutral-100/60 dark:hover:bg-muted cursor-pointer"
     >
       {/* טקסט (ימין) */}
       <div className="min-w-0 flex-1 text-right">
-        <div className="text-[14px] font-black leading-5 text-neutral-950 group-hover:text-neutral-950">
+        <div className="text-[14px] font-black leading-5 text-neutral-950 dark:text-foreground group-hover:text-neutral-950 dark:group-hover:text-foreground">
           {trunc(post.title ?? 'ללא כותרת', isMobile ? 35 : 25)}
         </div>
 
-        <div className="mt-0.5 min-h-[2rem] text-[13px] leading-5 text-neutral-700 ">
+        <div className="mt-0.5 min-h-[2rem] text-[13px] leading-5 text-neutral-700 dark:text-muted-foreground">
           {post.excerpt ? trunc(post.excerpt, isMobile ? 50 : 30) : ''}
         </div>
 
-        <div className="mt-1 flex items-center justify-start gap-2 text-[11px] text-neutral-600 whitespace-nowrap">
+        <div className="mt-1 flex items-center justify-start gap-2 text-[11px] text-neutral-600 dark:text-muted-foreground whitespace-nowrap">
           {showAuthor ? (
             authorUsername ? (
               <Link
                 href={`/u/${authorUsername}`}
-                className="font-extrabold text-neutral-900 hover:text-neutral-950 hover:underline"
+                className="font-extrabold text-neutral-900 dark:text-foreground hover:text-neutral-950 dark:hover:text-foreground hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {authorName}
               </Link>
             ) : (
-              <span className="font-extrabold text-neutral-900">{authorName}</span>
+              <span className="font-extrabold text-neutral-900 dark:text-foreground">{authorName}</span>
             )
           ) : null}
-          {showAuthor ? <span className="text-neutral-400">·</span> : null}
-          <span className="text-neutral-600">{formatRelativeHe(date)}</span>
+          {showAuthor ? <span className="text-neutral-400 dark:text-muted-foreground">·</span> : null}
+          <span className="text-neutral-600 dark:text-muted-foreground">{formatRelativeHe(date)}</span>
         </div>
       </div>
 
       {/* תמונה (שמאל) */}
-      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-black/5">
+      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 dark:bg-muted ring-1 ring-black/5">
         {post.cover_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={post.cover_image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -163,9 +163,9 @@ function SidebarPostItem({
 
 function NotFoundPost() {
   return (
-    <main className="min-h-screen bg-neutral-50" dir="rtl">
+    <main className="min-h-screen bg-neutral-50 dark:bg-background" dir="rtl">
       <div className="mx-auto max-w-5xl px-4 py-12">
-        <div className="rounded-3xl border bg-white p-10 text-center shadow-sm">
+        <div className="rounded-3xl border border-neutral-200 dark:border-border bg-white dark:bg-card p-10 text-center shadow-sm">
           <h1 className="text-3xl font-bold tracking-tight">לא נמצא פוסט</h1>
           <p className="mt-3 text-sm text-muted-foreground">הפוסט לא קיים או הוסר.</p>
 
@@ -173,7 +173,7 @@ function NotFoundPost() {
             <Link href="/" className="rounded-full bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-800">
               לדף הבית
             </Link>
-            <Link href="/notebook" className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50">
+            <Link href="/notebook" className="rounded-full border bg-white dark:bg-card dark:border-border px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-muted">
               למחברת
             </Link>
           </div>
@@ -447,7 +447,7 @@ export default function PostPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-neutral-50" dir="rtl">
+      <main className="min-h-screen bg-neutral-50 dark:bg-background" dir="rtl">
         <div className="mx-auto max-w-5xl px-4 py-12">
           <div className="text-sm text-muted-foreground">טוען…</div>
         </div>
@@ -542,19 +542,19 @@ export default function PostPage() {
 
   const channelChipClass =
     post.channel_id === 1
-      ? 'text-rose-700/90'
+      ? 'text-rose-700/90 dark:text-rose-400'
       : post.channel_id === 2
-        ? 'text-indigo-700/90'
+        ? 'text-indigo-700/90 dark:text-indigo-400'
         : post.channel_id === 3
-          ? 'text-emerald-700/90'
-          : 'text-neutral-700'
+          ? 'text-emerald-700/90 dark:text-emerald-400'
+          : 'text-neutral-700 dark:text-muted-foreground'
 
   const hasMedals = medals.gold > 0 || medals.silver > 0 || medals.bronze > 0
 
   const header = (
     <div>
         <div className="flex items-start justify-between gap-3">
-        <h1 className="min-w-0 flex-1 text-right text-[32px] sm:text-[36px] font-black tracking-tight text-neutral-950 break-words">
+        <h1 className="min-w-0 flex-1 text-right text-[32px] sm:text-[36px] font-black tracking-tight text-neutral-950 dark:text-foreground break-words">
           {post.title ?? 'ללא כותרת'}
         </h1>
         <div className="mt-1 flex shrink-0 items-center gap-2" dir="ltr">
@@ -571,10 +571,10 @@ export default function PostPage() {
               </button>
 
               {menuOpen ? (
-                <div className="absolute left-0 top-10 z-20 w-44 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-lg">
+                <div className="absolute left-0 top-10 z-20 w-44 overflow-hidden rounded-2xl border border-neutral-200 dark:border-border bg-white dark:bg-card shadow-lg">
                   <button
                     type="button"
-                    className="w-full px-3 py-2 text-right text-sm font-semibold text-neutral-800 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                    className="w-full px-3 py-2 text-right text-sm font-semibold text-neutral-800 dark:text-foreground hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 dark:hover:text-red-400 cursor-pointer"
                     onClick={() => {
                       setMenuOpen(false)
                       setReportOpen(true)
@@ -598,7 +598,7 @@ export default function PostPage() {
         </div>
         {post.excerpt ? (
           <p
-  className="mt-2 text-right text-[16px] leading-8 text-neutral-700 whitespace-normal"
+  className="mt-2 text-right text-[16px] leading-8 text-neutral-700 dark:text-muted-foreground whitespace-normal"
   style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
 >{post.excerpt}</p>
         ) : null}
@@ -611,7 +611,7 @@ export default function PostPage() {
           </Link>
 
           <div className="min-w-0 text-right">
-            <div className="text-[15px] font-extrabold text-neutral-950">
+            <div className="text-[15px] font-extrabold text-neutral-950 dark:text-foreground">
               {authorUsername ? (
                 <Link href={`/u/${authorUsername}`} className="hover:underline">
                   {authorName}
@@ -621,16 +621,16 @@ export default function PostPage() {
               )}
             </div>
 
-            <div className="mt-1 text-[13px] text-neutral-600">
+            <div className="mt-1 text-[13px] text-neutral-600 dark:text-muted-foreground">
               {channelName && channelHref ? (
-                <Link href={channelHref} className={`inline-flex items-center rounded-full  border-neutral-200/70 bg-neutral-100/70 px-0.5 py-0.5 text-[12px] font-semibold ${channelChipClass} hover:bg-neutral-200/60`}>
+                <Link href={channelHref} className={`inline-flex items-center rounded-full border-neutral-200/70 dark:border-border/30 bg-neutral-100/70 dark:bg-muted px-0.5 py-0.5 text-[12px] font-semibold ${channelChipClass} hover:bg-neutral-200/60 dark:hover:bg-muted/80`}>
                   {channelName}
                 </Link>
               ) : channelName ? (
-                <span className={`inline-flex items-center rounded-full border border-neutral-200/70 bg-neutral-100/70 px-2.5 py-0.5 text-[12px] font-semibold ${channelChipClass}`}>{channelName}</span>
+                <span className={`inline-flex items-center rounded-full border border-neutral-200/70 dark:border-border/30 bg-neutral-100/70 dark:bg-muted px-2.5 py-0.5 text-[12px] font-semibold ${channelChipClass}`}>{channelName}</span>
               ) : null}
-              {channelName ? <span className="text-neutral-400"> · </span> : null}
-              <span className="text-neutral-500">{formatDateTimeHe(publishedAt)}</span>
+              {channelName ? <span className="text-neutral-400 dark:text-muted-foreground"> · </span> : null}
+              <span className="text-neutral-500 dark:text-muted-foreground">{formatDateTimeHe(publishedAt)}</span>
             </div>
           </div>
         </div>
@@ -643,7 +643,7 @@ export default function PostPage() {
         title="עוד מהכותב/ת"
         action={
           authorUsername ? (
-            <Link href={`/u/${authorUsername}`} className="text-sm text-blue-700 hover:underline">
+            <Link href={`/u/${authorUsername}`} className="text-sm text-blue-700 dark:text-blue-400 hover:underline">
               לדף הפרופיל
             </Link>
           ) : null
@@ -663,7 +663,7 @@ export default function PostPage() {
           title={`פוסטים חמים ב: ${channelName ?? 'קטגוריה'}`}
           action={
             channelHref ? (
-              <Link href={channelHref} className=" text-sm text-blue-700 hover:underline">
+              <Link href={channelHref} className="text-sm text-blue-700 dark:text-blue-400 hover:underline">
                 לדף הקטגוריה
               </Link>
             ) : null
@@ -696,26 +696,26 @@ export default function PostPage() {
             }
           }}
         >
-          <div className="w-full max-w-lg rounded-3xl border bg-white p-5 shadow-xl">
+          <div className="w-full max-w-lg rounded-3xl border bg-white dark:bg-card dark:border-border p-5 shadow-xl">
             <div className="flex items-start gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-black">דיווח על פוסט</div>
-                <div className="mt-1 text-xs text-neutral-600">
+                <div className="mt-1 text-xs text-neutral-600 dark:text-muted-foreground">
                   הדיווח יישלח לצוות האתר. אנחנו מתייחסים לדיווחים ברצינות ומטפלים בהם בהקדם.
                 </div>
 
-                <div className="mt-3 rounded-2xl border bg-black/5 p-3 text-xs text-neutral-700">
+                <div className="mt-3 rounded-2xl border bg-black/5 dark:bg-muted p-3 text-xs text-neutral-700 dark:text-muted-foreground">
                   <div className="font-bold">הפוסט שדווח</div>
-                  <div className="mt-1 whitespace-pre-wrap font-semibold text-neutral-900">
+                  <div className="mt-1 whitespace-pre-wrap font-semibold text-neutral-900 dark:text-foreground">
                     {post.title ?? 'ללא כותרת'}
                   </div>
-                  <div className="mt-1 text-[11px] text-neutral-500">{formatDateTimeHe(publishedAt)}</div>
+                  <div className="mt-1 text-[11px] text-neutral-500 dark:text-muted-foreground">{formatDateTimeHe(publishedAt)}</div>
                 </div>
               </div>
 
               <button
                 type="button"
-                className="mr-auto rounded-full border px-3 py-1 text-xs font-bold hover:bg-black/5"
+                className="mr-auto rounded-full border px-3 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10"
                 onClick={() => {
                   setReportOpen(false)
                   setReportErr(null)
@@ -727,15 +727,15 @@ export default function PostPage() {
             </div>
 
             {!canReportPost ? (
-              <div className="mt-4 rounded-2xl border bg-black/5 p-3 text-sm">לא ניתן לדווח על עצמך.</div>
+              <div className="mt-4 rounded-2xl border bg-black/5 dark:bg-white/5 p-3 text-sm">לא ניתן לדווח על עצמך.</div>
             ) : (
               <div className="mt-4 space-y-3">
                 <label className="block">
-                  <div className="mb-1 text-xs font-bold text-neutral-700">סוג דיווח</div>
+                  <div className="mb-1 text-xs font-bold text-neutral-700 dark:text-muted-foreground">סוג דיווח</div>
                   <select
                     value={reportReason}
                     onChange={(e) => setReportReason(e.target.value as typeof reportReason)}
-                    className="w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
+                    className="w-full rounded-2xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-black/10"
                   >
                     <option value="abusive_language">שפה פוגענית / הקנטה</option>
                     <option value="spam_promo">ספאם / פרסום</option>
@@ -746,25 +746,25 @@ export default function PostPage() {
                 </label>
 
                 <label className="block">
-                  <div className="mb-1 text-xs font-bold text-neutral-700">פרטים (אופציונלי)</div>
+                  <div className="mb-1 text-xs font-bold text-neutral-700 dark:text-muted-foreground">פרטים (אופציונלי)</div>
                   <textarea
                     value={reportDetails}
                     onChange={(e) => setReportDetails(e.target.value)}
                     rows={4}
                     maxLength={2000}
-                    className="w-full resize-none rounded-2xl border bg-white px-4 py-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-black/10 whitespace-pre-wrap"
+                    className="w-full resize-none rounded-2xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-4 py-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-black/10 whitespace-pre-wrap"
                     placeholder="תיאור קצר שיעזור לנו לטפל…"
                   />
-                  <div className="mt-1 text-xs text-neutral-500">{reportDetails.length}/2000</div>
+                  <div className="mt-1 text-xs text-neutral-500 dark:text-muted-foreground">{reportDetails.length}/2000</div>
                 </label>
 
                 {reportErr ? (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800/40 dark:bg-red-950/30 dark:text-red-400">
                     {reportErr}
                   </div>
                 ) : null}
                 {reportOk ? (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-400">
                     {reportOk}
                   </div>
                 ) : null}
@@ -772,7 +772,7 @@ export default function PostPage() {
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    className="rounded-full border px-4 py-2 text-sm font-bold hover:bg-black/5"
+                    className="rounded-full border px-4 py-2 text-sm font-bold hover:bg-black/5 dark:hover:bg-white/10"
                     onClick={() => setReportOpen(false)}
                   >
                     ביטול
@@ -805,7 +805,7 @@ export default function PostPage() {
         <RichText content={post.content_json as RichNode} />
       </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 mt-2 [&_button]:h-10 [&_button]:rounded-xl [&_button]:border [&_button]:border-neutral-200 [&_button]:transition-all [&_button]:duration-100 [&_button:hover]:bg-neutral-100/70 [&_button:active]:scale-[0.98]">
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-2 [&_button]:h-10 [&_button]:rounded-xl [&_button]:border [&_button]:border-neutral-200 dark:[&_button]:border-border [&_button]:transition-all [&_button]:duration-100 [&_button:hover]:bg-neutral-100/70 dark:[&_button:hover]:bg-muted/70 [&_button:active]:scale-[0.98]">
             <div className="flex items-center gap-2">
               <SavePostButton postId={post.id} />
               {author?.id && myUserId && author.id !== myUserId && authorUsername ? (
@@ -821,14 +821,14 @@ export default function PostPage() {
       {/* אינטראקציות – מופרד לחלוטין מהטקסט */}
       
       <div className="-mx-6 sm:-mx-10 mt-6 space-y-6">
-<div className='bg-neutral-100/70 border ' > 
+<div className='bg-neutral-100/70 dark:bg-card border dark:border-border' >
 <div>
-        <div className="rounded-3xl border border-neutral-300 bg-neutral-200/70 p-5 sm:p-6">
+        <div className="rounded-3xl border border-neutral-300 dark:border-border bg-neutral-200/70 dark:bg-muted/50 p-5 sm:p-6">
           <PostReactions postId={post.id} channelId={post.channel_id ?? 0} authorId={post.author_id} onMedalsChange={setMedals} />
         </div>
         <div className="mt-0.5 "></div>
         </div>
-        <div className="rounded-3xl border border-neutral-200 bg-neutral-100/70 p-1 sm:p-2">
+        <div className="rounded-3xl border border-neutral-200 dark:border-border bg-neutral-100/70 dark:bg-card p-1 sm:p-2">
           {commentsReady ? (
             <PostComments postId={post.id} postSlug={slug} postTitle={post.title ?? ''} />
           ) : (

@@ -28,6 +28,7 @@ import {
 import NotificationsBell from "@/components/NotificationsBell"
 import { broadcastAuthEvent, setAuthState } from '@/lib/auth/authEvents'
 import { truncateText } from '@/lib/validation'
+import ThemeToggle from '@/components/ThemeToggle'
 
 
 type MiniUser = {
@@ -106,10 +107,10 @@ function ChannelsInline({ onNavigate, mobile = false }: { onNavigate?: () => voi
             key={it.href}
             href={it.href}
             onClick={onNavigate}
-            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white border ${it.borderClass} ${it.hoverClass} hover:shadow-sm transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
+            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white dark:bg-card border ${it.borderClass} dark:border-border ${it.hoverClass} dark:hover:bg-muted hover:shadow-sm transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
           >
             <Icon size={17} strokeWidth={2.5} className={`${it.colorClass} group-hover:scale-110 transition-transform`} />
-            <span className="text-neutral-700 group-hover:text-neutral-900 transition-colors">{it.label}</span>
+            <span className="text-neutral-700 dark:text-foreground group-hover:text-neutral-900 dark:group-hover:text-foreground transition-colors">{it.label}</span>
           </Link>
         )
       })}
@@ -408,11 +409,11 @@ export default function SiteHeader() {
     <div className="overflow-y-auto max-h-[400px] p-3">
       {threads.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center mb-3">
-            <MessageCircle size={20} className="text-neutral-400" />
+          <div className="w-12 h-12 rounded-full bg-neutral-100 dark:bg-muted flex items-center justify-center mb-3">
+            <MessageCircle size={20} className="text-neutral-400 dark:text-muted-foreground" />
           </div>
-          <h4 className="text-sm font-bold text-neutral-900 mb-1">אין הודעות חדשות</h4>
-          <p className="text-xs text-neutral-500">כל ההודעות שלך יופיעו כאן</p>
+          <h4 className="text-sm font-bold text-neutral-900 dark:text-foreground mb-1">אין הודעות חדשות</h4>
+          <p className="text-xs text-neutral-500 dark:text-muted-foreground">כל ההודעות שלך יופיעו כאן</p>
         </div>
       ) : (
         <div className="space-y-2" dir="rtl">
@@ -431,22 +432,22 @@ export default function SiteHeader() {
                 key={t.conversation_id}
                 href={`/inbox/${encodeURIComponent(t.conversation_id)}`}
                 onClick={closeAll}
-                className="block rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 p-3 transition-colors"
+                className="block rounded-xl border border-neutral-200 dark:border-border bg-white dark:bg-popover hover:bg-neutral-50 dark:hover:bg-muted p-3 transition-colors"
               >
                 <div className="flex items-start gap-3">
                   <Avatar src={avatarSrc} name={name} size={34} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-bold text-neutral-900 truncate">{name}</div>
+                      <div className="text-sm font-bold text-neutral-900 dark:text-foreground truncate">{name}</div>
                       {t.unread_count && t.unread_count > 0 ? (
                         <div className="shrink-0 rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
                           {t.unread_count}
                         </div>
                       ) : null}
                     </div>
-                    {snippet ? <div className="mt-1 text-xs text-neutral-600 line-clamp-2">{snippet}</div> : null}
+                    {snippet ? <div className="mt-1 text-xs text-neutral-600 dark:text-muted-foreground line-clamp-2">{snippet}</div> : null}
                     {t.last_created_at ? (
-                      <div className="mt-1 text-[11px] text-neutral-500">{formatDateTime(t.last_created_at)}</div>
+                      <div className="mt-1 text-[11px] text-neutral-500 dark:text-muted-foreground">{formatDateTime(t.last_created_at)}</div>
                     ) : null}
                   </div>
                 </div>
@@ -461,8 +462,8 @@ export default function SiteHeader() {
   return (
     <header className="w-full">
       {/* TOP NAVBAR - FIXED (sticky fails inside overflow containers) */}
-      <nav className="fixed top-0 inset-x-0 z-[10000] bg-neutral-200/95 backdrop-blur-md border-b border-neutral-300 shadow-sm">
-        <div className="bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200">
+      <nav className="fixed top-0 inset-x-0 z-[10000] bg-neutral-200/95 dark:bg-background/80 backdrop-blur-md border-b border-neutral-300 dark:border-border shadow-sm">
+        <div className="bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200 dark:from-background dark:via-background dark:to-background">
           <div className="mx-auto max-w-6xl px-4">
             <div className="flex h-14 items-center justify-between" dir="rtl">
               {/* ימין: בית + פתקים (דסקטופ) | המבורגר + לוגו (מובייל) */}
@@ -475,21 +476,21 @@ export default function SiteHeader() {
                     }
                     setMobileMenuOpen(v => !v)
                   }}
-                  className="lg:hidden p-2 hover:bg-neutral-300 rounded-lg transition-colors"
+                  className="lg:hidden p-2 hover:bg-neutral-300 dark:hover:bg-muted rounded-lg transition-colors"
                   aria-label="תפריט"
                 >
-                  <Menu size={24} className="text-neutral-800" />
+                  <Menu size={24} className="text-neutral-800 dark:text-foreground" />
                 </button>
 
                 {/* בית - רק בדסקטופ */}
                 <Link
                   href="/"
-                  className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-900 transition-all duration-300 group"
+                  className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-foreground/80 hover:text-neutral-900 dark:hover:text-foreground transition-all duration-300 group"
                   onClick={closeAll}
                 >
                   <div className="relative">
                     <Home size={17} strokeWidth={2.5} className="group-hover:scale-110 transition-transform duration-300" />
-                    <div className="absolute inset-0 bg-neutral-900 rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 bg-neutral-900 dark:bg-foreground rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
                   </div>
                   <span className="group-hover:tracking-wider transition-all duration-300">בית</span>
                 </Link>
@@ -501,13 +502,13 @@ export default function SiteHeader() {
 
   onClick={closeAll}
 >
-  <span className="text-lg font-bold tracking-tight text-[#1E2A44]">
+  <span className="text-lg font-bold tracking-tight text-[#1E2A44] dark:text-foreground">
     Tyuta
   </span>
 
-  <span className="h-4 w-px bg-[#1E2A44]/20" />
+  <span className="h-4 w-px bg-[#1E2A44]/20 dark:bg-foreground/20" />
 
-  <span className="text-xs font-semibold text-[#1E2A44]/65">
+  <span className="text-xs font-semibold text-[#1E2A44]/65 dark:text-foreground/65">
     המקום לכל הגרסאות שלך
   </span>
 </Link>
@@ -517,13 +518,13 @@ export default function SiteHeader() {
                 {user ? (
                   <Link
                     href="/notes"
-                    className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 hover:text-neutral-900 transition-all duration-300 group"
+                    className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-foreground/80 hover:text-neutral-900 dark:hover:text-foreground transition-all duration-300 group"
                     onClick={closeAll}
                     title="פתקים מהקהילה"
                   >
                     <div className="relative">
                       <BookOpen size={17} strokeWidth={2.5} className="group-hover:scale-110 transition-transform duration-300" />
-                      <div className="absolute inset-0 bg-neutral-900 rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
+                      <div className="absolute inset-0 bg-neutral-900 dark:bg-foreground rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
                     </div>
                     <span className="group-hover:tracking-wider transition-all duration-300">פתקים</span>
                   </Link>
@@ -552,20 +553,20 @@ export default function SiteHeader() {
                   </button>
 
                   {writeOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-72 rounded-xl bg-white shadow-xl border border-neutral-200 p-3 space-y-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute top-full left-0 mt-2 w-72 rounded-xl bg-white dark:bg-popover shadow-xl border border-neutral-200 dark:border-border p-3 space-y-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                       <button
                         onClick={() => {
                           closeAll()
                           requireAuthOrGoWrite('prika')
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-stone-50 border border-transparent hover:border-stone-200 text-sm text-right transition-all"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm text-right transition-all"
                       >
                         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-stone-400 to-stone-500 flex items-center justify-center shadow-sm">
                           <PenTool size={16} strokeWidth={2.5} className="text-white" />
                         </div>
                         <div className="flex-1">
-                          <div className="font-bold text-neutral-900">וידוי/שיר</div>
-                          <div className="text-xs text-neutral-600">שתף את מחשבותיך</div>
+                          <div className="font-bold text-neutral-900 dark:text-foreground">וידוי/שיר</div>
+                          <div className="text-xs text-neutral-600 dark:text-muted-foreground">שתף את מחשבותיך</div>
                         </div>
                       </button>
                       <button
@@ -573,14 +574,14 @@ export default function SiteHeader() {
                           closeAll()
                           requireAuthOrGoWrite('stories')
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-sm text-right transition-all"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-muted border border-transparent hover:border-slate-200 dark:hover:border-border text-sm text-right transition-all"
                       >
                         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center shadow-sm">
                           <FileText size={16} strokeWidth={2.5} className="text-white" />
                         </div>
                         <div className="flex-1">
-                          <div className="font-bold text-neutral-900">סיפור</div>
-                          <div className="text-xs text-neutral-600">ספר סיפור מרתק</div>
+                          <div className="font-bold text-neutral-900 dark:text-foreground">סיפור</div>
+                          <div className="text-xs text-neutral-600 dark:text-muted-foreground">ספר סיפור מרתק</div>
                         </div>
                       </button>
                       <button
@@ -588,25 +589,25 @@ export default function SiteHeader() {
                           closeAll()
                           requireAuthOrGoWrite('magazine')
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-zinc-50 border border-transparent hover:border-zinc-200 text-sm text-right transition-all"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-zinc-50 dark:hover:bg-muted border border-transparent hover:border-zinc-200 dark:hover:border-border text-sm text-right transition-all"
                       >
                         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-zinc-400 to-zinc-500 flex items-center justify-center shadow-sm">
                           <Newspaper size={16} strokeWidth={2.5} className="text-white" />
                         </div>
                         <div className="flex-1">
-                          <div className="font-bold text-neutral-900">כתבה</div>
-                          <div className="text-xs text-neutral-600">כתוב כתבה מעניינת</div>
+                          <div className="font-bold text-neutral-900 dark:text-foreground">כתבה</div>
+                          <div className="text-xs text-neutral-600 dark:text-muted-foreground">כתוב כתבה מעניינת</div>
                         </div>
                       </button>
-                      <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent my-2" />
+                      <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 dark:via-border to-transparent my-2" />
                       <button
                         onClick={() => {
                           closeAll()
                           requireAuthOrGo('/notebook')
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 text-sm font-black text-right transition-all"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer bg-neutral-50 dark:bg-muted hover:bg-neutral-100 dark:hover:bg-muted/80 border border-neutral-200 dark:border-border text-sm font-black text-right transition-all"
                       >
-                        <NotebookPen size={17} strokeWidth={2.5} className="text-neutral-900" />
+                        <NotebookPen size={17} strokeWidth={2.5} className="text-neutral-900 dark:text-foreground" />
                         <span>המחברת שלי 📓</span>
                       </button>
                     </div>
@@ -634,11 +635,11 @@ export default function SiteHeader() {
                           setProfileOpen(false)
                           setMobileMenuOpen(false)
                         }}
-                        className="relative p-2 rounded-lg hover:bg-neutral-300 transition-all duration-200"
+                        className="relative p-2 rounded-lg hover:bg-neutral-300 dark:hover:bg-muted transition-all duration-200"
                         title="הודעות"
                         aria-label="הודעות"
                       >
-                        <MessageCircle size={20} strokeWidth={2.5} className="text-neutral-700" />
+                        <MessageCircle size={20} strokeWidth={2.5} className="text-neutral-700 dark:text-foreground" />
                         {msgUnread > 0 ? (
                           <span className="absolute top-0 right-0 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                             {msgUnread > 99 ? '99+' : msgUnread}
@@ -649,15 +650,15 @@ export default function SiteHeader() {
                       {/* Desktop Dropdown */}
                       {messagesOpen && (
                         <div
-                          className="hidden lg:block absolute top-full left-0 mt-2 w-96 max-h-[500px] rounded-xl bg-white shadow-xl border border-neutral-200 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+                          className="hidden lg:block absolute top-full left-0 mt-2 w-96 max-h-[500px] rounded-xl bg-white dark:bg-popover shadow-xl border border-neutral-200 dark:border-border overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200"
                           dir="rtl"
                         >
-                          <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 border-b border-neutral-200 px-4 py-3 flex items-center justify-between">
-                            <h3 className="text-sm font-bold text-neutral-900">הודעות</h3>
+                          <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 dark:from-popover dark:to-popover border-b border-neutral-200 dark:border-border px-4 py-3 flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-neutral-900 dark:text-foreground">הודעות</h3>
                             <Link
                               href="/inbox"
                               onClick={closeAll}
-                              className="text-xs font-semibold text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200 px-2 py-1 rounded-lg transition-colors"
+                              className="text-xs font-semibold text-neutral-600 dark:text-muted-foreground hover:text-neutral-900 dark:hover:text-foreground hover:bg-neutral-200 dark:hover:bg-muted px-2 py-1 rounded-lg transition-colors"
                             >
                               ראה הכל
                             </Link>
@@ -678,55 +679,56 @@ export default function SiteHeader() {
                         setWriteOpen(false)
                         setMessagesOpen(false)
                       }}
-                      className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 px-2 py-1.5 transition-all"
+                      className="flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-border bg-white dark:bg-card hover:bg-neutral-50 dark:hover:bg-muted px-2 py-1.5 transition-all"
                     >
                       <Avatar src={user.avatarUrl} name={user.displayName} size={26} />
                       <span className="text-sm font-semibold">{truncateText(user.displayName, 13)}</span>
                       <ChevronDown
                         size={15}
                         strokeWidth={2.5}
-                        className={`text-neutral-600 transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`}
+                        className={`text-neutral-600 dark:text-muted-foreground transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`}
                       />
                     </button>
 
                     {profileOpen && (
-                      <div className="absolute top-full right-0 mt-2 w-56 rounded-xl bg-white shadow-xl border border-neutral-200 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="absolute top-full right-0 mt-2 w-56 rounded-xl bg-white dark:bg-popover shadow-xl border border-neutral-200 dark:border-border p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                         <Link
                           href={`/u/${user.username}`}
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-muted border border-transparent hover:border-slate-200 dark:hover:border-border text-sm transition-all"
                         >
-                          <User size={18} className="text-neutral-600" />
+                          <User size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>פרופיל</span>
                         </Link>
                         <Link
                           href="/settings/profile"
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 border border-transparent hover:border-stone-200 text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm transition-all"
                         >
-                          <Settings size={18} className="text-neutral-600" />
+                          <Settings size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>עריכת פרופיל</span>
                         </Link>
                         <Link
                           href="/saved"
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-emerald-50 border border-transparent hover:border-emerald-200 text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-muted border border-transparent hover:border-emerald-200 dark:hover:border-border text-sm transition-all"
                         >
-                          <BookOpen size={18} className="text-neutral-600" />
+                          <BookOpen size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>פוסטים שמורים</span>
                         </Link>
                         <Link
                           href="/trash"
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-50 border border-transparent hover:border-zinc-200 text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-muted border border-transparent hover:border-zinc-200 dark:hover:border-border text-sm transition-all"
                         >
-                          <Trash2 size={18} className="text-neutral-600" />
+                          <Trash2 size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>פוסטים שנמחקו</span>
                         </Link>
-                        <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent my-2" />
+                        <ThemeToggle />
+                        <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 dark:via-border to-transparent my-2" />
                         <button
                           onClick={handleSignOut}
-                          className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200 text-sm text-right text-red-600 transition-all"
+                          className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 border border-transparent hover:border-red-200 dark:hover:border-red-900/50 text-sm text-right text-red-600 transition-all"
                         >
                           <LogOut size={18} className="text-red-500" />
                           <span>יציאה</span>
@@ -739,7 +741,7 @@ export default function SiteHeader() {
                     <Link
                       href="/auth/login"
                       onClick={closeAll}
-                      className="rounded-full border border-neutral-300 bg-white hover:bg-neutral-50 px-4 py-1.5 text-sm font-semibold transition-all"
+                      className="rounded-full border border-neutral-300 dark:border-border bg-white dark:bg-card hover:bg-neutral-50 dark:hover:bg-muted px-4 py-1.5 text-sm font-semibold transition-all"
                     >
                       התחבר
                     </Link>
@@ -763,7 +765,7 @@ export default function SiteHeader() {
 
       {/* שורה 2: BRAND + CHANNELS + SEARCH - Desktop Only (hidden on inbox) */}
       {!pathname.startsWith('/inbox') && !isAuthPage && (
-      <div className=" from-neutral-50 to-white hidden lg:block border-b border-neutral-200 w-full bg-[#FBF7EF]/50 backdrop-blur shadow-[0_1px_0_rgba(0,0,0,0.25]"> 
+      <div className="hidden lg:block border-b border-black/[.06] dark:border-white/[.08] w-full bg-[#FBF7EF]/50 dark:bg-background/80 backdrop-blur shadow-[0_6px_20px_-8px_rgba(0,0,0,0.10)] dark:shadow-none">
         <div className="mx-auto max-w-6xl px-4">
           <div className="grid items-center gap-4 py-5" dir="rtl" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
             {/* Right: brand */}
@@ -772,13 +774,13 @@ export default function SiteHeader() {
   href="/"
   className="group inline-flex w-fit items-center gap-3 text-right transition-all duration-300"
 >
-  <span className="relative text-lg font-bold tracking-tight text-[#1E2A44] transition-transform duration-300 group-hover:-translate-y-[2px]">
+  <span className="relative text-lg font-bold tracking-tight text-[#1E2A44] dark:text-foreground transition-transform duration-300 group-hover:-translate-y-[2px]">
     Tyuta
   </span>
 
-  <span className="h-4 w-px bg-[#1E2A44]/20" />
+  <span className="h-4 w-px bg-[#1E2A44]/20 dark:bg-foreground/20" />
 
-  <span className="text-sm font-medium text-[#1E2A44]/60 transition-colors duration-300 group-hover:text-[#1E2A44]/80">
+  <span className="text-sm font-medium text-[#1E2A44]/60 dark:text-foreground/60 transition-colors duration-300 group-hover:text-[#1E2A44]/80 dark:group-hover:text-foreground/80">
     המקום לכל הגרסאות שלך
   </span>
 </Link>
@@ -805,7 +807,7 @@ export default function SiteHeader() {
 
           <div
             ref={mobileMenuRef}
-            className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-50 bg-white shadow-lg overflow-y-auto animate-in slide-in-from-top duration-300"
+            className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-50 bg-white dark:bg-background shadow-lg overflow-y-auto animate-in slide-in-from-top duration-300"
             dir="rtl"
           >
             <div className="mx-auto max-w-6xl px-4 py-4 space-y-4 ">
@@ -821,13 +823,13 @@ export default function SiteHeader() {
                   router.push(`/search?q=${encodeURIComponent(q)}`)
                 }}
               >
-                <Search size={18} strokeWidth={2.5} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none " />
+                <Search size={18} strokeWidth={2.5} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-muted-foreground pointer-events-none" />
                 <input
                   type="search"
                   value={mobileSearch}
                   onChange={(e) => setMobileSearch(e.target.value)}
                   placeholder="חפש פוסטים..."  
-                  className="w-full  rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 pr-10 pl-4 py-2.5 text-sm font-semibold outline-none focus:border-neutral-400 focus:bg-white focus:ring-4 focus:ring-neutral-100 transition-all duration-300"
+                  className="w-full rounded-lg border border-neutral-200 dark:border-border bg-white dark:bg-muted hover:bg-neutral-50 dark:hover:bg-muted pr-10 pl-4 py-2.5 text-sm font-semibold outline-none focus:border-neutral-400 dark:focus:border-ring focus:bg-white dark:focus:bg-muted focus:ring-4 focus:ring-neutral-100 dark:focus:ring-ring/20 transition-all duration-300 text-foreground"
                 />
               </form>
 
@@ -836,7 +838,7 @@ export default function SiteHeader() {
                 <Link
                   href="/"
                   onClick={closeAll}
-                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-semibold"
+                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-muted text-sm font-semibold"
                 >
                   <Home size={18} />
                   <span>בית</span>
@@ -845,7 +847,7 @@ export default function SiteHeader() {
                   <Link
                     href="/notes"
                     onClick={closeAll}
-                    className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-semibold"
+                    className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-muted text-sm font-semibold"
                   >
                     <BookOpen size={18} />
                     <span>פתקים</span>
@@ -855,7 +857,7 @@ export default function SiteHeader() {
 
               {/* ערוצים */}
               <div className="border-t pt-4">
-                <div className="text-xs font-bold text-neutral-600 px-4 mb-2">ערוצים</div>
+                <div className="text-xs font-bold text-neutral-600 dark:text-muted-foreground px-4 mb-2">ערוצים</div>
                 <ChannelsInline onNavigate={closeAll} mobile={true} />
               </div>
 
@@ -869,7 +871,7 @@ export default function SiteHeader() {
                       return next
                     })
                   }}
-                  className="w-full flex items-center justify-between px-4 py-2 rounded-lg hover:bg-neutral-50 text-sm font-bold"
+                  className="w-full flex items-center justify-between px-4 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-muted text-sm font-bold"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Edit size={18} />
@@ -885,14 +887,14 @@ export default function SiteHeader() {
                         closeAll()
                         requireAuthOrGoWrite('prika')
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-stone-50 border border-transparent hover:border-stone-200 text-sm text-right transition-all"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm text-right transition-all"
                     >
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-stone-400 to-stone-500 flex items-center justify-center">
                         <PenTool size={15} strokeWidth={2.5} className="text-white" />
                       </div>
                       <div className="flex-1">
-                        <div className="font-bold text-neutral-900 text-sm">וידוי/שיר</div>
-                        <div className="text-xs text-neutral-600">שתף את מחשבותיך</div>
+                        <div className="font-bold text-neutral-900 dark:text-foreground text-sm">וידוי/שיר</div>
+                        <div className="text-xs text-neutral-600 dark:text-muted-foreground">שתף את מחשבותיך</div>
                       </div>
                     </button>
                     <button
@@ -900,14 +902,14 @@ export default function SiteHeader() {
                         closeAll()
                         requireAuthOrGoWrite('stories')
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-sm text-right transition-all"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-muted border border-transparent hover:border-slate-200 dark:hover:border-border text-sm text-right transition-all"
                     >
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center">
                         <FileText size={15} strokeWidth={2.5} className="text-white" />
                       </div>
                       <div className="flex-1">
-                        <div className="font-bold text-neutral-900 text-sm">סיפור</div>
-                        <div className="text-xs text-neutral-600">ספר סיפור מרתק</div>
+                        <div className="font-bold text-neutral-900 dark:text-foreground text-sm">סיפור</div>
+                        <div className="text-xs text-neutral-600 dark:text-muted-foreground">ספר סיפור מרתק</div>
                       </div>
                     </button>
                     <button
@@ -915,25 +917,25 @@ export default function SiteHeader() {
                         closeAll()
                         requireAuthOrGoWrite('magazine')
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-50 border border-transparent hover:border-zinc-200 text-sm text-right transition-all"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-muted border border-transparent hover:border-zinc-200 dark:hover:border-border text-sm text-right transition-all"
                     >
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-zinc-400 to-zinc-500 flex items-center justify-center">
                         <Newspaper size={15} strokeWidth={2.5} className="text-white" />
                       </div>
                       <div className="flex-1">
-                        <div className="font-bold text-neutral-900 text-sm">כתבה</div>
-                        <div className="text-xs text-neutral-600">כתוב כתבה מעניינת</div>
+                        <div className="font-bold text-neutral-900 dark:text-foreground text-sm">כתבה</div>
+                        <div className="text-xs text-neutral-600 dark:text-muted-foreground">כתוב כתבה מעניינת</div>
                       </div>
                     </button>
-                    <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent my-2" />
+                    <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 dark:via-border to-transparent my-2" />
                     <button
                       onClick={() => {
                         closeAll()
                         requireAuthOrGo('/notebook')
                       }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-neutral-50 border border-transparent hover:border-neutral-200 text-sm font-bold text-right transition-all"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-muted border border-transparent hover:border-neutral-200 dark:hover:border-border text-sm font-bold text-right transition-all"
                     >
-                      <NotebookPen size={16} strokeWidth={2.5} className="text-neutral-600" />
+                      <NotebookPen size={16} strokeWidth={2.5} className="text-neutral-600 dark:text-muted-foreground" />
                       <span>המחברת שלי 📓</span>
                     </button>
                   </div>
@@ -951,7 +953,7 @@ export default function SiteHeader() {
                         return next
                       })
                     }}
-                    className="w-full flex items-center justify-between px-4 py-2 rounded-lg bg-neutral-100 border border-neutral-200 hover:bg-neutral-200 transition-colors"
+                    className="w-full flex items-center justify-between px-4 py-2 rounded-lg bg-neutral-100 dark:bg-muted border border-neutral-200 dark:border-border hover:bg-neutral-200 dark:hover:bg-muted/80 transition-colors"
                   >
                     <span className="inline-flex items-center gap-3">
                       <Avatar src={user.avatarUrl} name={user.displayName} size={32} />
@@ -965,39 +967,40 @@ export default function SiteHeader() {
                       <Link
                         href={`/u/${user.username}`}
                         onClick={closeAll}
-                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-200 text-sm transition-all"
+                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-muted border border-transparent hover:border-slate-200 dark:hover:border-border text-sm transition-all"
                       >
-                        <User size={18} className="text-neutral-600" />
+                        <User size={18} className="text-neutral-600 dark:text-muted-foreground" />
                         <span>פרופיל</span>
                       </Link>
                       <Link
                         href="/settings/profile"
                         onClick={closeAll}
-                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 border border-transparent hover:border-stone-200 text-sm transition-all"
+                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm transition-all"
                       >
-                        <Settings size={18} className="text-neutral-600" />
+                        <Settings size={18} className="text-neutral-600 dark:text-muted-foreground" />
                         <span>עריכת פרופיל</span>
                       </Link>
                         <Link
                           href="/saved"
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-emerald-50 border border-transparent hover:border-emerald-200 text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-muted border border-transparent hover:border-emerald-200 dark:hover:border-border text-sm transition-all"
                         >
-                          <BookOpen size={18} className="text-neutral-600" />
+                          <BookOpen size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>פוסטים שמורים</span>
                         </Link>
                       <Link
                         href="/trash"
                         onClick={closeAll}
-                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-50 border border-transparent hover:border-zinc-200 text-sm transition-all"
+                        className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-muted border border-transparent hover:border-zinc-200 dark:hover:border-border text-sm transition-all"
                       >
-                        <Trash2 size={18} className="text-neutral-600" />
+                        <Trash2 size={18} className="text-neutral-600 dark:text-muted-foreground" />
                         <span>פוסטים שנמחקו</span>
                       </Link>
-                      <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 to-transparent my-2" />
+                      <ThemeToggle />
+                      <div className="h-px bg-gradient-to-r from-transparent via-neutral-300 dark:via-border to-transparent my-2" />
                       <button
                         onClick={handleSignOut}
-                        className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-200 text-sm text-right text-red-600 transition-all"
+                        className="w-full flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 border border-transparent hover:border-red-200 dark:hover:border-red-900/50 text-sm text-right text-red-600 transition-all"
                       >
                         <LogOut size={18} className="text-red-500" />
                         <span>יציאה</span>
@@ -1010,7 +1013,7 @@ export default function SiteHeader() {
                   <Link
                     href="/auth/login"
                     onClick={closeAll}
-                    className="w-full flex items-center justify-center gap-2 rounded-full border bg-white px-4 py-3 text-sm font-semibold hover:bg-neutral-50"
+                    className="w-full flex items-center justify-center gap-2 rounded-full border border-border bg-card hover:bg-muted px-4 py-3 text-sm font-semibold"
                   >
                     התחבר
                   </Link>

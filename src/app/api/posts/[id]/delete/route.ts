@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { revalidatePath } from 'next/cache'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 
 function serviceClient() {
@@ -49,6 +50,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (updErr) {
     return NextResponse.json({ error: { code: 'db_error', message: updErr.message } }, { status: 500 })
   }
+
+  // Invalidate ISR cache for all public post lists immediately.
+  revalidatePath('/')
+  revalidatePath('/c/release')
+  revalidatePath('/c/stories')
+  revalidatePath('/c/magazine')
 
   // Remove notifications that point to this post (they become dead links otherwise).
   // Needs Service Role because notifications belong to other users.

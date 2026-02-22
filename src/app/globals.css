@@ -60,7 +60,7 @@
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.963 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -92,23 +92,23 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --background: oklch(0.22 0 0);
+  --foreground: oklch(0.91 0 0);
+  --card: oklch(0.27 0 0);
+  --card-foreground: oklch(0.91 0 0);
+  --popover: oklch(0.27 0 0);
+  --popover-foreground: oklch(0.91 0 0);
   --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.22 0 0);
+  --secondary: oklch(0.32 0 0);
+  --secondary-foreground: oklch(0.91 0 0);
+  --muted: oklch(0.32 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.32 0 0);
+  --accent-foreground: oklch(0.91 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
@@ -284,12 +284,33 @@ html {
   }
 }
 
+/* === Message quote-scroll highlight === */
+@keyframes msg-highlight-fade {
+  0%   { box-shadow: 0 0 0 4px oklch(0.6 0.2 250 / 0.45); }
+  60%  { box-shadow: 0 0 0 6px oklch(0.6 0.2 250 / 0.25); }
+  100% { box-shadow: 0 0 0 0px oklch(0.6 0.2 250 / 0); }
+}
+
+@keyframes msg-highlight-fade-dark {
+  0%   { box-shadow: 0 0 0 4px oklch(0.65 0.22 255 / 0.55); }
+  60%  { box-shadow: 0 0 0 6px oklch(0.65 0.22 255 / 0.3); }
+  100% { box-shadow: 0 0 0 0px oklch(0.65 0.22 255 / 0); }
+}
+
+[data-bubble-id][data-highlight] {
+  animation: msg-highlight-fade 2.5s ease-out forwards;
+}
+
+.dark [data-bubble-id][data-highlight] {
+  animation: msg-highlight-fade-dark 2.5s ease-out forwards;
+}
+
 /* === ProseMirror editor styles === */
 .ProseMirror blockquote {
-  border-right: 4px solid #d1d5db;
+  border-right: 4px solid var(--border);
   padding-right: 16px;
   margin: 12px 0;
-  color: #6b7280;
+  color: var(--muted-foreground);
   font-style: italic;
 }
 
@@ -325,7 +346,7 @@ html {
 
 .ProseMirror hr {
   border: none;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
   margin: 16px 0;
 }
 
@@ -350,4 +371,31 @@ html {
 .ProseMirror {
   word-break: break-word;
   white-space: pre-wrap;
+}
+
+/* === Dark-mode ProseMirror overrides === */
+
+/* Editor links: override the hardcoded blue-600 so they don't glow in dark mode */
+.dark .ProseMirror a {
+  color: #60a5fa; /* Tailwind blue-400 */
+}
+
+/* Blockquote border: --border at 12% opacity is near-invisible; bump to 25% in dark */
+.dark .ProseMirror blockquote {
+  border-right-color: oklch(1 0 0 / 25%);
+}
+
+/* Highlight (mark): TipTap inlines light-colored backgrounds. Force dark text so
+   yellow/pink/green/blue highlights remain readable on dark editor background.
+   No !important needed: TipTap never puts `color` in mark's own inline style, so
+   this class rule already beats any inherited color from ancestor spans.
+   Inline color spans INSIDE the mark still win (their own inline style overrides). */
+.dark .ProseMirror mark {
+  color: oklch(0.145 0 0);
+}
+
+/* Highlight swatch buttons in the editor toolbar share the same light-bg problem:
+   their background IS the highlight color, so label text must be dark. */
+.dark .editor-highlight-swatch {
+  color: oklch(0.145 0 0);
 }

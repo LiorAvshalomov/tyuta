@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { revalidatePath } from "next/cache"
 import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest"
 import { adminError, adminOk } from "@/lib/admin/adminHttp"
 
@@ -75,6 +76,12 @@ export async function POST(req: NextRequest) {
 
   const { error: updErr } = await sb.from("posts").update(updatePayload).eq("id", postId)
   if (updErr) return adminError(updErr.message, 500, "db_error")
+
+  // Invalidate ISR cache for all public post lists immediately.
+  revalidatePath("/")
+  revalidatePath("/c/release")
+  revalidatePath("/c/stories")
+  revalidatePath("/c/magazine")
 
   // Notify post author (system notification) - best effort
   const notifPayload = {

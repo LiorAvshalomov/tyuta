@@ -14,14 +14,14 @@ export default function InboxPage() {
     <div className="h-full min-h-0 overflow-hidden">
       {/* Mobile: show threads list */}
       <div className="md:hidden h-full min-h-0 overflow-hidden">
-        <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-black/5 bg-[#FAF9F6] shadow-sm">
+        <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-black/5 bg-[#FAF9F6] dark:border-white/10 dark:bg-[#1a1a1a] shadow-sm">
           <InboxThreads />
         </div>
       </div>
 
       {/* Desktop: placeholder (threads are in sidebar) */}
       <div className="hidden h-full md:flex">
-        <div className="flex h-full w-full items-center justify-center rounded-3xl border border-black/5 bg-[#FAF9F6] shadow-sm">
+        <div className="flex h-full w-full items-center justify-center rounded-3xl border border-black/5 bg-[#FAF9F6] dark:border-white/10 dark:bg-[#1a1a1a] shadow-sm">
           <div className="text-center">
             <div className="text-lg font-black">בחר שיחה</div>
             <div className="mt-1 text-sm text-muted-foreground">כדי להתחיל לדבר 🙂</div>

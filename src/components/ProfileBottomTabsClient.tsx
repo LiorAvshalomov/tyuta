@@ -27,20 +27,20 @@ export default function ProfileBottomTabsClient({
 
   return (
     <section className="mt-6" dir="rtl">
-      <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden">
+      <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden dark:bg-card dark:border-border">
         {/* Header with title and tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-neutral-100">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-neutral-100 dark:border-border">
           <h2 className="text-lg font-bold">התוכן שלי</h2>
 
           {/* Tab switcher */}
-          <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 p-1">
+          <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 p-1 dark:border-border dark:bg-muted">
             <button
               type="button"
               onClick={() => setTab('posts')}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-                tab === 'posts' 
-                  ? 'bg-blue-600 text-white shadow-sm' 
-                  : 'text-neutral-600 hover:text-neutral-900'
+                tab === 'posts'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-neutral-600 hover:text-neutral-900 dark:text-muted-foreground dark:hover:text-foreground'
               }`}
             >
               פוסטים
@@ -49,9 +49,9 @@ export default function ProfileBottomTabsClient({
               type="button"
               onClick={() => setTab('stats')}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-                tab === 'stats' 
-                  ? 'bg-blue-600 text-white shadow-sm' 
-                  : 'text-neutral-600 hover:text-neutral-900'
+                tab === 'stats'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-neutral-600 hover:text-neutral-900 dark:text-muted-foreground dark:hover:text-foreground'
               }`}
             >
               נתונים

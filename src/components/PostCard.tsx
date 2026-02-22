@@ -86,7 +86,7 @@ function CoverFrame({
   style?: CSSProperties
 }) {
   return (
-    <div className={'overflow-hidden rounded border bg-white ' + (className ?? '')} style={style}>
+    <div className={'overflow-hidden rounded border bg-card ' + (className ?? '')} style={style}>
       {children}
     </div>
   )
@@ -110,7 +110,7 @@ export default function PostCard({
   if (variant === 'list-featured') {
     // Featured: title/excerpt/author above a constrained image.
     return (
-      <article className="block rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md">
+      <article className="block rounded-2xl border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 p-4 shadow-sm transition hover:shadow-md">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {post.channel_name ? (
             chHref ? (
@@ -135,7 +135,7 @@ export default function PostCard({
           <div className="mt-1 text-sm text-muted-foreground">
             מאת:{' '}
             {post.author_username ? (
-              <Link href={`/u/${post.author_username}`} className="text-blue-700 hover:underline">
+              <Link href={`/u/${post.author_username}`} className="text-blue-700 hover:underline dark:text-blue-400">
                 {post.author_name}
               </Link>
             ) : (
@@ -165,14 +165,14 @@ export default function PostCard({
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             <span className="text-muted-foreground">תגיות:</span>
             {post.tags.slice(0, 4).map((t) => (
-              <span key={t.slug} className="text-emerald-700">
+              <span key={t.slug} className="text-emerald-700 dark:text-emerald-400">
                 {t.name_he}
               </span>
             ))}
           </div>
         ) : null}
 
-        <Link href={`/post/${post.slug}`} className="mt-3 inline-block text-xs text-blue-700 underline">
+        <Link href={`/post/${post.slug}`} className="mt-3 inline-block text-xs text-blue-700 dark:text-blue-400 underline">
           קרא עוד
         </Link>
       </article>
@@ -182,7 +182,7 @@ export default function PostCard({
   if (variant === 'tile') {
     // Small category tiles
     return (
-      <article className="group block overflow-hidden rounded border bg-white shadow-sm transition hover:shadow-md">
+      <article className="group block overflow-hidden rounded border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 shadow-sm transition hover:shadow-md">
         <div className="relative">
           {post.cover_image_url ? (
             <Link href={`/post/${post.slug}`} className="block">
@@ -192,7 +192,7 @@ export default function PostCard({
             </Link>
           ) : (
             <Link href={`/post/${post.slug}`} className="block">
-              <div className="h-40 w-full bg-neutral-100" />
+              <div className="h-40 w-full bg-muted" />
             </Link>
           )}
         </div>
@@ -212,7 +212,7 @@ export default function PostCard({
 
   // Default: list row
   return (
-    <article className="block rounded border bg-white p-3 shadow-sm transition hover:shadow-md">
+    <article className="block rounded border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 p-3 shadow-sm transition hover:shadow-md">
       <div className="flex flex-row-reverse items-start gap-3">
         {/* IMAGE on the right (fixed size, never overflows) */}
         <div className="shrink-0">
@@ -224,7 +224,7 @@ export default function PostCard({
             </Link>
           ) : (
             <Link href={`/post/${post.slug}`} className="block">
-              <div className="h-[90px] w-[140px] rounded border bg-neutral-100" />
+              <div className="h-[90px] w-[140px] rounded border bg-muted" />
             </Link>
           )}
         </div>
@@ -250,7 +250,7 @@ export default function PostCard({
           <div className="mt-1 text-xs text-muted-foreground">
             מאת:{' '}
             {post.author_username ? (
-              <Link href={`/u/${post.author_username}`} className="text-blue-700 hover:underline">
+              <Link href={`/u/${post.author_username}`} className="text-blue-700 dark:text-blue-400 hover:underline">
                 {post.author_name ?? 'אנונימי'}
               </Link>
             ) : (
@@ -279,14 +279,14 @@ export default function PostCard({
               <>
                 <span className="text-muted-foreground">תגיות:</span>
                 {post.tags.slice(0, 3).map((t) => (
-                  <span key={t.slug} className="text-emerald-700">
+                  <span key={t.slug} className="text-emerald-700 dark:text-emerald-400">
                     {t.name_he}
                   </span>
                 ))}
               </>
             ) : null}
           </div>
-          <Link href={`/post/${post.slug}`} className="mt-2 inline-block text-xs text-blue-700 underline">
+          <Link href={`/post/${post.slug}`} className="mt-2 inline-block text-xs text-blue-700 dark:text-blue-400 underline">
             קרא עוד
           </Link>
         </div>

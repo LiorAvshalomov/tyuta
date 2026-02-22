@@ -111,9 +111,9 @@ export default function PostOwnerMenu({
         onClick={() => setOpen((v) => !v)}
         className="
   block px-3 py-2 text-right
-  hover:bg-neutral-50
+  hover:bg-neutral-50 dark:hover:bg-muted
   focus:outline-none
-  focus-visible:bg-neutral-100
+  focus-visible:bg-neutral-100 dark:focus-visible:bg-muted
   transition
 "
         aria-haspopup="menu"
@@ -124,15 +124,15 @@ export default function PostOwnerMenu({
       </button>
 
       {open ? (
-        <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded border bg-white text-sm shadow-lg">
+        <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded border bg-white dark:bg-card dark:border-border text-sm shadow-lg">
           <Link
   ref={firstItemRef}
   href={`/write?edit=${encodeURIComponent(postId)}`}
   className="
     block px-3 py-2
-    hover:bg-neutral-100
+    hover:bg-neutral-100 dark:hover:bg-muted
     focus:outline-none
-    focus-visible:bg-neutral-100
+    focus-visible:bg-neutral-100 dark:focus-visible:bg-muted
     focus-visible:font-semibold
   "
 >
@@ -140,7 +140,7 @@ export default function PostOwnerMenu({
 </Link>
           <button
             type="button"
-            className="block w-full px-3 py-2 text-right text-red-700 hover:bg-red-50"
+            className="block w-full px-3 py-2 text-right text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
             onClick={() => {
               setOpen(false)
               void onDelete()

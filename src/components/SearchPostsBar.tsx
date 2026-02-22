@@ -32,7 +32,7 @@ export default function SearchPostsBar() {
           if (e.key === 'Enter') apply()
         }}
         placeholder="חפש פוסטים..."
-        className="h-10 rounded-full border bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-black/10"
+        className="h-10 rounded-full border border-border bg-card text-foreground placeholder:text-muted-foreground dark:bg-muted dark:focus:bg-muted px-4 text-sm outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-foreground/10"
         style={{ width: 240 }}
       />
 
