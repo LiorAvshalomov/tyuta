@@ -324,22 +324,28 @@ export default function PostPage() {
         if (!cancelled) setSubcategoryName(data?.name_he ?? null)
       }
 
-      // Post tags — single join (replaces N+1: post_tags → tags)
-      type PostTagJoinRow = { tag: { id: number; name_he: string | null; slug: string | null } | null }
-      const { data: ptRows, error: tagsError } = await supabase
+      // Post tags — two flat queries (avoids join type-inference issues with Supabase SDK)
+      const { data: ptRows, error: ptError } = await supabase
         .from('post_tags')
-        .select('tag:tags(id,name_he,slug)')
+        .select('tag_id')
         .eq('post_id', post.id)
 
       if (cancelled) return
+      if (ptError) return // subcategory already set; skip tags silently
 
-      if (tagsError) {
-        // Fetch failed — subcategory already set above; skip tags rather than hiding the row
-        return
-      }
+      const tagIds = (ptRows ?? []).map((r: { tag_id: number }) => r.tag_id).filter(Boolean)
+      if (tagIds.length === 0) return
 
-      const names = (ptRows ?? [])
-        .map((r: PostTagJoinRow) => r.tag?.name_he ?? null)
+      const { data: tagsData, error: tagsError } = await supabase
+        .from('tags')
+        .select('name_he')
+        .in('id', tagIds)
+
+      if (cancelled) return
+      if (tagsError) return
+
+      const names = (tagsData ?? [])
+        .map((t: { name_he: string | null }) => t.name_he)
         .filter((n): n is string => Boolean(n))
 
       setPostTags(names)
