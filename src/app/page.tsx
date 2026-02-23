@@ -187,6 +187,26 @@ function FeaturedPost({ post }: { post: CardPost }) {
                         <span className="font-semibold text-foreground">{post.subcategory.name_he}</span>
                       </>
                     ) : null}
+                    {post.subcategory && post.tags.length > 0 ? (
+                      <span className="mx-1 text-muted-foreground/50">·</span>
+                    ) : null}
+                    {post.tags.length > 0 ? (
+                      <>
+                        {/* desktop ≥md: up to 3, no +N */}
+                        <span className={`hidden md:inline ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
+                          {post.tags.slice(0, 3).map((t, i) => (
+                            <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
+                          ))}
+                        </span>
+                        {/* mobile <md: 2 tags + +N */}
+                        <span className={`md:hidden ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
+                          {post.tags.slice(0, 2).map((t, i) => (
+                            <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
+                          ))}
+                          {post.tags.length > 2 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{post.tags.length - 2}</span>}
+                        </span>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -252,7 +272,26 @@ function SimplePostCard({ post }: { post: CardPost }) {
                 <span className="font-semibold">{post.subcategory.name_he}</span>
               </>
             ) : null}
-
+            {post.subcategory && post.tags.length > 0 ? (
+              <span className="mx-1 text-muted-foreground/50">·</span>
+            ) : null}
+            {post.tags.length > 0 ? (
+              <>
+                {/* desktop ≥md: 2 tags + +N */}
+                <span className={`hidden md:inline ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
+                  {post.tags.slice(0, 2).map((t, i) => (
+                    <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
+                  ))}
+                  {post.tags.length > 2 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{post.tags.length - 2}</span>}
+                </span>
+                {/* mobile <md: up to 3, no +N */}
+                <span className={`md:hidden ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
+                  {post.tags.slice(0, 3).map((t, i) => (
+                    <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
+                  ))}
+                </span>
+              </>
+            ) : null}
           </div>
           <div className="shrink-0">
             <MedalsInline medals={post.allTimeMedals} />
@@ -347,6 +386,31 @@ function ListRowCompact({ post }: { post: CardPost }) {
                     <span className="font-semibold text-foreground">{post.subcategory.name_he}</span>
                   </>
                 ) : null}
+                {post.subcategory && post.tags.length > 0 ? (
+                  <span className="mx-1 text-muted-foreground/50">·</span>
+                ) : null}
+                {post.tags.length > 0 ? (() => {
+                  const desktopCap = post.channel_slug === 'magazine' ? 3 : 6
+                  const leadCls = post.subcategory ? '' : 'mx-2'
+                  const mobileOverflow = post.tags.length - 1
+                  const desktopOverflow = Math.max(0, post.tags.length - desktopCap)
+                  return (
+                    <>
+                      {/* mobile: 1 tag + overflow count */}
+                      <span className={`md:hidden ${leadCls} text-muted-foreground/70`.trimEnd()}>
+                        #&nbsp;{post.tags[0].name_he}
+                        {mobileOverflow > 0 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{mobileOverflow}</span>}
+                      </span>
+                      {/* desktop: up to cap + overflow count */}
+                      <span className={`hidden md:inline ${leadCls} text-muted-foreground/70`.trimEnd()}>
+                        {post.tags.slice(0, desktopCap).map((t, i) => (
+                          <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
+                        ))}
+                        {desktopOverflow > 0 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{desktopOverflow}</span>}
+                      </span>
+                    </>
+                  )
+                })() : null}
 
 
 
@@ -391,18 +455,6 @@ function ListRowCompact({ post }: { post: CardPost }) {
               )}
             </div>
 
-            {post.tags.length ? (
-              <div className="mt-2 flex flex-wrap justify-end gap-1">
-                {post.tags.slice(0, 2).map(t => (
-                  <span
-                    key={t.slug}
-                    className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground"
-                  >
-                    {t.name_he}
-                  </span>
-                ))}
-              </div>
-            ) : null}
           </div>
         </div>
       </div>

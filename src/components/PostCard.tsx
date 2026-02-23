@@ -161,16 +161,6 @@ export default function PostCard({
           </div>
         ) : null}
 
-        {post.tags && post.tags.length > 0 ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-muted-foreground">תגיות:</span>
-            {post.tags.slice(0, 4).map((t) => (
-              <span key={t.slug} className="text-emerald-700 dark:text-emerald-400">
-                {t.name_he}
-              </span>
-            ))}
-          </div>
-        ) : null}
 
         <Link href={`/post/${post.slug}`} className="mt-3 inline-block text-xs text-blue-700 dark:text-blue-400 underline">
           קרא עוד
@@ -275,16 +265,6 @@ export default function PostCard({
               )
             ) : null}
 
-            {post.tags && post.tags.length > 0 ? (
-              <>
-                <span className="text-muted-foreground">תגיות:</span>
-                {post.tags.slice(0, 3).map((t) => (
-                  <span key={t.slug} className="text-emerald-700 dark:text-emerald-400">
-                    {t.name_he}
-                  </span>
-                ))}
-              </>
-            ) : null}
           </div>
           <Link href={`/post/${post.slug}`} className="mt-2 inline-block text-xs text-blue-700 dark:text-blue-400 underline">
             קרא עוד
