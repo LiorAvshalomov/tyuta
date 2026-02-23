@@ -318,29 +318,31 @@ export default function PostPage() {
     const fetchTaxonomy = async () => {
       const subcatId = post.subcategory_tag_id
 
-      // Subcategory name
+      // Subcategory name — independent fetch so a tags error can't suppress it
       if (subcatId) {
         const { data } = await supabase.from('tags').select('name_he').eq('id', subcatId).single()
         if (!cancelled) setSubcategoryName(data?.name_he ?? null)
       }
 
-      // Post tags
-      const { data: ptRows } = await supabase
+      // Post tags — single join (replaces N+1: post_tags → tags)
+      type PostTagJoinRow = { tag: { id: number; name_he: string | null; slug: string | null } | null }
+      const { data: ptRows, error: tagsError } = await supabase
         .from('post_tags')
-        .select('tag_id')
+        .select('tag:tags(id,name_he,slug)')
         .eq('post_id', post.id)
 
-      const tagIds = (ptRows ?? []).map((r: { tag_id: number }) => r.tag_id).filter(Boolean)
-      if (tagIds.length === 0 || cancelled) return
+      if (cancelled) return
 
-      const { data: tagsData } = await supabase
-        .from('tags')
-        .select('id, name_he')
-        .in('id', tagIds)
-
-      if (!cancelled) {
-        setPostTags((tagsData ?? []).map((t: { id: number; name_he: string | null }) => t.name_he).filter((n): n is string => Boolean(n)))
+      if (tagsError) {
+        // Fetch failed — subcategory already set above; skip tags rather than hiding the row
+        return
       }
+
+      const names = (ptRows ?? [])
+        .map((r: PostTagJoinRow) => r.tag?.name_he ?? null)
+        .filter((n): n is string => Boolean(n))
+
+      setPostTags(names)
     }
 
     fetchTaxonomy()

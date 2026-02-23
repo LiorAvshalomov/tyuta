@@ -428,7 +428,7 @@ export default async function ChannelFeedPage({
       channel:channels ( slug, name_he ),
       author:profiles!posts_author_id_fkey ( username, display_name ),
       subcategory:tags!posts_subcategory_tag_fk ( id, name_he, slug ),
-      post_tags:post_tags!fk_post_tags_post_id_posts ( tag:tags!fk_post_tags_tag_id_tags ( name_he, slug ) )
+      post_tags:post_tags!post_tags_post_id_fkey ( tag:tags!post_tags_tag_id_fkey ( name_he, slug ) )
       `
     )
     .is('deleted_at', null)
