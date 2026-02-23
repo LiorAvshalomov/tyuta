@@ -10,6 +10,12 @@ import { supabase } from '@/lib/supabaseClient'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import { useToast } from '@/components/Toast'
 import { event as gaEvent } from '@/lib/gtag'
+import {
+  CHANNEL_SLUG_TO_NAME_HE,
+  TAG_TYPES_BY_CHANNEL,
+  SUBCATEGORY_NAMES_BY_CHANNEL,
+  sortHebrew,
+} from '@/lib/taxonomy'
 
 type Channel = { id: number; name_he: string }
 type Tag = { id: number; type: 'emotion' | 'theme' | 'genre' | 'topic'; name_he: string; channel_id: number | null }
@@ -40,20 +46,6 @@ type DraftRow = {
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] }
 const TITLE_MAX = 72
 const EXCERPT_MAX = 160
-
-// Non-subcategory tag types per channel (subcategory itself is stored in posts.subcategory_tag_id and points to tags.type='genre')
-const TAG_TYPES_BY_CHANNEL_NAME_HE: Record<string, Array<Tag['type']>> = {
-  'פריקה': ['emotion', 'theme'],
-  'סיפורים': ['emotion', 'theme'],
-  'מגזין': ['topic', 'theme'],
-}
-
-// Allowed subcategory (genre) names per channel.
-const SUBCATEGORY_NAMES_BY_CHANNEL_NAME_HE: Record<string, string[]> = {
-  'פריקה': ['וידויים','מחשבות', 'שירים'],
-  'סיפורים': ['סיפורים אמיתיים', 'סיפורים קצרים', 'סיפור בהמשכים'],
-  'מגזין': ['חדשות', 'ספורט', 'תרבות ובידור', 'דעות', 'טכנולוגיה'],
-}
 
 function extractTextFromDoc(node: JSONContent): string {
   if (node.type === 'text') return node.text ?? ''
@@ -108,13 +100,6 @@ export default function WritePage() {
   const subcategoryParam = searchParams.get('subcategory')
 
   // URL presets
-  const CHANNEL_SLUG_TO_NAME_HE: Record<string, string> = {
-    prika: 'פריקה',
-    release: 'פריקה',
-    stories: 'סיפורים',
-    magazine: 'מגזין',
-  }
-
   const resolveChannelIdFromParam = (param: string | null, channelRows: Channel[]): number | null => {
     if (!param) return null
     if (/^\d+$/.test(param)) return Number(param)
@@ -365,7 +350,7 @@ useEffect(() => {
       if (!channels.length) return
 
       const currentChannelNameHe = channels.find(c => c.id === channelId)?.name_he ?? ''
-      const allowedSubcats = SUBCATEGORY_NAMES_BY_CHANNEL_NAME_HE[currentChannelNameHe] ?? []
+      const allowedSubcats = SUBCATEGORY_NAMES_BY_CHANNEL[currentChannelNameHe] ?? []
 
       const { data, error } = await supabase
         .from('tags')
@@ -394,7 +379,7 @@ useEffect(() => {
       }
       const rows = Array.from(byName.values())
 
-      // Respect the display order defined in SUBCATEGORY_NAMES_BY_CHANNEL_NAME_HE
+      // Respect the display order defined in SUBCATEGORY_NAMES_BY_CHANNEL
       if (allowedSubcats.length) {
         rows.sort((a, b) => {
           const ai = allowedSubcats.indexOf(a.name_he)
@@ -420,14 +405,13 @@ useEffect(() => {
       if (!channels.length) return
 
       const currentChannelNameHe = channels.find(c => c.id === channelId)?.name_he ?? ''
-      const allowedTypes = TAG_TYPES_BY_CHANNEL_NAME_HE[currentChannelNameHe] ?? (['emotion', 'theme', 'topic'] as TagType[])
+      const allowedTypes = TAG_TYPES_BY_CHANNEL[currentChannelNameHe] ?? (['emotion', 'theme', 'topic'] as TagType[])
 
       const { data, error } = await supabase
         .from('tags')
         .select('id, name_he, type, channel_id')
         .in('type', allowedTypes)
         .or(`channel_id.is.null,channel_id.eq.${channelId}`)
-        .order('name_he')
 
       if (req !== tagsReqSeq.current) return
 
@@ -437,7 +421,7 @@ useEffect(() => {
         return
       }
 
-      const rows = (data ?? []) as Tag[]
+      const rows = sortHebrew((data ?? []) as Tag[])
       setTags(rows)
 
       // Drop selected tags that are no longer available

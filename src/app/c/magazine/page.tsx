@@ -19,6 +19,7 @@ export default async function MagazinePage() {
       forcedSubtitle="הכי חם החודש בקטגוריה"
       forcedSubcategories={[
         { name_he: 'חדשות' },
+        { name_he: 'עולם הכתיבה' },
         { name_he: 'תרבות ובידור' },
         { name_he: 'טכנולוגיה' },
         { name_he: 'ספורט' },
