@@ -6,7 +6,9 @@ export async function GET(req: Request) {
   if (!auth.ok) return auth.response
 
   const url = new URL(req.url)
-  const q = (url.searchParams.get('q') ?? '').trim()
+  const qRaw = (url.searchParams.get('q') ?? '').trim()
+  // Strip PostgREST filter meta-characters to prevent filter injection
+  const q = qRaw.replace(/[%_\\(),."']/g, '')
 
   if (q.length < 2) {
     return NextResponse.json({ ok: true, users: [] })

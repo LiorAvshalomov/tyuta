@@ -31,7 +31,7 @@ export const TAG_TYPES_BY_CHANNEL: Record<string, Array<'emotion' | 'theme' | 't
 export const SUBCATEGORY_NAMES_BY_CHANNEL: Record<string, string[]> = {
   'פריקה': ['וידויים', 'מחשבות', 'שירים'],
   'סיפורים': ['סיפורים אמיתיים', 'סיפורים קצרים', 'סיפור בהמשכים'],
-  'מגזין': ['חדשות', 'ספורט', 'תרבות ובידור', 'דעות', 'טכנולוגיה', 'עולם הכתיבה'],
+  'מגזין': ['חדשות','עולם הכתיבה', 'ספורט', 'תרבות ובידור', 'דעות', 'טכנולוגיה'],
 }
 
 // ─── Canonical tag lists (sorted alef-bet; used by SQL seed for reference) ───

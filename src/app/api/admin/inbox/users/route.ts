@@ -10,7 +10,8 @@ export async function GET(req: Request) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
 
-  const q = getQueryParam(req, 'q')
+  // Strip PostgREST filter meta-characters to prevent filter injection
+  const q = getQueryParam(req, 'q').replace(/[%_\\(),."']/g, '')
   if (q.length < 2) {
     return NextResponse.json({ users: [] })
   }

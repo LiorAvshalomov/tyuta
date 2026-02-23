@@ -72,7 +72,9 @@ export async function GET(req: NextRequest) {
   }
 
   if (q) {
-    query = query.or(`title.ilike.%${q}%,slug.ilike.%${q}%`)
+    // Strip PostgREST filter meta-characters to prevent filter injection
+    const qSafe = q.replace(/[%_\\(),."']/g, '')
+    if (qSafe) query = query.or(`title.ilike.%${qSafe}%,slug.ilike.%${qSafe}%`)
   }
 
   const { data, error } = await query

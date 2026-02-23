@@ -126,6 +126,8 @@ function renderNode(node: RichNode, key: string): React.ReactNode {
   const attrs = node.attrs as Attrs | undefined
   const src = attrs?.src
   if (!src) return null
+  // Only allow http/https — block data:, javascript:, and other schemes
+  if (!/^https?:\/\//i.test(src)) return null
 
   const alt = attrs?.alt ?? ''
 
@@ -151,7 +153,8 @@ function renderNode(node: RichNode, key: string): React.ReactNode {
     case 'youtubeVideo': {
       const src = (node.attrs as Attrs | undefined)?.src
       if (!src) return null
-      const embed = toYouTubeNoCookieEmbed(src) ?? src
+      const embed = toYouTubeNoCookieEmbed(src)
+      if (!embed) return null
       return (
         <div key={key} className="my-4 overflow-hidden rounded-2xl">
           <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
@@ -163,13 +166,6 @@ function renderNode(node: RichNode, key: string): React.ReactNode {
               title="YouTube"
             />
           </div>
-          {toYouTubeNoCookieEmbed(src) ? null : (
-            <div className="mt-2 text-sm text-neutral-600 dark:text-muted-foreground">
-              <a href={src} target="_blank" rel="noopener noreferrer nofollow" className="underline">
-                פתח/י ביוטיוב
-              </a>
-            </div>
-          )}
         </div>
       )
     }
