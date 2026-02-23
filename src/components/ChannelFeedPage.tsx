@@ -317,11 +317,11 @@ function ListRow({ post }: { post: CardPost }) {
                 {post.subcategory_name ? (
                   <>
                     <span className="mx-2">•</span>
-                    <span className="font-semibold text-foreground">{post.subcategory_name}</span>
+                    <span className="font-semibold text-muted-foreground">{post.subcategory_name}</span>
                   </>
                 ) : null}
                 {post.subcategory_name && post.tags.length > 0 ? (
-                  <span className="mx-1 text-muted-foreground/50">·</span>
+                  <span className="mx-2 text-muted-foreground/50">·</span>
                 ) : null}
                 {post.tags.length > 0 ? (() => {
                   const desktopCap = post.channel_slug === 'magazine' ? 3 : 6

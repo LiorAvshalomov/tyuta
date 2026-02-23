@@ -184,11 +184,11 @@ function FeaturedPost({ post }: { post: CardPost }) {
                     {post.subcategory ? (
                       <>
                         <span className="mx-2">•</span>
-                        <span className="font-semibold text-foreground">{post.subcategory.name_he}</span>
+                        <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
                       </>
                     ) : null}
                     {post.subcategory && post.tags.length > 0 ? (
-                      <span className="mx-1 text-muted-foreground/50">·</span>
+                      <span className="mx-2 text-muted-foreground/50">·</span>
                     ) : null}
                     {post.tags.length > 0 ? (
                       <>
@@ -269,11 +269,11 @@ function SimplePostCard({ post }: { post: CardPost }) {
             {post.subcategory ? (
               <>
                 <span className="mx-2">•</span>
-                <span className="font-semibold">{post.subcategory.name_he}</span>
+                <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
               </>
             ) : null}
             {post.subcategory && post.tags.length > 0 ? (
-              <span className="mx-1 text-muted-foreground/50">·</span>
+              <span className="mx-2 text-muted-foreground/50">·</span>
             ) : null}
             {post.tags.length > 0 ? (
               <>
@@ -383,11 +383,11 @@ function ListRowCompact({ post }: { post: CardPost }) {
                 {post.subcategory ? (
                   <>
                     <span className="mx-2">•</span>
-                    <span className="font-semibold text-foreground">{post.subcategory.name_he}</span>
+                    <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
                   </>
                 ) : null}
                 {post.subcategory && post.tags.length > 0 ? (
-                  <span className="mx-1 text-muted-foreground/50">·</span>
+                  <span className="mx-2 text-muted-foreground/50">·</span>
                 ) : null}
                 {post.tags.length > 0 ? (() => {
                   const desktopCap = post.channel_slug === 'magazine' ? 3 : 6
