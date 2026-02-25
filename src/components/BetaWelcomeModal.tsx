@@ -75,7 +75,7 @@ export default function BetaWelcomeModal() {
             <Link href="/contact" className="font-semibold text-blue-700 hover:underline">צור קשר</Link>
               {" או  "}
             
-            <Link href="https://www.facebook.com/groups/1588674635508026" className="font-semibold text-blue-700 hover:underline">קבוצת הפייסבוק שלנו</Link>
+            <Link href="https://www.facebook.com/groups/935130912366040" className="font-semibold text-blue-700 hover:underline">קבוצת הפייסבוק שלנו</Link>
             , ונטפל בהקדם.
           </p>
         </div>
