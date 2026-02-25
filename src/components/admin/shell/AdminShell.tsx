@@ -11,6 +11,7 @@ import {
   Users,
   Inbox,
   Megaphone,
+  Shield,
   Menu,
   X,
   ArrowLeft,
@@ -27,9 +28,10 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/reports', label: 'דיווחים', icon: <Flag size={18} /> },
   { href: '/admin/contact', label: 'צור קשר', icon: <Mail size={18} /> },
   { href: '/admin/posts', label: 'פוסטים', icon: <FileText size={18} /> },
+  { href: '/admin/moderation', label: 'מודרציה',     icon: <Shield size={18} /> },
   { href: '/admin/users', label: 'משתמשים', icon: <Users size={18} /> },
   { href: '/admin/inbox', label: 'אינבוקס', icon: <Inbox size={18} /> },
-  { href: '/admin/system', label: 'הודעת מערכת', icon: <Megaphone size={18} /> },
+  { href: '/admin/system',     label: 'הודעת מערכת', icon: <Megaphone size={18} /> },
 ]
 
 function NavLink({

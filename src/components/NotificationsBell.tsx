@@ -788,9 +788,14 @@ const token = storeHighlightToken(ids)
               {items.map((g) => {
                 const href = navHrefForGroup(g)
                 const ids = g.rows.map((r) => r.id)
-                const avatar = g.actor_avatars.find(Boolean) ?? null
-                const actorName = uniqueActorNames(g.actor_display_names)[0] ?? 'משתמש'
                 const isSystem = g.type === "system_message" || g.type === "post_deleted"
+                // System notifications (deletions, automated actions) use the site logo as avatar
+                const avatar = isSystem
+                  ? '/apple-touch-icon.png'
+                  : (g.actor_avatars.find(Boolean) ?? null)
+                const actorName = isSystem
+                  ? 'מערכת האתר'
+                  : (uniqueActorNames(g.actor_display_names)[0] ?? 'משתמש')
 
                 const blockClass =
                   "block w-full rounded-xl border border-neutral-200 dark:border-border bg-white dark:bg-card transition px-3 py-2 " +
