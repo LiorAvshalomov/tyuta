@@ -1,6 +1,7 @@
 'use client'
 
 import { supabase } from '@/lib/supabaseClient'
+import { adminFetch } from '@/lib/admin/adminFetch'
 import Avatar from '@/components/Avatar'
 import { timeAgoHeShort } from '@/lib/time'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -128,14 +129,15 @@ export default function CommunityNotesWall() {
     return uid
   }
 
-  async function loadAdminFlag(uid: string) {
-    // Admin is DB-truth (cannot be spoofed from client)
-    const { data, error } = await supabase.from('admins').select('user_id').eq('user_id', uid).maybeSingle()
-    if (error) {
+  async function loadAdminFlag(_uid: string) {
+    // Admin/mod check — env-var based via server route, no DB query
+    try {
+      const res = await adminFetch('/api/me/roles')
+      const roles = await res.json() as { isAdmin?: boolean; isMod?: boolean }
+      setIsAdmin(!!(roles.isAdmin || roles.isMod))
+    } catch {
       setIsAdmin(false)
-      return
     }
-    setIsAdmin(!!data?.user_id)
   }
 
   useEffect(() => {
@@ -364,28 +366,40 @@ export default function CommunityNotesWall() {
     }
 
     setDeleting(true)
-    const { error } = await supabase.rpc('admin_delete_community_note', {
-      p_note_id: deleteTarget.id,
-      p_reason: reason,
-    })
-    setDeleting(false)
-
-    if (error) {
-      const msg = (error.message || '').toLowerCase()
-      if (msg.includes('not_admin')) {
+    let deleteOk = false
+    try {
+      const res = await adminFetch('/api/admin/notes/delete', {
+        method: 'POST',
+        body: JSON.stringify({ note_id: deleteTarget.id, reason }),
+      })
+      if (res.status === 403) {
         alert('אין לך הרשאה למחוק פתקים.')
         setIsAdmin(false)
         setDeleteTarget(null)
         setDeleteReason('')
+        setDeleting(false)
         return
       }
-      if (msg.includes('reason_required')) {
-        alert('חובה לציין סיבה למחיקה.')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>
+        const err = body.error as Record<string, unknown> | undefined
+        if (err?.code === 'reason_required') {
+          alert('חובה לציין סיבה למחיקה.')
+          setDeleting(false)
+          return
+        }
+        alert('שגיאה במחיקה')
+        setDeleting(false)
         return
       }
+      deleteOk = true
+    } catch {
       alert('שגיאה במחיקה')
+      setDeleting(false)
       return
     }
+    setDeleting(false)
+    if (!deleteOk) return
 
     // optimistic UI: remove by id (realtime will also remove)
     setNotes((prev) => prev.filter((n) => n.id !== deleteTarget.id))

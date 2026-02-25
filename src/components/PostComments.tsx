@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { adminFetch } from '@/lib/admin/adminFetch'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import { event as gaEvent } from '@/lib/gtag'
 import Avatar from '@/components/Avatar'
@@ -579,14 +580,15 @@ async function submitReport() {
     const u = auth.user
     setUserId(u?.id ?? null)
 
-    // admin check (used for moderator actions like deleting comments)
+    // admin/mod check — env-var based, no DB query
     if (u?.id) {
-      const { data: adminRow } = await supabase
-        .from('admins')
-        .select('user_id')
-        .eq('user_id', u.id)
-        .maybeSingle()
-      setIsAdmin(!!adminRow)
+      try {
+        const res = await adminFetch('/api/me/roles')
+        const roles = await res.json() as { isAdmin?: boolean; isMod?: boolean }
+        setIsAdmin(!!(roles.isAdmin || roles.isMod))
+      } catch {
+        setIsAdmin(false)
+      }
     } else {
       setIsAdmin(false)
     }
@@ -977,13 +979,21 @@ async function submitReport() {
   // optimistic remove
   setItems(prev => prev.filter(x => x.id !== commentId))
 
-  const { error } = await supabase.rpc('admin_delete_comment', {
-    p_comment_id: commentId,
-    p_reason: clean,
-  })
-
-  if (error) {
-    setErrFor(error.message)
+  try {
+    const res = await adminFetch('/api/admin/comments/delete', {
+      method: 'POST',
+      body: JSON.stringify({ comment_id: commentId, reason: clean }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>
+      const msg = typeof body.error === 'object' && body.error !== null
+        ? String((body.error as Record<string, unknown>).message ?? 'שגיאה במחיקה')
+        : 'שגיאה במחיקה'
+      setErrFor(msg)
+      setItems(snapshot)
+    }
+  } catch {
+    setErrFor('שגיאה במחיקה')
     setItems(snapshot)
   }
 }

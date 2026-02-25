@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest";
 
 type Bucket = "day" | "week" | "month";
@@ -47,23 +46,9 @@ export async function GET(req: Request) {
   const p_start = mustISO(url.searchParams.get("start"), startFallback);
   const p_end = mustISO(url.searchParams.get("end"), now);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !anonKey) {
-    return NextResponse.json(
-      { error: "missing server env (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY)" },
-      { status: 500 }
-    );
-  }
-
-  const auth = req.headers.get("authorization") || "";
-  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-
-  const userClient = createClient(supabaseUrl, anonKey, {
-    auth: { persistSession: false },
-    global: { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-  });
+  // Use the service-role client from the gate — analytics RPCs no longer
+  // check assert_admin() so service-role is the correct caller here.
+  const sb = gate.admin;
 
   const [
     kpis,
@@ -74,13 +59,13 @@ export async function GET(req: Request) {
     postPurges,
     userPurges,
   ] = await Promise.all([
-    userClient.rpc("admin_kpis_v2", { p_start, p_end }) as unknown as Promise<RpcResult<unknown>>,
-    userClient.rpc("admin_pageviews_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_active_users_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_signups_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_posts_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_post_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
-    userClient.rpc("admin_user_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    sb.rpc("admin_kpis_v2", { p_start, p_end }) as unknown as Promise<RpcResult<unknown>>,
+    sb.rpc("admin_pageviews_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    sb.rpc("admin_active_users_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    sb.rpc("admin_signups_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    sb.rpc("admin_posts_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    sb.rpc("admin_post_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    sb.rpc("admin_user_purges_timeseries", { p_start, p_end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
   ]);
 
   const firstErr =
