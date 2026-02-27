@@ -19,6 +19,8 @@ type ConvRow = {
   unread_count: number
 }
 
+type TypingEntry = { isTyping: boolean; updatedAt: number }
+
 function daysDiff(from: Date, to: Date) {
   const a = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
   const b = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime()
@@ -45,6 +47,15 @@ export default function InboxThreads() {
   const isBanned = modStatus === 'banned'
   const visibleRows = useMemo(() => (isBanned ? rows.filter((r) => r.other_user_id === SYSTEM_USER_ID) : rows), [isBanned, rows])
 
+  // Typing indicators: conversationId → { isTyping, updatedAt }
+  const [typingMap, setTypingMap] = useState<Record<string, TypingEntry>>({})
+  const meIdRef = useRef<string | null>(null)
+  // One Supabase channel per conversation for typing broadcasts
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const typingChannelsRef = useRef<Map<string, any>>(new Map())
+  // Per-conversation timeout handles for clearing typing (mirrors ChatClient's 2500ms)
+  const typingTimersRef = useRef<Map<string, number>>(new Map())
+
   // Debounce refresh bursts (INSERT + UPDATE can arrive together)
   const refreshTimerRef = useRef<number | null>(null)
 
@@ -62,6 +73,8 @@ export default function InboxThreads() {
       setLoading(false)
       return
     }
+    // Cache meId for typing filter
+    meIdRef.current = me.user.id
 
     const { data, error } = await supabase
       .from('inbox_threads')
@@ -82,6 +95,52 @@ export default function InboxThreads() {
     const withMessages = ((data ?? []) as ConvRow[]).filter(r => r.last_created_at != null)
     setRows(withMessages)
     setLoading(false)
+  }, [])
+
+  // Subscribe / unsubscribe typing channels as conversation list changes
+  useEffect(() => {
+    const convIds = new Set(rows.map(r => r.conversation_id))
+    const existing = typingChannelsRef.current
+
+    // Remove channels for conversations no longer in list
+    for (const [id, ch] of existing) {
+      if (!convIds.has(id)) {
+        supabase.removeChannel(ch)
+        existing.delete(id)
+      }
+    }
+
+    // Add channels for new conversations
+    for (const id of convIds) {
+      if (existing.has(id)) continue
+      const ch = supabase
+        .channel(`typing-${id}`)
+        .on('broadcast', { event: 'typing' }, payload => {
+          const p = payload?.payload as { user_id?: string } | undefined
+          const uid = p?.user_id
+          if (!uid || uid === meIdRef.current) return
+          setTypingMap(prev => ({ ...prev, [id]: { isTyping: true, updatedAt: Date.now() } }))
+          // Reset per-conversation timeout — same 2500ms as ChatClient
+          const timers = typingTimersRef.current
+          if (timers.has(id)) window.clearTimeout(timers.get(id))
+          timers.set(id, window.setTimeout(() => {
+            setTypingMap(prev => prev[id]?.isTyping ? { ...prev, [id]: { ...prev[id], isTyping: false } } : prev)
+            timers.delete(id)
+          }, 2500))
+        })
+        .subscribe()
+      existing.set(id, ch)
+    }
+  }, [rows])
+
+  // Cleanup all typing channels and timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const ch of typingChannelsRef.current.values()) supabase.removeChannel(ch)
+      typingChannelsRef.current.clear()
+      for (const t of typingTimersRef.current.values()) window.clearTimeout(t)
+      typingTimersRef.current.clear()
+    }
   }, [])
 
   useEffect(() => {
@@ -170,6 +229,7 @@ export default function InboxThreads() {
               const unread = Number.isFinite(r.unread_count) ? r.unread_count : 0
               const hasUnread = unread > 0
               const lastBody = (r.last_body ?? '').trim() || 'אין עדיין הודעות'
+              const isTypingNow = typingMap[r.conversation_id]?.isTyping === true
 
               const rowClassName = [
                 'group block rounded-2xl border p-3 transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-[#3B6CE3]/50',
@@ -217,10 +277,14 @@ export default function InboxThreads() {
                       <div
                         className={[
                           'mt-1 truncate text-xs',
-                          hasUnread ? 'text-neutral-900 font-semibold dark:text-foreground' : 'text-muted-foreground',
+                          isTypingNow
+                            ? 'italic text-[#3B6CE3] dark:text-[#7a9ff5]'
+                            : hasUnread
+                              ? 'text-neutral-900 font-semibold dark:text-foreground'
+                              : 'text-muted-foreground',
                         ].join(' ')}
                       >
-                        {lastBody}
+                        {isTypingNow ? 'מקליד/ה…' : lastBody}
                       </div>
                     </div>
                   </div>

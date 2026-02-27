@@ -135,6 +135,11 @@
   }
 }
 
+/* App-shell baseline: height chain required for flex-1/min-h-0 to work end-to-end */
+html, body {
+  height: 100%;
+}
+
 /* Better font rendering */
 html {
   text-rendering: geometricPrecision;

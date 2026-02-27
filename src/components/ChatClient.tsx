@@ -294,15 +294,40 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     return el.scrollTop + el.clientHeight >= el.scrollHeight - 8
   }, [])
 
+  // Synchronously reads scroll position and updates all derived refs + state.
+  // Call after any programmatic scroll that lands immediately (auto), or after smooth
+  // scroll settles. Guarded against redundant re-renders via prevScrollStateRef.
+  const syncScrollStateNow = useCallback(() => {
+    const el = listRef.current
+    if (!el) return
+    const dist = el.scrollHeight - (el.scrollTop + el.clientHeight)
+    const atBottom = dist <= 8
+    const nearBottom = dist <= 80
+
+    isAtBottomRef.current = atBottom
+
+    // hysteresis: off when dist > 140, on when dist < 80
+    autoFollowRef.current = autoFollowRef.current ? dist <= 140 : dist < 80
+
+    if (nearBottom !== prevScrollStateRef.current.atBottom) {
+      prevScrollStateRef.current.atBottom = nearBottom
+      setIsAtBottom(nearBottom)
+    }
+  }, [])
+
   const scrollListToBottom = useCallback((behavior: 'auto' | 'smooth' = 'smooth') => {
     const el = listRef.current
     if (!el) return
     suppressIntentRef.current = true
     const top = el.scrollHeight
-    if (behavior === 'auto') el.scrollTop = top
-    else el.scrollTo({ top, behavior: 'smooth' })
+    if (behavior === 'auto') {
+      el.scrollTop = top
+      syncScrollStateNow() // immediate: position is final right now
+    } else {
+      el.scrollTo({ top, behavior: 'smooth' })
+    }
     requestAnimationFrame(() => { suppressIntentRef.current = false })
-  }, [])
+  }, [syncScrollStateNow])
 
   const fetchMessages = useCallback(async () => {
     const { data, error } = await supabase
@@ -598,9 +623,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     // Double-RAF stabilization: catches late layout from images/fonts/flex sizing
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        scrollListToBottom('auto')
-        setIsAtBottom(isNearBottomForAutoFollow())
-        isAtBottomRef.current = isAtBottomForRead()
+        scrollListToBottom('auto') // syncScrollStateNow called inside
 
         // אם יש unread – תציג UI (markRead only after user interaction, not on mount)
         if (unreadNow > 0) setUnreadUiVisible(true)
@@ -608,7 +631,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         didInitialScrollRef.current = true
       })
     })
-  }, [loading, messages.length, scrollListToBottom, isNearBottomForAutoFollow, isAtBottomForRead, unreadNow])
+  }, [loading, messages.length, scrollListToBottom, unreadNow])
 
 
   // initial load (fixed: compute unread from fetched list + real myId)
@@ -898,21 +921,23 @@ export default function ChatClient({ conversationId }: { conversationId: string 
               return
             }
 
-            // שלו/ה:
-            if (autoFollowRef.current) {
-              // אם אני נעול לתחתית - לגלול למטה, ואז להפעיל mark-read יציב
-              setTimeout(() => {
-                scrollListToBottom('auto')
-                setIsAtBottom(isNearBottomForAutoFollow())
-                isAtBottomRef.current = isAtBottomForRead()
+            // שלו/ה: sample strict bottom BEFORE any programmatic scroll
+            const listEl = listRef.current
+            const atBottomStrictNow = listEl
+              ? listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 8
+              : true
 
-                // unreadNow עדיין לא התעדכן, אז נשתמש ב-unreadNow + 1 (הודעה חדשה שלהם)
-                const unreadLocal = unreadNow + 1
-                if (unreadLocal > 0) setUnreadUiVisible(true)
-                if (isAtBottomRef.current) scheduleMarkReadIfStableBottom(unreadLocal)
+            if (atBottomStrictNow) {
+              // Already seeing the latest — scroll to keep up and arm mark-read.
+              // No unread UI: user is at the bottom and will see it immediately.
+              hasUserInteractedRef.current = true
+              hasReachedBottomSinceOpenRef.current = true
+              setTimeout(() => {
+                scrollListToBottom('auto') // syncScrollStateNow called inside
+                scheduleMarkReadIfStableBottom(unreadNow + 1)
               }, 0)
             } else {
-              // אני למעלה: לא מסמן נקרא, אבל מציג UI + badge
+              // Not at bottom — show unread badge/pill immediately, no read receipt
               setUnreadUiVisible(true)
             }
 
@@ -1417,7 +1442,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
           {/* Messages scroller */}
           <div
             ref={listRef}
-            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-b from-[#F7F6F3] to-[#EEEAE2] px-4 py-6 pb-4 dark:from-[#141414] dark:to-[#1a1a1a]"
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain [overflow-anchor:none] scroll-pb-4 bg-gradient-to-b from-[#F7F6F3] to-[#EEEAE2] px-4 py-6 pb-4 dark:from-[#141414] dark:to-[#1a1a1a]"
             onClick={() => setReactingMsgId(null)}
           >
 
@@ -1463,14 +1488,18 @@ export default function ChatClient({ conversationId }: { conversationId: string 
           <div className="pointer-events-none absolute bottom-4 inset-x-0 z-20 flex justify-center">
             <button
               onClick={() => {
-                scrollListToBottom('smooth')
+                // Treat FAB tap as explicit user intent so read-receipt gates open
+                hasUserInteractedRef.current = true
+                hasReachedBottomSinceOpenRef.current = true
                 autoFollowRef.current = true
 
+                scrollListToBottom('smooth')
+
+                // Smooth scroll takes ~300ms; sync state once it settles, then arm read
                 setTimeout(() => {
-                  setIsAtBottom(isNearBottomForAutoFollow())
-                  isAtBottomRef.current = isAtBottomForRead()
+                  syncScrollStateNow()
                   if (isAtBottomRef.current) scheduleMarkReadIfStableBottom(unreadNow)
-                }, 240)
+                }, 350)
               }}
               className="pointer-events-auto relative cursor-pointer flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white shadow-lg backdrop-blur transition hover:scale-105 hover:shadow-xl active:scale-95 dark:border-white/10 dark:bg-card dark:text-foreground"
               title="קפוץ להודעה האחרונה"
@@ -1551,10 +1580,13 @@ export default function ChatClient({ conversationId }: { conversationId: string 
               }}
               placeholder="כתוב הודעה…"
               rows={1}
+              enterKeyHint={typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches ? 'enter' : 'send'}
               className="w-full min-h-12 resize-none rounded-2xl border border-black/10 bg-[#F7F6F3] px-4 py-3 pl-12 sm:pl-4 leading-6 text-sm outline-none transition focus:border-black/20 focus:bg-white dark:border-white/10 dark:bg-[#2a2a2a] dark:text-white dark:placeholder:text-muted-foreground dark:focus:border-white/20 dark:focus:bg-[#333] overflow-y-hidden"
               disabled={sending}
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey) {
+                  // On touch devices: allow newline, send only via button
+                  if (window.matchMedia('(pointer: coarse)').matches) return
                   e.preventDefault()
                   void send()
                 }
@@ -1576,6 +1608,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
           {/* Send button */}
           <button
+            type="button"
             onClick={() => void send()}
             disabled={sending || !text.trim()}
             className={[
