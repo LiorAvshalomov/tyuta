@@ -98,14 +98,48 @@ export default function InboxThreads() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, scheduleRefresh)
       .subscribe()
 
-    // Re-query when ChatClient marks a conversation as read
+    // Re-query when ChatClient marks a conversation as read, or SiteHeader realtime fires
     const onThreadRead = () => void load()
     window.addEventListener('tyuta:thread-read', onThreadRead)
+    window.addEventListener('tyuta:inbox-refresh', onThreadRead)
+
+    // BroadcastChannel: instant update from ChatClient without waiting for realtime round-trip
+    const bc = new BroadcastChannel('tyuta-inbox')
+    bc.onmessage = (e: MessageEvent) => {
+      const d = e.data as {
+        type: string
+        conversationId: string
+        last_body: string
+        last_created_at: string
+        isOwn: boolean
+      }
+      if (d.type !== 'message') return
+      setRows(prev => {
+        const idx = prev.findIndex(r => r.conversation_id === d.conversationId)
+        if (idx === -1) {
+          // Unknown conversation (e.g. new chat) — schedule full refresh
+          if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
+          refreshTimerRef.current = window.setTimeout(() => void load(), 250)
+          return prev
+        }
+        const old = prev[idx]
+        const updated = [...prev]
+        updated.splice(idx, 1)
+        return [{
+          ...old,
+          last_body: d.last_body,
+          last_created_at: d.last_created_at,
+          unread_count: d.isOwn ? old.unread_count : old.unread_count + 1,
+        }, ...updated]
+      })
+    }
 
     return () => {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
       supabase.removeChannel(ch)
       window.removeEventListener('tyuta:thread-read', onThreadRead)
+      window.removeEventListener('tyuta:inbox-refresh', onThreadRead)
+      bc.close()
     }
   }, [load])
 

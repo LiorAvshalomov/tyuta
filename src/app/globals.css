@@ -286,22 +286,28 @@ html {
 
 /* === Message quote-scroll highlight === */
 @keyframes msg-highlight-fade {
-  0%   { box-shadow: 0 0 0 4px oklch(0.6 0.2 250 / 0.45); }
-  60%  { box-shadow: 0 0 0 6px oklch(0.6 0.2 250 / 0.25); }
-  100% { box-shadow: 0 0 0 0px oklch(0.6 0.2 250 / 0); }
+  0%   { box-shadow: 0 0 0 6px rgba(59,108,227,0.12); }
+  16%  { box-shadow: 0 0 0 6px rgba(59,108,227,0.12); }
+  100% { box-shadow: 0 0 0 0px rgba(59,108,227,0); }
 }
 
 @keyframes msg-highlight-fade-dark {
-  0%   { box-shadow: 0 0 0 4px oklch(0.65 0.22 255 / 0.55); }
-  60%  { box-shadow: 0 0 0 6px oklch(0.65 0.22 255 / 0.3); }
-  100% { box-shadow: 0 0 0 0px oklch(0.65 0.22 255 / 0); }
+  0%   { box-shadow: 0 0 0 6px rgba(100,140,255,0.14); }
+  16%  { box-shadow: 0 0 0 6px rgba(100,140,255,0.14); }
+  100% { box-shadow: 0 0 0 0px rgba(100,140,255,0); }
 }
 
-[data-bubble-id][data-highlight] {
+/* Highlight glow via ::after so it hugs the bubble's exact rounded corners */
+[data-bubble-id][data-highlight]::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: var(--bubble-br, 24px);
+  pointer-events: none;
   animation: msg-highlight-fade 2.5s ease-out forwards;
 }
 
-.dark [data-bubble-id][data-highlight] {
+.dark [data-bubble-id][data-highlight]::after {
   animation: msg-highlight-fade-dark 2.5s ease-out forwards;
 }
 

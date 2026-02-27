@@ -6,58 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from './Avatar'
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-type UserPreview = {
-  id: string
-  display_name: string | null
-  username: string | null
-  avatar_url: string | null
-  bio: string | null
-  followers_count: number
-}
-
-// ── Module-level cache ────────────────────────────────────────────────────────
-
-const cache = new Map<string, UserPreview>()
-const inflight = new Map<string, Promise<UserPreview | null>>()
-
-async function fetchPreview(username: string): Promise<UserPreview | null> {
-  if (cache.has(username)) return cache.get(username)!
-  if (inflight.has(username)) return inflight.get(username)!
-
-  const p = (async () => {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, display_name, username, avatar_url, bio')
-      .eq('username', username)
-      .single()
-
-    if (!profile) return null
-    const pid = (profile as { id: string }).id
-
-    const { count } = await supabase
-      .from('user_follows')
-      .select('follower_id', { count: 'exact', head: true })
-      .eq('following_id', pid)
-
-    const preview: UserPreview = {
-      id: pid,
-      display_name: (profile as { display_name: string | null }).display_name,
-      username: (profile as { username: string | null }).username,
-      avatar_url: (profile as { avatar_url: string | null }).avatar_url,
-      bio: (profile as { bio: string | null }).bio,
-      followers_count: count ?? 0,
-    }
-    cache.set(username, preview)
-    return preview
-  })()
-
-  inflight.set(username, p)
-  p.finally(() => inflight.delete(username))
-  return p
-}
+import { patchPreviewCache, type UserPreview } from '@/lib/userPreviewCache'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -65,27 +14,30 @@ const CARD_W = 320
 const GAP = 10
 
 // ── Component ─────────────────────────────────────────────────────────────────
+// preview is passed from AuthorHover (already fetched + cached before open).
+// This component performs ZERO network fetching for preview data.
 
 export default function HoverProfileCard({
   username,
+  preview,
   anchorEl,
   onClose,
   onMouseEnter,
   onMouseLeave,
 }: {
   username: string
+  preview: UserPreview
   anchorEl: HTMLElement | null
   onClose: () => void
   onMouseEnter: () => void
   onMouseLeave: () => void
 }) {
-  const [preview, setPreview] = useState<UserPreview | null>(null)
   // Start hidden; useLayoutEffect positions + reveals before paint
   const [style, setStyle] = useState<React.CSSProperties>({
     position: 'fixed', visibility: 'hidden', width: CARD_W, zIndex: 9999,
   })
-  const [meId, setMeId] = useState<string | null>(null)
-  const [isFollowing, setIsFollowing] = useState(false)
+  // Initialize directly from prop — no separate fetch needed
+  const [isFollowing, setIsFollowing] = useState(preview.is_following)
   const [followLoading, setFollowLoading] = useState(false)
   const [confirmUnfollow, setConfirmUnfollow] = useState(false)
   const [msgLoading, setMsgLoading] = useState(false)
@@ -93,9 +45,6 @@ export default function HoverProfileCard({
   const [followersDelta, setFollowersDelta] = useState(0)
   const cardRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
-
-  // Reset delta when card reopens for a different user
-  useEffect(() => { setFollowersDelta(0) }, [username])
 
   // ── Positioning (actual rendered height, no flash) ────────────────────────
   useLayoutEffect(() => {
@@ -119,33 +68,7 @@ export default function HoverProfileCard({
     left = Math.max(GAP, Math.min(left, vw - CARD_W - GAP))
 
     setStyle({ position: 'fixed', top, left, width: CARD_W, zIndex: 9999, visibility: 'visible' })
-  }, [anchorEl, preview]) // rerun when data loads (card grows)
-
-  // ── Data fetch ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let active = true
-    fetchPreview(username).then(d => { if (active) setPreview(d) })
-    return () => { active = false }
-  }, [username])
-
-  // ── Current user ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setMeId(data.user?.id ?? null))
-  }, [])
-
-  // ── Follow status ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!meId || !preview?.id || meId === preview.id) return
-    let active = true
-    supabase
-      .from('user_follows')
-      .select('follower_id')
-      .eq('follower_id', meId)
-      .eq('following_id', preview.id)
-      .maybeSingle()
-      .then(({ data }) => { if (active) setIsFollowing(!!data) })
-    return () => { active = false }
-  }, [meId, preview?.id])
+  }, [anchorEl]) // preview is fully ready on first render — no rerun needed
 
   // ── ESC closes ───────────────────────────────────────────────────────────────
   const stableClose = useCallback(onClose, [onClose]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -173,39 +96,30 @@ export default function HoverProfileCard({
     }))
   }
 
-  /** Patch the module-level cache so re-opens show the updated count */
-  function patchCacheCount(delta: number) {
-    if (cache.has(username)) {
-      const c = cache.get(username)!
-      cache.set(username, { ...c, followers_count: Math.max(0, c.followers_count + delta) })
-    }
-  }
-
   async function doFollow() {
-    if (!meId || !preview?.id) return
+    if (!preview.viewer_id || !preview.id) return
     setFollowLoading(true)
-    await supabase.from('user_follows').insert({ follower_id: meId, following_id: preview.id })
+    await supabase.from('user_follows').insert({ follower_id: preview.viewer_id, following_id: preview.id })
     setIsFollowing(true)
     setFollowLoading(false)
     setFollowersDelta(d => d + 1)
-    patchCacheCount(1)
+    patchPreviewCache(preview.viewer_id, username, 1, true)
     broadcastFollow(preview.id, true)
   }
 
   async function doUnfollow() {
-    if (!meId || !preview?.id) return
+    if (!preview.viewer_id || !preview.id) return
     setFollowLoading(true)
-    await supabase.from('user_follows').delete().eq('follower_id', meId).eq('following_id', preview.id)
+    await supabase.from('user_follows').delete().eq('follower_id', preview.viewer_id).eq('following_id', preview.id)
     setIsFollowing(false)
     setFollowLoading(false)
     setConfirmUnfollow(false)
     setFollowersDelta(d => d - 1)
-    patchCacheCount(-1)
+    patchPreviewCache(preview.viewer_id, username, -1, false)
     broadcastFollow(preview.id, false)
   }
 
   async function handleMessage() {
-    if (!preview) return
     setMsgLoading(true)
     const { data: convId, error } = await supabase.rpc('start_conversation', { other_user_id: preview.id })
     setMsgLoading(false)
@@ -215,10 +129,10 @@ export default function HoverProfileCard({
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────────
-  const showName = preview?.display_name ?? username
-  const profileHref = preview?.username ? `/u/${preview.username}` : `/u/${username}`
-  const isOtherUser = !!meId && !!preview?.id && meId !== preview.id
-  const shownFollowers = preview !== null ? Math.max(0, preview.followers_count + followersDelta) : null
+  const showName = preview.display_name ?? username
+  const profileHref = preview.username ? `/u/${preview.username}` : `/u/${username}`
+  const isOtherUser = preview.can_message
+  const shownFollowers = Math.max(0, preview.followers_count + followersDelta)
 
   // Shared pill style — flex-1 ensures all three buttons have equal width
   const btnBase = [
@@ -252,7 +166,7 @@ export default function HoverProfileCard({
       <div className="flex items-center gap-2.5 mb-1">
         {/* Avatar — clickable, navigates to profile */}
         <Link href={profileHref} onClick={onClose} className="shrink-0">
-          <Avatar src={preview?.avatar_url ?? null} name={showName} size={42} />
+          <Avatar src={preview.avatar_url ?? null} name={showName} size={42} />
         </Link>
 
         {/* Name — inline so pointer/underline only covers the actual characters */}
@@ -280,7 +194,7 @@ export default function HoverProfileCard({
       </div>
 
       {/* ── Bio (max 96 chars, 2 lines) ── */}
-      {preview?.bio?.trim() ? (
+      {preview.bio?.trim() ? (
         <p className="mt-2 text-xs leading-[1.6] text-muted-foreground line-clamp-2 break-words">
           {preview.bio.trim().slice(0, 96)}
         </p>
@@ -292,9 +206,7 @@ export default function HoverProfileCard({
           <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
         </svg>
         <span>
-          {shownFollowers !== null
-            ? shownFollowers.toLocaleString('he-IL')
-            : <span className="inline-block w-6 h-3 rounded bg-muted animate-pulse align-middle" />}
+          {shownFollowers.toLocaleString('he-IL')}
           {' '}עוקבים
         </span>
       </div>

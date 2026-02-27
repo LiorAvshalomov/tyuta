@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { mapSupabaseError, mapModerationRpcError } from '@/lib/mapSupabaseError'
@@ -97,6 +98,22 @@ function formatDayLabel(iso: string) {
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+/**
+ * Render message body with safe word-wrapping.
+ * Normal text: break only between words (overflowWrap:normal, wordBreak:normal).
+ * Long unbroken tokens ≥30 chars (URLs, hashes, etc.): wrapped in a span
+ * that applies aggressive breaking so they never cause horizontal scroll.
+ */
+function renderMessageBody(body: string): React.ReactNode {
+  const parts = body.split(/(\S{30,})/)
+  if (parts.length === 1) return body
+  return parts.map((part, i) =>
+    /^\S{30,}$/.test(part)
+      ? <span key={i} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{part}</span>
+      : part
+  )
+}
+
 function softWrapEveryN(input: string, n = 55) {
   const lines = input.replace(/\r\n/g, '\n').split('\n')
   const wrapped = lines.map(line => {
@@ -190,22 +207,41 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
   // scroll
   const listRef = useRef<HTMLDivElement | null>(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const isAtBottomRef = useRef(true)
   const didInitialScrollRef = useRef(false)
 
   // auto-follow: אם המשתמש גלל למעלה, לא "נגרור" אותו לתחתית
-  const [, setAutoFollow] = useState(true)
   const autoFollowRef = useRef(true)
 
   // sticky day
   const [stickyDay, setStickyDay] = useState<string | null>(null)
   const [isAtTop, setIsAtTop] = useState(true)
 
+  // scroll-state change guard: prevents redundant re-renders
+  const prevScrollStateRef = useRef({ atBottom: true, atTop: true, stickyDay: null as string | null, autoFollow: true, unreadUiVisible: false })
+
   // unread UI: divider/arrow badge behavior control
   const [unreadUiVisible, setUnreadUiVisible] = useState(false)
   const bottomSessionRef = useRef(0)
-
+  // true once the user has scrolled past (above) the unread divider
+  const passedUnreadDividerRef = useRef(false)
+  // D1: user-intent gate — must scroll/interact before we can mark as read
+  const hasUserInteractedRef = useRef(false)
+  // D1: true only after user interacted AND was stably at bottom for 300ms
+  const hasReachedBottomSinceOpenRef = useRef(false)
+  const reachedBottomDebounceRef = useRef<number | null>(null)
+  // C: derived ref — true when unread divider is currently rendered in DOM
+  const showUnreadDividerRef = useRef(false)
+  // Prevents programmatic scrolls from being counted as user interaction
+  const suppressIntentRef = useRef(false)
+  // Enter-stick: force snap-to-bottom in ResizeObserver for the first 2s after load
+  const enterStickUntilRef = useRef(0)
+  // Entry mark-read: fires once per conversation entry (bypasses intent gate)
+  const entryReadCheckedRef = useRef(false)
+  // BroadcastChannel for live inbox thread list updates
+  const inboxBCRef = useRef<BroadcastChannel | null>(null)
 
   // timers
   const stableBottomTimerRef = useRef<number | null>(null)
@@ -222,23 +258,50 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   const [replyMeta, setReplyMeta] = useState<Map<string, ReplyMeta>>(new Map())
   const [reactions, setReactions] = useState<Map<string, LocalReaction[]>>(new Map())
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null)
+  const mobileEmojiBtnRef = useRef<HTMLButtonElement | null>(null)
+  const emojiPickerRef = useRef<HTMLDivElement | null>(null)
   const [reactingMsgId, setReactingMsgId] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const emojiAnchorRef = useRef<HTMLDivElement | null>(null)
 
-  const computeIsAtBottom = useCallback(() => {
+  // Auto-grow textarea.
+  // minH is read from the element's computed min-height (= min-h-12 = 3rem resolved to px),
+  // so it always matches the h-12 buttons regardless of root font-size.
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = '0px' // collapse so scrollHeight reflects true content
+    const sh = el.scrollHeight // padding + content, no border
+    const MAX_H = 140
+    // Read computed min-height so JS and CSS stay in sync (3rem = button h-12 in px)
+    const minH = parseFloat(getComputedStyle(el).minHeight) || 48
+    el.style.height = sh <= minH ? `${minH}px` : `${Math.min(sh, MAX_H)}px`
+    el.style.overflowY = sh >= MAX_H ? 'auto' : 'hidden'
+  }, [text])
+
+  // Permissive threshold: keeps autoFollow=true even when slightly above bottom on mobile
+  const isNearBottomForAutoFollow = useCallback(() => {
     const el = listRef.current
     if (!el) return true
-    const epsilon = 10
-    return el.scrollTop + el.clientHeight >= el.scrollHeight - epsilon
+    return el.scrollTop + el.clientHeight >= el.scrollHeight - 80
+  }, [])
+
+  // Strict threshold: used only for read-receipt gating (must truly be at bottom)
+  const isAtBottomForRead = useCallback(() => {
+    const el = listRef.current
+    if (!el) return true
+    return el.scrollTop + el.clientHeight >= el.scrollHeight - 8
   }, [])
 
   const scrollListToBottom = useCallback((behavior: 'auto' | 'smooth' = 'smooth') => {
     const el = listRef.current
     if (!el) return
+    suppressIntentRef.current = true
     const top = el.scrollHeight
     if (behavior === 'auto') el.scrollTop = top
     else el.scrollTo({ top, behavior: 'smooth' })
+    requestAnimationFrame(() => { suppressIntentRef.current = false })
   }, [])
 
   const fetchMessages = useCallback(async () => {
@@ -351,20 +414,24 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
   }
 
-  // mark-read policy: רק אם באמת בתחתית ונשאר שם ~1.8s
+  // mark-read policy: user must interact + stably reach bottom + (no divider OR passed divider)
   const scheduleMarkReadIfStableBottom = useCallback(
     (unreadNowLocal: number) => {
       clearStableBottomTimer()
       if (unreadNowLocal <= 0) return
       if (!isAtBottomRef.current) return
+      if (!hasReachedBottomSinceOpenRef.current) return
+      // If the unread divider is currently shown, require user to have scrolled past it
+      if (showUnreadDividerRef.current && !passedUnreadDividerRef.current) return
 
       // capture session at scheduling time
       const sessionAtSchedule = bottomSessionRef.current
 
       stableBottomTimerRef.current = window.setTimeout(async () => {
-        // אם בינתיים יצאת מהתחתית אפילו פעם אחת -> לא מסמנים
         if (bottomSessionRef.current !== sessionAtSchedule) return
         if (!isAtBottomRef.current) return
+        if (!hasReachedBottomSinceOpenRef.current) return
+        if (showUnreadDividerRef.current && !passedUnreadDividerRef.current) return
 
         await markReadNow()
       }, 1800)
@@ -394,6 +461,13 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
   }, [])
 
+  // BroadcastChannel — live inbox thread list updates
+  useEffect(() => {
+    const bc = new BroadcastChannel('tyuta-inbox')
+    inboxBCRef.current = bc
+    return () => { bc.close(); inboxBCRef.current = null }
+  }, [])
+
   // reset per conversation
   useEffect(() => {
     setMessages([])
@@ -403,7 +477,6 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     setStickyDay(null)
     setIsAtTop(true)
 
-    setAutoFollow(true)
     autoFollowRef.current = true
 
     setIsAtBottom(true)
@@ -412,6 +485,16 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     clearStableBottomTimer()
     seenIdsRef.current = new Set()
     didInitialScrollRef.current = false
+    passedUnreadDividerRef.current = false
+    hasUserInteractedRef.current = false
+    hasReachedBottomSinceOpenRef.current = false
+    if (reachedBottomDebounceRef.current !== null) {
+      window.clearTimeout(reachedBottomDebounceRef.current)
+      reachedBottomDebounceRef.current = null
+    }
+    showUnreadDividerRef.current = false
+    entryReadCheckedRef.current = false
+    prevScrollStateRef.current = { atBottom: true, atTop: true, stickyDay: null, autoFollow: true, unreadUiVisible: false }
   }, [conversationId])
 
   // load other
@@ -452,6 +535,43 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   // unreadNow as truth (state)
   const unreadNow = useMemo(() => computeUnreadCount(messages, myId), [messages, myId])
 
+  // One-time entry mark-read: wait for layout stability + enter-stick to end,
+  // then require 1000ms of strict-bottom before marking read.
+  useEffect(() => {
+    if (loading) return
+    if (entryReadCheckedRef.current) return
+    entryReadCheckedRef.current = true
+    if (unreadNow <= 0) return
+
+    let stableMs = 0
+    const TICK = 100
+    const REQUIRED_MS = 1000
+
+    const interval = window.setInterval(() => {
+      // Phase 1: wait for initial scroll to complete and enter-stick window to end
+      if (!didInitialScrollRef.current || Date.now() < enterStickUntilRef.current) {
+        stableMs = 0
+        return
+      }
+      // Phase 2: require strict-bottom stability
+      if (isAtBottomRef.current) {
+        stableMs += TICK
+        if (stableMs >= REQUIRED_MS) {
+          window.clearInterval(interval)
+          window.clearTimeout(maxTimer)
+          void markReadNow()
+        }
+      } else {
+        stableMs = 0 // user scrolled up — reset
+      }
+    }, TICK)
+
+    // Give up after 15 s (user probably scrolled away intentionally)
+    const maxTimer = window.setTimeout(() => window.clearInterval(interval), 15000)
+
+    return () => { window.clearInterval(interval); window.clearTimeout(maxTimer) }
+  }, [loading, unreadNow, markReadNow])
+
   const firstUnreadIndex = useMemo(() => computeFirstUnreadIndex(messages, myId), [messages, myId])
 
   // grouped list
@@ -472,23 +592,23 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     if (loading) return
     if (didInitialScrollRef.current) return
 
-    // מחכים שה-DOM יתיישב (לפעמים צריך 2 פריימים)
+    // Immediate scroll — synchronous, before browser paint, eliminates visible gap
+    scrollListToBottom('auto')
+
+    // Double-RAF stabilization: catches late layout from images/fonts/flex sizing
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         scrollListToBottom('auto')
-        const atBottomNow = computeIsAtBottom()
-        setIsAtBottom(atBottomNow)
-        isAtBottomRef.current = atBottomNow
+        setIsAtBottom(isNearBottomForAutoFollow())
+        isAtBottomRef.current = isAtBottomForRead()
 
-        // אם יש unread – תציג UI (אבל לא לסמן נקרא מיד)
+        // אם יש unread – תציג UI (markRead only after user interaction, not on mount)
         if (unreadNow > 0) setUnreadUiVisible(true)
-
-        if (atBottomNow) scheduleMarkReadIfStableBottom(unreadNow)
 
         didInitialScrollRef.current = true
       })
     })
-  }, [loading, messages.length, scrollListToBottom, computeIsAtBottom, unreadNow, scheduleMarkReadIfStableBottom])
+  }, [loading, messages.length, scrollListToBottom, isNearBottomForAutoFollow, isAtBottomForRead, unreadNow])
 
 
   // initial load (fixed: compute unread from fetched list + real myId)
@@ -511,21 +631,13 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       void loadReactions(list, uid)
 
       setLoading(false)
+      enterStickUntilRef.current = Date.now() + 2000
 
-      // כניסה: יורד לתחתית, אבל לא מסמן נקרא מיד
-      scrollListToBottom('auto')
-
-      // אחרי שה-DOM התייצב: עדכן מצב bottom + unread
+      // Show unread divider UI after DOM settles; markRead only after user interaction
       setTimeout(() => {
-        const atBottomNow = computeIsAtBottom()
-        setIsAtBottom(atBottomNow)
-        isAtBottomRef.current = atBottomNow
-
         const unreadOnEntry = computeUnreadCount(list, uid)
         if (unreadOnEntry > 0) setUnreadUiVisible(true)
-
-        if (atBottomNow) scheduleMarkReadIfStableBottom(unreadOnEntry)
-      }, 120)
+      }, 200)
     })()
 
     return () => {
@@ -537,9 +649,101 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   // auto-hide divider only when truth says 0 and we are at bottom
   useEffect(() => {
     if (unreadNow <= 0 && isAtBottom) {
+      prevScrollStateRef.current.unreadUiVisible = false
       setUnreadUiVisible(false)
     }
   }, [unreadNow, isAtBottom])
+
+  // Sticky day label — IntersectionObserver + MutationObserver, no per-scroll DOM reads
+  useEffect(() => {
+    const root = listRef.current
+    const content = contentRef.current
+    if (!root || !content || loading) return
+
+    const labelMap = new Map<Element, string>()
+    const aboveViewport = new Set<Element>()
+
+    function recompute() {
+      // Bottommost element in aboveViewport is the current "sticky" day
+      let best: Element | null = null
+      let bestBottom = -Infinity
+      for (const el of aboveViewport) {
+        const b = el.getBoundingClientRect().bottom
+        if (b > bestBottom) { bestBottom = b; best = el }
+      }
+      const label = best ? (labelMap.get(best) ?? null) : null
+      setStickyDay(prev => prev === label ? prev : label)
+    }
+
+    const obsIO = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) {
+          const rootTop = entry.rootBounds?.top ?? 0
+          if (entry.boundingClientRect.bottom < rootTop + 10) {
+            aboveViewport.add(entry.target)
+          } else {
+            aboveViewport.delete(entry.target)
+          }
+        } else {
+          aboveViewport.delete(entry.target)
+        }
+      }
+      recompute()
+    }, { root, threshold: 0 })
+
+    function observeSep(el: Element) {
+      labelMap.set(el, el.getAttribute('data-day-label') ?? '')
+      obsIO.observe(el)
+    }
+
+    for (const n of Array.from(content.querySelectorAll('[data-day-sep="1"]'))) observeSep(n)
+
+    // Watch for new day separators when older messages prepend
+    const obsMO = new MutationObserver((muts) => {
+      for (const mut of muts) {
+        for (const node of Array.from(mut.addedNodes)) {
+          if (node instanceof Element) {
+            if (node.matches('[data-day-sep="1"]')) observeSep(node)
+            for (const sep of Array.from(node.querySelectorAll('[data-day-sep="1"]'))) observeSep(sep)
+          }
+        }
+      }
+    })
+    obsMO.observe(content, { childList: true, subtree: true })
+
+    return () => { obsIO.disconnect(); obsMO.disconnect() }
+  }, [loading])
+
+  // ResizeObserver: when content grows after initial render (quotes/images loading async),
+  // snap back to bottom if autoFollow is active or still in the 2s enter-stick window.
+  // Stops after 400ms stability or 3s max.
+  useEffect(() => {
+    if (loading) return
+    const el = contentRef.current
+    if (!el) return
+
+    let stableTimer: number | null = null
+    let maxTimer: number | null = null
+
+    function stop() {
+      obs.disconnect()
+      if (stableTimer !== null) window.clearTimeout(stableTimer)
+      if (maxTimer !== null) window.clearTimeout(maxTimer)
+    }
+
+    const obs = new ResizeObserver(() => {
+      if (autoFollowRef.current || Date.now() < enterStickUntilRef.current) scrollListToBottom('auto')
+      if (stableTimer !== null) window.clearTimeout(stableTimer)
+      stableTimer = window.setTimeout(stop, 400)
+    })
+
+    obs.observe(el)
+    maxTimer = window.setTimeout(stop, 3000)
+
+    return stop
+  }, [loading, scrollListToBottom])
+
+  // passedUnreadDivider is checked inline in the scroll RAF (see scroll listener below)
 
   // scroll listener (UI + autoFollow + sticky day)
   useEffect(() => {
@@ -548,12 +752,21 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
     let raf = 0
 
+    function markInteracted() {
+      if (suppressIntentRef.current) return
+      hasUserInteractedRef.current = true
+    }
+
+    function markInteractedKey(e: KeyboardEvent) {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) markInteracted()
+    }
+
     function onScroll() {
+
       const el = listRef.current
       if (el) {
-        const epsilon = 10
-        const atBottomSync = el.scrollTop + el.clientHeight >= el.scrollHeight - epsilon
-        isAtBottomRef.current = atBottomSync
+        // Sync update for read-receipts: strict threshold
+        isAtBottomRef.current = el.scrollTop + el.clientHeight >= el.scrollHeight - 8
       }
 
       cancelAnimationFrame(raf)
@@ -561,42 +774,66 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         const el = listRef.current
         if (!el) return
 
-        const atBottomNow = computeIsAtBottom()
-        setIsAtBottom(atBottomNow)
-        isAtBottomRef.current = atBottomNow
-
-        // autoFollow: אם בתחתית -> true, אם לא -> false
-        if (atBottomNow) {
-          setAutoFollow(true)
-          autoFollowRef.current = true
-        } else {
-          setAutoFollow(false)
-          autoFollowRef.current = false
+        // UI / autoFollow uses permissive threshold; read-receipts use strict
+        const nearBottomNow = isNearBottomForAutoFollow()
+        isAtBottomRef.current = isAtBottomForRead()
+        if (nearBottomNow !== prevScrollStateRef.current.atBottom) {
+          prevScrollStateRef.current.atBottom = nearBottomNow
+          setIsAtBottom(nearBottomNow)
         }
 
-        // אם המשתמש יצא מהתחתית ויש unread -> keep UI visible
-        if (!atBottomNow && unreadNow > 0) setUnreadUiVisible(true)
-
-        const atTopNow = el.scrollTop <= 2
-        setIsAtTop(atTopNow)
-        if (atTopNow) setStickyDay(null)
-
-        if (!atTopNow) {
-          const nodes = Array.from(el.querySelectorAll('[data-day-sep="1"]')) as HTMLElement[]
-          if (nodes.length > 0) {
-            const topY = el.getBoundingClientRect().top
-            let current: string | null = null
-            for (const n of nodes) {
-              const rect = n.getBoundingClientRect()
-              if (rect.top - topY <= 10) current = n.getAttribute('data-day-label')
-              else break
-            }
-            setStickyDay(current)
+        // C: check if divider has scrolled above viewport top (user scrolled past it going down)
+        if (hasUserInteractedRef.current && !passedUnreadDividerRef.current) {
+          const dividerEl = el.querySelector('[data-unread-divider="1"]')
+          if (!dividerEl) {
+            // No divider in DOM and no unreads → gate is off
+            if (unreadNow <= 0) passedUnreadDividerRef.current = true
+          } else {
+            const dr = dividerEl.getBoundingClientRect()
+            const er = el.getBoundingClientRect()
+            if (dr.bottom < er.top) passedUnreadDividerRef.current = true
           }
         }
 
-        // mark read only after stable bottom
-        if (atBottomNow) {
+        // D1: latch hasReachedBottomSinceOpen with 300ms debounce (strict threshold)
+        if (!isAtBottomRef.current || !hasUserInteractedRef.current) {
+          if (reachedBottomDebounceRef.current !== null) {
+            window.clearTimeout(reachedBottomDebounceRef.current)
+            reachedBottomDebounceRef.current = null
+          }
+        } else if (isAtBottomRef.current && hasUserInteractedRef.current && !hasReachedBottomSinceOpenRef.current) {
+          if (reachedBottomDebounceRef.current === null) {
+            reachedBottomDebounceRef.current = window.setTimeout(() => {
+              reachedBottomDebounceRef.current = null
+              if (isAtBottomRef.current && hasUserInteractedRef.current) {
+                hasReachedBottomSinceOpenRef.current = true
+              }
+            }, 300)
+          }
+        }
+
+        // autoFollow: hysteresis — switches off when > 140px from bottom, on when < 80px
+        const distFromBottom = el.scrollHeight - (el.scrollTop + el.clientHeight)
+        const autoFollowNow = autoFollowRef.current ? distFromBottom <= 140 : distFromBottom < 80
+        if (autoFollowNow !== prevScrollStateRef.current.autoFollow) {
+          prevScrollStateRef.current.autoFollow = autoFollowNow
+          autoFollowRef.current = autoFollowNow
+        }
+
+        // אם המשתמש יצא מהתחתית ויש unread -> keep UI visible
+        if (!nearBottomNow && unreadNow > 0 && !prevScrollStateRef.current.unreadUiVisible) {
+          prevScrollStateRef.current.unreadUiVisible = true
+          setUnreadUiVisible(true)
+        }
+
+        const atTopNow = el.scrollTop <= 2
+        if (atTopNow !== prevScrollStateRef.current.atTop) {
+          prevScrollStateRef.current.atTop = atTopNow
+          setIsAtTop(atTopNow)
+        }
+
+        // mark read only when strictly at bottom (isAtBottomRef = strict threshold)
+        if (isAtBottomRef.current) {
           scheduleMarkReadIfStableBottom(unreadNow)
         } else {
           // יצאנו מהתחתית -> invalidate לכל טיימר קיים/עתידי שנקבע קודם
@@ -607,13 +844,22 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
 
     root.addEventListener('scroll', onScroll, { passive: true })
+    // physical input events mark user interaction before scrollTop changes
+    root.addEventListener('wheel', markInteracted, { passive: true, once: true })
+    root.addEventListener('touchmove', markInteracted, { passive: true, once: true })
+    root.addEventListener('pointerdown', markInteracted, { passive: true, once: true })
+    root.addEventListener('keydown', markInteractedKey, { passive: true, once: true })
     onScroll()
 
     return () => {
       root.removeEventListener('scroll', onScroll)
+      root.removeEventListener('wheel', markInteracted)
+      root.removeEventListener('touchmove', markInteracted)
+      root.removeEventListener('pointerdown', markInteracted)
+      root.removeEventListener('keydown', markInteractedKey)
       cancelAnimationFrame(raf)
     }
-  }, [computeIsAtBottom, scheduleMarkReadIfStableBottom, unreadNow])
+  }, [isNearBottomForAutoFollow, isAtBottomForRead, scheduleMarkReadIfStableBottom, unreadNow])
 
   // realtime subscription
   useEffect(() => {
@@ -637,6 +883,15 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
             const mine = !!myId && next.sender_id === myId
 
+            // Live-update inbox thread list in any open tab/panel
+            inboxBCRef.current?.postMessage({
+              type: 'message',
+              conversationId,
+              last_body: next.body,
+              last_created_at: next.created_at,
+              isOwn: mine,
+            })
+
             // שלי: תמיד לתחתית
             if (mine) {
               setTimeout(() => scrollListToBottom('auto'), 0)
@@ -648,14 +903,13 @@ export default function ChatClient({ conversationId }: { conversationId: string 
               // אם אני נעול לתחתית - לגלול למטה, ואז להפעיל mark-read יציב
               setTimeout(() => {
                 scrollListToBottom('auto')
-                const atBottomNow = computeIsAtBottom()
-                setIsAtBottom(atBottomNow)
-                isAtBottomRef.current = atBottomNow
+                setIsAtBottom(isNearBottomForAutoFollow())
+                isAtBottomRef.current = isAtBottomForRead()
 
                 // unreadNow עדיין לא התעדכן, אז נשתמש ב-unreadNow + 1 (הודעה חדשה שלהם)
                 const unreadLocal = unreadNow + 1
                 if (unreadLocal > 0) setUnreadUiVisible(true)
-                if (atBottomNow) scheduleMarkReadIfStableBottom(unreadLocal)
+                if (isAtBottomRef.current) scheduleMarkReadIfStableBottom(unreadLocal)
               }, 0)
             } else {
               // אני למעלה: לא מסמן נקרא, אבל מציג UI + badge
@@ -684,7 +938,8 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
   }, [
     conversationId,
-    computeIsAtBottom,
+    isNearBottomForAutoFollow,
+    isAtBottomForRead,
     fetchMessages,
     myId,
     scheduleMarkReadIfStableBottom,
@@ -839,11 +1094,33 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     void doLoadReplyMeta(missingIds)
   }, [messages, replyMeta, doLoadReplyMeta])
 
+  /** Open emoji picker, computing position from the clicked button element */
+  const openEmojiPicker = useCallback((anchor: HTMLElement) => {
+    if (emojiPickerOpen) { setEmojiPickerOpen(false); return }
+    const rect = anchor.getBoundingClientRect()
+    const PICKER_W = 272
+    const PICKER_H = 224 // grid 8×n rows ≈ 200px + padding
+    const MARGIN = 8
+    const vw = window.innerWidth
+    // Prefer above; fall back to below if not enough space
+    const top = rect.top >= PICKER_H + MARGIN
+      ? rect.top - PICKER_H - 8
+      : rect.bottom + 8
+    let left = rect.left
+    if (left + PICKER_W > vw - MARGIN) left = vw - PICKER_W - MARGIN
+    if (left < MARGIN) left = MARGIN
+    setPickerPos({ top, left })
+    setEmojiPickerOpen(true)
+  }, [emojiPickerOpen])
+
   // Close emoji picker on outside click / Escape
   useEffect(() => {
     if (!emojiPickerOpen) return
     function onDown(e: MouseEvent) {
-      if (emojiAnchorRef.current?.contains(e.target as Node)) return
+      const t = e.target as Node
+      if (emojiAnchorRef.current?.contains(t)) return
+      if (mobileEmojiBtnRef.current?.contains(t)) return
+      if (emojiPickerRef.current?.contains(t)) return
       setEmojiPickerOpen(false)
     }
     function onKey(e: KeyboardEvent) {
@@ -922,11 +1199,9 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
     setSending(true)
     try {
-      const safeBody = softWrapEveryN(bodyTrimmed, 55)
-
       const { data: messageId, error } = await supabase.rpc('send_message', {
         p_conversation_id: conversationId,
-        p_body: safeBody,
+        p_body: bodyTrimmed,
         p_reply_to_id: capturedReply?.id ?? null,
       })
 
@@ -971,11 +1246,14 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
   // divider shown if unread exists AND we decided it should be visible
   const showUnreadDivider = unreadNow > 0 && unreadUiVisible
+  // Keep ref in sync — used inside scroll handler (closure-safe)
+  showUnreadDividerRef.current = showUnreadDivider
 
   // arrow badge: use unreadNow (אמת של read_at==null)
   const arrowBadgeCount = clampBadge(unreadNow)
 
   return (
+    <>
     <div
       className="flex min-h-0 flex-col overflow-hidden rounded-3xl border bg-white text-black shadow-sm h-full dark:bg-[#141414] dark:text-white dark:border-white/10"
       dir="rtl"
@@ -984,7 +1262,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       <div className="flex items-center justify-between border-b border-black/5 bg-white/70 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#141414]/90">
         {/* Right side: back arrow (mobile) + avatar + name */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="absolute inset-y-2 right-0 w-1 rounded-l-full bg-[#D64545]/70" aria-hidden="true" />
+          <div className="absolute inset-y-2 right-0 w-1 rounded-l-full bg-[#3B6CE3]/70" aria-hidden="true" />
           {/* Back arrow — mobile only, RTL (points right = back) */}
           <button
             type="button"
@@ -1125,20 +1403,25 @@ export default function ChatClient({ conversationId }: { conversationId: string 
             </div>
           </div>
         )}
-        {/* Messages scroller */}
-        <div
-          ref={listRef}
-          className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-[#F7F6F3] to-[#EEEAE2] px-4 py-6 pb-4 dark:from-[#141414] dark:to-[#1a1a1a]"
-          onClick={() => setReactingMsgId(null)}
-        >
-          {!isAtTop && stickyDay && (
-            <div className="pointer-events-none sticky top-2 z-10 flex justify-center">
-              <div className="rounded-full border bg-white/85 px-3 py-1 text-xs font-semibold text-neutral-700 shadow-sm backdrop-blur dark:bg-[#2a2a2a]/90 dark:border-white/10 dark:text-muted-foreground">
+        {/* Scroller + day-pill overlay — relative wrapper so pill can be absolute */}
+        <div className="relative min-h-0 flex-1 flex flex-col">
+          {/* Day pill — absolute overlay, zero layout impact on the message list */}
+          {!isAtBottom && stickyDay && (
+            <div className="pointer-events-none absolute top-2 left-0 right-0 z-10 flex justify-center">
+              <div className="rounded-full border bg-white/92 px-3 py-1 text-xs font-semibold text-neutral-700 shadow-sm dark:bg-[#2a2a2a] dark:border-white/10 dark:text-muted-foreground">
                 {stickyDay}
               </div>
             </div>
           )}
 
+          {/* Messages scroller */}
+          <div
+            ref={listRef}
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-b from-[#F7F6F3] to-[#EEEAE2] px-4 py-6 pb-4 dark:from-[#141414] dark:to-[#1a1a1a]"
+            onClick={() => setReactingMsgId(null)}
+          >
+
+          <div ref={contentRef}>
           {!loading && _groupedRender(
             grouped,
             messages,
@@ -1171,7 +1454,9 @@ export default function ChatClient({ conversationId }: { conversationId: string 
               טוען הודעות
             </div>
           )}
-        </div>
+          </div>{/* end contentRef wrapper */}
+          </div>{/* end scroller */}
+        </div>{/* end scroller+pill wrapper */}
 
         {/* Scroll-to-bottom FAB — centered, circular */}
         {!isAtBottom && (
@@ -1179,14 +1464,12 @@ export default function ChatClient({ conversationId }: { conversationId: string 
             <button
               onClick={() => {
                 scrollListToBottom('smooth')
-                setAutoFollow(true)
                 autoFollowRef.current = true
 
                 setTimeout(() => {
-                  const atBottomNow = computeIsAtBottom()
-                  setIsAtBottom(atBottomNow)
-                  isAtBottomRef.current = atBottomNow
-                  if (atBottomNow) scheduleMarkReadIfStableBottom(unreadNow)
+                  setIsAtBottom(isNearBottomForAutoFollow())
+                  isAtBottomRef.current = isAtBottomForRead()
+                  if (isAtBottomRef.current) scheduleMarkReadIfStableBottom(unreadNow)
                 }, 240)
               }}
               className="pointer-events-auto relative cursor-pointer flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white shadow-lg backdrop-blur transition hover:scale-105 hover:shadow-xl active:scale-95 dark:border-white/10 dark:bg-card dark:text-foreground"
@@ -1205,7 +1488,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
               </svg>
 
               {arrowBadgeCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 flex min-w-[1.25rem] items-center justify-center rounded-full bg-[#D64545] px-1 py-px text-[10px] font-bold leading-none text-white shadow">
+                <span className="absolute -top-1.5 -right-1.5 flex min-w-[1.25rem] items-center justify-center rounded-full bg-[#3B6CE3] px-1 py-px text-[10px] font-bold leading-none text-white shadow">
                   {arrowBadgeCount >= 99 ? '99+' : arrowBadgeCount}
                 </span>
               )}
@@ -1240,9 +1523,25 @@ export default function ChatClient({ conversationId }: { conversationId: string 
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          {/* Input wrapper — emoji anchor sits inside at physical-left edge */}
-          <div className="relative flex-1">
+        {/* Composer row: [desktop-emoji] [textarea+mobile-emoji] [send] */}
+        <div className="flex items-end gap-2">
+
+          {/* Desktop emoji column — hidden on mobile */}
+          <div ref={emojiAnchorRef} className="hidden sm:block shrink-0 mb-[7px]">
+            <button
+              type="button"
+              onClick={e => openEmojiPicker(e.currentTarget)}
+              title="אמוג׳י"
+              className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-2xl border border-black/10 bg-[#F7F6F3] text-xl transition hover:bg-black/8 dark:border-white/10 dark:bg-[#2a2a2a] dark:hover:bg-white/10"
+              aria-label="אמוג׳י"
+              aria-expanded={emojiPickerOpen}
+            >
+              😊
+            </button>
+          </div>
+
+          {/* Textarea column + mobile emoji inside */}
+          <div className="relative flex-1 min-w-0">
             <textarea
               ref={textareaRef}
               value={text}
@@ -1252,7 +1551,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
               }}
               placeholder="כתוב הודעה…"
               rows={1}
-              className="h-11 w-full resize-none rounded-full border border-black/10 bg-[#F7F6F3] py-2 pr-4 pl-10 text-sm outline-none transition focus:border-black/20 focus:bg-white dark:border-white/10 dark:bg-[#2a2a2a] dark:text-white dark:placeholder:text-muted-foreground dark:focus:border-white/20 dark:focus:bg-[#333]"
+              className="w-full min-h-12 resize-none rounded-2xl border border-black/10 bg-[#F7F6F3] px-4 py-3 pl-12 sm:pl-4 leading-6 text-sm outline-none transition focus:border-black/20 focus:bg-white dark:border-white/10 dark:bg-[#2a2a2a] dark:text-white dark:placeholder:text-muted-foreground dark:focus:border-white/20 dark:focus:bg-[#333] overflow-y-hidden"
               disabled={sending}
               onKeyDown={e => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -1261,57 +1560,63 @@ export default function ChatClient({ conversationId }: { conversationId: string 
                 }
               }}
             />
-
-            {/* Emoji button + picker — anchored inside input at far left */}
-            <div ref={emojiAnchorRef} className="absolute left-1.5 top-1/2 -translate-y-1/2">
-              <button
-                type="button"
-                onClick={() => setEmojiPickerOpen(v => !v)}
-                title="אמוג׳י"
-                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-base leading-none transition hover:bg-black/8 dark:hover:bg-white/10"
-                aria-label="אמוג׳י"
-                aria-expanded={emojiPickerOpen}
-              >
-                😊
-              </button>
-
-              {emojiPickerOpen && (
-                <div className="absolute bottom-9 left-0 z-40 w-64 rounded-2xl border bg-white p-2 shadow-xl dark:bg-card dark:border-border">
-                  <div className="grid grid-cols-8 gap-0.5">
-                    {EMOJI_PICKER_LIST.map(e => (
-                      <button
-                        key={e}
-                        type="button"
-                        onClick={() => { insertEmoji(e); setEmojiPickerOpen(false) }}
-                        className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-xl transition hover:bg-black/5 dark:hover:bg-white/10"
-                      >
-                        {e}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Mobile emoji button — built into textarea, hidden on sm+ */}
+            <button
+              ref={mobileEmojiBtnRef}
+              type="button"
+              onClick={e => openEmojiPicker(e.currentTarget)}
+              title="אמוג׳י"
+              className="sm:hidden absolute left-2 bottom-2 flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl text-lg transition hover:bg-black/8 dark:hover:bg-white/10"
+              aria-label="אמוג׳י"
+              aria-expanded={emojiPickerOpen}
+            >
+              😊
+            </button>
           </div>
 
+          {/* Send button */}
           <button
             onClick={() => void send()}
             disabled={sending || !text.trim()}
             className={[
-              'h-11 shrink-0 rounded-full px-6 text-sm font-bold min-w-[4.5rem] transition',
+              'shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center text-sm font-bold transition mb-[7px]',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
               sending || !text.trim()
                 ? 'cursor-not-allowed bg-neutral-200 text-neutral-400 dark:bg-[#2a2a2a] dark:text-muted-foreground'
-                : 'cursor-pointer bg-[#D64545] text-white shadow-sm hover:opacity-90 active:scale-95 focus-visible:ring-[#D64545]/50',
+                : 'cursor-pointer bg-[#3B6CE3] text-white shadow-sm hover:opacity-90 active:scale-95 focus-visible:ring-[#3B6CE3]/50',
             ].join(' ')}
           >
             שלח
           </button>
         </div>
 
-        <div className="mt-1 text-[11px] text-muted-foreground">Enter לשליחה · Shift+Enter לשורה חדשה</div>
+        <div className="mt-1 hidden sm:block text-[11px] text-muted-foreground">Enter לשליחה · Shift+Enter לשורה חדשה</div>
       </div>
     </div>
+
+    {/* Emoji picker — portaled to document.body to escape overflow clipping */}
+    {emojiPickerOpen && pickerPos && createPortal(
+      <div
+        ref={emojiPickerRef}
+        style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left, zIndex: 9900 }}
+        className="w-[272px] rounded-2xl border bg-white p-2 shadow-xl dark:bg-card dark:border-border"
+      >
+        <div className="grid grid-cols-8 gap-0.5">
+          {EMOJI_PICKER_LIST.map(e => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => { insertEmoji(e); setEmojiPickerOpen(false) }}
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-xl transition hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   )
 }
 
@@ -1408,7 +1713,7 @@ function _groupedRender(
         return (
           <div key={m.id} data-msg-id={m.id} className="space-y-1">
             {shouldInsertDivider && (
-              <div className="flex items-center justify-center py-1">
+              <div data-unread-divider="1" className="flex items-center justify-center py-1">
                 <div className="rounded-full border bg-white/90 px-4 py-1 text-xs font-black text-neutral-800 shadow-sm dark:bg-[#2a2a2a] dark:border-white/10 dark:text-foreground">
                   {unreadCountForDivider} הודעות שלא נקראו
                 </div>
@@ -1416,10 +1721,12 @@ function _groupedRender(
             )}
 
             {/* Message row — `group` enables action-bar hover reveal */}
-            <div className={`group flex ${rowAlign} items-end`}>
+            {/* min-w-0 prevents the flex row itself from expanding beyond scroll container */}
+            <div className={`group flex min-w-0 ${rowAlign} items-end`}>
 
               {/* Bubble wrapper — relative so ActionBar + reaction picker can be absolute */}
-              <div className={`relative max-w-[78%] ${bubbleWrapClass}`}>
+              {/* min-w-0 prevents flex from keeping wrapper at min-content width */}
+              <div className={`relative min-w-0 max-w-[78%] ${bubbleWrapClass}`}>
 
                 {/* ActionBar — absolutely positioned outside bubble bounds */}
                 <div className={[
@@ -1451,23 +1758,36 @@ function _groupedRender(
                   </div>
                 )}
 
-                {/* Bubble — contains quote block (if any) + body text */}
+                {/* ── Bubble — layered to prevent paint-clip on text ───────────────
+                    Background shape lives on an absolute layer with overflow-hidden
+                    (handles rounded corners). Text sits in a sibling relative layer
+                    that is never overflow-hidden, so BiDi/subpixel overflows are safe. */}
                 <div
                   data-bubble-id={m.id}
+                  style={{ '--bubble-br': mine ? '24px 24px 24px 8px' : '24px 24px 8px 24px' } as React.CSSProperties}
                   className={[
-                    'overflow-hidden shadow-sm',
-                    mine
-                      ? 'rounded-3xl rounded-bl-lg bg-[#1C1C1C] text-white dark:bg-[#3B6CE3]'
-                      : 'rounded-3xl rounded-br-lg border border-black/5 bg-white/80 text-black dark:border-white/10 dark:bg-[#2a2a2a] dark:text-white',
+                    'relative w-full shadow-sm overflow-visible min-w-0',
+                    mine ? 'text-white' : 'text-black dark:text-white',
                   ].join(' ')}
                 >
-                  {/* WhatsApp-style quote preview inside bubble */}
+                  {/* Background layer — clips at rounded corners, never contains text */}
+                  <div
+                    aria-hidden
+                    className={[
+                      'absolute inset-0 pointer-events-none',
+                      mine
+                        ? 'rounded-3xl rounded-bl-lg bg-[#1C1C1C] dark:bg-[#3B6CE3]'
+                        : 'rounded-3xl rounded-br-lg border border-black/5 bg-white/80 dark:border-white/10 dark:bg-[#2a2a2a]',
+                    ].join(' ')}
+                  />
+
+                  {/* Quote preview — clips at top corners for its own bg, click target */}
                   {quotedMeta && (
                     <button
                       type="button"
                       onClick={() => extras.onQuoteClick(m.reply_to_id!)}
                       className={[
-                        'flex w-full cursor-pointer items-stretch gap-0 transition',
+                        'relative flex w-full overflow-hidden rounded-t-3xl cursor-pointer items-stretch gap-0 transition',
                         mine
                           ? 'border-b border-white/10 bg-white/10 hover:bg-white/[0.15]'
                           : 'border-b border-black/5 bg-black/5 hover:bg-black/10 dark:border-white/5 dark:bg-white/5 dark:hover:bg-white/10',
@@ -1485,9 +1805,28 @@ function _groupedRender(
                       </div>
                     </button>
                   )}
-                  {/* Message body */}
-                  <div className="px-4 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words">
-                    {m.body}
+
+                  {/* Message body — relative (above bg layer), NEVER overflow-hidden.
+                      dir="auto": browser picks RTL/LTR per message.
+                      unicode-bidi: isolate — stable for mixed BiDi with pre-wrap (no last-glyph line-box anomalies).
+                      letter-spacing: 0 + padding-inline-end: 1px — micro anti-subpixel buffer, no layout change.
+                      padding-bottom: 0.12em safety for descender font raster clipping. */}
+                  <div
+                    dir="auto"
+                    className="relative px-4 py-2 text-sm"
+                    style={{
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'normal',
+                      wordBreak: 'normal',
+                      hyphens: 'none',
+                      lineHeight: '1.55',
+                      unicodeBidi: 'isolate',
+                      letterSpacing: 0,
+                      paddingInlineEnd: 'calc(1rem + 1px)',
+                      paddingBottom: 'calc(0.5rem + 0.12em)',
+                    }}
+                  >
+                    {renderMessageBody(m.body)}
                   </div>
                 </div>
 

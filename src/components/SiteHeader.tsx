@@ -335,8 +335,8 @@ export default function SiteHeader() {
       // (RLS still applies) so the badge can become live immediately.
       if (convIds.length === 0) {
         ch
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => void loadThreads())
-          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => void loadThreads())
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => { void loadThreads(); window.dispatchEvent(new CustomEvent('tyuta:inbox-refresh')) })
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => { void loadThreads(); window.dispatchEvent(new CustomEvent('tyuta:inbox-refresh')) })
           .subscribe()
         return
       }
@@ -346,12 +346,12 @@ export default function SiteHeader() {
           .on(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
-            () => void loadThreads()
+            () => { void loadThreads(); window.dispatchEvent(new CustomEvent('tyuta:inbox-refresh')) }
           )
           .on(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },
-            () => void loadThreads()
+            () => { void loadThreads(); window.dispatchEvent(new CustomEvent('tyuta:inbox-refresh')) }
           )
       }
 
