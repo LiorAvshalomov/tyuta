@@ -1128,7 +1128,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         {/* Messages scroller */}
         <div
           ref={listRef}
-          className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-[#F7F6F3] to-[#EEEAE2] px-4 py-6 pb-28 dark:from-[#141414] dark:to-[#1a1a1a]"
+          className="min-h-0 flex-1 overflow-y-auto bg-gradient-to-b from-[#F7F6F3] to-[#EEEAE2] px-4 py-6 pb-4 dark:from-[#141414] dark:to-[#1a1a1a]"
           onClick={() => setReactingMsgId(null)}
         >
           {!isAtTop && stickyDay && (
@@ -1139,7 +1139,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
             </div>
           )}
 
-          {_groupedRender(
+          {!loading && _groupedRender(
             grouped,
             messages,
             myId,
@@ -1168,7 +1168,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
           {loading && (
             <div className="mx-auto max-w-sm rounded-2xl border bg-white/80 p-4 text-center text-sm text-muted-foreground dark:bg-[#2a2a2a] dark:border-white/10">
-              טוען שיחה…
+              טוען הודעות
             </div>
           )}
         </div>
@@ -1418,8 +1418,8 @@ function _groupedRender(
             {/* Message row — `group` enables action-bar hover reveal */}
             <div className={`group flex ${rowAlign} items-end`}>
 
-              {/* Bubble wrapper — relative so ActionBar + reactions can be absolute */}
-              <div className={`relative max-w-[78%] ${bubbleWrapClass}${msgReactions.length > 0 ? ' mb-3' : ''}`}>
+              {/* Bubble wrapper — relative so ActionBar + reaction picker can be absolute */}
+              <div className={`relative max-w-[78%] ${bubbleWrapClass}`}>
 
                 {/* ActionBar — absolutely positioned outside bubble bounds */}
                 <div className={[
@@ -1486,19 +1486,16 @@ function _groupedRender(
                     </button>
                   )}
                   {/* Message body */}
-                  <div
-                    className="px-4 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words"
-                    style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
-                  >
+                  <div className="px-4 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words">
                     {m.body}
                   </div>
                 </div>
 
-                {/* Reactions overlay — WhatsApp/FB style: overlaps bubble bottom edge */}
+                {/* Reactions — WhatsApp/FB style: overlaps bubble bottom edge, sits above meta row */}
                 {msgReactions.length > 0 && (
                   <div className={[
-                    'absolute -bottom-3 flex flex-wrap gap-0.5',
-                    mine ? 'right-1' : 'left-1',
+                    'relative z-10 -mt-2.5 mb-0.5 flex flex-wrap gap-0.5',
+                    mine ? 'justify-end pr-2' : 'justify-start pl-2',
                   ].join(' ')}>
                     {msgReactions.map(r => (
                       <button
