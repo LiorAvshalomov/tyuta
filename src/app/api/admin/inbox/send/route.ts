@@ -29,6 +29,7 @@ export async function POST(req: Request) {
 
   if (!conversationId) return NextResponse.json({ error: 'missing conversation_id' }, { status: 400 })
   if (text.length < 1) return NextResponse.json({ error: 'missing body' }, { status: 400 })
+  if (text.length > 4000) return NextResponse.json({ error: 'body too long (max 4000 chars)' }, { status: 400 })
 
   // Ensure system is member of the conversation
   const { data: cm, error: cmErr } = await auth.admin

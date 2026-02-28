@@ -1,5 +1,9 @@
 'use client'
 
+// Message length limits (UI enforced; server + DB also enforce hard limit)
+const MAX_UI_CHARS = 3500   // user cannot send above this
+const WARN_AT      = 3200   // counter appears below this remaining threshold
+
 import Link from 'next/link'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -1016,6 +1020,8 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     if (now - typingSentAtRef.current < 700) return
     typingSentAtRef.current = now
 
+    // Notify same-tab InboxThreads immediately via BroadcastChannel (no Supabase round-trip)
+    inboxBCRef.current?.postMessage({ type: 'typing', conversationId, userId: myId })
     await supabase.channel(`typing-${conversationId}`).send({ type: 'broadcast', event: 'typing', payload: { user_id: myId } })
   }, [conversationId, myId])
 
@@ -1181,6 +1187,10 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   async function send() {
     const bodyTrimmed = text.trim()
     if (!bodyTrimmed || sendingRef.current) return
+    if (bodyTrimmed.length > MAX_UI_CHARS) {
+      toast('ההודעה ארוכה מדי. מקסימום 3,500 תווים.', 'error')
+      return
+    }
     sendingRef.current = true
 
     // Capture and optimistically clear reply state
@@ -1610,11 +1620,11 @@ export default function ChatClient({ conversationId }: { conversationId: string 
           <button
             type="button"
             onClick={() => void send()}
-            disabled={sending || !text.trim()}
+            disabled={sending || !text.trim() || text.length > MAX_UI_CHARS}
             className={[
               'shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center text-sm font-bold transition mb-[7px]',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
-              sending || !text.trim()
+              sending || !text.trim() || text.length > MAX_UI_CHARS
                 ? 'cursor-not-allowed bg-neutral-200 text-neutral-400 dark:bg-[#2a2a2a] dark:text-muted-foreground'
                 : 'cursor-pointer bg-[#3B6CE3] text-white shadow-sm hover:opacity-90 active:scale-95 focus-visible:ring-[#3B6CE3]/50',
             ].join(' ')}
@@ -1623,7 +1633,14 @@ export default function ChatClient({ conversationId }: { conversationId: string 
           </button>
         </div>
 
-        <div className="mt-1 hidden sm:block text-[11px] text-muted-foreground">Enter לשליחה · Shift+Enter לשורה חדשה</div>
+        <div className="mt-1 flex items-center text-[11px]">
+          <span className="hidden sm:block text-muted-foreground">Enter לשליחה · Shift+Enter לשורה חדשה</span>
+          {text.length >= WARN_AT && (
+            <span className={['ms-auto font-semibold tabular-nums', text.length > MAX_UI_CHARS ? 'text-red-500' : 'text-amber-500'].join(' ')}>
+              {MAX_UI_CHARS - text.length}
+            </span>
+          )}
+        </div>
       </div>
     </div>
 
