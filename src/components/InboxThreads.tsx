@@ -246,7 +246,8 @@ export default function InboxThreads() {
               const timeText = formatLastTime(r.last_created_at)
               const unread = Number.isFinite(r.unread_count) ? r.unread_count : 0
               const hasUnread = unread > 0
-              const lastBody = (r.last_body ?? '').trim() || 'אין עדיין הודעות'
+              const rawBody = (r.last_body ?? '').trim()
+              const lastBody = rawBody ? (rawBody.length > 200 ? rawBody.slice(0, 200) + '…' : rawBody) : 'אין עדיין הודעות'
               const isTypingNow = typingMap[r.conversation_id]?.isTyping === true
 
               const rowClassName = [
