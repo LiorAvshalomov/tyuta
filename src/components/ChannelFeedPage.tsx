@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
-import { coverProxySrc } from '@/lib/coverUrl'
+import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import { getPostDisplayDate } from '@/lib/posts'
 import StickySidebar from '@/components/StickySidebar'
@@ -105,15 +105,17 @@ function CoverFrame({
   if (!src || !src.trim()) {
     return <div className={`${rounded} border bg-neutral-100`} style={{ width: w, height: h }} />
   }
+  const proxied = coverProxySrc(src)!
   return (
     <div className={`relative ${rounded} overflow-hidden border bg-white`} style={{ width: w, height: h }}>
       <Image
-        src={coverProxySrc(src)!}
+        src={proxied}
         alt={alt}
         fill
         sizes={sizes ?? `${w}px`}
         quality={quality}
         className="object-cover"
+        unoptimized={isProxySrc(proxied)}
       />
     </div>
   )

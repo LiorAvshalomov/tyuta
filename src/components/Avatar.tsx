@@ -19,7 +19,6 @@ export default function Avatar({
   const safeSrc = src?.trim() ? src.trim() : null
   const radiusClass = shape === 'square' ? 'rounded-xl' : 'rounded-full'
   const url = safeSrc ?? dicebearUrl(name)
-  const isSvg = url.toLowerCase().includes('.svg') || url.includes('/svg')
 
   return (
     <div
@@ -32,7 +31,7 @@ export default function Avatar({
         fill
         sizes={`${size}px`}
         className="object-cover"
-        unoptimized={isSvg}
+        unoptimized
       />
     </div>
   )

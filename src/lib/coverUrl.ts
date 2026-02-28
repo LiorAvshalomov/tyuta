@@ -9,6 +9,11 @@
  * Non-Supabase URLs (Pixabay, Pexels, …) are returned unchanged so they
  * still resolve directly against their own CDNs.
  */
+/** True when a src has already been routed through /api/media/cover (Supabase storage). */
+export function isProxySrc(src: string | null | undefined): boolean {
+  return (src ?? '').startsWith('/api/media/cover')
+}
+
 export function coverProxySrc(url: string | null | undefined): string | null {
   if (!url) return null
   const marker = '/storage/v1/object/public/'

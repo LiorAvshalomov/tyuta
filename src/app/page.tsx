@@ -10,7 +10,7 @@ import StickySidebar from '@/components/StickySidebar'
 import { truncateText } from '@/lib/validation'
 import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
-import { coverProxySrc } from '@/lib/coverUrl'
+import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
 
 
 type PostRow = {
@@ -157,6 +157,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
                   sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 600px"
                   quality={85}
                   className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                  unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
                 />
               ) : null}
             </div>
@@ -266,7 +267,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
       <Link href={`/post/${post.slug}`} className="block">
         <div className="relative aspect-[4/3] bg-muted">
           {post.cover_image_url ? (
-            <Image src={coverProxySrc(post.cover_image_url)!} alt={post.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 260px" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
+            <Image src={coverProxySrc(post.cover_image_url)!} alt={post.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 260px" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))} />
           ) : null}
         </div>
       </Link>
@@ -380,6 +381,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
                     sizes="(max-width: 640px) 136px, 168px"
                     quality={85}
                     className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                    unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
                   />
                 ) : null}
               </div>
@@ -502,6 +504,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
                     sizes="(max-width: 640px) 120px, 140px"
                     quality={90}
                     className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                    unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
                   />
                 ) : null}
               </div>

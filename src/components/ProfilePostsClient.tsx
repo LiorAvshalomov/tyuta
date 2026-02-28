@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { coverProxySrc } from '@/lib/coverUrl'
+import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -141,6 +141,7 @@ function DesktopPostCard({
                 fill
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
                 sizes="144px"
+                unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-3xl opacity-40">📝</div>
@@ -238,6 +239,7 @@ function MobilePostCard({
               fill
               className="object-cover"
               sizes="(max-width: 768px) 100vw, 768px"
+              unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">📝</div>
