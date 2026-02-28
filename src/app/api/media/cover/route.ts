@@ -17,6 +17,40 @@ import { NextRequest, NextResponse } from 'next/server'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 
+// ── per-IP rate limit ────────────────────────────────────────────────────────
+const WINDOW_MS = 60_000  // 1 minute
+const MAX_RPS   = 200     // requests per window per IP
+
+type RateEntry = { count: number; windowStart: number }
+const rateMap = new Map<string, RateEntry>()
+
+function isAllowed(ip: string): boolean {
+  const now = Date.now()
+  // Opportunistic cleanup: evict windows that have fully expired.
+  // Keeps the Map bounded to the number of distinct IPs active in the last minute.
+  for (const [key, entry] of rateMap) {
+    if (now - entry.windowStart > WINDOW_MS) rateMap.delete(key)
+  }
+  const entry = rateMap.get(ip)
+  if (!entry) {
+    rateMap.set(ip, { count: 1, windowStart: now })
+    return true
+  }
+  entry.count++
+  return entry.count <= MAX_RPS
+}
+
+function clientIp(req: NextRequest): string {
+  // x-forwarded-for is safe on Vercel: their edge always overwrites it before
+  // the request reaches the route handler, so clients cannot spoof it.
+  const xff = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  if (xff) return xff
+  const xri = req.headers.get('x-real-ip')?.trim()
+  if (xri) return xri
+  return 'unknown'
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const path = req.nextUrl.searchParams.get('path') ?? ''
 
@@ -29,6 +63,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
   if (!SUPABASE_URL) {
     return new NextResponse('Storage not configured', { status: 500 })
+  }
+
+  // ── rate limit ───────────────────────────────────────────────────────────
+  if (!isAllowed(clientIp(req))) {
+    return new NextResponse('Too many requests', { status: 429 })
   }
 
   // ── fetch from Supabase storage ──────────────────────────────────────────
