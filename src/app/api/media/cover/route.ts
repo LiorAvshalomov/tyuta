@@ -11,11 +11,11 @@ import { NextRequest, NextResponse } from 'next/server'
  * Security guards:
  *  - path must start with "post-covers/"
  *  - no ".." or "//" (traversal)
- *  - Content-Length / body checked against a 6 MB cap
+ *  - Content-Length / body checked against a 10 MB cap
  */
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
-const MAX_BYTES = 6 * 1024 * 1024 // 6 MB
+const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const path = req.nextUrl.searchParams.get('path') ?? ''
