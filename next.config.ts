@@ -61,6 +61,11 @@ const nextConfig: NextConfig = {
     deviceSizes: [360, 640, 768, 1024, 1280],
     // Add 600 to cover the FeaturedPost hero cap; keeps card thumbnails in the 32–384 range.
     imageSizes: [32, 48, 64, 96, 128, 256, 384, 600],
+    // Next.js 15+ requires local paths with query strings to be explicitly listed.
+    // Omitting `search` means any query string is accepted for this pathname.
+    localPatterns: [
+      { pathname: '/api/media/cover' },
+    ],
     remotePatterns: [
       // DiceBear (fallback avatars)
       { protocol: 'https', hostname: 'api.dicebear.com' },
