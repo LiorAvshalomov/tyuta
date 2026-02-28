@@ -10,6 +10,7 @@ import StickySidebar from '@/components/StickySidebar'
 import { truncateText } from '@/lib/validation'
 import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
+import { coverProxySrc } from '@/lib/coverUrl'
 
 
 type PostRow = {
@@ -149,7 +150,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
             <div className="relative aspect-[16/10] lg:aspect-auto lg:h-full overflow-hidden bg-muted">
               {post.cover_image_url ? (
                 <Image
-                  src={post.cover_image_url}
+                  src={coverProxySrc(post.cover_image_url)!}
                   alt={post.title}
                   fill
                   priority
@@ -265,7 +266,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
       <Link href={`/post/${post.slug}`} className="block">
         <div className="relative aspect-[4/3] bg-muted">
           {post.cover_image_url ? (
-            <Image src={post.cover_image_url} alt={post.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 260px" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
+            <Image src={coverProxySrc(post.cover_image_url)!} alt={post.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 260px" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
           ) : null}
         </div>
       </Link>
@@ -373,7 +374,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
               <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted">
                 {post.cover_image_url ? (
                   <Image
-                    src={post.cover_image_url}
+                    src={coverProxySrc(post.cover_image_url)!}
                     alt={post.title}
                     fill
                     sizes="(max-width: 640px) 136px, 168px"
@@ -495,7 +496,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
               <div className="relative aspect-square rounded-xl overflow-hidden bg-muted">
                 {post.cover_image_url ? (
                   <Image
-                    src={post.cover_image_url}
+                    src={coverProxySrc(post.cover_image_url)!}
                     alt={post.title}
                     fill
                     sizes="(max-width: 640px) 120px, 140px"

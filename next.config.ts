@@ -56,6 +56,11 @@ const imgSrc = [
 const nextConfig: NextConfig = {
   images: {
     minimumCacheTTL: 86400,
+    // Constrain candidate widths so Next.js generates fewer distinct transformed variants.
+    // Default deviceSizes includes 1920/2048/3840 — overkill for this layout (max 1280px wide).
+    deviceSizes: [360, 640, 768, 1024, 1280],
+    // Add 600 to cover the FeaturedPost hero cap; keeps card thumbnails in the 32–384 range.
+    imageSizes: [32, 48, 64, 96, 128, 256, 384, 600],
     remotePatterns: [
       // DiceBear (fallback avatars)
       { protocol: 'https', hostname: 'api.dicebear.com' },

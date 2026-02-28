@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
+import { coverProxySrc } from '@/lib/coverUrl'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import { getPostDisplayDate } from '@/lib/posts'
 import StickySidebar from '@/components/StickySidebar'
@@ -107,7 +108,7 @@ function CoverFrame({
   return (
     <div className={`relative ${rounded} overflow-hidden border bg-white`} style={{ width: w, height: h }}>
       <Image
-        src={src}
+        src={coverProxySrc(src)!}
         alt={alt}
         fill
         sizes={sizes ?? `${w}px`}

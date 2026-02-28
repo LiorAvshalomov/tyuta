@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { coverProxySrc } from '@/lib/coverUrl'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -135,10 +136,10 @@ function DesktopPostCard({
           <div className="relative h-28 w-36 overflow-hidden rounded-lg bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
             {post.cover_image_url ? (
               <Image
-                src={post.cover_image_url}
+                src={coverProxySrc(post.cover_image_url)!}
                 alt={post.title}
                 fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105" 
+                className="object-cover transition-transform duration-300 group-hover:scale-105"
                 sizes="144px"
               />
             ) : (
@@ -232,11 +233,11 @@ function MobilePostCard({
         <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
           {post.cover_image_url ? (
             <Image
-              src={post.cover_image_url}
+              src={coverProxySrc(post.cover_image_url)!}
               alt={post.title}
               fill
               className="object-cover"
-              sizes="100vw"
+              sizes="(max-width: 768px) 100vw, 768px"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">📝</div>
