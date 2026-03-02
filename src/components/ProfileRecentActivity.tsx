@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -24,10 +24,9 @@ function timeAgo(dateStr: string): string {
   return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })
 }
 
-export default function ProfileRecentActivity({ userId, matchHeight }: { userId: string; matchHeight?: number }) {
+export default function ProfileRecentActivity({ userId }: { userId: string }) {
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -47,14 +46,9 @@ export default function ProfileRecentActivity({ userId, matchHeight }: { userId:
     load()
   }, [userId])
 
-  // Calculate height based on matchHeight or default
-  const containerStyle = matchHeight ? { height: `${matchHeight}px` } : {}
-
   return (
-    <div 
-      ref={containerRef}
-      className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md dark:bg-card dark:border-border"
-      style={containerStyle}
+    <div
+      className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md dark:bg-card dark:border-border max-h-[360px] sm:max-h-[420px] lg:absolute lg:inset-0 lg:max-h-none"
       dir="rtl"
     >
       <div className="flex shrink-0 items-center justify-between mb-3">
@@ -65,9 +59,20 @@ export default function ProfileRecentActivity({ userId, matchHeight }: { userId:
       {/* Scrollable area */}
       <div className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
-          <div className="flex h-full items-center justify-center py-8">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-600" />
-          </div>
+          <ul className="space-y-2 pb-1 animate-pulse" aria-hidden="true">
+            {[0, 1, 2, 3, 4].map(i => (
+              <li key={i} className="rounded-lg border border-neutral-100 dark:border-border bg-neutral-50 dark:bg-muted/50 p-2.5">
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <div className="h-3 w-3/5 rounded bg-neutral-200 dark:bg-muted" />
+                  <div className="h-2.5 w-1/5 shrink-0 rounded bg-neutral-100 dark:bg-muted/60" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-3 w-full rounded bg-neutral-100 dark:bg-muted/60" />
+                  <div className="h-3 w-4/5 rounded bg-neutral-100 dark:bg-muted/60" />
+                </div>
+              </li>
+            ))}
+          </ul>
         ) : rows.length === 0 ? (
           <div className="flex h-full items-center justify-center py-8">
             <div className="text-center">

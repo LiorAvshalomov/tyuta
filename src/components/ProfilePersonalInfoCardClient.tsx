@@ -190,7 +190,7 @@ export default function ProfilePersonalInfoCardClient({
 
   return (
     <>
-      <div ref={cardRef}>
+      <div ref={cardRef} className="h-full">
         <ProfilePersonalInfoCard
           isShared={info.personal_is_shared}
           about={info.personal_about}
@@ -294,7 +294,7 @@ export default function ProfilePersonalInfoCardClient({
                     />
                   </InputShell>
 
-                  <InputShell label="קטגוריה">
+                  <InputShell label="קטגוריה מועדפת">
                     <select
                       className="w-full rounded-lg border border-neutral-200 bg-white p-2.5 text-sm transition-colors focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-100 dark:bg-card dark:border-border dark:text-foreground"
                       value={favoriteCategory}

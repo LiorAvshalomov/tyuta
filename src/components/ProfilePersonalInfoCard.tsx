@@ -1,4 +1,6 @@
-import React from 'react'
+'use client'
+
+import React, { useState } from 'react'
 
 type Props = {
   about?: string | null
@@ -15,14 +17,39 @@ function Placeholder({ text }: { text: string }) {
   return <span className="text-sm text-neutral-400 dark:text-muted-foreground/70">{text}</span>
 }
 
+// Used only for long-text fields (about, books) where content may exceed 3 lines
+function ExpandableText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  // Show toggle only when text is long enough to risk overflow at 3 lines
+  const showToggle = text.length > 60
+  return (
+    <>
+      <div className={`text-sm text-neutral-800 break-words whitespace-pre-wrap [overflow-wrap:anywhere] dark:text-foreground${expanded ? '' : ' line-clamp-3'}`}>
+        {text}
+      </div>
+      {showToggle && (
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="mt-0.5 text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400"
+        >
+          {expanded ? 'פחות' : 'הצג עוד'}
+        </button>
+      )}
+    </>
+  )
+}
+
 function Row({
   label,
   value,
   placeholder,
+  expandable = false,
 }: {
   label: string
   value: React.ReactNode
   placeholder: string
+  expandable?: boolean
 }) {
   const hasValue =
     value !== null &&
@@ -34,9 +61,13 @@ function Row({
       <div className="text-[11px] font-medium text-neutral-500 dark:text-muted-foreground">{label}</div>
       <div className="mt-0.5 min-h-[18px]">
         {hasValue ? (
-          <div className="text-sm text-neutral-800 break-words whitespace-pre-wrap [overflow-wrap:anywhere] line-clamp-2 dark:text-foreground">
-            {value}
-          </div>
+          expandable && typeof value === 'string' ? (
+            <ExpandableText text={value} />
+          ) : (
+            <div className="text-sm text-neutral-800 break-words whitespace-pre-wrap [overflow-wrap:anywhere] line-clamp-2 dark:text-foreground">
+              {value}
+            </div>
+          )
         ) : (
           <Placeholder text={placeholder} />
         )}
@@ -65,7 +96,7 @@ export default function ProfilePersonalInfoCard({
 
   return (
     <div
-      className="rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md dark:bg-card dark:border-border"
+      className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-md dark:bg-card dark:border-border"
       dir="rtl"
     >
       <div className="flex items-center justify-between mb-3">
@@ -76,7 +107,7 @@ export default function ProfilePersonalInfoCard({
       </div>
 
       <div className="space-y-2">
-        <Row label="קצת עליי" value={aboutCapped ?? ''} placeholder={placeholder} />
+        <Row label="קצת עליי" value={aboutCapped ?? ''} placeholder={placeholder} expandable />
         <div className="grid grid-cols-2 gap-2">
           <Row label="גיל" value={age ?? ''} placeholder={placeholder} />
           <Row label="עיסוק" value={occupationCapped ?? ''} placeholder={placeholder} />
@@ -85,7 +116,7 @@ export default function ProfilePersonalInfoCard({
           <Row label="אוהב לכתוב על" value={writingAboutCapped ?? ''} placeholder={placeholder} />
           <Row label="קטגוריה מועדפת" value={favoriteCategory ?? ''} placeholder={placeholder} />
         </div>
-        <Row label="ספרים שקראתי" value={booksCapped ?? ''} placeholder={placeholder} />
+        <Row label="ספרים שקראתי" value={booksCapped ?? ''} placeholder={placeholder} expandable />
       </div>
     </div>
   )

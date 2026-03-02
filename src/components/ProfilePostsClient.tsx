@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
@@ -50,20 +51,6 @@ function getErrorMessage(e: unknown) {
   return 'שגיאה לא ידועה'
 }
 
-function timeAgo(dateStr: string): string {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (seconds < 60) return 'עכשיו'
-  if (seconds < 3600) return `לפני ${Math.floor(seconds / 60)} דקות`
-  if (seconds < 86400) return `לפני ${Math.floor(seconds / 3600)} שעות`
-  if (seconds < 172800) return 'אתמול'
-  if (seconds < 604800) return `לפני ${Math.floor(seconds / 86400)} ימים`
-  if (seconds < 2592000) return `לפני ${Math.floor(seconds / 604800)} שבועות`
-  if (seconds < 31536000) return `לפני ${Math.floor(seconds / 2592000)} חודשים`
-  return `לפני ${Math.floor(seconds / 31536000)} שנים`
-}
 
 // Updated colors as requested:
 // פריקה - red/pink background
@@ -75,6 +62,15 @@ function getChannelStyle(channelName: string | null): string {
     case 'סיפורים': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
     case 'מגזין': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
     default: return 'bg-neutral-100 text-neutral-600 dark:bg-muted dark:text-muted-foreground'
+  }
+}
+
+function getChannelSlug(channelName: string | null): string | null {
+  switch (channelName) {
+    case 'פריקה': return 'release'
+    case 'סיפורים': return 'stories'
+    case 'מגזין': return 'magazine'
+    default: return null
   }
 }
 
@@ -96,33 +92,42 @@ async function authedFetch(input: string, init: RequestInit = {}) {
 /* ─────────────────────────────────────────────────────────────
    Desktop Post Card
    ───────────────────────────────────────────────────────────── */
-function DesktopPostCard({ 
-  post, 
-  isOwner, 
-  returnTo, 
-  onDelete 
-}: { 
+function DesktopPostCard({
+  post,
+  isOwner,
+  returnTo,
+  onDelete
+}: {
   post: PostItem
   isOwner: boolean
   returnTo: string
   onDelete: (post: PostItem) => void
 }) {
+  const router = useRouter()
   const hasMedals = post.medals && (post.medals.gold > 0 || post.medals.silver > 0 || post.medals.bronze > 0)
+  const channelSlug = getChannelSlug(post.channel_name)
 
   return (
-    <article className="group relative hidden sm:block rounded-xl border border-neutral-100 bg-neutral-50 p-4 transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted/50 dark:hover:bg-muted">
+    <article
+      className="group relative hidden sm:block rounded-xl border border-neutral-100 bg-neutral-50 p-4 transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted/50 dark:hover:bg-muted cursor-pointer"
+      role="link"
+      tabIndex={0}
+      onClick={() => router.push(`/post/${post.slug}`)}
+      onKeyDown={e => { if (e.key === 'Enter') router.push(`/post/${post.slug}`) }}
+    >
       {/* Owner actions */}
       {isOwner && post.id && (
         <div className="absolute left-3 top-3 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <Link
             href={`/write?edit=${encodeURIComponent(post.id)}&return=${encodeURIComponent(returnTo)}`}
+            onClick={e => e.stopPropagation()}
             className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs font-medium shadow-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
           >
             ערוך
           </Link>
           <button
             type="button"
-            onClick={() => onDelete(post)}
+            onClick={e => { e.stopPropagation(); onDelete(post) }}
             className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 dark:bg-card dark:border-red-800 dark:hover:bg-red-950/30"
           >
             מחק
@@ -132,7 +137,7 @@ function DesktopPostCard({
 
       <div className="flex gap-4">
         {/* Cover Image - Right side */}
-        <Link href={`/post/${post.slug}`} className="shrink-0">
+        <div className="shrink-0">
           <div className="relative h-28 w-36 overflow-hidden rounded-lg bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
             {post.cover_image_url ? (
               <Image
@@ -147,15 +152,13 @@ function DesktopPostCard({
               <div className="flex h-full w-full items-center justify-center text-3xl opacity-40">📝</div>
             )}
           </div>
-        </Link>
+        </div>
 
         {/* Content - Left side */}
         <div className="min-w-0 flex-1 flex flex-col justify-between py-1">
           {/* Title */}
-          <h4 className="text-base font-bold leading-snug">
-            <Link href={`/post/${post.slug}`} className="line-clamp-2 hover:text-blue-600 transition-colors">
-              {post.title}
-            </Link>
+          <h4 className="text-base font-bold leading-snug line-clamp-2">
+            {post.title}
           </h4>
 
           {/* Excerpt */}
@@ -166,13 +169,23 @@ function DesktopPostCard({
           {/* Meta row: Date • Category | Medals */}
           <div className="flex items-center justify-between mt-auto pt-2">
             <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-muted-foreground">
-              <span>{timeAgo(post.created_at)}</span>
+              <span>{heRelativeTime(post.created_at)}</span>
               {post.channel_name && (
                 <>
                   <span>•</span>
-                  <span className={`rounded px-2 py-0.5 text-xs font-semibold ${getChannelStyle(post.channel_name)}`}>
-                    {post.channel_name}
-                  </span>
+                  {channelSlug ? (
+                    <Link
+                      href={`/c/${channelSlug}`}
+                      onClick={e => e.stopPropagation()}
+                      className={`rounded px-2 py-0.5 text-xs font-semibold ${getChannelStyle(post.channel_name)}`}
+                    >
+                      {post.channel_name}
+                    </Link>
+                  ) : (
+                    <span className={`rounded px-2 py-0.5 text-xs font-semibold ${getChannelStyle(post.channel_name)}`}>
+                      {post.channel_name}
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -195,33 +208,42 @@ function DesktopPostCard({
 /* ─────────────────────────────────────────────────────────────
    Mobile Post Card
    ───────────────────────────────────────────────────────────── */
-function MobilePostCard({ 
-  post, 
-  isOwner, 
-  returnTo, 
-  onDelete 
-}: { 
+function MobilePostCard({
+  post,
+  isOwner,
+  returnTo,
+  onDelete
+}: {
   post: PostItem
   isOwner: boolean
   returnTo: string
   onDelete: (post: PostItem) => void
 }) {
+  const router = useRouter()
   const hasMedals = post.medals && (post.medals.gold > 0 || post.medals.silver > 0 || post.medals.bronze > 0)
+  const channelSlug = getChannelSlug(post.channel_name)
 
   return (
-    <article className="group relative sm:hidden rounded-xl border border-neutral-100 bg-neutral-50 overflow-hidden dark:border-border dark:bg-muted/50">
+    <article
+      className="group relative sm:hidden rounded-xl border border-neutral-100 bg-neutral-50 overflow-hidden dark:border-border dark:bg-muted/50 cursor-pointer"
+      role="link"
+      tabIndex={0}
+      onClick={() => router.push(`/post/${post.slug}`)}
+      onKeyDown={e => { if (e.key === 'Enter') router.push(`/post/${post.slug}`) }}
+    >
       {/* Owner actions */}
       {isOwner && post.id && (
         <div className="absolute left-2 top-2 z-10 flex gap-1">
           <Link
             href={`/write?edit=${encodeURIComponent(post.id)}&return=${encodeURIComponent(returnTo)}`}
+            onClick={e => e.stopPropagation()}
             className="rounded-md border border-neutral-200 bg-white/90 px-2 py-1 text-xs font-medium shadow-sm dark:bg-card/90 dark:border-border"
           >
             ערוך
           </Link>
           <button
             type="button"
-            onClick={() => onDelete(post)}
+            onClick={e => { e.stopPropagation(); onDelete(post) }}
             className="rounded-md border border-red-200 bg-white/90 px-2 py-1 text-xs font-medium text-red-600 shadow-sm dark:bg-card/90 dark:border-red-800"
           >
             מחק
@@ -230,30 +252,26 @@ function MobilePostCard({
       )}
 
       {/* Cover Image - Top, full width */}
-      <Link href={`/post/${post.slug}`}>
-        <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
-          {post.cover_image_url ? (
-            <Image
-              src={coverProxySrc(post.cover_image_url)!}
-              alt={post.title}
-              fill
-              className="object-cover"
-              sizes="(max-width: 768px) 100vw, 768px"
-              unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">📝</div>
-          )}
-        </div>
-      </Link>
+      <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
+        {post.cover_image_url ? (
+          <Image
+            src={coverProxySrc(post.cover_image_url)!}
+            alt={post.title}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 768px"
+            unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">📝</div>
+        )}
+      </div>
 
       {/* Content */}
       <div className="p-3">
         {/* Title */}
-        <h4 className="text-base font-bold leading-snug mb-1">
-          <Link href={`/post/${post.slug}`} className="line-clamp-2 hover:text-blue-600 transition-colors">
-            {post.title}
-          </Link>
+        <h4 className="text-base font-bold leading-snug line-clamp-2 mb-1">
+          {post.title}
         </h4>
 
         {/* Excerpt */}
@@ -264,11 +282,21 @@ function MobilePostCard({
         {/* Meta row: Date • Category | Medals */}
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-neutral-500 dark:text-muted-foreground">{timeAgo(post.created_at)}</span>
+            <span className="text-neutral-500 dark:text-muted-foreground">{heRelativeTime(post.created_at)}</span>
             {post.channel_name && (
-              <span className={`rounded px-2 py-0.5 font-semibold ${getChannelStyle(post.channel_name)}`}>
-                {post.channel_name}
-              </span>
+              channelSlug ? (
+                <Link
+                  href={`/c/${channelSlug}`}
+                  onClick={e => e.stopPropagation()}
+                  className={`rounded px-2 py-0.5 font-semibold ${getChannelStyle(post.channel_name)}`}
+                >
+                  {post.channel_name}
+                </Link>
+              ) : (
+                <span className={`rounded px-2 py-0.5 font-semibold ${getChannelStyle(post.channel_name)}`}>
+                  {post.channel_name}
+                </span>
+              )
             )}
           </div>
 
@@ -609,8 +637,28 @@ export default function ProfilePostsClient({
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-blue-600" />
+        <div className="space-y-3 animate-pulse">
+          {[0, 1, 2].map(i => (
+            <div key={i} className="rounded-xl border border-neutral-100 dark:border-border bg-neutral-50 dark:bg-muted/50 p-4">
+              {/* Desktop: thumbnail left, text right */}
+              <div className="hidden sm:flex items-start gap-4">
+                <div className="h-28 w-36 shrink-0 rounded-xl bg-neutral-200 dark:bg-muted" />
+                <div className="flex-1 py-1 space-y-2">
+                  <div className="h-4 w-3/4 rounded-lg bg-neutral-200 dark:bg-muted" />
+                  <div className="h-4 w-1/2 rounded-lg bg-neutral-200 dark:bg-muted" />
+                  <div className="h-3 w-full rounded-lg bg-neutral-100 dark:bg-muted/60" />
+                  <div className="mt-3 h-3 w-1/3 rounded-lg bg-neutral-100 dark:bg-muted/60" />
+                </div>
+              </div>
+              {/* Mobile: cover top, text below */}
+              <div className="sm:hidden space-y-2">
+                <div className="aspect-[16/9] w-full rounded-xl bg-neutral-200 dark:bg-muted" />
+                <div className="h-4 w-3/4 rounded-lg bg-neutral-200 dark:bg-muted" />
+                <div className="h-3 w-full rounded-lg bg-neutral-100 dark:bg-muted/60" />
+                <div className="h-3 w-1/4 rounded-lg bg-neutral-100 dark:bg-muted/60" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : posts.length ? (
         <div className="space-y-3">

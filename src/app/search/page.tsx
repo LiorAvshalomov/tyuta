@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import AuthorHover from '@/components/AuthorHover'
+import { heRelativeTime } from '@/lib/time/heRelativeTime'
 
 type ChannelRow = { id: number; slug: string; name_he: string }
 type TagRow = { id: number; slug: string; name_he: string; channel_id: number | null; type: string; is_active: boolean }
@@ -51,19 +52,6 @@ function safeText(v: unknown) {
   return typeof v === 'string' ? v : ''
 }
 
-function timeAgo(iso: string | null) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const diff = Date.now() - d.getTime()
-  const sec = Math.max(0, Math.floor(diff / 1000))
-  if (sec < 60) return 'הרגע'
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `לפני ${min} דק׳`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `לפני ${hr} שעות`
-  const day = Math.floor(hr / 24)
-  return `לפני ${day} ימים`
-}
 
 export default function SearchPage() {
   const sp = useSearchParams()
@@ -494,7 +482,7 @@ export default function SearchPage() {
 
                 <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
                   <span>💬 {p.comments_count ?? 0}</span>
-                  <span>🕒 {timeAgo(p.published_at || p.created_at)}</span>
+                  <span>🕒 {heRelativeTime(p.published_at || p.created_at)}</span>
                 </div>
               </div>
             </div>
