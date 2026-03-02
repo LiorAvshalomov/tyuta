@@ -524,31 +524,49 @@ export default function PostPage({ initialData }: Props) {
   }, [slug])
 
   if (loading) {
-    return (
-      <main className="min-h-screen bg-neutral-50 dark:bg-background" dir="rtl">
-        <div className="mx-auto max-w-5xl px-4 py-10 animate-pulse">
-          {/* Cover placeholder */}
-          <div className="mb-6 h-56 w-full rounded-2xl bg-neutral-200 dark:bg-muted sm:h-72" />
-          {/* Title placeholder */}
-          <div className="h-9 w-3/4 rounded-xl bg-neutral-200 dark:bg-muted" />
-          <div className="mt-3 h-5 w-1/2 rounded-lg bg-neutral-100 dark:bg-muted/60" />
-          {/* Author row */}
-          <div className="mt-8 flex items-center gap-3">
-            <div className="h-12 w-12 shrink-0 rounded-full bg-neutral-200 dark:bg-muted" />
-            <div className="space-y-2">
-              <div className="h-4 w-28 rounded-lg bg-neutral-200 dark:bg-muted" />
-              <div className="h-3 w-20 rounded-lg bg-neutral-100 dark:bg-muted/60" />
-            </div>
-          </div>
-          {/* Body lines */}
-          <div className="mt-10 space-y-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className={`h-4 rounded-lg bg-neutral-100 dark:bg-muted/60 ${i === 5 ? 'w-2/3' : 'w-full'}`} />
-            ))}
+    const headerSkeleton = (
+      <div className="animate-pulse" dir="rtl">
+        <div className="h-8 w-3/4 rounded-xl bg-neutral-200 dark:bg-muted" />
+        <div className="mt-3 space-y-2">
+          <div className="h-4 w-full rounded-lg bg-neutral-100 dark:bg-muted/60" />
+          <div className="h-4 w-2/3 rounded-lg bg-neutral-100 dark:bg-muted/60" />
+        </div>
+        <div className="mt-10 flex items-center gap-3">
+          <div className="h-12 w-12 shrink-0 rounded-full bg-neutral-200 dark:bg-muted" />
+          <div className="space-y-2">
+            <div className="h-4 w-28 rounded-lg bg-neutral-200 dark:bg-muted" />
+            <div className="h-3 w-20 rounded-lg bg-neutral-100 dark:bg-muted/60" />
           </div>
         </div>
-      </main>
+      </div>
     )
+
+    const sidebarSkeleton = (
+      <div className="space-y-6">
+        {[0, 1].map(s => (
+          <div key={s} className="rounded-2xl border border-neutral-200/60 dark:border-border bg-white/05 dark:bg-card shadow-sm animate-pulse">
+            <div className="px-4 py-3">
+              <div className="h-7 w-24 rounded-xl bg-neutral-200 dark:bg-muted" />
+            </div>
+            <div className="mx-4 border-b border-neutral-100 dark:border-border" />
+            <div className="space-y-1.5 px-3 pb-3 pt-2">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="flex items-start justify-between gap-2.5 rounded-xl border border-neutral-200/70 dark:border-border p-2">
+                  <div className="min-w-0 flex-1 space-y-2 pt-1">
+                    <div className="h-3.5 w-3/4 rounded-lg bg-neutral-200 dark:bg-muted" />
+                    <div className="h-3 w-full rounded-lg bg-neutral-100 dark:bg-muted/60" />
+                    <div className="h-2.5 w-1/2 rounded-lg bg-neutral-100 dark:bg-muted/60" />
+                  </div>
+                  <div className="h-20 w-20 shrink-0 rounded-2xl bg-neutral-200 dark:bg-muted" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+
+    return <PostShell header={headerSkeleton} sidebar={sidebarSkeleton}><div /></PostShell>
   }
 
   if (notFoundFlag || !post) {
