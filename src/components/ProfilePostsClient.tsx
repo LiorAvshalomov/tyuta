@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
@@ -50,20 +51,6 @@ function getErrorMessage(e: unknown) {
   return 'שגיאה לא ידועה'
 }
 
-function timeAgo(dateStr: string): string {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (seconds < 60) return 'עכשיו'
-  if (seconds < 3600) return `לפני ${Math.floor(seconds / 60)} דקות`
-  if (seconds < 86400) return `לפני ${Math.floor(seconds / 3600)} שעות`
-  if (seconds < 172800) return 'אתמול'
-  if (seconds < 604800) return `לפני ${Math.floor(seconds / 86400)} ימים`
-  if (seconds < 2592000) return `לפני ${Math.floor(seconds / 604800)} שבועות`
-  if (seconds < 31536000) return `לפני ${Math.floor(seconds / 2592000)} חודשים`
-  return `לפני ${Math.floor(seconds / 31536000)} שנים`
-}
 
 // Updated colors as requested:
 // פריקה - red/pink background
@@ -182,7 +169,7 @@ function DesktopPostCard({
           {/* Meta row: Date • Category | Medals */}
           <div className="flex items-center justify-between mt-auto pt-2">
             <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-muted-foreground">
-              <span>{timeAgo(post.created_at)}</span>
+              <span>{heRelativeTime(post.created_at)}</span>
               {post.channel_name && (
                 <>
                   <span>•</span>
@@ -295,7 +282,7 @@ function MobilePostCard({
         {/* Meta row: Date • Category | Medals */}
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-neutral-500 dark:text-muted-foreground">{timeAgo(post.created_at)}</span>
+            <span className="text-neutral-500 dark:text-muted-foreground">{heRelativeTime(post.created_at)}</span>
             {post.channel_name && (
               channelSlug ? (
                 <Link

@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { adminFetch } from '@/lib/admin/adminFetch'
 import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
-import { timeAgoHeShort } from '@/lib/time'
+import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
@@ -546,7 +546,7 @@ export default function CommunityNotesWall() {
                         </AuthorHover>
 
                         <div className="shrink-0 text-left">
-                          <div className="text-xs text-muted-foreground">{timeAgoHeShort(n.updated_at)}</div>
+                          <div className="text-xs text-muted-foreground">{heRelativeTime(n.updated_at)}</div>
                           {expiresText ? (
                             <div className="mt-0.5 text-[11px] text-muted-foreground">
                               יימחק בעוד {expiresText}

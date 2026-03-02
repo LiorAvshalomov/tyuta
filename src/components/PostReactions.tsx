@@ -342,9 +342,26 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
 
   if (loading) {
     return (
-      <div className="mt-4 text-right text-sm text-neutral-600 dark:text-muted-foreground" dir="rtl">
-        טוען דירוגים…
-      </div>
+      <section className="text-right" dir="rtl">
+        <div className="flex flex-col items-stretch animate-pulse">
+          <div className="flex items-center justify-between gap-3">
+            <div className="h-4 w-16 rounded-lg bg-neutral-200 dark:bg-muted" />
+            <div className="h-3 w-14 rounded bg-neutral-100 dark:bg-muted/60" />
+          </div>
+          <div className="mt-4 flex flex-nowrap justify-center gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible">
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <div
+                key={i}
+                className="inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border border-neutral-200 dark:border-border bg-neutral-100 dark:bg-muted px-2 py-1 gap-1.5 md:min-w-[74px] md:px-3 md:py-2"
+              >
+                <div className="h-[15px] w-[15px] rounded-full bg-neutral-200 dark:bg-muted-foreground/20 md:h-[18px] md:w-[18px]" />
+                <div className="h-2.5 w-10 rounded bg-neutral-200 dark:bg-muted-foreground/20" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 mx-auto h-3 w-56 rounded bg-neutral-100 dark:bg-muted/60" />
+        </div>
+      </section>
     )
   }
 

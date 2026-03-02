@@ -4,7 +4,8 @@ export const revalidate = 60
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
-import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
+import { formatDateTimeHe } from '@/lib/time'
+import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import HomeWriteCTA from '@/components/HomeWriteCTA'
 import StickySidebar from '@/components/StickySidebar'
 import { truncateText } from '@/lib/validation'
@@ -191,7 +192,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
 
                   <div className="min-w-0 text-right">
-                    <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+                    <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
                     {post.subcategory ? (
                       <>
                         <span className="mx-2">•</span>
@@ -276,7 +277,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
 
           <div className="min-w-0">
-            <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+            <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
             {post.subcategory ? (
               <>
                 <span className="mx-2">•</span>
@@ -391,7 +392,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
           <div className="min-w-0 flex-1 text-right flex flex-col">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
               <div className="text-xs text-muted-foreground">
-                <span title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}
+                <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}
 
                 </span>
                 {post.subcategory ? (
@@ -548,7 +549,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
                 </div>
               )}
 
-              <span className="shrink-0 whitespace-nowrap" title={formatDateTimeHe(post.created_at)}>{formatRelativeHe(post.created_at)}</span>
+              <span className="shrink-0 whitespace-nowrap" title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
             </div>
           </div>
         </div>
