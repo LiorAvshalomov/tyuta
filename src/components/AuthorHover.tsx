@@ -84,8 +84,10 @@ export default function AuthorHover({
   }, [clearTimer])
 
   // Mobile: tap to open (prefetch → open on success)
+  // Only on lg+ (≥1024px); below that let the child <Link> navigate instead.
   const handleTap = useCallback(() => {
     if (canHoverRef.current) return // desktop — hover handles it
+    if (window.innerWidth < 1024) return // mobile/tablet: navigate via child Link
     const myToken = ++tokenRef.current
     fetchUserPreview(username).then(data => {
       if (tokenRef.current !== myToken || !data) return
