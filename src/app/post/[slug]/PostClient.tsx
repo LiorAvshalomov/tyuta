@@ -497,6 +497,8 @@ export default function PostPage({ initialData }: Props) {
           .from('posts')
           .select(sidebarPostSelect)
           .in('id', hotIds)
+          .is('deleted_at', null)
+          .eq('status', 'published')
 
         if (!cancelled && hotPosts) {
           const byId = new Map((hotPosts as SidebarPost[]).map(x => [x.id, x]))
