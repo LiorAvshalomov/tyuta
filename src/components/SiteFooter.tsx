@@ -13,42 +13,44 @@ export default function SiteFooter() {
   if (pathname.startsWith("/inbox")) return null
 
   return (
-    <footer className="mt-16 border-t bg-black/10 backdrop-blur supports-[backdrop-filter]:bg-black/5">
-      <div className="mx-auto max-w-5xl px-4 py-8 text-sm text-muted-foreground">
+    <footer className="mt-16 tyuta-footer">
+      <div className="mx-auto max-w-5xl px-4 py-10 text-sm text-muted-foreground">
+        
+
         <div className="grid gap-5 md:grid-cols-3 md:items-center">
           {/* Right side (RTL start) */}
           <nav className="flex flex-wrap justify-center gap-4 md:justify-start">
-            <Link className="hover:text-foreground" href="/about">
+            <Link className="tyuta-hover" href="/about">
               אודות
             </Link>
-            <Link className="hover:text-foreground" href="/terms">
+            <Link className="tyuta-hover" href="/terms">
               תנאי שימוש
             </Link>
-            <Link className="hover:text-foreground" href="/privacy">
+            <Link className="tyuta-hover" href="/privacy">
               מדיניות פרטיות
             </Link>
           </nav>
 
           {/* Center */}
-          <div className="order-3 text-center text-xs text-muted-foreground/80 md:order-none md:text-sm">
+          <div className="order-3 text-center text-xs text-muted-foreground/60 md:order-none md:text-sm">
             © 2026 .Tyuta. All rights reserved
           </div>
 
           {/* Left side */}
           <nav className="flex flex-wrap justify-center gap-4 md:justify-end">
-            <Link className="hover:text-foreground" href="/c/stories">
+            <Link className="tyuta-hover" href="/c/stories">
               סיפורים
             </Link>
-            <Link className="hover:text-foreground" href="/c/release">
+            <Link className="tyuta-hover" href="/c/release">
               פריקה
             </Link>
-            <Link className="hover:text-foreground" href="/c/magazine">
+            <Link className="tyuta-hover" href="/c/magazine">
               מגזין
             </Link>
-            <Link className="hover:text-foreground" href="/search">
+            <Link className="tyuta-hover" href="/search">
               חיפוש
             </Link>
-            <Link className="hover:text-foreground" href="/contact">
+            <Link className="tyuta-hover" href="/contact">
               צור קשר
             </Link>
           </nav>

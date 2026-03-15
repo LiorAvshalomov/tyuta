@@ -658,11 +658,11 @@ export default function PostPage({ initialData }: Props) {
 
   const channelChipClass =
     post.channel_id === 1
-      ? 'text-rose-700/90 dark:text-rose-400'
+      ? 'text-red-700 dark:text-red-400'
       : post.channel_id === 2
-        ? 'text-indigo-700/90 dark:text-indigo-400'
+        ? 'text-blue-700 dark:text-blue-400'
         : post.channel_id === 3
-          ? 'text-emerald-700/90 dark:text-emerald-400'
+          ? 'text-purple-700 dark:text-purple-400'
           : 'text-neutral-700 dark:text-muted-foreground'
 
   const hasMedals = medals.gold > 0 || medals.silver > 0 || medals.bronze > 0

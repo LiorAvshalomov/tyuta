@@ -174,7 +174,7 @@ export default function HoverProfileCard({
           <Link
             href={profileHref}
             onClick={onClose}
-            className="inline text-sm font-bold leading-tight text-foreground hover:underline break-words"
+            className="inline text-sm font-bold leading-tight text-foreground tyuta-hover  break-words"
           >
             {showName}
           </Link>

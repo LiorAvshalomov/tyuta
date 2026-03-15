@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import AuthorHover from '@/components/AuthorHover'
+import Avatar from '@/components/Avatar'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
 
 type ChannelRow = { id: number; slug: string; name_he: string }
@@ -50,6 +51,13 @@ const PAGE_SIZE = 10
 
 function safeText(v: unknown) {
   return typeof v === 'string' ? v : ''
+}
+
+function channelBadgeColor(slug: string | null) {
+  if (slug === 'release') return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/40'
+  if (slug === 'stories') return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/40'
+  if (slug === 'magazine') return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800/40'
+  return 'bg-muted text-foreground border-border'
 }
 
 
@@ -400,7 +408,7 @@ export default function SearchPage() {
         </div>
 
         <div className="mt-4 flex items-center justify-between gap-3">
-          <button type="submit" className="rounded-xl bg-black px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90">
+          <button type="submit" className="rounded-xl bg-black px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 cursor-pointer">
             חפש
           </button>
 
@@ -441,47 +449,61 @@ export default function SearchPage() {
             }}
             className="cursor-pointer rounded-2xl border bg-white p-4 hover:shadow-sm dark:bg-card dark:border-border"
           >
-            <div className="flex flex-row-reverse items-start gap-4">
+            <div className="flex flex-row-reverse items-stretch gap-4 min-h-[100px]">
               {p.cover_image_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.cover_image_url} alt="" className="h-20 w-28 rounded-xl object-cover" />
+                <img src={p.cover_image_url} alt="" className="w-28 shrink-0 self-stretch rounded-xl object-cover" />
               ) : (
-                <div className="h-20 w-28 rounded-xl bg-muted" />
+                <div className="w-28 shrink-0 self-stretch rounded-xl bg-muted" />
               )}
 
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {p.channel ? (
-                    <Link
-                      href={`/c/${p.channel.slug}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="rounded-full border px-2 py-0.5 hover:bg-muted"
-                    >
-                      {p.channel.name_he}
-                    </Link>
-                  ) : null}
-
-                  {p.subcategory?.name_he ? <span className="rounded-full border px-2 py-0.5">{p.subcategory.name_he}</span> : null}
-
-                  {p.author?.username ? (
-                    <AuthorHover username={p.author.username}>
+              <div className="min-w-0 flex-1 flex flex-col justify-between gap-1">
+                {/* Top: badges + title */}
+                <div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                    {p.channel ? (
                       <Link
-                        href={`/u/${p.author.username}`}
+                        href={`/c/${p.channel.slug}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="rounded-full border px-2 py-0.5 hover:bg-muted"
+                        className={`rounded-full border px-2 py-0.5 font-medium transition-opacity hover:opacity-80 ${channelBadgeColor(p.channel.slug)}`}
                       >
-                        {p.author.display_name || p.author.username}
+                        {p.channel.name_he}
                       </Link>
-                    </AuthorHover>
-                  ) : null}
+                    ) : null}
+                    {p.subcategory?.name_he ? (
+                      <span className="rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-muted-foreground">
+                        {p.subcategory.name_he}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 text-base font-bold leading-snug line-clamp-2 tyuta-hover cursor-pointer">{p.title}</div>
                 </div>
 
-                <div className="mt-2 text-lg font-bold leading-snug">{p.title}</div>
-                {p.excerpt ? <div className="mt-1 line-clamp-2 text-sm text-muted-foreground">{p.excerpt}</div> : null}
+                {/* Middle: excerpt — centered between title and author via justify-between */}
+                {p.excerpt ? (
+                  <div className="line-clamp-1 text-sm text-muted-foreground leading-relaxed py-0.5">{p.excerpt}</div>
+                ) : <div />}
 
-                <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span>💬 {p.comments_count ?? 0}</span>
-                  <span>🕒 {heRelativeTime(p.published_at || p.created_at)}</span>
+                {/* Bottom: author + meta */}
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  {p.author?.username ? (
+                    <div className="min-w-0 flex-1 overflow-hidden [&>span]:max-w-full">
+                      <AuthorHover username={p.author.username}>
+                        <Link
+                          href={`/u/${p.author.username}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 hover:bg-muted transition-colors overflow-hidden max-w-full"
+                        >
+                          <Avatar src={p.author.avatar_url ?? null} name={p.author.display_name || p.author.username} size={20} />
+                          <span className="font-semibold truncate min-w-0 tyuta-hover">{p.author.display_name || p.author.username}</span>
+                        </Link>
+                      </AuthorHover>
+                    </div>
+                  ) : <div className="flex-1" />}
+                  <div className="flex items-center gap-2 shrink-0 whitespace-nowrap">
+                    <span>💬 {p.comments_count ?? 0}</span>
+                    <span>{heRelativeTime(p.published_at || p.created_at)}</span>
+                  </div>
                 </div>
               </div>
             </div>

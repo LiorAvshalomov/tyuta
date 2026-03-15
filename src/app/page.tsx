@@ -8,7 +8,6 @@ import { formatDateTimeHe } from '@/lib/time'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import HomeWriteCTA from '@/components/HomeWriteCTA'
 import StickySidebar from '@/components/StickySidebar'
-import { truncateText } from '@/lib/validation'
 import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
@@ -125,17 +124,20 @@ function MedalsCompact({ medals }: { medals: { gold: number; silver: number; bro
 }
 
 function channelBadgeColor(slug: string | null) {
-  if (slug === 'stories') return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-  if (slug === 'release') return 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-  if (slug === 'magazine') return 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+  if (slug === 'stories') return 'tyuta-badge-stories'
+  if (slug === 'release') return 'tyuta-badge-release'
+  if (slug === 'magazine') return 'tyuta-badge-magazine'
   return 'bg-muted text-foreground'
 }
 
-function SectionHeader({ title, href }: { title: string; href: string }) {
+function SectionHeader({ title, href, accent }: { title: string; href: string; accent?: string }) {
   return (
-    <div className="flex items-center justify-between mb-4">
-      <Link href={href} className="tyuta-section-rule tyuta-hover text-xl font-black tracking-tight">
+    <div className={`flex items-center justify-between mb-5 ${accent ?? ''}`}>
+      <Link href={href} className="tyuta-section-rule tyuta-hover text-[1.375rem] font-black tracking-tight leading-tight">
         {title}
+      </Link>
+      <Link href={href} className="text-xs font-semibold text-muted-foreground tyuta-hover">
+        הכל &larr;
       </Link>
     </div>
   )
@@ -148,7 +150,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
         {/* Image */}
         <div className="order-1 lg:order-2">
           <Link href={`/post/${post.slug}`} className="block h-full">
-            <div className="relative aspect-[16/10] lg:aspect-auto lg:h-full overflow-hidden bg-muted">
+            <div className="relative aspect-[16/10] lg:aspect-auto lg:h-full overflow-hidden bg-muted tyuta-img-hover">
               {post.cover_image_url ? (
                 <Image
                   src={coverProxySrc(post.cover_image_url)!}
@@ -161,6 +163,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
                   unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
                 />
               ) : null}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
             </div>
           </Link>
         </div>
@@ -172,12 +175,12 @@ function FeaturedPost({ post }: { post: CardPost }) {
             <div className="flex items-center gap-3 min-w-0">
                 {post.author_username ? (
                 <AuthorHover username={post.author_username}>
-                  <Link href={`/u/${post.author_username}`}>
+                  <Link href={`/u/${post.author_username}`} className="tyuta-avatar-ring">
                     <Avatar src={post.author_avatar_url} name={post.author_name} size={40} />
                   </Link>
                 </AuthorHover>
               ) : (
-                <Avatar src={post.author_avatar_url} name={post.author_name} size={40} />
+                <span className="tyuta-avatar-ring"><Avatar src={post.author_avatar_url} name={post.author_name} size={40} /></span>
               )}
               <div className="min-w-0">
                 {post.author_username ? (
@@ -242,7 +245,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
           ) : null}
 
           {/* Title */}
-          <h1 className="text-2xl sm:text-3xl lg:text-[2.5rem] font-black leading-[1.15] tracking-tight mb-3">
+          <h1 className="text-[1.625rem] sm:text-[2rem] lg:text-[2.75rem] font-black leading-[1.1] tracking-[-0.025em] mb-4 line-clamp-3">
             <Link href={`/post/${post.slug}`} className="tyuta-hover">
               {post.title}
             </Link>
@@ -251,7 +254,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
           {/* Excerpt */}
           {post.excerpt ? (
             <p className="text-muted-foreground text-sm sm:text-base lg:text-[1.0625rem] leading-[1.7] mb-5 line-clamp-3">
-              {truncateText(post.excerpt, 150)}
+              {post.excerpt}
             </p>
           ) : (
             <div className="hidden lg:block h-[56px]" aria-hidden="true" />
@@ -266,7 +269,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
   return (
     <article className="group bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-xl overflow-hidden tyuta-card-hover border border-border flex flex-col">
       <Link href={`/post/${post.slug}`} className="block">
-        <div className="relative aspect-[4/3] bg-muted">
+        <div className="relative aspect-[4/3] bg-muted tyuta-img-hover">
           {post.cover_image_url ? (
             <Image src={coverProxySrc(post.cover_image_url)!} alt={post.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 260px" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))} />
           ) : null}
@@ -318,23 +321,23 @@ function SimplePostCard({ post }: { post: CardPost }) {
 
         {post.excerpt ? (
           <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2">
-            {truncateText(post.excerpt, 90)}
+            {post.excerpt}
           </p>
         ) : (
           <div className="mt-2 h-[28px]" aria-hidden="true" />
         )}
-        <div className="mt-auto pt-3 flex items-center justify-start gap-2 text-xs text-foreground">
+        <div className="mt-auto pt-3 flex items-center justify-start gap-2 text-xs text-foreground min-w-0">
           {post.author_username ? (
             <AuthorHover username={post.author_username}>
-              <Link href={`/u/${post.author_username}`} className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-muted/80 dark:hover:bg-muted transition-colors duration-200 cursor-pointer">
+              <Link href={`/u/${post.author_username}`} className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-muted/80 dark:hover:bg-muted transition-colors duration-200 cursor-pointer min-w-0 max-w-full overflow-hidden">
                 <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-                <span className="font-semibold tyuta-hover">{post.author_name}</span>
+                <span className="font-semibold tyuta-hover truncate min-w-0 flex-1">{post.author_name}</span>
               </Link>
             </AuthorHover>
           ) : (
-            <div className="inline-flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 min-w-0 max-w-full overflow-hidden">
               <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-              <span className="font-semibold">{post.author_name}</span>
+              <span className="font-semibold truncate min-w-0 flex-1">{post.author_name}</span>
             </div>
           )}
         </div>
@@ -350,9 +353,9 @@ function SimplePostCard({ post }: { post: CardPost }) {
   )
 }
 
-function ListRowCompact({ post }: { post: CardPost }) {
+function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: string }) {
   return (
-    <article className="group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl border border-border p-4 tyuta-card-hover active:scale-[0.99]">
+    <article className={`group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl border border-border p-4 tyuta-card-hover active:scale-[0.99] ${accentClass ?? ''}`}>
       {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
       <Link
         href={`/post/${post.slug}`}
@@ -373,7 +376,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
               Constrain cover image height to prevent oversized uploads (e.g. desktop images)
               from expanding the card. The aspect ratio keeps a consistent thumbnail size.
             */}
-              <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted ring-1 ring-border/50">
+              <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 tyuta-img-hover">
                 {post.cover_image_url ? (
                   <Image
                     src={coverProxySrc(post.cover_image_url)!}
@@ -437,7 +440,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
 
             </div>
 
-            <div className="mt-1 text-[15px] sm:text-base font-black leading-snug tracking-tight line-clamp-2">
+            <div className="mt-1 text-[15px] sm:text-base font-black leading-[1.35] tracking-[-0.01em] line-clamp-2">
               <Link href={`/post/${post.slug}`} className="tyuta-hover pointer-events-auto">
                 {post.title}
               </Link>
@@ -445,7 +448,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
 
 
             {post.excerpt ? (
-              <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2 lg:line-clamp-none lg:overflow-visible lg:text-clip">
+              <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2">
                 {post.excerpt}
               </p>
             ) : (
@@ -453,21 +456,21 @@ function ListRowCompact({ post }: { post: CardPost }) {
             )}
 
             {/* Author row UNDER excerpt */}
-            <div className="mt-auto pt-1.5 flex items-center justify-start gap-2 text-xs text-foreground">
+            <div className="mt-auto pt-1.5 flex items-center justify-start gap-2 text-xs text-foreground min-w-0">
               {post.author_username ? (
                 <AuthorHover username={post.author_username}>
                   <Link
                     href={`/u/${post.author_username}`}
-                    className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 pointer-events-auto cursor-pointer"
+                    className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 pointer-events-auto cursor-pointer min-w-0 max-w-full overflow-hidden"
                   >
                     <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-                    <span className="font-semibold transition-colors group-hover/author:text-neutral-900 dark:group-hover/author:text-foreground">{post.author_name}</span>
+                    <span className="font-semibold tyuta-hover truncate min-w-0 flex-1">{post.author_name}</span>
                   </Link>
                 </AuthorHover>
               ) : (
-                <div className="inline-flex items-center gap-2">
+                <div className="inline-flex items-center gap-2 min-w-0 max-w-full overflow-hidden">
                   <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-                  <span className="font-semibold">{post.author_name}</span>
+                  <span className="font-semibold truncate min-w-0 flex-1">{post.author_name}</span>
                 </div>
               )}
             </div>
@@ -481,7 +484,7 @@ function ListRowCompact({ post }: { post: CardPost }) {
 
 function RecentMiniRow({ post }: { post: CardPost }) {
   return (
-    <div className="group relative rounded-2xl border border-border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 p-3 tyuta-card-hover active:scale-[0.99]">
+    <div className="group relative rounded-2xl border border-border bg-gradient-to-b from-card to-amber-50/20 dark:to-amber-900/5 p-3 tyuta-card-hover active:scale-[0.99]">
       {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
       <Link
         href={`/post/${post.slug}`}
@@ -496,7 +499,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
         <div className="flex flex-row-reverse items-stretch gap-3">
           <div className="w-[94px] shrink-0">
             <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
-              <div className="relative aspect-square rounded-xl overflow-hidden bg-muted ring-1 ring-border/50">
+              <div className="relative aspect-square rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 tyuta-img-hover">
                 {post.cover_image_url ? (
                   <Image
                     src={coverProxySrc(post.cover_image_url)!}
@@ -512,43 +515,47 @@ function RecentMiniRow({ post }: { post: CardPost }) {
             </Link>
           </div>
 
-          <div className="min-w-0 flex-1 text-right flex flex-col">
-            <div className="text-sm font-black leading-snug tracking-tight">
-              <Link href={`/post/${post.slug}`} className="tyuta-hover line-clamp-2 block pointer-events-auto">
-                {truncateText(post.title, 48)}
-              </Link>
+          <div className="min-w-0 flex-1 text-right flex flex-col justify-between">
+            {/* Top: title + medals */}
+            <div>
+              <div className="text-sm font-black leading-snug tracking-tight">
+                <Link href={`/post/${post.slug}`} className="tyuta-hover line-clamp-2 pointer-events-auto">
+                  {post.title}
+                </Link>
+              </div>
+              <MedalsCompact medals={post.allTimeMedals} />
             </div>
-            <MedalsCompact medals={post.allTimeMedals} />
 
+            {/* Middle: excerpt — sits between title and author via justify-between */}
             {post.excerpt ? (
-              <p className="mt-1 text-xs text-muted-foreground leading-snug line-clamp-1">
-                {truncateText(post.excerpt, 25)}
+              <p className="text-xs text-muted-foreground leading-snug line-clamp-1 py-0.5">
+                {post.excerpt}
               </p>
-            ) : (
-              <div className="mt-1 h-[18px]" aria-hidden="true" />
-            )}
-            <div className="mt-auto pt-1 text-[12px] text-muted-foreground flex items-center justify-between flex-nowrap min-w-0">
-              {post.author_username ? (
-                <AuthorHover username={post.author_username}>
-                  <Link
-                    href={`/u/${post.author_username}`}
-                    className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 pointer-events-auto min-w-0 overflow-hidden cursor-pointer"
-                  >
-                    <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
-                    {/* 15 char limit on desktop sidebar; full name on mobile */}
-                    <span className="font-semibold transition-colors group-hover/author:text-neutral-900 dark:group-hover/author:text-foreground truncate whitespace-nowrap max-w-[80px] lg:max-w-[none]">
-                      <span className="hidden lg:inline">{truncateText(post.author_name, 15)}</span>
-                      <span className="lg:hidden">{post.author_name}</span>
-                    </span>
-                  </Link>
-                </AuthorHover>
-              ) : (
-                <div className="inline-flex items-center gap-2 min-w-0 overflow-hidden">
-                  <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
-                  <span className="font-semibold truncate whitespace-nowrap max-w-[80px]">{post.author_name}</span>
-                </div>
-              )}
+            ) : <div />}
 
+            {/* Bottom: author + time */}
+            <div className="text-[12px] text-muted-foreground flex items-center gap-2 flex-nowrap min-w-0">
+              {/* Author — [&>span]:max-w-full constrains AuthorHover's inline-flex span so truncate fires via CSS */}
+              <div className="min-w-0 flex-1 overflow-hidden [&>span]:max-w-full">
+                {post.author_username ? (
+                  <AuthorHover username={post.author_username}>
+                    <Link
+                      href={`/u/${post.author_username}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 pointer-events-auto overflow-hidden cursor-pointer"
+                    >
+                      <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
+                      <span className="font-semibold tyuta-hover truncate flex-1 min-w-0">{post.author_name}</span>
+                    </Link>
+                  </AuthorHover>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 max-w-full overflow-hidden">
+                    <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
+                    <span className="font-semibold truncate flex-1 min-w-0">{post.author_name}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Time — always fully visible, never shrinks */}
               <span className="shrink-0 whitespace-nowrap" title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
             </div>
           </div>
@@ -1098,13 +1105,20 @@ export default async function HomePage(props: HomePageProps = {}) {
               ) : null}
 
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="tyuta-section-rule text-xl font-black tracking-tight">פוסטים מובילים{isChannelPage && channelName ? ` ב${channelName}` : ``}</div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:items-end">
                   {top1 ? <SimplePostCard post={top1} /> : null}
-                  {top2 ? <SimplePostCard post={top2} /> : null}
-                  {top3 ? <SimplePostCard post={top3} /> : null}
+                  {top2 ? (
+                    <div className="flex flex-col">
+                      <div className="hidden lg:block h-4 shrink-0" />
+                      <SimplePostCard post={top2} />
+                    </div>
+                  ) : null}
+                  {top3 ? (
+                    <div className="flex flex-col">
+                      <div className="hidden lg:block h-8 shrink-0" />
+                      <SimplePostCard post={top3} />
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1237,13 +1251,20 @@ export default async function HomePage(props: HomePageProps = {}) {
               ) : null}
 
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="tyuta-section-rule text-xl font-black tracking-tight">פוסטים מובילים{isChannelPage && channelName ? ` ב${channelName}` : ``}</div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:items-end">
                   {top1 ? <SimplePostCard post={top1} /> : null}
-                  {top2 ? <SimplePostCard post={top2} /> : null}
-                  {top3 ? <SimplePostCard post={top3} /> : null}
+                  {top2 ? (
+                    <div className="flex flex-col">
+                      <div className="hidden lg:block h-4 shrink-0" />
+                      <SimplePostCard post={top2} />
+                    </div>
+                  ) : null}
+                  {top3 ? (
+                    <div className="flex flex-col">
+                      <div className="hidden lg:block h-8 shrink-0" />
+                      <SimplePostCard post={top3} />
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1251,30 +1272,30 @@ export default async function HomePage(props: HomePageProps = {}) {
             {/* Below: categories on the right, sidebar on the left */}
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 items-start">
               {/* Categories */}
-              <div className="space-y-8">
+              <div className="space-y-10">
                 <div>
-                  <SectionHeader title="פריקה" href="/c/release" />
+                  <SectionHeader title="פריקה" href="/c/release" accent="tyuta-section-release" />
                   <div className="space-y-3">
                     {releaseFinal.map(p => (
-                      <ListRowCompact key={p.id} post={p} />
+                      <ListRowCompact key={p.id} post={p} accentClass="tyuta-row-accent-release" />
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <SectionHeader title="סיפורים" href="/c/stories" />
+                  <SectionHeader title="סיפורים" href="/c/stories" accent="tyuta-section-stories" />
                   <div className="space-y-3">
                     {storiesFinal.map(p => (
-                      <ListRowCompact key={p.id} post={p} />
+                      <ListRowCompact key={p.id} post={p} accentClass="tyuta-row-accent-stories" />
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <SectionHeader title="מגזין" href="/c/magazine" />
+                  <SectionHeader title="מגזין" href="/c/magazine" accent="tyuta-section-magazine" />
                   <div className="space-y-3">
                     {magazineFinal.map(p => (
-                      <ListRowCompact key={p.id} post={p} />
+                      <ListRowCompact key={p.id} post={p} accentClass="tyuta-row-accent-magazine" />
                     ))}
                   </div>
                 </div>
