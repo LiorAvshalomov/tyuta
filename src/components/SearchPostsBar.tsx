@@ -90,7 +90,7 @@ export default function SearchPostsBar() {
     const trimmed = query.trim()
     close()
     setSuggestions([])
-    if (!trimmed) return
+    if (!trimmed) { router.push('/search?sort=recent'); return }
     router.push(`/search?q=${encodeURIComponent(trimmed)}&sort=recent`)
   }
 

@@ -53,6 +53,10 @@ function clipOneLineNote(s: string, maxChars: number) {
   return oneLine.slice(0, Math.max(0, maxChars - 1)).trimEnd() + '…'
 }
 
+function hasRepeatedChars(text: string): boolean {
+  return /(.)\1{4,}/u.test(text)
+}
+
 export default function CommunityNotesWall() {
   const router = useRouter()
   const [meId, setMeId] = useState<string | null>(null)
@@ -61,13 +65,9 @@ export default function CommunityNotesWall() {
   const [notes, setNotes] = useState<NoteRow[]>([])
   const [loading, setLoading] = useState(true)
 
-  // realtime status (fallback polling keeps everything consistent even if websocket isn't enabled)
   const [rtStatus, setRtStatus] = useState<'INIT' | 'SUBSCRIBED' | 'CLOSED' | 'ERROR'>('INIT')
-
-  // subtle highlight for realtime updates
   const [highlightId, setHighlightId] = useState<string | null>(null)
 
-  // admin moderation UI
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<NoteRow | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
@@ -76,8 +76,8 @@ export default function CommunityNotesWall() {
   const [body, setBody] = useState('')
   const [posting, setPosting] = useState(false)
   const [myLastUpdatedAt, setMyLastUpdatedAt] = useState<string | null>(null)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
-  // used to animate "new note" replace without jumping
   const lastPostedIdRef = useRef<string | null>(null)
 
   const [nowMs, setNowMs] = useState(() => Date.now())
@@ -90,7 +90,6 @@ export default function CommunityNotesWall() {
 
   const cooldown = remainingSeconds > 0
 
-  // Tick for countdown (keeps it moving without refresh)
   useEffect(() => {
     const t = setInterval(() => setNowMs(Date.now()), 1000)
     return () => clearInterval(t)
@@ -102,7 +101,6 @@ export default function CommunityNotesWall() {
     setMeId(uid)
     setAuthChecked(true)
 
-    // Private page: if not logged in, redirect before loading any content.
     if (!uid) {
       router.replace('/auth/login')
       return null
@@ -112,7 +110,6 @@ export default function CommunityNotesWall() {
   }
 
   async function loadAdminFlag(_uid: string) {
-    // Admin/mod check — env-var based via server route, no DB query
     try {
       const res = await adminFetch('/api/me/roles')
       const roles = await res.json() as { isAdmin?: boolean; isMod?: boolean }
@@ -125,7 +122,6 @@ export default function CommunityNotesWall() {
   useEffect(() => {
     if (!openMenuId) return
     const onDown = (e: MouseEvent | TouchEvent) => {
-      // close menu on outside click
       const target = e.target as HTMLElement | null
       if (!target) return
       if (target.closest('[data-note-menu]')) return
@@ -139,8 +135,6 @@ export default function CommunityNotesWall() {
     }
   }, [openMenuId])
 
-  // silent=true → background refresh; skip the loading skeleton so the wall never flickers.
-  // Only the very first load (silent=false) shows the skeleton.
   async function loadNotes(silent = false) {
     if (!silent) setLoading(true)
 
@@ -183,14 +177,12 @@ export default function CommunityNotesWall() {
       if (!uid) return
       await Promise.all([loadNotes(), loadMyNote(), loadAdminFlag(uid)])
 
-      // Realtime: update only the changed note (avoids full reload + keeps UI snappy)
       ch = supabase
         .channel('community_notes_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'community_notes' }, async (payload) => {
           const p = payload as RealtimePostgresChangesPayload<{ id: string; user_id: string; updated_at: string }>
           const eventType = p.eventType
 
-          // ✅ DELETE events often contain only the primary key in `old` (no user_id). Handle by id first.
           if (eventType === 'DELETE') {
             const deletedId = p.old?.id
             if (!deletedId) return
@@ -204,12 +196,10 @@ export default function CommunityNotesWall() {
           const updatedAt = next?.updated_at ?? prev?.updated_at
           if (!userId) return
 
-          // keep my cooldown timer consistent if my note was updated elsewhere
           if (userId === uid && updatedAt) {
             setMyLastUpdatedAt(updatedAt)
           }
 
-          // fetch the fully joined row (display_name/avatar) from the feed view
           const { data: row } = await supabase
             .from('community_notes_feed')
             .select('id,user_id,body,created_at,updated_at,username,display_name,avatar_url')
@@ -229,7 +219,6 @@ export default function CommunityNotesWall() {
           window.setTimeout(() => setHighlightId(null), 1200)
         })
         .subscribe((status) => {
-          // status can be: SUBSCRIBED, TIMED_OUT, CLOSED, CHANNEL_ERROR
           if (status === 'SUBSCRIBED') setRtStatus('SUBSCRIBED')
           else if (status === 'CLOSED') setRtStatus('CLOSED')
           else setRtStatus('ERROR')
@@ -242,8 +231,6 @@ export default function CommunityNotesWall() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only init
   }, [])
 
-  // Fallback polling (only if realtime isn't subscribed).
-  // This keeps the wall and the cooldown timer consistent even if websocket is disabled.
   useEffect(() => {
     if (!meId) return
     if (rtStatus === 'SUBSCRIBED') return
@@ -273,18 +260,21 @@ export default function CommunityNotesWall() {
       return
     }
 
+    if (hasRepeatedChars(trimmed)) {
+      setValidationError('אותיות חוזרות אינן מותרות (לדוגמה: חחחחח)')
+      return
+    }
+
+    setValidationError(null)
     setPosting(true)
-    // NOTE: Server enforces max length + cooldown. We send the trimmed body so users can't publish empty spaces.
     const { data, error } = await supabase.rpc('upsert_community_note', { body: trimmed })
     setPosting(false)
 
     if (error) {
-      // cooldown: error message is 'cooldown', remaining seconds is in error.details
       const msg = (error.message || '').toLowerCase()
       const remaining = Number(error.details)
       if (msg.includes('cooldown') && Number.isFinite(remaining)) {
         alert(`אפשר לפרסם שוב בעוד ${secondsToClock(remaining)} דקות 🙂`)
-        // force countdown to be based on server-truth
         const serverLast = new Date(Date.now() - (COOLDOWN_SECONDS - remaining) * 1000).toISOString()
         setMyLastUpdatedAt(serverLast)
         return
@@ -301,23 +291,17 @@ export default function CommunityNotesWall() {
     setBody('')
     lastPostedIdRef.current = row.id
 
-    // Optimistic update in the wall:
-    // 1) if my note exists in feed → replace it
-    // 2) else add on top
     setNotes((prev) => {
       const idx = prev.findIndex((n) => n.user_id === row.user_id)
       if (idx >= 0) {
         const copy = prev.slice()
         copy[idx] = { ...copy[idx], body: row.body, updated_at: row.updated_at, created_at: row.created_at }
-        // move to top
         const [picked] = copy.splice(idx, 1)
         return sortNotesByUpdatedAtDesc([picked, ...copy])
       }
       return prev
     })
 
-    // Refresh from DB for display_name/avatar (in case they changed).
-    // Silent so the wall never flickers on post — we already applied the optimistic update.
     void loadNotes(true)
   }
 
@@ -383,92 +367,117 @@ export default function CommunityNotesWall() {
     setDeleting(false)
     if (!deleteOk) return
 
-    // optimistic UI: remove by id (realtime will also remove)
     setNotes((prev) => prev.filter((n) => n.id !== deleteTarget.id))
     setDeleteTarget(null)
     setDeleteReason('')
   }
 
   return (
-    <section className="space-y-4">
-      {/* If we haven't checked auth yet, keep UI minimal to avoid flashing private content */}
+    <section className="space-y-5" dir="rtl">
       {!authChecked ? (
         <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/80 p-6 text-sm text-muted-foreground shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/80">
           טוען…
         </div>
       ) : null}
 
+      {/* Header + Composer */}
       <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/90">
-        <div className="px-4 py-3" dir="rtl">
+        <div className="px-5 py-4">
+          {/* Title row */}
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-lg font-black">פתקים מהקהילה</div>
-              <div className="mt-0.5 text-sm text-muted-foreground">
+              <h1 className="text-xl font-black tracking-tight">פתקים מהקהילה</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 משפט או שניים — משהו קטן להשאיר לאחרים.
-              </div>
+              </p>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1 dark:border-white/10 dark:bg-muted/60">מקס׳ {NOTE_MAX} תווים</span>
-              <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1 dark:border-white/10 dark:bg-muted/60">קולדאון 10 דק׳</span>
+            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground pt-0.5">
+              <span className="rounded-full border border-black/10 bg-white/60 px-2.5 py-1 dark:border-white/10 dark:bg-muted/60">
+                מקס׳ {NOTE_MAX} תווים
+              </span>
+              <span className="rounded-full border border-black/10 bg-white/60 px-2.5 py-1 dark:border-white/10 dark:bg-muted/60">
+                קולדאון 10 דק׳
+              </span>
             </div>
           </div>
 
-          {/* Composer */}
-          <div className="mt-3 rounded-2xl border border-black/10 bg-white/70 p-3 dark:border-white/10 dark:bg-muted/50">
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder={meId ? 'מה עובר עליך עכשיו?' : 'כדי לפרסם פתק צריך להתחבר 🙂'}
-              maxLength={NOTE_MAX}
-              rows={3}
-              className="w-full resize-y bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              dir="rtl"
-              disabled={!meId || posting}
-            />
+          {/* Premium composer */}
+          <div className="mt-4 overflow-hidden rounded-2xl border border-amber-300/40 bg-white/80 shadow-[inset_0_1px_3px_0_rgb(0,0,0,0.04)] dark:border-amber-700/20 dark:bg-muted/60">
+            {/* Notepad accent strip */}
+            <div className="h-1 w-full bg-gradient-to-l from-amber-400/70 via-amber-300/50 to-amber-400/70 dark:from-amber-600/40 dark:via-amber-500/30 dark:to-amber-600/40" />
 
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{body.trim().length}/{NOTE_MAX}</span>
-                {cooldown && (
-                  <span className="rounded-full border border-black/10 bg-white/60 px-2 py-1 dark:border-white/10 dark:bg-muted/60">
-                    אפשר שוב בעוד {secondsToClock(remainingSeconds)}
+            <div className="px-4 pt-3 pb-3">
+              <textarea
+                value={body}
+                onChange={(e) => {
+                  setBody(e.target.value)
+                  if (validationError) setValidationError(null)
+                }}
+                placeholder={meId ? 'מה עובר עליך עכשיו?' : 'כדי לפרסם פתק צריך להתחבר 🙂'}
+                maxLength={NOTE_MAX}
+                rows={3}
+                className="w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground/70"
+                dir="rtl"
+                disabled={!meId || posting}
+              />
+
+              {/* Validation error */}
+              {validationError ? (
+                <p className="mb-2 text-xs text-red-500 dark:text-red-400">{validationError}</p>
+              ) : null}
+
+              {/* Composer footer */}
+              <div className="flex items-center justify-between gap-3 border-t border-black/5 pt-2.5 dark:border-white/5">
+                {/* Char count + cooldown — bottom-right in RTL */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {cooldown ? (
+                    <span className="rounded-full border border-black/10 bg-white/60 px-2 py-0.5 dark:border-white/10 dark:bg-muted/60">
+                      אפשר שוב בעוד {secondsToClock(remainingSeconds)}
+                    </span>
+                  ) : null}
+                  <span
+                    className={
+                      body.trim().length > NOTE_MAX * 0.9
+                        ? 'text-amber-600 dark:text-amber-400 font-medium'
+                        : ''
+                    }
+                  >
+                    {body.trim().length}/{NOTE_MAX}
                   </span>
-                )}
-              </div>
+                </div>
 
-              <button
-                onClick={handlePost}
-                disabled={!meId || posting || cooldown || !body.trim()}
-                className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {posting ? 'מפרסם…' : cooldown ? 'המתן…' : 'פרסם פתק'}
-              </button>
+                <button
+                  onClick={handlePost}
+                  disabled={!meId || posting || cooldown || !body.trim()}
+                  className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white transition-opacity disabled:opacity-40 dark:bg-white dark:text-black"
+                >
+                  {posting ? 'מפרסם…' : cooldown ? 'המתן…' : 'פרסם פתק'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Wall */}
-      <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/80 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/80">
+      {/* Notes wall */}
+      <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/80 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/80">
         {loading ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" dir="rtl">
             {Array.from({ length: 9 }).map((_, i) => (
-              <div key={i} className="h-28 rounded-2xl border border-black/10 bg-white/60 animate-pulse dark:border-white/10 dark:bg-muted/40" />
+              <div
+                key={i}
+                className="h-28 animate-pulse rounded-2xl border border-black/10 bg-white/60 dark:border-white/10 dark:bg-muted/40"
+              />
             ))}
           </div>
         ) : notes.length === 0 ? (
           <div className="p-8 text-center text-sm text-muted-foreground">
-            עדיין אין פתקים. תהיה הראשון להשאיר משהו 🙂 
+            עדיין אין פתקים. תהיה הראשון להשאיר משהו 🙂
           </div>
-        ) : (
-          // CSS columns: layout is determined at paint time by the browser — no JS needed.
-          // Eliminates the CLS jump that occurred when colsCount changed from 1→2→3 after mount.
-          <div className="columns-1 sm:columns-2 lg:columns-3 gap-3" dir="rtl">
-            {notes.map((n) => {
+        ) : (() => {
+            const renderCard = (n: NoteRow) => {
               const mine = meId && n.user_id === meId
-
-              // TTL visible ONLY to the owner
               const ttlUpdatedAt = mine && myLastUpdatedAt ? myLastUpdatedAt : n.updated_at
               const expiresInSeconds = mine
                 ? Math.max(0, NOTE_TTL_SECONDS - Math.floor((Date.now() - new Date(ttlUpdatedAt).getTime()) / 1000))
@@ -479,12 +488,14 @@ export default function CommunityNotesWall() {
                 <div
                   key={n.id}
                   className={[
-                    'break-inside-avoid mb-3',
-                    'group relative text-right w-full rounded-2xl border border-black/10 bg-white/70 p-3 shadow-sm transition dark:border-border dark:bg-card',
-                    'will-change-transform hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-black/20 dark:focus:ring-white/20',
-                    mine ? 'opacity-95' : 'cursor-pointer',
+                    'group relative text-right w-full rounded-2xl border p-4',
+                    'bg-gradient-to-b from-card to-amber-50/10 dark:from-card dark:to-amber-900/5',
+                    'shadow-sm tyuta-card-hover',
+                    'transition-[box-shadow,transform,ring] duration-200',
+                    mine ? 'opacity-95 cursor-default' : 'cursor-pointer',
+                    'border-border/60',
                     (lastPostedIdRef.current === n.id || highlightId === n.id)
-                      ? 'ring-2 ring-black/20 shadow-md scale-[1.01] bg-white/80 dark:ring-white/20'
+                      ? 'ring-2 ring-amber-400/40 shadow-md dark:ring-amber-500/30'
                       : '',
                   ].join(' ')}
                   dir="rtl"
@@ -503,7 +514,6 @@ export default function CommunityNotesWall() {
                       >
                         ⋯
                       </button>
-
                       {openMenuId === n.id ? (
                         <div className="mt-1 w-40 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-card">
                           <button
@@ -526,41 +536,36 @@ export default function CommunityNotesWall() {
                   <div className="flex items-start gap-3">
                     <div className="shrink-0">
                       <AuthorHover username={n.username}>
-                        <Link href={`/u/${n.username}`}>
+                        <Link href={`/u/${n.username}`} onClick={(e) => e.stopPropagation()}>
                           <Avatar src={n.avatar_url} name={n.display_name || n.username} size={34} />
                         </Link>
                       </AuthorHover>
                     </div>
-
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <AuthorHover username={n.username}>
                           <Link
                             href={`/u/${n.username}`}
-                            className="truncate text-sm font-bold hover:underline"
+                            className="truncate text-sm font-bold no-underline hover:no-underline tyuta-hover"
                             onClick={(e) => e.stopPropagation()}
                             title="לפרופיל"
                           >
                             {n.display_name || n.username}
                           </Link>
                         </AuthorHover>
-
                         <div className="shrink-0 text-left">
                           <div className="text-xs text-muted-foreground">{heRelativeTime(n.updated_at)}</div>
                           {expiresText ? (
-                            <div className="mt-0.5 text-[11px] text-muted-foreground">
-                              יימחק בעוד {expiresText}
-                            </div>
+                            <div className="mt-0.5 text-[11px] text-muted-foreground">יימחק בעוד {expiresText}</div>
                           ) : null}
                         </div>
                       </div>
-
                       <button
                         type="button"
                         onClick={() => handleOpenChat(n)}
                         disabled={!!mine}
                         className={[
-                          'mt-1 w-full text-right text-sm leading-relaxed text-black/90 dark:text-foreground/90',
+                          'mt-2 w-full text-right text-sm leading-relaxed text-black/90 dark:text-foreground/90',
                           'whitespace-pre-wrap break-words',
                           mine ? 'cursor-default' : 'cursor-pointer',
                         ].join(' ')}
@@ -568,7 +573,6 @@ export default function CommunityNotesWall() {
                       >
                         {n.body}
                       </button>
-
                       {!mine ? (
                         <div className="mt-2 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                           פתח שיחה →
@@ -578,9 +582,41 @@ export default function CommunityNotesWall() {
                   </div>
                 </div>
               )
-            })}
-          </div>
-        )}
+            }
+
+            // lg: 3 flex columns, row-first reading order (newest → top-right, next → top-mid, next → top-left)
+            // Each column gets every 3rd note: col0=[0,3,6…], col1=[1,4,7…], col2=[2,5,8…]
+            const col0 = notes.filter((_, i) => i % 3 === 0)
+            const col1 = notes.filter((_, i) => i % 3 === 1)
+            const col2 = notes.filter((_, i) => i % 3 === 2)
+
+            // sm: 2 flex columns, same row-first logic
+            const sm0 = notes.filter((_, i) => i % 2 === 0)
+            const sm1 = notes.filter((_, i) => i % 2 === 1)
+
+            return (
+              <>
+                {/* Desktop (lg+): 3 masonry columns, row-first */}
+                <div className="hidden lg:flex flex-row gap-3" dir="rtl">
+                  <div className="flex flex-col gap-3 flex-1">{col0.map(renderCard)}</div>
+                  <div className="flex flex-col gap-3 flex-1">{col1.map(renderCard)}</div>
+                  <div className="flex flex-col gap-3 flex-1">{col2.map(renderCard)}</div>
+                </div>
+
+                {/* Tablet (sm–lg): 2 masonry columns, row-first */}
+                <div className="hidden sm:flex lg:hidden flex-row gap-3" dir="rtl">
+                  <div className="flex flex-col gap-3 flex-1">{sm0.map(renderCard)}</div>
+                  <div className="flex flex-col gap-3 flex-1">{sm1.map(renderCard)}</div>
+                </div>
+
+                {/* Mobile: single column */}
+                <div className="flex sm:hidden flex-col gap-3" dir="rtl">
+                  {notes.map(renderCard)}
+                </div>
+              </>
+            )
+          })()
+        }
       </div>
 
       {/* Admin delete modal */}

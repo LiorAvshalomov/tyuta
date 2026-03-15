@@ -473,3 +473,168 @@ html {
   background: linear-gradient(135deg, oklch(0.28 0.01 60 / 80%), oklch(0.26 0.015 30 / 60%));
   border: 1px solid oklch(0.4 0.03 40 / 20%);
 }
+
+/* === Channel accent colors (canonical: red / blue / purple) === */
+:root {
+  --tyuta-release: oklch(0.505 0.213 27.325);  /* red-700 — פריקה */
+  --tyuta-stories: oklch(0.488 0.243 264.376); /* blue-700 — סיפורים */
+  --tyuta-magazine: oklch(0.496 0.265 301.924); /* purple-700 — מגזין */
+}
+.dark {
+  --tyuta-release: oklch(0.704 0.191 22.216);  /* red-400 */
+  --tyuta-stories: oklch(0.707 0.165 254.624); /* blue-400 */
+  --tyuta-magazine: oklch(0.714 0.203 305.504); /* purple-400 */
+}
+
+/* Section header with editorial diamond ornament instead of plain line */
+.tyuta-section-rule::after {
+  width: 0;
+  height: 0;
+  background: none;
+  border: none;
+}
+.tyuta-section-rule {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-bottom: 0;
+}
+.tyuta-section-rule::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  background: oklch(0.42 0.08 30 / 55%);
+  transform: rotate(45deg);
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+.dark .tyuta-section-rule::before {
+  background: oklch(0.78 0.06 60 / 50%);
+}
+
+/* Channel-specific section accent colors */
+.tyuta-section-release { color: var(--tyuta-release); }
+.tyuta-section-release .tyuta-section-rule::before,
+.tyuta-section-release::before { background: var(--tyuta-release); }
+
+.tyuta-section-stories { color: var(--tyuta-stories); }
+.tyuta-section-stories .tyuta-section-rule::before,
+.tyuta-section-stories::before { background: var(--tyuta-stories); }
+
+.tyuta-section-magazine { color: var(--tyuta-magazine); }
+.tyuta-section-magazine .tyuta-section-rule::before,
+.tyuta-section-magazine::before { background: var(--tyuta-magazine); }
+
+
+/* Warm avatar ring for author avatars */
+.tyuta-avatar-ring {
+  box-shadow: 0 0 0 2px oklch(0.92 0.02 40 / 80%);
+  border-radius: 9999px;
+}
+.dark .tyuta-avatar-ring {
+  box-shadow: 0 0 0 2px oklch(0.35 0.02 40 / 60%);
+}
+
+/* Image thumbnail warm overlay on hover */
+.tyuta-img-hover {
+  position: relative;
+  overflow: hidden;
+}
+.tyuta-img-hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: oklch(0.42 0.08 30 / 0%);
+  transition: background 0.3s ease;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.tyuta-img-hover:hover::after {
+  background: oklch(0.42 0.08 30 / 6%);
+}
+.dark .tyuta-img-hover:hover::after {
+  background: oklch(0.78 0.06 60 / 5%);
+}
+
+/* Channel badge palette — canonical red / blue / purple */
+.tyuta-badge-release {
+  background: oklch(0.936 0.032 17.717);  /* red-100 */
+  color: oklch(0.505 0.213 27.325);       /* red-700 */
+}
+.dark .tyuta-badge-release {
+  background: oklch(0.396 0.141 25.723 / 30%); /* red-900/30 */
+  color: oklch(0.704 0.191 22.216);             /* red-400 */
+}
+
+.tyuta-badge-stories {
+  background: oklch(0.932 0.032 255.585); /* blue-100 */
+  color: oklch(0.488 0.243 264.376);      /* blue-700 */
+}
+.dark .tyuta-badge-stories {
+  background: oklch(0.379 0.146 265.522 / 30%); /* blue-900/30 */
+  color: oklch(0.707 0.165 254.624);              /* blue-400 */
+}
+
+.tyuta-badge-magazine {
+  background: oklch(0.946 0.033 307.174); /* purple-100 */
+  color: oklch(0.496 0.265 301.924);      /* purple-700 */
+}
+.dark .tyuta-badge-magazine {
+  background: oklch(0.381 0.176 304.987 / 30%); /* purple-900/30 */
+  color: oklch(0.714 0.203 305.504);              /* purple-400 */
+}
+
+/* Channel-colored left accent bar for list rows (RTL = border-right) */
+.tyuta-row-accent-release {
+  border-right: 2px solid oklch(0.505 0.213 27.325 / 55%);
+}
+.dark .tyuta-row-accent-release {
+  border-right-color: oklch(0.704 0.191 22.216 / 50%);
+}
+.tyuta-row-accent-stories {
+  border-right: 2px solid oklch(0.488 0.243 264.376 / 55%);
+}
+.dark .tyuta-row-accent-stories {
+  border-right-color: oklch(0.707 0.165 254.624 / 50%);
+}
+.tyuta-row-accent-magazine {
+  border-right: 2px solid oklch(0.496 0.265 301.924 / 55%);
+}
+.dark .tyuta-row-accent-magazine {
+  border-right-color: oklch(0.714 0.203 305.504 / 50%);
+}
+
+/* Footer editorial warmth */
+.tyuta-footer {
+  background: linear-gradient(
+    to bottom,
+    oklch(0.96 0.01 55 / 60%),
+    oklch(0.94 0.015 40 / 40%)
+  );
+  border-top: 1px solid oklch(0.85 0.02 40 / 30%);
+}
+.dark .tyuta-footer {
+  background: linear-gradient(
+    to bottom,
+    oklch(0.2 0.005 40 / 80%),
+    oklch(0.18 0.008 30 / 60%)
+  );
+  border-top: 1px solid oklch(0.35 0.02 40 / 20%);
+}
+
+/* CTA headline editorial feel */
+.tyuta-cta-headline {
+  font-size: 1.125rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  background: linear-gradient(135deg, oklch(0.3 0.04 30), oklch(0.4 0.06 50));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .tyuta-cta-headline {
+  background: linear-gradient(135deg, oklch(0.85 0.04 50), oklch(0.78 0.06 30));
+  -webkit-background-clip: text;
+  background-clip: text;
+}

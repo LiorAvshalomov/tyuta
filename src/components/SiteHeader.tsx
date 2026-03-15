@@ -72,25 +72,25 @@ function ChannelsInline({ onNavigate, mobile = false }: { onNavigate?: () => voi
       label: 'פריקה',
       href: '/c/release',
       icon: PenTool,
-      colorClass: 'text-stone-500',
-      hoverClass: 'hover:bg-stone-50',
-      borderClass: 'border-stone-200',
+      colorClass: 'text-red-500',
+      hoverClass: 'hover:bg-red-50 dark:hover:bg-red-950/20',
+      borderClass: 'border-red-200 dark:border-red-900/30',
     },
     {
       label: 'סיפורים',
       href: '/c/stories',
       icon: FileText,
-      colorClass: 'text-slate-500',
-      hoverClass: 'hover:bg-slate-50',
-      borderClass: 'border-slate-200',
+      colorClass: 'text-blue-500',
+      hoverClass: 'hover:bg-blue-50 dark:hover:bg-blue-950/20',
+      borderClass: 'border-blue-200 dark:border-blue-900/30',
     },
     {
       label: 'כתבות',
       href: '/c/magazine',
       icon: Newspaper,
-      colorClass: 'text-neutral-500',
-      hoverClass: 'hover:bg-neutral-50',
-      borderClass: 'border-neutral-200',
+      colorClass: 'text-purple-500',
+      hoverClass: 'hover:bg-purple-50 dark:hover:bg-purple-950/20',
+      borderClass: 'border-purple-200 dark:border-purple-900/30',
     },
   ]
 
@@ -107,7 +107,7 @@ function ChannelsInline({ onNavigate, mobile = false }: { onNavigate?: () => voi
             key={it.href}
             href={it.href}
             onClick={onNavigate}
-            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white dark:bg-card border ${it.borderClass} dark:border-border ${it.hoverClass} dark:hover:bg-muted hover:shadow-sm transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
+            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white dark:bg-card border ${it.borderClass} dark:border-border ${it.hoverClass} dark:hover:bg-muted hover:shadow-md active:scale-[0.97] transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
           >
             <Icon size={17} strokeWidth={2.5} className={`${it.colorClass} group-hover:scale-110 transition-transform`} />
             <span className="text-neutral-700 dark:text-foreground group-hover:text-neutral-900 dark:group-hover:text-foreground transition-colors">{it.label}</span>
@@ -462,8 +462,8 @@ export default function SiteHeader() {
   return (
     <header className="w-full">
       {/* TOP NAVBAR - FIXED (sticky fails inside overflow containers) */}
-      <nav className="fixed top-0 inset-x-0 z-[10000] bg-neutral-200/95 dark:bg-background/80 backdrop-blur-md border-b border-neutral-300 dark:border-border shadow-sm">
-        <div className="bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200 dark:from-background dark:via-background dark:to-background">
+      <nav className="fixed top-0 inset-x-0 z-[10000] bg-[#F5F3EE]/95 dark:bg-background/80 backdrop-blur-md border-b border-neutral-300/70 dark:border-border shadow-sm">
+        <div className="bg-gradient-to-r from-[#F5F3EE] via-[#FAF8F4] to-[#F5F3EE] dark:from-background dark:via-background dark:to-background">
           <div className="mx-auto max-w-6xl px-4">
             <div className="flex h-14 items-center justify-between" dir="rtl">
               {/* ימין: בית + פתקים (דסקטופ) | המבורגר + לוגו (מובייל) */}
@@ -476,23 +476,23 @@ export default function SiteHeader() {
                     }
                     setMobileMenuOpen(v => !v)
                   }}
-                  className="lg:hidden p-2 hover:bg-neutral-300 dark:hover:bg-muted rounded-lg transition-colors"
+                  className="lg:hidden p-2 hover:bg-neutral-200 dark:hover:bg-muted rounded-lg transition-colors"
                   aria-label="תפריט"
                 >
-                  <Menu size={24} className="text-neutral-800 dark:text-foreground" />
+                  <Menu size={24} className={`text-neutral-800 dark:text-foreground transition-all duration-200 ${mobileMenuOpen ? 'rotate-90 opacity-70 scale-90' : ''}`} />
                 </button>
 
                 {/* בית - רק בדסקטופ */}
                 <Link
                   href="/"
-                  className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-foreground/80 hover:text-neutral-900 dark:hover:text-foreground transition-all duration-300 group"
+                  className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-foreground/80 hover:text-neutral-950 dark:hover:text-foreground transition-all duration-300 group"
                   onClick={closeAll}
                 >
                   <div className="relative">
                     <Home size={17} strokeWidth={2.5} className="group-hover:scale-110 transition-transform duration-300" />
                     <div className="absolute inset-0 bg-neutral-900 dark:bg-foreground rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
                   </div>
-                  <span className="group-hover:tracking-wider transition-all duration-300">בית</span>
+                  <span className="group-hover:translate-x-[-1px] transition-all duration-300">בית</span>
                 </Link>
 
                 {/* לוגו מוקטן - רק במובייל */}
@@ -518,7 +518,7 @@ export default function SiteHeader() {
                 {user ? (
                   <Link
                     href="/notes"
-                    className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-foreground/80 hover:text-neutral-900 dark:hover:text-foreground transition-all duration-300 group"
+                    className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-foreground/80 hover:text-neutral-950 dark:hover:text-foreground transition-all duration-300 group"
                     onClick={closeAll}
                     title="פתקים מהקהילה"
                   >
@@ -526,7 +526,7 @@ export default function SiteHeader() {
                       <BookOpen size={17} strokeWidth={2.5} className="group-hover:scale-110 transition-transform duration-300" />
                       <div className="absolute inset-0 bg-neutral-900 dark:bg-foreground rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
                     </div>
-                    <span className="group-hover:tracking-wider transition-all duration-300">פתקים</span>
+                    <span className="group-hover:translate-x-[-1px] transition-all duration-300">פתקים</span>
                   </Link>
                 ) : null}
               </div>
@@ -541,7 +541,7 @@ export default function SiteHeader() {
                       setProfileOpen(false)
                       setMessagesOpen(false)
                     }}
-                    className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-neutral-800 to-neutral-700 text-white hover:from-neutral-900 hover:to-neutral-800 px-3 py-2 text-sm font-semibold shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200"
+                    className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-neutral-800 to-neutral-700 text-white hover:from-neutral-900 hover:to-neutral-800 px-3 py-2 text-sm font-semibold shadow-sm hover:shadow-md hover:scale-105 cursor-pointer transition-all duration-200"
                   >
                     <Edit size={16} strokeWidth={2.5} />
                     <span>כתוב</span>
@@ -559,9 +559,9 @@ export default function SiteHeader() {
                           closeAll()
                           requireAuthOrGoWrite('prika')
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm text-right transition-all"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-red-50 dark:hover:bg-red-950/20 border border-transparent hover:border-red-200 dark:hover:border-red-900/30 text-sm text-right transition-all"
                       >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-stone-400 to-stone-500 flex items-center justify-center shadow-sm">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-red-400 to-red-500 flex items-center justify-center shadow-sm">
                           <PenTool size={16} strokeWidth={2.5} className="text-white" />
                         </div>
                         <div className="flex-1">
@@ -574,9 +574,9 @@ export default function SiteHeader() {
                           closeAll()
                           requireAuthOrGoWrite('stories')
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-muted border border-transparent hover:border-slate-200 dark:hover:border-border text-sm text-right transition-all"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/20 border border-transparent hover:border-blue-200 dark:hover:border-blue-900/30 text-sm text-right transition-all"
                       >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center shadow-sm">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center shadow-sm">
                           <FileText size={16} strokeWidth={2.5} className="text-white" />
                         </div>
                         <div className="flex-1">
@@ -589,9 +589,9 @@ export default function SiteHeader() {
                           closeAll()
                           requireAuthOrGoWrite('magazine')
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-zinc-50 dark:hover:bg-muted border border-transparent hover:border-zinc-200 dark:hover:border-border text-sm text-right transition-all"
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-950/20 border border-transparent hover:border-purple-200 dark:hover:border-purple-900/30 text-sm text-right transition-all"
                       >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-zinc-400 to-zinc-500 flex items-center justify-center shadow-sm">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-400 to-purple-500 flex items-center justify-center shadow-sm">
                           <Newspaper size={16} strokeWidth={2.5} className="text-white" />
                         </div>
                         <div className="flex-1">
@@ -635,7 +635,7 @@ export default function SiteHeader() {
                           setProfileOpen(false)
                           setMobileMenuOpen(false)
                         }}
-                        className="relative p-2 rounded-lg hover:bg-neutral-300 dark:hover:bg-muted transition-all duration-200"
+                        className="relative p-2 rounded-lg hover:bg-neutral-200 dark:hover:bg-muted transition-all duration-200"
                         title="הודעות"
                         aria-label="הודעות"
                       >
@@ -679,19 +679,13 @@ export default function SiteHeader() {
                         setWriteOpen(false)
                         setMessagesOpen(false)
                       }}
-                      className="flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-border bg-white dark:bg-card hover:bg-neutral-50 dark:hover:bg-muted px-2 py-1.5 transition-all"
+                      className="rounded-full p-0.5 border border-transparent hover:border-neutral-300 dark:hover:border-border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-neutral-300 dark:focus:ring-border"
                     >
-                      <Avatar src={user.avatarUrl} name={user.displayName} size={26} />
-                      <span className="text-sm font-semibold">{truncateText(user.displayName, 13)}</span>
-                      <ChevronDown
-                        size={15}
-                        strokeWidth={2.5}
-                        className={`text-neutral-600 dark:text-muted-foreground transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`}
-                      />
+                      <Avatar src={user.avatarUrl} name={user.displayName} size={32} />
                     </button>
 
                     {profileOpen && (
-                      <div className="absolute top-full right-0 mt-2 w-56 rounded-xl bg-white dark:bg-popover shadow-xl border border-neutral-200 dark:border-border p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="absolute top-full left-0 xl:left-auto xl:right-0 mt-2 w-56 rounded-xl bg-white dark:bg-popover shadow-xl border border-neutral-200 dark:border-border p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                         <Link
                           href={`/u/${user.username}`}
                           onClick={closeAll}
@@ -805,9 +799,16 @@ export default function SiteHeader() {
         <>
           <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm animate-in fade-in duration-200" onClick={closeAll} />
 
+          <style>{`
+            @keyframes menuSlideIn {
+              from { opacity: 0; transform: translateY(-10px) scale(0.99); filter: blur(4px); }
+              to   { opacity: 1; transform: translateY(0)     scale(1);    filter: blur(0); }
+            }
+          `}</style>
           <div
             ref={mobileMenuRef}
-            className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-50 bg-white dark:bg-background shadow-lg overflow-y-auto animate-in slide-in-from-top duration-300"
+            className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-50 bg-white dark:bg-background shadow-2xl overflow-y-auto"
+            style={{ animation: 'menuSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both' }}
             dir="rtl"
           >
             <div className="mx-auto max-w-6xl px-4 py-4 space-y-4 ">
@@ -887,9 +888,9 @@ export default function SiteHeader() {
                         closeAll()
                         requireAuthOrGoWrite('prika')
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm text-right transition-all"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 border border-transparent hover:border-red-200 dark:hover:border-red-900/30 text-sm text-right transition-all"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-stone-400 to-stone-500 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-400 to-red-500 flex items-center justify-center">
                         <PenTool size={15} strokeWidth={2.5} className="text-white" />
                       </div>
                       <div className="flex-1">
@@ -902,9 +903,9 @@ export default function SiteHeader() {
                         closeAll()
                         requireAuthOrGoWrite('stories')
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-muted border border-transparent hover:border-slate-200 dark:hover:border-border text-sm text-right transition-all"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/20 border border-transparent hover:border-blue-200 dark:hover:border-blue-900/30 text-sm text-right transition-all"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center">
                         <FileText size={15} strokeWidth={2.5} className="text-white" />
                       </div>
                       <div className="flex-1">
@@ -917,9 +918,9 @@ export default function SiteHeader() {
                         closeAll()
                         requireAuthOrGoWrite('magazine')
                       }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-muted border border-transparent hover:border-zinc-200 dark:hover:border-border text-sm text-right transition-all"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-950/20 border border-transparent hover:border-purple-200 dark:hover:border-purple-900/30 text-sm text-right transition-all"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-zinc-400 to-zinc-500 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-400 to-purple-500 flex items-center justify-center">
                         <Newspaper size={15} strokeWidth={2.5} className="text-white" />
                       </div>
                       <div className="flex-1">
