@@ -11,6 +11,8 @@ import StickySidebar from '@/components/StickySidebar'
 import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
+import { FeaturedImageGlow } from '@/components/FeaturedImageGlow'
+import { FeaturedColorSync } from '@/components/FeaturedColorSync'
 
 
 type PostRow = {
@@ -144,96 +146,170 @@ function SectionHeader({ title, href, accent }: { title: string; href: string; a
 }
 
 function FeaturedPost({ post }: { post: CardPost }) {
+  const hasCover = Boolean(post.cover_image_url)
+  // When a cover is present, text panel uses adaptive classes driven by --panel-fg-* CSS vars
+  // set by FeaturedColorSync (based on sampled image edge color).
+  // Without a cover, fall back to standard theme tokens.
+  const tc = hasCover
+    ? { name: 'tyuta-panel-strong', meta: 'tyuta-panel-soft', tags: 'tyuta-panel-soft', title: 'tyuta-panel-strong', excerpt: 'tyuta-panel-soft' }
+    : { name: 'text-foreground', meta: 'text-muted-foreground', tags: 'text-muted-foreground/60', title: 'text-foreground', excerpt: 'text-muted-foreground' }
   return (
-    <article className="group bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 font-sans rounded-2xl overflow-hidden tyuta-card-hover border border-border">
-      <div className="lg:grid lg:grid-cols-2 lg:items-stretch lg:min-h-[380px]">
-        {/* Image */}
-        <div className="order-1 lg:order-2">
-          <Link href={`/post/${post.slug}`} className="block h-full">
-            <div className="relative aspect-[16/10] lg:aspect-auto lg:h-full overflow-hidden bg-muted tyuta-img-hover">
-              {post.cover_image_url ? (
-                <Image
-                  src={coverProxySrc(post.cover_image_url)!}
-                  alt={post.title}
-                  fill
-                  priority
-                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 600px"
-                  quality={85}
-                  className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
-                  unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
-                />
-              ) : null}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-            </div>
-          </Link>
-        </div>
-
-        {/* Content */}
-        <div className="order-2 lg:order-1 p-5 sm:p-6 lg:p-10 flex flex-col justify-center">
-          {/* Author FIRST (as you asked) */}
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="flex items-center gap-3 min-w-0">
-                {post.author_username ? (
-                <AuthorHover username={post.author_username}>
-                  <Link href={`/u/${post.author_username}`} className="tyuta-avatar-ring">
-                    <Avatar src={post.author_avatar_url} name={post.author_name} size={40} />
-                  </Link>
-                </AuthorHover>
-              ) : (
-                <span className="tyuta-avatar-ring"><Avatar src={post.author_avatar_url} name={post.author_name} size={40} /></span>
-              )}
-              <div className="min-w-0">
+    <article className="group font-sans">
+      {/* ── Mobile: restored old-style card (image on top, content right, stacked on small screens) ── */}
+      <div className="lg:hidden bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl overflow-hidden border border-border tyuta-card-hover">
+        <div className="grid grid-cols-1 sm:grid-cols-2 sm:min-h-[320px]">
+          {/* Image */}
+          <div className="sm:order-2">
+            <Link href={`/post/${post.slug}`} className="block h-full">
+              <div className="relative aspect-[16/10] sm:aspect-auto sm:h-full overflow-hidden bg-muted">
+                {post.cover_image_url ? (
+                  <Image
+                    src={coverProxySrc(post.cover_image_url)!}
+                    alt={post.title}
+                    fill
+                    priority
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    quality={85}
+                    className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                    unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
+                  />
+                ) : null}
+              </div>
+            </Link>
+          </div>
+          {/* Content */}
+          <div className="sm:order-1 p-5 sm:p-6 flex flex-col justify-center">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3 min-w-0">
                 {post.author_username ? (
                   <AuthorHover username={post.author_username}>
-                    <Link href={`/u/${post.author_username}`} className="font-bold text-sm tyuta-hover">
-                      {post.author_name}
+                    <Link href={`/u/${post.author_username}`} className="tyuta-avatar-ring">
+                      <Avatar src={post.author_avatar_url} name={post.author_name} size={36} />
                     </Link>
                   </AuthorHover>
                 ) : (
-                  <span className="font-bold text-sm">{post.author_name}</span>
+                  <span className="tyuta-avatar-ring"><Avatar src={post.author_avatar_url} name={post.author_name} size={36} /></span>
                 )}
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-
-                  <div className="min-w-0 text-right">
+                <div className="min-w-0">
+                  {post.author_username ? (
+                    <AuthorHover username={post.author_username}>
+                      <Link href={`/u/${post.author_username}`} className="font-bold text-sm tyuta-hover">
+                        {post.author_name}
+                      </Link>
+                    </AuthorHover>
+                  ) : (
+                    <span className="font-bold text-sm">{post.author_name}</span>
+                  )}
+                  <div className="text-xs text-muted-foreground mt-0.5">
                     <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
                     {post.subcategory ? (
-                      <>
-                        <span className="mx-2">•</span>
-                        <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
-                      </>
-                    ) : null}
-                    {post.subcategory && post.tags.length > 0 ? (
-                      <span className="mx-2 text-muted-foreground/50">·</span>
+                      <><span className="mx-2">•</span><span className="font-semibold">{post.subcategory.name_he}</span></>
                     ) : null}
                     {post.tags.length > 0 ? (
-                      <>
-                        {/* desktop ≥md: up to 3, no +N */}
-                        <span className={`hidden md:inline ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
-                          {post.tags.slice(0, 3).map((t, i) => (
-                            <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
-                          ))}
-                        </span>
-                        {/* mobile <md: 2 tags + +N */}
-                        <span className={`md:hidden ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
-                          {post.tags.slice(0, 2).map((t, i) => (
-                            <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
-                          ))}
-                          {post.tags.length > 2 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{post.tags.length - 2}</span>}
-                        </span>
-                      </>
+                      
+                      <span className={`${!post.subcategory ? 'ms-2' : 'ms-1'} text-muted-foreground/70`}>
+                        <span className="mx-2">•</span>
+                        {post.tags.slice(0, 2).map((t, i) => (
+                          <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
+                        ))}
+                      </span>
+                      
                     ) : null}
                   </div>
                 </div>
               </div>
+              <div className="shrink-0 pt-1"><MedalsInline medals={post.allTimeMedals} /></div>
             </div>
+            {post.channel_name && post.channel_slug ? (
+              <div className="mb-2">
+                <Link href={`/c/${post.channel_slug}`}>
+                  <span className={`inline-flex px-3 py-1 rounded-full font-semibold text-xs ${channelBadgeColor(post.channel_slug)}`}>
+                    {post.channel_name}
+                  </span>
+                </Link>
+              </div>
+            ) : null}
+            <h1 className="text-[1.625rem] sm:text-[2rem] lg:text-[2.75rem] font-black leading-[1.1] tracking-[-0.025em] mb-4 line-clamp-3">
+              <Link href={`/post/${post.slug}`} className="tyuta-hover">{post.title}</Link>
+            </h1>
+            {post.excerpt ? (
+              <p className="text-muted-foreground text-sm leading-[1.7] line-clamp-3">{post.excerpt}</p>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
-            {/* Medals - top left */}
-            <div className="shrink-0 pt-1">
-              <MedalsInline medals={post.allTimeMedals} />
+      {/* ── Desktop: cinematic full-bleed image with right-side readability veil ── */}
+      <div className={`hidden lg:block tyuta-featured-desktop${hasCover ? ' has-cover' : ''}`}>
+
+        {/* Image layer — fills the full desktop block, clips at rounded boundary */}
+        <div className="tyuta-featured-img-frame">
+          <Link href={`/post/${post.slug}`} className="absolute inset-0 block" tabIndex={-1} aria-hidden="true">
+            {post.cover_image_url ? (
+              <Image
+                src={coverProxySrc(post.cover_image_url)!}
+                alt={post.title}
+                fill
+                priority
+                sizes="(max-width: 1280px) 100vw, 900px"
+                quality={88}
+                className="object-cover object-left"
+                unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
+              />
+            ) : null}
+          </Link>
+        </div>
+
+        {/* Mouse spotlight glow — sibling to frame, above all frame pseudo-elements */}
+        {hasCover ? <FeaturedImageGlow /> : null}
+
+        {/* Color sync — samples image right-edge pixels, sets --img-edge-* CSS vars */}
+        {post.cover_image_url ? <FeaturedColorSync src={coverProxySrc(post.cover_image_url)!} /> : null}
+
+        {/* Text panel — right 46%, floats over image, text in white */}
+        <div className="tyuta-featured-text-panel absolute top-0 bottom-0 right-0 w-[46%] flex flex-col justify-center px-10 py-8">
+          {/* Author row */}
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              {post.author_username ? (
+                <AuthorHover username={post.author_username}>
+                  <Link href={`/u/${post.author_username}`} className="tyuta-avatar-ring shrink-0">
+                    <Avatar src={post.author_avatar_url} name={post.author_name} size={40} />
+                  </Link>
+                </AuthorHover>
+              ) : (
+                <span className="tyuta-avatar-ring shrink-0"><Avatar src={post.author_avatar_url} name={post.author_name} size={40} /></span>
+              )}
+              <div className="min-w-0">
+                {post.author_username ? (
+                  <AuthorHover username={post.author_username}>
+                    <Link href={`/u/${post.author_username}`} className={`font-bold text-sm ${tc.name} tyuta-hover block truncate tyuta-panel-author`}>
+                      {post.author_name}
+                    </Link>
+                  </AuthorHover>
+                ) : (
+                  <span className={`font-bold text-sm ${tc.name} block truncate tyuta-panel-author`}>{post.author_name}</span>
+                )}
+                <div className={`text-xs ${tc.meta} mt-0.5`}>
+                  <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
+                  {post.subcategory ? (
+                    <><span className="mx-2">•</span><span className="font-semibold">{post.subcategory.name_he}</span></>
+                  ) : null}
+                  {post.tags.length > 0 ? (
+                    <span className={`${!post.subcategory ? 'ms-2' : 'ms-1'} ${tc.tags}`}>
+                      <span className="mx-2">•</span>
+                      {post.tags.slice(0, 2).map((t, i) => (
+                        <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
+                      ))}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
             </div>
+            <div className="shrink-0 pt-1"><MedalsInline medals={post.allTimeMedals} /></div>
           </div>
 
-          {/* Channel badge (optional) */}
+          {/* Channel badge */}
           {post.channel_name && post.channel_slug ? (
             <div className="mb-3">
               <Link href={`/c/${post.channel_slug}`}>
@@ -245,7 +321,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
           ) : null}
 
           {/* Title */}
-          <h1 className="text-[1.625rem] sm:text-[2rem] lg:text-[2.75rem] font-black leading-[1.1] tracking-[-0.025em] mb-4 line-clamp-3">
+          <h1 className={`text-[1.875rem] xl:text-[2.375rem] font-black leading-[1.08] tracking-[-0.03em] mb-4 ${tc.title}`}>
             <Link href={`/post/${post.slug}`} className="tyuta-hover">
               {post.title}
             </Link>
@@ -253,12 +329,10 @@ function FeaturedPost({ post }: { post: CardPost }) {
 
           {/* Excerpt */}
           {post.excerpt ? (
-            <p className="text-muted-foreground text-sm sm:text-base lg:text-[1.0625rem] leading-[1.7] mb-5 line-clamp-3">
+            <p className={`${tc.excerpt} text-sm leading-[1.75]`}>
               {post.excerpt}
             </p>
-          ) : (
-            <div className="hidden lg:block h-[56px]" aria-hidden="true" />
-          )}
+          ) : null}
         </div>
       </div>
     </article>
@@ -267,7 +341,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
 
 function SimplePostCard({ post }: { post: CardPost }) {
   return (
-    <article className="group bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-xl overflow-hidden tyuta-card-hover border border-border flex flex-col">
+    <article className="group bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-xl overflow-hidden tyuta-card-hover tyuta-gold-border flex flex-col">
       <Link href={`/post/${post.slug}`} className="block">
         <div className="relative aspect-[4/3] bg-muted tyuta-img-hover">
           {post.cover_image_url ? (

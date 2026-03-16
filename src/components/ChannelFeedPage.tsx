@@ -144,56 +144,68 @@ function MedalsCompact({ medals }: { medals: { gold: number; silver: number; bro
   )
 }
 
-/** הגדול - בצד ימין, גובה קבוע */
+/** הגדול - בצד ימין, גובה קבוע — cinematic editorial layout */
 function FeaturedTopCard({ post }: { post: CardPost }) {
   const showMedals = hasAnyMedals(post.medals)
 
   return (
-    <article className="h-[420px] rounded border bg-white p-4 shadow-sm hover:shadow-md">
-      <div className="flex h-full flex-col">
+    <article className="group tyuta-featured-shell h-[420px] overflow-hidden lg:overflow-visible" style={{ position: 'relative' }}>
+      {/* Image frame — clipped at its own border-radius, not at the article level */}
+      <div className="tyuta-featured-img-frame" style={{ position: 'absolute', inset: 0 }}>
+        <Link href={`/post/${post.slug}`} className="absolute inset-0 block tyuta-img-hover" tabIndex={-1} aria-hidden="true">
+          <div className="relative w-full h-full">
+            {post.cover_image_url ? (
+              <Image
+                src={coverProxySrc(post.cover_image_url)!}
+                alt={post.title}
+                fill
+                sizes="(max-width: 768px) 100vw, 500px"
+                quality={85}
+                className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+                unoptimized={isProxySrc(coverProxySrc(post.cover_image_url)!)}
+              />
+            ) : null}
+          </div>
+        </Link>
+      </div>
+
+      {/* Paper corner mass — protrudes outside on desktop only */}
+      <div aria-hidden="true" className="hidden lg:block tyuta-paper-corner-mass" />
+
+      {/* Handwritten accent — desktop only */}
+      <span aria-hidden="true" className="hidden lg:inline tyuta-handwritten-accent">Tyuta.net</span>
+
+      {/* Text panel — wide overlay over the right portion of image */}
+      <div className="tyuta-featured-text-panel absolute top-0 bottom-0 right-0 w-[52%] flex flex-col justify-center px-5 py-6" style={{ zIndex: 6 }}>
         <div className="text-right">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-2 mb-2">
             {showMedals ? (
-              <div dir="ltr"className="shrink-0 flex items-center gap-2 text-xs text-muted-foreground">
+              <div dir="ltr" className="shrink-0 flex items-center gap-1 text-xs text-white/60">
                 {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
                 {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
                 {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
               </div>
             ) : null}
-
             <Link
               href={`/post/${post.slug}`}
-              className="min-w-0 flex-1 block text-2xl font-extrabold leading-tight break-words line-clamp-2 hover:underline text-right">
+              className="min-w-0 flex-1 block text-xl font-extrabold leading-tight break-words line-clamp-3 text-white tyuta-hover text-right">
               {post.title}
             </Link>
           </div>
 
-          <div className="mt-1 text-sm text-muted-foreground">
+          <div className="mt-1 text-sm text-white/60">
             מאת:{' '}
             {post.author_username ? (
               <AuthorHover username={post.author_username}>
-                <Link href={`/u/${post.author_username}`} className="text-blue-700 hover:underline">
+                <Link href={`/u/${post.author_username}`} className="text-white/80 hover:text-white hover:underline">
                   {post.author_name}
                 </Link>
               </AuthorHover>
             ) : (
-              <span>{post.author_name}</span>
+              <span className="text-white/80">{post.author_name}</span>
             )}
           </div>
         </div>
-
-        <div className="mt-3 flex justify-start">
-          <Link href={`/post/${post.slug}`} className="text-xs text-blue-700 underline">
-            קרא עוד
-          </Link>
-        </div>
-
-        <div className="mt-2 flex flex-1 items-start justify-end">
-          <Link href={`/post/${post.slug}`} className="inline-block">
-            <CoverFrame src={post.cover_image_url} w={400} h={280} rounded="rounded" alt={post.title} sizes="(max-width: 768px) 100vw, 400px" quality={85}/>
-          </Link>
-        </div>
-
       </div>
     </article>
   )
@@ -204,7 +216,7 @@ function SmallTopCard({ post }: { post: CardPost }) {
   const showMedals = hasAnyMedals(post.medals)
 
   return (
-    <article className="h-full rounded border bg-white p-3 shadow-sm hover:shadow-md">
+    <article className="h-full rounded-xl bg-white dark:bg-card p-3 shadow-sm tyuta-gold-border tyuta-card-hover">
       <div className="flex h-full flex-col">
         <div className="flex flex-row-reverse items-start gap-3">
           <Link href={`/post/${post.slug}`} className="inline-block">
