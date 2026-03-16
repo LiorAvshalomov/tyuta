@@ -622,6 +622,222 @@ html {
   border-top: 1px solid oklch(0.35 0.02 40 / 20%);
 }
 
+/* =====================================================================
+   TYUTA EDITORIAL FEATURED CARD SYSTEM  (v4 — image-visible + inward curl)
+   ===================================================================== */
+
+/* --- Desktop cinematic wrapper ---
+   position:relative so all absolute children are scoped.
+   overflow:hidden clips the curl and image to the card boundary. */
+.tyuta-featured-desktop {
+  position: relative;
+  min-height: 460px;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  /* --img-edge-light/dark set by FeaturedColorSync — falls back to card color */
+  background: var(--img-edge-light, oklch(0.97 0.006 50));
+  transition: background 0.5s ease;
+}
+.dark .tyuta-featured-desktop {
+  background: var(--img-edge-dark, oklch(0.18 0.008 40));
+}
+
+/* --- Desktop image frame: physically contained in the left 70% ---
+   The frame is 70% wide (not full-bleed), so object-fit:cover on the <Image>
+   fills exactly this zone — the image truly occupies 100% of those 70%.
+   mask-image fades the right edge to transparent so the card background
+   (--img-edge-*) shows through naturally — seamless, no dark overlay needed. */
+.tyuta-featured-img-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 70%;
+  overflow: hidden;
+  border-radius: 1.25rem 0 0 1.25rem;
+  transform: translateZ(0);
+  isolation: isolate;
+}
+/* Without a cover image no mask is needed */
+.has-cover .tyuta-featured-img-frame {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    black             43%,
+    rgba(0,0,0,0.88)  56%,
+    rgba(0,0,0,0.55)  70%,
+    rgba(0,0,0,0.18)  85%,
+    transparent       100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    black             43%,
+    rgba(0,0,0,0.88)  56%,
+    rgba(0,0,0,0.55)  70%,
+    rgba(0,0,0,0.18)  85%,
+    transparent       100%
+  );
+}
+/* mix-blend-mode: screen makes the warm light additive —
+   barely visible on bright image areas, vivid on dark areas. */
+.tyuta-featured-glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 70%;
+  z-index: 7;
+  pointer-events: none;
+  border-radius: 1.25rem 0 0 1.25rem;
+  transition: opacity 0.4s ease;
+  mix-blend-mode: screen;
+  background: radial-gradient(
+    circle 340px at var(--gx, 50%) var(--gy, 50%),
+    rgb(255 245 190 / 0.6),
+    rgb(255 220 140 / 0.2) 45%,
+    transparent 70%
+  );
+}
+
+
+/* --- Text panel that floats over image on desktop --- */
+.tyuta-featured-text-panel {
+  position: absolute;
+  z-index: 6;
+}
+
+/* Adaptive text classes — used by FeaturedPost when hasCover is true.
+   Read --panel-fg-* vars set on .tyuta-featured-desktop by FeaturedColorSync.
+   CSS custom properties ARE inherited, so children read the wrapper's vars directly.
+   Fallbacks = theme defaults so nothing breaks before JS runs. */
+.tyuta-panel-strong {
+  color: var(--panel-fg-light, oklch(0.145 0 0));
+  transition: color 0.5s ease;
+}
+.dark .tyuta-panel-strong {
+  color: var(--panel-fg-dark, oklch(0.91 0 0));
+}
+.tyuta-panel-soft {
+  color: var(--panel-fg-soft-light, oklch(0.556 0 0));
+  transition: color 0.5s ease;
+}
+.dark .tyuta-panel-soft {
+  color: var(--panel-fg-soft-dark, oklch(0.65 0 0));
+}
+
+
+/* --- Legacy shell + paper mass — ChannelFeedPage FeaturedTopCard uses these ---
+   Do not remove until ChannelFeedPage is redesigned in a future pass. */
+.tyuta-featured-shell {
+  position: relative;
+  border-radius: 1.25rem;
+  background: oklch(0.94 0.01 50);
+  box-shadow:
+    0 2px 6px oklch(0 0 0 / 8%),
+    0 10px 32px oklch(0 0 0 / 14%),
+    0 28px 56px oklch(0 0 0 / 8%);
+}
+.dark .tyuta-featured-shell {
+  background: oklch(0.2 0.008 40);
+  box-shadow:
+    0 2px 6px oklch(0 0 0 / 18%),
+    0 10px 32px oklch(0 0 0 / 32%),
+    0 28px 56px oklch(0 0 0 / 18%);
+}
+
+.tyuta-paper-corner-mass {
+  position: absolute;
+  bottom: -18px;
+  left: -12px;
+  width: 260px;
+  height: 155px;
+  z-index: 10;
+  pointer-events: none;
+  background:
+    linear-gradient(148deg, oklch(0.98 0.018 55) 0%, oklch(0.95 0.014 50) 45%, oklch(0.91 0.012 45) 100%);
+  clip-path: polygon(
+    0% 100%, 0% 38%, 6% 18%, 12% 44%, 20% 6%, 27% 32%, 36% 0%,
+    44% 28%, 53% 8%, 62% 34%, 72% 14%, 80% 42%, 90% 22%, 100% 48%, 100% 100%
+  );
+  filter: drop-shadow(0 -4px 8px oklch(0 0 0 / 18%)) drop-shadow(0 6px 18px oklch(0 0 0 / 14%));
+}
+.tyuta-paper-corner-mass::before {
+  content: '';
+  position: absolute;
+  inset: -6px 0 0 0;
+  background: linear-gradient(to bottom, oklch(0 0 0 / 22%) 0%, oklch(0 0 0 / 8%) 40%, transparent 100%);
+  pointer-events: none;
+  z-index: -1;
+}
+.tyuta-paper-corner-mass::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, oklch(0.78 0.014 42 / 55%) 0%, oklch(0.88 0.014 48 / 20%) 18%, transparent 40%),
+    linear-gradient(to bottom, oklch(1 0 0 / 45%) 0%, oklch(1 0 0 / 12%) 22%, transparent 55%);
+  clip-path: inherit;
+  pointer-events: none;
+}
+.dark .tyuta-paper-corner-mass {
+  background:
+    linear-gradient(148deg, oklch(0.88 0.012 48) 0%, oklch(0.82 0.01 44) 45%, oklch(0.75 0.008 40) 100%);
+  filter: drop-shadow(0 -4px 8px oklch(0 0 0 / 30%)) drop-shadow(0 6px 18px oklch(0 0 0 / 25%));
+}
+
+/* --- Featured card: inner image block (kept for ChannelFeedPage usage) --- */
+.tyuta-featured-img-block {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem 0 0 1rem;
+  width: 100%;
+  height: 100%;
+}
+.tyuta-featured-img-block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to left,
+      oklch(0.12 0.01 35 / 0%) 0%,
+      oklch(0.12 0.01 35 / 0%) 45%,
+      oklch(0.12 0.01 35 / 30%) 70%,
+      oklch(0.12 0.01 35 / 50%) 88%,
+      oklch(0.12 0.01 35 / 60%) 100%
+    );
+  pointer-events: none;
+  z-index: 1;
+}
+.tyuta-featured-img-block::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, oklch(0.1 0.01 35 / 28%) 0%, transparent 30%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* --- Golden border for Top-3 / Small cards --- */
+.tyuta-gold-border {
+  border: 1px solid oklch(0.72 0.09 75 / 45%);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.tyuta-gold-border:hover {
+  border-color: oklch(0.78 0.12 75 / 70%);
+  box-shadow:
+    0 0 0 1px oklch(0.78 0.12 75 / 15%),
+    0 4px 16px oklch(0.65 0.1 70 / 12%);
+}
+.dark .tyuta-gold-border {
+  border-color: oklch(0.65 0.1 75 / 35%);
+}
+.dark .tyuta-gold-border:hover {
+  border-color: oklch(0.75 0.12 75 / 60%);
+  box-shadow:
+    0 0 0 1px oklch(0.75 0.12 75 / 12%),
+    0 4px 16px oklch(0 0 0 / 30%);
+}
+
 /* CTA headline editorial feel */
 .tyuta-cta-headline {
   font-size: 1.125rem;
