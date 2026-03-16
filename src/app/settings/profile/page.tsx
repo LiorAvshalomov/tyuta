@@ -182,29 +182,28 @@ export default function ProfileSettingsPage() {
     try {
       setAvatarUploading(true)
 
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
-      const path = `${uid}/profile.${ext}`
+      const path = `${uid}/profile.jpg`
+      const version = Date.now()
 
       const { error: upErr } = await supabase.storage
         .from('avatars')
-        .upload(path, file, { upsert: true, cacheControl: '3600' })
+        .upload(path, file, { upsert: true, cacheControl: '31536000', contentType: 'image/jpeg' })
 
       if (upErr) throw upErr
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(path)
       const baseUrl = data.publicUrl
+      const versionedUrl = `${baseUrl}?v=${version}`
 
-      // Store the stable URL (no query params) so the DB stays clean across uploads.
+      // Persist a version token so long-lived caches still refresh after avatar updates.
       const { error: pErr } = await supabase
         .from('profiles')
-        .update({ avatar_url: baseUrl })
+        .update({ avatar_url: versionedUrl })
         .eq('id', uid)
 
       if (pErr) throw pErr
 
-      // Cache-bust only in local UI state so the user sees the new avatar immediately
-      // without polluting the stored URL with an ever-changing ?v= param.
-      setProfile(prev => (prev ? { ...prev, avatar_url: `${baseUrl}?v=${Date.now()}` } : prev))
+      setProfile(prev => (prev ? { ...prev, avatar_url: versionedUrl } : prev))
       return true
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e)

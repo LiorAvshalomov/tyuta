@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import Link from 'next/link'
 import Badge from '@/components/Badge'
+import { coverProxySrc } from '@/lib/coverUrl'
 import { formatDateTimeHe, formatRelativeHe, isNewPost } from '@/lib/time'
 
 export type PostCardMedals = { gold: number; silver: number; bronze: number }
@@ -99,7 +100,8 @@ export default function PostCard({
   post: PostCardPost
   variant?: Variant
 }) {
-  const hasCover = Boolean(post.cover_image_url)
+  const coverSrc = coverProxySrc(post.cover_image_url) ?? null
+  const hasCover = Boolean(coverSrc)
   const medals = post.medals ?? null
   const showMedals = Boolean(
     medals && ((medals.gold ?? 0) > 0 || (medals.silver ?? 0) > 0 || (medals.bronze ?? 0) > 0)
@@ -153,7 +155,7 @@ export default function PostCard({
               <Link href={`/post/${post.slug}`} className="block">
                 <CoverFrame className="rounded-xl" style={{ width: '100%' }}>
                   <div style={{ width: '100%', height: 260 }}>
-                    <CoverImage src={post.cover_image_url!} alt="" width={1280} height={720} />
+                    <CoverImage src={coverSrc!} alt="" width={1280} height={720} />
                   </div>
                 </CoverFrame>
               </Link>
@@ -174,10 +176,10 @@ export default function PostCard({
     return (
       <article className="group block overflow-hidden rounded border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 shadow-sm transition hover:shadow-md">
         <div className="relative">
-          {post.cover_image_url ? (
+          {hasCover ? (
             <Link href={`/post/${post.slug}`} className="block">
               <CoverFrame className="rounded-none border-0" style={{ borderRadius: 0, width: '100%', height: 160 }}>
-                <CoverImage src={post.cover_image_url} alt="" width={320} height={200} />
+                <CoverImage src={coverSrc!} alt="" width={320} height={200} />
               </CoverFrame>
             </Link>
           ) : (
@@ -206,10 +208,10 @@ export default function PostCard({
       <div className="flex flex-row-reverse items-start gap-3">
         {/* IMAGE on the right (fixed size, never overflows) */}
         <div className="shrink-0">
-          {post.cover_image_url ? (
+          {hasCover ? (
             <Link href={`/post/${post.slug}`} className="block">
               <CoverFrame className="rounded" style={{ width: 140, height: 90 }}>
-                <CoverImage src={post.cover_image_url} alt="" width={140} height={90} />
+                <CoverImage src={coverSrc!} alt="" width={140} height={90} />
               </CoverFrame>
             </Link>
           ) : (

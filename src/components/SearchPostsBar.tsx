@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
+import { coverProxySrc } from '@/lib/coverUrl'
 
 type Suggestion = {
   id: string
@@ -217,46 +218,51 @@ export default function SearchPostsBar() {
         <>
           <ul id={LISTBOX_ID} role="listbox" className="py-1">
             {suggestions.map((s, idx) => (
-              <li
-                key={s.id}
-                id={`search-opt-${s.id}`}
-                role="option"
-                aria-selected={activeIdx === idx}
-              >
-                <button
-                  type="button"
-                  onMouseEnter={() => setActiveIdx(idx)}
-                  onClick={() => navigateToPost(s.slug)}
-                  className={[
-                    'flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-right transition-colors',
-                    activeIdx === idx
-                      ? 'bg-neutral-100 dark:bg-muted'
-                      : 'hover:bg-neutral-50 dark:hover:bg-muted/50',
-                  ].join(' ')}
-                >
-                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-muted ring-1 ring-black/5">
-                    {s.cover_image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={s.cover_image_url}
-                        alt=""
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : null}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-semibold text-neutral-900 dark:text-foreground">
-                      {s.title}
-                    </div>
-                    {s.author_name ? (
-                      <div className="truncate text-[11px] text-muted-foreground">
-                        {s.author_name}
+              (() => {
+                const coverSrc = coverProxySrc(s.cover_image_url)
+                return (
+                  <li
+                    key={s.id}
+                    id={`search-opt-${s.id}`}
+                    role="option"
+                    aria-selected={activeIdx === idx}
+                  >
+                    <button
+                      type="button"
+                      onMouseEnter={() => setActiveIdx(idx)}
+                      onClick={() => navigateToPost(s.slug)}
+                      className={[
+                        'flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-right transition-colors',
+                        activeIdx === idx
+                          ? 'bg-neutral-100 dark:bg-muted'
+                          : 'hover:bg-neutral-50 dark:hover:bg-muted/50',
+                      ].join(' ')}
+                    >
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-muted ring-1 ring-black/5">
+                        {coverSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={coverSrc}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                </button>
-              </li>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13px] font-semibold text-neutral-900 dark:text-foreground">
+                          {s.title}
+                        </div>
+                        {s.author_name ? (
+                          <div className="truncate text-[11px] text-muted-foreground">
+                            {s.author_name}
+                          </div>
+                        ) : null}
+                      </div>
+                    </button>
+                  </li>
+                )
+              })()
             ))}
           </ul>
 

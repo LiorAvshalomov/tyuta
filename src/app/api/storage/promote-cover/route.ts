@@ -89,6 +89,7 @@ export async function POST(req: Request) {
     }
 
     const publicPath = `${postId}/cover.jpg`
+    const version = Date.now()
     const contentType = 'image/jpeg'
 
     const upload = await supabase.storage.from('post-covers').upload(publicPath, outputBuffer, {
@@ -112,7 +113,8 @@ export async function POST(req: Request) {
     }
 
     const { data: pub } = supabase.storage.from('post-covers').getPublicUrl(publicPath)
-    return NextResponse.json({ publicUrl: pub.publicUrl ?? null })
+    const publicUrl = pub.publicUrl ? `${pub.publicUrl}?v=${version}` : null
+    return NextResponse.json({ publicUrl })
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'שגיאה' }, { status: 500 })
   }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import Avatar from '@/components/Avatar'
+import { avatarProxySrc } from '@/lib/avatarUrl'
 
 type Props = {
   src: string | null
@@ -70,7 +71,7 @@ export default function ProfileAvatarFrame({ src, name, size, shape = 'square', 
 
   const effectiveSrc = useMemo(() => {
     const s = (src ?? '').trim()
-    return s.length > 0 ? s : null
+    return s.length > 0 ? (avatarProxySrc(s) ?? s) : null
   }, [src])
 
   useEffect(() => {

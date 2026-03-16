@@ -58,6 +58,7 @@ export default function SuspensionSync({ children }: { children: React.ReactNode
 
   useEffect(() => {
     let cancelled = false
+    let inFlight = false
 
     const redirectOnce = (to: string) => {
       const now = Date.now()
@@ -102,36 +103,43 @@ export default function SuspensionSync({ children }: { children: React.ReactNode
     }
 
     const check = async () => {
-      const { data } = await supabase.auth.getSession()
-      const session = data.session
+      if (cancelled || inFlight) return
+      inFlight = true
 
-      if (!session?.user?.id) {
-        hadSessionRef.current = false
-        handleClear()
-        return
+      try {
+        const { data } = await supabase.auth.getSession()
+        const session = data.session
+
+        if (!session?.user?.id) {
+          hadSessionRef.current = false
+          handleClear()
+          return
+        }
+
+        hadSessionRef.current = true
+
+        const { data: row, error } = await supabase
+          .from('user_moderation')
+          .select('is_suspended, is_banned, reason, ban_reason')
+          .eq('user_id', session.user.id)
+          .maybeSingle()
+
+        if (error) {
+          // best-effort: don't block if table/RLS isn't ready
+          handleClear()
+          return
+        }
+
+        const banned = row?.is_banned === true
+        const suspended = row?.is_suspended === true
+        const reason = ((row?.ban_reason as string | null) ?? (row?.reason as string | null) ?? null)
+
+        if (banned) handleBanned(reason)
+        else if (suspended) handleSuspended(reason)
+        else handleClear()
+      } finally {
+        inFlight = false
       }
-
-      hadSessionRef.current = true
-
-      const { data: row, error } = await supabase
-        .from('user_moderation')
-        .select('is_suspended, is_banned, reason, ban_reason')
-        .eq('user_id', session.user.id)
-        .maybeSingle()
-
-      if (error) {
-        // best-effort: don't block if table/RLS isn't ready
-        handleClear()
-        return
-      }
-
-      const banned = row?.is_banned === true
-      const suspended = row?.is_suspended === true
-      const reason = ((row?.ban_reason as string | null) ?? (row?.reason as string | null) ?? null)
-
-      if (banned) handleBanned(reason)
-      else if (suspended) handleSuspended(reason)
-      else handleClear()
     }
 
     void check()
@@ -140,16 +148,32 @@ export default function SuspensionSync({ children }: { children: React.ReactNode
       if (event === 'SIGNED_OUT') {
         hadSessionRef.current = false
         handleClear()
+        return
       }
+
+      void check()
     })
 
     const interval = window.setInterval(() => {
+      if (!hadSessionRef.current) return
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       void check()
     }, CHECK_INTERVAL_MS)
+
+    const handleResume = () => {
+      if (!hadSessionRef.current) return
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+      void check()
+    }
+
+    document.addEventListener('visibilitychange', handleResume)
+    window.addEventListener('focus', handleResume)
 
     return () => {
       cancelled = true
       window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleResume)
+      window.removeEventListener('focus', handleResume)
       sub.subscription.unsubscribe()
     }
   }, [pathname, router, shouldGateBanned, shouldGateSuspended])

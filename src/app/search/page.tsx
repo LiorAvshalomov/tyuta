@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { coverProxySrc } from '@/lib/coverUrl'
 import AuthorHover from '@/components/AuthorHover'
 import Avatar from '@/components/Avatar'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
@@ -438,7 +439,9 @@ export default function SearchPage() {
             </div>
           ))
         ) : null}
-        {!loading && results.map((p) => (
+        {!loading && results.map((p) => {
+          const coverSrc = coverProxySrc(p.cover_image_url)
+          return (
           <div
             key={p.id}
             role="link"
@@ -450,9 +453,9 @@ export default function SearchPage() {
             className="cursor-pointer rounded-2xl border bg-white p-4 hover:shadow-sm dark:bg-card dark:border-border"
           >
             <div className="flex flex-row-reverse items-stretch gap-4 min-h-[100px]">
-              {p.cover_image_url ? (
+              {coverSrc ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.cover_image_url} alt="" className="w-28 shrink-0 self-stretch rounded-xl object-cover" />
+                <img src={coverSrc} alt="" className="w-28 shrink-0 self-stretch rounded-xl object-cover" />
               ) : (
                 <div className="w-28 shrink-0 self-stretch rounded-xl bg-muted" />
               )}
@@ -508,7 +511,8 @@ export default function SearchPage() {
               </div>
             </div>
           </div>
-        ))}
+          )
+        })}
 
         {!loading && !error && results.length === 0 ? <div className="rounded-2xl border bg-white p-6 text-sm text-muted-foreground dark:bg-card dark:border-border">לא נמצאו תוצאות.</div> : null}
         {!loading && error ? null /* error shown in form */ : null}

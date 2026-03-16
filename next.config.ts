@@ -65,6 +65,7 @@ const nextConfig: NextConfig = {
     // Omitting `search` means any query string is accepted for this pathname.
     localPatterns: [
       { pathname: '/api/media/cover' },
+      { pathname: '/api/media/avatar' },
     ],
     remotePatterns: [
       // DiceBear (fallback avatars)

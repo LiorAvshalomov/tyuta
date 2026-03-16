@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { avatarProxySrc } from '@/lib/avatarUrl'
 
 type Props = {
   currentUrl: string | null
@@ -9,9 +10,9 @@ type Props = {
   onRemove?: () => void
 }
 
-const MAX_BYTES = 2 * 1024 * 1024 // 2 MB — applies to cropped output
 const RAW_MAX = 10 * 1024 * 1024 // 10 MB — raw input before crop
-const CROP_OUTPUT = 512 // exported pixel size
+const CROP_OUTPUT = 384 // exported pixel size
+const CROP_QUALITY = 0.86
 const VIEWPORT = 280 // crop viewport CSS size
 
 function dicebearInitialsUrl(seed: string) {
@@ -76,11 +77,6 @@ function CropModal({
     [imgSize],
   )
 
-  // Re-clamp when zoom changes
-  useEffect(() => {
-    setOffset((prev) => clampOffset(prev.x, prev.y, zoom))
-  }, [zoom, clampOffset])
-
   const onPointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
     dragRef.current = {
@@ -128,7 +124,7 @@ function CropModal({
           onConfirm(file, url)
         },
         'image/jpeg',
-        0.9,
+        CROP_QUALITY,
       )
     }
     img.src = imageSrc
@@ -181,7 +177,11 @@ function CropModal({
             max={maxZoom}
             step={0.001}
             value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
+            onChange={(e) => {
+              const nextZoom = Number(e.target.value)
+              setZoom(nextZoom)
+              setOffset((prev) => clampOffset(prev.x, prev.y, nextZoom))
+            }}
             className="flex-1"
           />
           <span className="select-none">+</span>
@@ -218,7 +218,9 @@ export default function AvatarUpload({ currentUrl, displayName, onSelectFile, on
   const [cropSrc, setCropSrc] = useState<string | null>(null)
 
   const previewSrc = useMemo(() => {
-    return localPreview ?? currentUrl ?? dicebearInitialsUrl(displayName)
+    if (localPreview) return localPreview
+    if (currentUrl) return avatarProxySrc(currentUrl) ?? currentUrl
+    return dicebearInitialsUrl(displayName)
   }, [localPreview, currentUrl, displayName])
 
   const pick = () => inputRef.current?.click()

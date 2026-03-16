@@ -18,6 +18,7 @@ import SavePostButton from '@/components/SavePostButton'
 import SharePostButton from '@/components/SharePostButton'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import AuthorHover from '@/components/AuthorHover'
+import { coverProxySrc } from '@/lib/coverUrl'
 import type { PostInitialData } from './page'
 
 type RichNode = ComponentProps<typeof RichText>['content']
@@ -108,6 +109,7 @@ function SidebarPostItem({
   const router = useRouter()
 
   const pAuthor = pickAuthor(post.author)
+  const coverSrc = coverProxySrc(post.cover_image_url)
   const authorName = pAuthor?.display_name ?? 'אנונימי'
   const authorUsername = pAuthor?.username ?? null
   const date = post.published_at ?? post.created_at
@@ -161,9 +163,9 @@ function SidebarPostItem({
 
       {/* תמונה (שמאל) */}
       <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 dark:bg-muted ring-1 ring-black/5">
-        {post.cover_image_url ? (
+        {coverSrc ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={post.cover_image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+          <img src={coverSrc} alt="" className="h-full w-full object-cover" loading="lazy" />
         ) : null}
       </div>
     </div>
