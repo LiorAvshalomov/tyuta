@@ -10,6 +10,9 @@ export default function AnalyticsPageviewClient() {
   const pathname = usePathname() || "/"
 
   useEffect(() => {
+    // Only track on the production deployment — skip localhost and Vercel preview
+    if (process.env.NEXT_PUBLIC_VERCEL_ENV !== "production") return
+
     const controller = new AbortController()
 
     fetch("/api/internal/pv", {

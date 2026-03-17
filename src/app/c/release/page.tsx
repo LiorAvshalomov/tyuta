@@ -5,9 +5,22 @@ export const revalidate = 60
 
 export const metadata: Metadata = {
   title: "פריקה",
-  description: "עמוד מסונן לפי פריקה, הכי חם החודש בקטגוריית 'פריקה'",
+  description: "פריקה רגשית, וידויים ושירה — ערוץ הפריקה של Tyuta(טיוטה). מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
   alternates: {
     canonical: "/c/release",
+  },
+  openGraph: {
+    title: "פריקה — Tyuta",
+    description: "פריקה רגשית, וידויים ושירה — ערוץ הפריקה של Tyuta(טיוטה). מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
+    url: "https://tyuta.net/c/release",
+    siteName: "Tyuta",
+    locale: "he_IL",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "פריקה — Tyuta",
+    description: "פריקה רגשית, וידויים ושירה — ערוץ הפריקה של Tyuta(טיוטה). מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
   },
 };
 

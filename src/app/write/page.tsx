@@ -16,6 +16,7 @@ import {
   SUBCATEGORY_NAMES_BY_CHANNEL,
   sortHebrew,
 } from '@/lib/taxonomy'
+import { generatePostSlug, resolveUniquePostSlug } from '@/lib/postSlug'
 
 type Channel = { id: number; name_he: string }
 type Tag = { id: number; type: 'emotion' | 'theme' | 'genre' | 'topic'; name_he: string; channel_id: number | null }
@@ -1154,6 +1155,11 @@ if (!effectiveChannelId) {
 
     await upsertDraftSilently()
 
+    // Generate a human-readable slug from the final title at publish time.
+    // Drafts keep their UUID slug; only published posts get a readable one.
+    const baseSlug = generatePostSlug(title.trim())
+    const finalSlug = await resolveUniquePostSlug(supabase, baseSlug, created.id)
+
     let finalCoverUrl = coverUrl
     let finalCoverSource = coverSource
 
@@ -1203,6 +1209,7 @@ if (!effectiveChannelId) {
     const { data: publishedRow, error } = await supabase
       .from('posts')
       .update({
+        slug: finalSlug,
         title: title.trim(),
         excerpt: excerpt.trim() || null,
         content_json: publishContentJson,

@@ -5,9 +5,22 @@ export const revalidate = 60
 
 export const metadata: Metadata = {
   title: "כתבות",
-  description: "עמוד מסונן לפי כתבות, הכי חם החודש בקטגוריית 'כתבות'",
+  description: "כתבות, דעות ותרבות מהקהילה הישראלית — ערוץ המגזין של Tyuta(טיוטה). מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
   alternates: {
     canonical: "/c/magazine",
+  },
+  openGraph: {
+    title: "כתבות — Tyuta",
+    description: "כתבות, דעות ותרבות מהקהילה הישראלית — ערוץ המגזין של Tyuta(טיוטה). מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
+    url: "https://tyuta.net/c/magazine",
+    siteName: "Tyuta",
+    locale: "he_IL",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "כתבות — Tyuta",
+    description: "כתבות, דעות ותרבות מהקהילה הישראלית — ערוץ המגזין של Tyuta(טיוטה). מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
   },
 };
 

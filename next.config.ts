@@ -1,59 +1,10 @@
 import type { NextConfig } from 'next'
 
-/**
- * Security headers + CSP (Content Security Policy)
- * Notes:
- * - We allow connections to BOTH Supabase projects (A + B) so dev/prod won't break
- *   if env vars point to a different project.
- * - Keep this list tight. If you add another external provider, add it explicitly.
- */
-
-const SUPABASE_URLS = [
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-  // Database A
-  'https://dowhdgcvxgzaikmpnchv.supabase.co',
-  // Database B
-  'https://ckhhngglsipovvvgailq.supabase.co',
-].filter(Boolean)
-
-const supabaseOrigins = Array.from(
-  new Set(
-    SUPABASE_URLS.map((u) => {
-      try {
-        return new URL(u).origin
-      } catch {
-        return ''
-      }
-    }).filter(Boolean),
-  ),
-)
-
-const supabaseWssOrigins = supabaseOrigins
-  .map((o) => o.replace(/^https:\/\//, 'wss://'))
-  .filter(Boolean)
-
-const connectSrc = [
-  "'self'",
-  ...supabaseOrigins,
-  ...supabaseWssOrigins,
-  'https://api-free.deepl.com',
-  'https://www.google-analytics.com',
-  'https://region1.google-analytics.com',
-].join(' ')
-
-const imgSrc = [
-  "'self'",
-  'data:',
-  'blob:',
-  ...supabaseOrigins,
-  'https://api.dicebear.com',
-  'https://pixabay.com',
-  'https://cdn.pixabay.com',
-  'https://images.pexels.com',
-  'https://www.google-analytics.com',
-].join(' ')
+// CSP is managed dynamically in middleware.ts (nonce-based, per-request).
+// next.config.ts only sets the remaining static security headers.
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   images: {
     minimumCacheTTL: 86400,
     // Constrain candidate widths so Next.js generates fewer distinct transformed variants.
@@ -94,21 +45,6 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-          {
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com",
-              "style-src 'self' 'unsafe-inline'",
-              `img-src ${imgSrc}`,
-              "font-src 'self'",
-              `connect-src ${connectSrc}`,
-              "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
-              "frame-ancestors 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-            ].join('; '),
-          },
         ],
       },
     ]

@@ -49,6 +49,11 @@ function getClientIp(req: NextRequest): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  // Block analytics writes on non-production deployments (localhost, Vercel preview)
+  if (process.env.VERCEL_ENV !== "production") {
+    return NextResponse.json({ ok: true, skipped: "non_production" })
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY
 
