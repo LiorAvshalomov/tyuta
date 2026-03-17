@@ -3,6 +3,8 @@ import type { NextRequest } from 'next/server'
 
 const RESET_COOKIE = 'tyuta_reset_required'
 
+const UUID_POST_RE = /^\/post\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+
 // Supabase origins — must match next.config.ts remotePatterns
 const SB_ORIGINS = [
   'https://dowhdgcvxgzaikmpnchv.supabase.co',
@@ -89,11 +91,38 @@ function isAuthPage(pathname: string): boolean {
   return pathname.startsWith('/auth/')
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl
 
   // Static assets: skip nonce/CSP entirely
   if (isStaticAsset(pathname)) return NextResponse.next()
+
+  // UUID slug redirect — runs before ISR cache so Google-indexed old URLs always redirect
+  const uuidMatch = UUID_POST_RE.exec(pathname)
+  if (uuidMatch) {
+    const postId = uuidMatch[1]
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (supabaseUrl && key) {
+      try {
+        const apiRes = await fetch(
+          `${supabaseUrl}/rest/v1/posts?id=eq.${postId}&select=slug&status=eq.published&deleted_at=is.null&limit=1`,
+          { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+        )
+        if (apiRes.ok) {
+          const rows = (await apiRes.json()) as Array<{ slug: string }>
+          const newSlug = rows[0]?.slug
+          if (newSlug && newSlug !== postId) {
+            const dest = req.nextUrl.clone()
+            dest.pathname = `/post/${encodeURIComponent(newSlug)}`
+            return NextResponse.redirect(dest, 301)
+          }
+        }
+      } catch {
+        // Network error — fall through to normal rendering
+      }
+    }
+  }
 
   const nonce = generateNonce()
 
