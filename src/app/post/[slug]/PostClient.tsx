@@ -204,7 +204,10 @@ type Props = {
 
 export default function PostPage({ initialData }: Props) {
   const params = useParams()
-  const slug = useMemo(() => (typeof params?.slug === 'string' ? params.slug : ''), [params])
+  const slug = useMemo(() => {
+    const raw = typeof params?.slug === 'string' ? params.slug : ''
+    try { return decodeURIComponent(raw) } catch { return raw }
+  }, [params])
 
   // When the server passes initialData the post is available immediately —
   // no client-side loading state needed for the first paint.

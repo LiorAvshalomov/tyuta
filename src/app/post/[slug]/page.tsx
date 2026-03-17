@@ -1,4 +1,7 @@
+import type { Metadata } from "next"
+import { cache } from "react"
 import { createClient } from "@supabase/supabase-js"
+import { redirect } from "next/navigation"
 import PostClient from "./PostClient"
 
 export const revalidate = 60
@@ -62,15 +65,13 @@ function pickAuthor(
   return joined[0] ?? null
 }
 
-export default async function PostPage({ params }: PageProps) {
-  const { slug } = await params
-
-  const canonical = `${SITE_URL}/post/${encodeURIComponent(slug)}`
+/**
+ * Cached per-request post fetch — shared between generateMetadata and PostPage
+ * so the DB is queried only once per request, not twice.
+ */
+const fetchPost = cache(async (slug: string): Promise<PostInitialData | null> => {
   const supabase = getServerSupabase()
-
-  // Always render the client page; JSON-LD is best-effort
-  if (!supabase) return <PostClient />
-
+  if (!supabase) return null
   const { data } = await supabase
     .from("posts")
     .select(
@@ -96,11 +97,78 @@ export default async function PostPage({ params }: PageProps) {
     .eq("status", "published")
     .is("deleted_at", null)
     .maybeSingle<PostInitialData>()
+  return data ?? null
+})
 
-  if (!data) return <PostClient />
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const slug = decodeURIComponent((await params).slug)
+  const data = await fetchPost(slug)
+  if (!data) return { title: "Tyuta", robots: { index: false, follow: false } }
 
+  const title = (data.title ?? "").trim() || "Tyuta"
+  const description = ((data.excerpt ?? "").trim() || "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.").slice(0, 200)
+  const imageUrl = data.cover_image_url ? absUrl(data.cover_image_url) : absUrl("/apple-touch-icon.png")
+  // Use data.slug (DB canonical) not URL param slug — ensures redirect targets also get correct canonical
+  const canonical = `${SITE_URL}/post/${encodeURIComponent(data.slug)}`
+  const author = pickAuthor(data.author as { username: string | null; display_name: string | null }[] | null)
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "article",
+      url: canonical,
+      title,
+      description,
+      siteName: "Tyuta",
+      locale: "he_IL",
+      images: [{ url: imageUrl, alt: title }],
+      ...(data.published_at ? { publishedTime: new Date(data.published_at).toISOString() } : {}),
+      ...(data.updated_at ? { modifiedTime: new Date(data.updated_at).toISOString() } : {}),
+      ...(author?.username ? { authors: [`${SITE_URL}/u/${encodeURIComponent(author.username)}`] } : {}),
+    },
+    twitter: {
+      card: data.cover_image_url ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: [imageUrl],
+    },
+  }
+}
+
+export default async function PostPage({ params }: PageProps) {
+  const rawSlug = (await params).slug
+  const slug = decodeURIComponent(rawSlug)
+
+  const supabase = getServerSupabase()
+
+  // Always render the client page; JSON-LD is best-effort
+  if (!supabase) return <PostClient />
+
+  const data = await fetchPost(slug)
+
+  if (!data) {
+    // If slug looks like a UUID, this might be an old link — try to find the post by id and redirect to its current slug
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (UUID_RE.test(slug)) {
+      const { data: byId } = await supabase
+        .from("posts")
+        .select("slug")
+        .eq("id", slug)
+        .eq("status", "published")
+        .is("deleted_at", null)
+        .maybeSingle<{ slug: string }>()
+      if (byId?.slug && byId.slug !== slug) {
+        redirect(`/post/${encodeURIComponent(byId.slug)}`)
+      }
+    }
+    return <PostClient />
+  }
+
+  const canonical = `${SITE_URL}/post/${encodeURIComponent(data.slug)}`
   const headline = (data.title ?? "").trim() || "Tyuta"
-  const description = ((data.excerpt ?? "").trim() || "המקום לכל הגרסאות שלך").slice(0, 200)
+  const description = ((data.excerpt ?? "").trim() || "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.").slice(0, 200)
   const image = data.cover_image_url ? absUrl(data.cover_image_url) : absUrl("/apple-touch-icon.png")
   const datePublished = data.published_at ? new Date(data.published_at).toISOString() : undefined
   const dateModified = (data.updated_at ?? data.published_at)

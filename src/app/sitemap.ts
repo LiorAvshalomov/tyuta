@@ -56,6 +56,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!supabaseUrl || !key) {
     return [
       { url: baseUrl, lastModified: nowIso, changeFrequency: "daily", priority: 1 },
+      { url: `${baseUrl}/c/release`, changeFrequency: "daily", priority: 0.9 },
+      { url: `${baseUrl}/c/stories`, changeFrequency: "daily", priority: 0.9 },
+      { url: `${baseUrl}/c/magazine`, changeFrequency: "daily", priority: 0.9 },
       { url: `${baseUrl}/about`, changeFrequency: "monthly", priority: 0.4 },
       { url: `${baseUrl}/terms`, changeFrequency: "yearly", priority: 0.2 },
       { url: `${baseUrl}/privacy`, changeFrequency: "yearly", priority: 0.2 },
@@ -69,6 +72,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const { data: postsData, error: postsErr } = await supabase
     .from("posts")
     .select("slug,published_at,updated_at")
+    .eq("status", "published")
     .is("deleted_at", null)
     .not("published_at", "is", null)
     .order("published_at", { ascending: false })
@@ -76,6 +80,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (postsErr || !postsData) {
     return [
       { url: baseUrl, lastModified: nowIso, changeFrequency: "daily", priority: 1 },
+      { url: `${baseUrl}/c/release`, changeFrequency: "daily", priority: 0.9 },
+      { url: `${baseUrl}/c/stories`, changeFrequency: "daily", priority: 0.9 },
+      { url: `${baseUrl}/c/magazine`, changeFrequency: "daily", priority: 0.9 },
       { url: `${baseUrl}/about`, changeFrequency: "monthly", priority: 0.4 },
       { url: `${baseUrl}/terms`, changeFrequency: "yearly", priority: 0.2 },
       { url: `${baseUrl}/privacy`, changeFrequency: "yearly", priority: 0.2 },
@@ -88,7 +95,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const postUrls: MetadataRoute.Sitemap = posts
     .filter((p) => typeof p.slug === "string" && p.slug.trim().length > 0)
     .map((p) => ({
-      url: `${baseUrl}/post/${p.slug}`,
+      url: `${baseUrl}/post/${encodeURIComponent(p.slug)}`,
       lastModified: pickLastModified(p),
       changeFrequency: "weekly",
       priority: 0.8,
@@ -168,6 +175,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     { url: baseUrl, lastModified: nowIso, changeFrequency: "daily", priority: 1 },
+    { url: `${baseUrl}/c/release`, changeFrequency: "daily", priority: 0.9 },
+    { url: `${baseUrl}/c/stories`, changeFrequency: "daily", priority: 0.9 },
+    { url: `${baseUrl}/c/magazine`, changeFrequency: "daily", priority: 0.9 },
     { url: `${baseUrl}/about`, changeFrequency: "monthly", priority: 0.4 },
     { url: `${baseUrl}/terms`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${baseUrl}/privacy`, changeFrequency: "yearly", priority: 0.2 },

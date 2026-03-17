@@ -1,57 +1,133 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-const RESET_COOKIE = "tyuta_reset_required";
+const RESET_COOKIE = 'tyuta_reset_required'
 
-function isBypassPath(pathname: string): boolean {
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api") ||
-    pathname === "/favicon.ico" ||
-    pathname === "/robots.txt" ||
-    pathname === "/sitemap.xml"
-  ) {
-    return true;
-  }
+// Supabase origins — must match next.config.ts remotePatterns
+const SB_ORIGINS = [
+  'https://dowhdgcvxgzaikmpnchv.supabase.co',
+  'https://ckhhngglsipovvvgailq.supabase.co',
+]
+const SB_WSS = SB_ORIGINS.map((o) => o.replace('https://', 'wss://'))
 
-  // Allow auth pages so users can complete reset or request a new link
-  if (pathname.startsWith("/auth/")) return true;
+/**
+ * Generate a cryptographically random base64 nonce using the Web Crypto API.
+ * Works in the Next.js Edge Runtime (no Node.js Buffer/crypto module needed).
+ */
+function generateNonce(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...Array.from(bytes)))
+}
 
-  return false;
+/**
+ * Build the Content-Security-Policy header value for a given nonce.
+ *
+ * script-src:
+ *   - 'self'  — allows Next.js chunk scripts served from the same origin
+ *   - 'nonce-{nonce}' — allows inline scripts that carry this exact nonce
+ *   - https://www.googletagmanager.com — allows GTM external script
+ *   (no 'unsafe-inline' — nonce supersedes it in all modern browsers)
+ *
+ * style-src keeps 'unsafe-inline' because Tailwind v4 and TipTap use it.
+ *
+ * Added hardening vs previous config:
+ *   - object-src 'none' — blocks Flash / plugin embeds
+ *   - upgrade-insecure-requests — upgrades any accidental HTTP sub-resources
+ */
+function buildCSP(nonce: string): string {
+  const imgSrc = [
+    "'self'",
+    'data:',
+    'blob:',
+    ...SB_ORIGINS,
+    'https://api.dicebear.com',
+    'https://pixabay.com',
+    'https://cdn.pixabay.com',
+    'https://images.pexels.com',
+    'https://www.google-analytics.com',
+  ].join(' ')
+
+  const connectSrc = [
+    "'self'",
+    ...SB_ORIGINS,
+    ...SB_WSS,
+    'https://api-free.deepl.com',
+    'https://www.google-analytics.com',
+    'https://region1.google-analytics.com',
+  ].join(' ')
+
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' https://www.googletagmanager.com`,
+    "style-src 'self' 'unsafe-inline'",
+    `img-src ${imgSrc}`,
+    "font-src 'self'",
+    `connect-src ${connectSrc}`,
+    'frame-src https://www.youtube.com https://www.youtube-nocookie.com',
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    'upgrade-insecure-requests',
+  ].join('; ')
+}
+
+/** Paths that skip middleware entirely — static files and API routes */
+function isStaticAsset(pathname: string): boolean {
+  return (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml'
+  )
+}
+
+/** Auth pages bypass the reset-cookie gate but still receive nonce + CSP */
+function isAuthPage(pathname: string): boolean {
+  return pathname.startsWith('/auth/')
 }
 
 export function middleware(req: NextRequest) {
-  const { pathname, searchParams } = req.nextUrl;
+  const { pathname, searchParams } = req.nextUrl
 
-  if (isBypassPath(pathname)) {
-    return NextResponse.next();
+  // Static assets: skip nonce/CSP entirely
+  if (isStaticAsset(pathname)) return NextResponse.next()
+
+  const nonce = generateNonce()
+
+  // Forward the nonce to Server Components via a request header.
+  // Next.js App Router reads 'x-nonce' and automatically injects the nonce
+  // into every <script> and <style> tag it generates (hydration, chunks, etc.).
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-nonce', nonce)
+
+  // Reset-cookie and recovery-flow gate (auth pages are exempt from this gate)
+  if (!isAuthPage(pathname)) {
+    const resetRequired = req.cookies.get(RESET_COOKIE)?.value === '1'
+    if (resetRequired && pathname !== '/auth/reset-password') {
+      const url = req.nextUrl.clone()
+      url.pathname = '/auth/reset-password'
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+
+    const flowType = searchParams.get('type')
+    const isRecoveryFlow = flowType === 'recovery' || flowType === 'invite'
+    if (isRecoveryFlow && pathname !== '/auth/reset-password') {
+      const url = req.nextUrl.clone()
+      url.pathname = '/auth/reset-password'
+      url.search = req.nextUrl.search
+      return NextResponse.redirect(url)
+    }
   }
 
-  // Hard gate: if cookie exists, force user to reset password before browsing the app.
-  const resetRequired = req.cookies.get(RESET_COOKIE)?.value === "1";
-  if (resetRequired && pathname !== "/auth/reset-password") {
-    const url = req.nextUrl.clone();
-    url.pathname = "/auth/reset-password";
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
-
-  // If we can detect a password-recovery flow in QUERY (PKCE), force reset.
-  // NOTE: hash fragments (#access_token) are not visible to middleware.
-  // IMPORTANT: Only redirect for recovery/invite types — NOT signup or magiclink.
-  const flowType = searchParams.get("type");
-  const isRecoveryFlow = flowType === "recovery" || flowType === "invite";
-
-  if (isRecoveryFlow && pathname !== "/auth/reset-password") {
-    const url = req.nextUrl.clone();
-    url.pathname = "/auth/reset-password";
-    url.search = req.nextUrl.search;
-    return NextResponse.redirect(url);
-  }
-
-  return NextResponse.next();
+  const response = NextResponse.next({ request: { headers: requestHeaders } })
+  response.headers.set('Content-Security-Policy', buildCSP(nonce))
+  return response
 }
 
 export const config = {
-  matcher: ["/((?!_next|api|favicon.ico|robots.txt|sitemap.xml).*)"],
-};
+  matcher: ['/((?!_next|api|favicon.ico|robots.txt|sitemap.xml).*)'],
+}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Script from "next/script"
 import { Suspense } from "react"
+import { headers } from "next/headers"
 import { Geist, Geist_Mono, Heebo } from "next/font/google"
 import "./globals.css"
 import AuthSync from "@/components/auth/AuthSync"
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
     default: "Tyuta - המקום לכל הגרסאות שלך",
     template: "%s | Tyuta",
   },
-  description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, מרחב כתיבה רגיש ובטוח.",
+  description: "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
   alternates: {
     canonical: "/",
   },
@@ -46,7 +47,7 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: "Tyuta",
     title: "Tyuta - המקום לכל הגרסאות שלך",
-    description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, מרחב כתיבה רגיש ובטוח.",
+    description: "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
     locale: "he_IL",
     images: [
       {
@@ -60,7 +61,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Tyuta - המקום לכל הגרסאות שלך",
-    description: "המקום לכל הגרסאות שלך — פלטפורמת כתיבה ישראלית, מרחב כתיבה רגיש ובטוח.",
+    description: "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
     images: ["/apple-touch-icon.png"],
   },
   icons: {
@@ -86,7 +87,8 @@ function JsonLd({ data }: { data: unknown }) {
   )
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get('x-nonce') ?? ''
   const organizationSchema = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -114,6 +116,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Reads 'tyuta:theme' from localStorage ('light'|'dark'|'system').
             Falls back to prefers-color-scheme, then light. No external deps. */}
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var s=localStorage.getItem('tyuta:theme');var d=s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`,
           }}
@@ -123,8 +126,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
               strategy="afterInteractive"
+              nonce={nonce}
             />
-            <Script id="ga-init" strategy="afterInteractive">
+            <Script id="ga-init" strategy="afterInteractive" nonce={nonce}>
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
