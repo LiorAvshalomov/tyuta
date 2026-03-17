@@ -1,7 +1,6 @@
 "use client"
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
@@ -140,13 +139,10 @@ function DesktopPostCard({
         <div className="shrink-0">
           <div className="relative h-28 w-36 overflow-hidden rounded-lg bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
             {post.cover_image_url ? (
-              <Image
-                src={coverProxySrc(post.cover_image_url)!}
-                alt={post.title}
-                fill
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                sizes="144px"
-                unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
+              <div
+                className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
+                style={{ backgroundImage: `url(${coverProxySrc(post.cover_image_url)})` }}
+                aria-hidden="true"
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-3xl opacity-40">📝</div>
@@ -254,13 +250,10 @@ function MobilePostCard({
       {/* Cover Image - Top, full width */}
       <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
         {post.cover_image_url ? (
-          <Image
-            src={coverProxySrc(post.cover_image_url)!}
-            alt={post.title}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 768px"
-            unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${coverProxySrc(post.cover_image_url)})` }}
+            aria-hidden="true"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">📝</div>

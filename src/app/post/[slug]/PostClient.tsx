@@ -164,8 +164,8 @@ function SidebarPostItem({
       {/* תמונה (שמאל) */}
       <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-muted ring-1 ring-border/50 flex items-center justify-center">
         {coverSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={coverSrc} alt="" className="h-full w-full object-cover" loading="lazy" />
+          // CSS background prevents Google from indexing sidebar thumbnails as standalone images
+          <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${coverSrc})` }} aria-hidden="true" />
         ) : (
           <span className="text-[28px] font-black text-neutral-300 dark:text-muted-foreground/30 select-none leading-none" aria-hidden="true">
             {(post.title ?? 'פ').charAt(0)}
