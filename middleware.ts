@@ -89,11 +89,21 @@ function isAuthPage(pathname: string): boolean {
   return pathname.startsWith('/auth/')
 }
 
+const UUID_POST_RE = /^\/post\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+
 export function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl
 
   // Static assets: skip nonce/CSP entirely
   if (isStaticAsset(pathname)) return NextResponse.next()
+
+  // UUID post URLs → rewrite to API route that looks up the current slug and redirects.
+  // No async IO here — pure regex match. The API route (Node.js) handles the DB lookup.
+  // ?nr=1 bypasses this rewrite so the fallback page can render without looping.
+  const uuidMatch = pathname.match(UUID_POST_RE)
+  if (uuidMatch && !searchParams.has('nr')) {
+    return NextResponse.rewrite(new URL(`/api/internal/post-by-id/${uuidMatch[1]}`, req.url))
+  }
 
   const nonce = generateNonce()
 
