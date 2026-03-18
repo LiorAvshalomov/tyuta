@@ -5,6 +5,11 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    staleTimes: {
+      dynamic: 0,
+    },
+  },
   images: {
     minimumCacheTTL: 86400,
     // Constrain candidate widths so Next.js generates fewer distinct transformed variants.
