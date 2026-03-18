@@ -3,7 +3,6 @@ import type { ReactNode } from "react"
 import { createClient } from "@supabase/supabase-js"
 
 export const revalidate = 60
-export const runtime = "nodejs"
 
 const SITE_URL = "https://tyuta.net"
 
