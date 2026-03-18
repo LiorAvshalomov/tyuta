@@ -112,9 +112,9 @@ export default async function PublicProfilePage({ params }: PageProps) {
     { count: followingCount = 0 },
     { count: postsCount = 0 },
     { count: commentsWritten = 0 },
-    { data: postIdsRows },
     { data: medalsRow },
     { data: reactionTotals, error: rtErr },
+    { data: commentsReceivedRaw },
   ] = await Promise.all([
     supabase
       .from('user_follows')
@@ -136,36 +136,19 @@ export default async function PublicProfilePage({ params }: PageProps) {
       .select('id', { count: 'exact', head: true })
       .eq('author_id', prof.id),
     supabase
-      .from('posts')
-      .select('id')
-      .is('deleted_at', null)
-      .eq('author_id', prof.id)
-      .eq('status', 'published')
-      .eq('is_anonymous', false)
-      .order('created_at', { ascending: false })
-      .limit(5000),
-    supabase
       .from('profile_medals_all_time')
       .select('gold, silver, bronze')
       .eq('profile_id', prof.id)
       .maybeSingle(),
     supabase.rpc('get_profile_reaction_totals', { p_profile_id: prof.id }),
+    supabase.rpc('get_comments_received_count', { p_author_id: prof.id }),
   ])
 
   if (rtErr) {
     console.error('get_profile_reaction_totals error:', rtErr)
   }
 
-  // Batch 2: comments received depends on postIds from batch 1
-  let commentsReceived = 0
-  const postIds = (postIdsRows ?? []).map((r: { id: string }) => r.id)
-  if (postIds.length > 0) {
-    const { count } = await supabase
-      .from('comments')
-      .select('id', { count: 'exact', head: true })
-      .in('post_id', postIds)
-    commentsReceived = count ?? 0
-  }
+  const commentsReceived = Number(commentsReceivedRaw ?? 0)
 
   const medals = {
     gold: medalsRow?.gold ?? 0,
