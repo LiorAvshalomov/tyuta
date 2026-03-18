@@ -696,13 +696,17 @@ export default async function HomePage(props: HomePageProps = {}) {
     }
   }
   
-  // Bulk fetch recent posts for all forced subcategories (channel pages), so subcategory sections never rely on ranking availability
-  if (isChannelPage && channelId != null && forcedSubcatIdsByName.size > 0) {
-    const subcatIds = Array.from(new Set(Array.from(forcedSubcatIdsByName.values())))
-    const { data: subcatPostRows } = await supabase
-      .from('posts')
-      .select(
-        `
+  // Kick off subcategory posts fetch as a real Promise (via .then()) so it fires the HTTP request
+  // immediately and runs in parallel with Phase 2 RPCs below.
+  // Supabase builders are lazy thenables — calling .then(r=>r) converts to a real Promise that starts now.
+  const subcatIdsForFetch = (isChannelPage && channelId !== null && forcedSubcatIdsByName.size > 0)
+    ? Array.from(new Set(Array.from(forcedSubcatIdsByName.values())))
+    : []
+  const subcatPostsPromise = (subcatIdsForFetch.length > 0 && channelId !== null)
+    ? supabase
+        .from('posts')
+        .select(
+          `
           id,
           title,
           slug,
@@ -714,24 +718,16 @@ export default async function HomePage(props: HomePageProps = {}) {
           channel:channels ( slug, name_he ),
           author:profiles!posts_author_id_fkey ( username, display_name, avatar_url ),
           post_tags:post_tags!post_tags_post_id_fkey ( tag:tags!post_tags_tag_id_fkey ( name_he, slug ) )
-        `
-      )
-      .is('deleted_at', null)
-      .eq('status', 'published')
-      .eq('channel_id', channelId)
-      .in('subcategory_tag_id', subcatIds)
-      .order('published_at', { ascending: false })
-      .limit(250)
-
-    ;(subcatPostRows ?? []).forEach(r => {
-      const row = r as PostRow
-      const sid = row.subcategory_tag_id
-      if (typeof sid !== 'number') return
-      const prev = forcedSubcategoryPostsById.get(sid) ?? []
-      prev.push(row)
-      forcedSubcategoryPostsById.set(sid, prev)
-    })
-  }
+          `
+        )
+        .is('deleted_at', null)
+        .eq('status', 'published')
+        .eq('channel_id', channelId)
+        .in('subcategory_tag_id', subcatIdsForFetch)
+        .order('published_at', { ascending: false })
+        .limit(250)
+        .then(r => r)  // convert to real Promise → HTTP request fires immediately
+    : null
 
   const [rankedCombinedRes, rankedStoriesRes, rankedReleaseRes, rankedMagazineRes, rankedAllRes, recentRes] =
     isChannelPage
@@ -859,6 +855,19 @@ export default async function HomePage(props: HomePageProps = {}) {
         </div>
       </main>
     )
+  }
+
+  // Resolve subcatPostsPromise now — it started before Phase 2 so it was running in parallel
+  if (subcatPostsPromise) {
+    const { data: subcatPostRows } = await subcatPostsPromise
+    ;(subcatPostRows ?? []).forEach(r => {
+      const row = r as PostRow
+      const sid = row.subcategory_tag_id
+      if (typeof sid !== 'number') return
+      const prev = forcedSubcategoryPostsById.get(sid) ?? []
+      prev.push(row)
+      forcedSubcategoryPostsById.set(sid, prev)
+    })
   }
 
   const rankedCombined = (rankedCombinedRes.data ?? []) as RankedRow[]
@@ -1261,7 +1270,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                 <div className="space-y-8">
                   {/* Recent posts FIRST */}
                   <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
-                    <Link href={channelSlug ? `/search?sort=recent&channel=${channelSlug}` : "/search?sort=recent"} className="tyuta-panel-title tyuta-hover mb-4 inline-flex">פוסטים אחרונים</Link>
+                    <Link href={channelSlug ? `/search?sort=recent&channel=${channelSlug}` : "/search?sort=recent"} scroll={true} className="tyuta-panel-title tyuta-hover mb-4 inline-flex">פוסטים אחרונים</Link>
                     <div className="space-y-3">
                       {recentMini.length > 0 ? (
                         recentMini.slice(0, 8).map(p => (
@@ -1392,7 +1401,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                 <div className="space-y-8">
                   {/* Recent posts FIRST */}
                   <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
-                    <Link href="/search?sort=recent" className="tyuta-panel-title tyuta-hover mb-4 inline-flex">פוסטים אחרונים</Link>
+                    <Link href="/search?sort=recent" scroll={true} className="tyuta-panel-title tyuta-hover mb-4 inline-flex">פוסטים אחרונים</Link>
                     <div className="space-y-3">
                       {recentMini.length > 0 ? (
                         recentMini.slice(0, 8).map(p => (

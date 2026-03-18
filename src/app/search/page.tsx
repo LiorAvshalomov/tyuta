@@ -66,6 +66,9 @@ export default function SearchPage() {
   const sp = useSearchParams()
   const router = useRouter()
 
+  // Scroll to top on every navigation to this page
+  useEffect(() => { window.scrollTo(0, 0) }, [])
+
   // URL -> initial
   const urlQ = safeText(sp.get('q')).trim()
   const urlChannel = safeText(sp.get('channel')).trim() // channel slug
