@@ -28,10 +28,10 @@ export default async function FollowingPage({ params }: PageProps) {
   const displayName = (prof.display_name ?? '').trim() || 'אנונימי'
 
   // Batch 1: all queries independent of each other — runs in parallel
+  // following rows query uses count: 'exact' to get both total count and row data in one request
   const [
     { count: followersCount = 0 },
-    { count: followingCount = 0 },
-    { data: rows },
+    { data: rows, count: followingCount },
     { data: medalsRow },
   ] = await Promise.all([
     supabase
@@ -40,11 +40,7 @@ export default async function FollowingPage({ params }: PageProps) {
       .eq('following_id', prof.id),
     supabase
       .from('user_follows')
-      .select('following_id', { count: 'exact', head: true })
-      .eq('follower_id', prof.id),
-    supabase
-      .from('user_follows')
-      .select('following_id')
+      .select('following_id', { count: 'exact' })
       .eq('follower_id', prof.id)
       .order('created_at', { ascending: false })
       .limit(200),

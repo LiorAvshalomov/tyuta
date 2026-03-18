@@ -28,26 +28,22 @@ export default async function FollowersPage({ params }: PageProps) {
   const displayName = (prof.display_name ?? '').trim() || 'אנונימי'
 
   // Batch 1: all queries independent of each other — runs in parallel
+  // follower rows query uses count: 'exact' to get both total count and row data in one request
   const [
-    { count: followersCount = 0 },
+    { data: rows, count: followersCount },
     { count: followingCount = 0 },
-    { data: rows },
     { data: medalsRow },
   ] = await Promise.all([
     supabase
       .from('user_follows')
-      .select('follower_id', { count: 'exact', head: true })
-      .eq('following_id', prof.id),
+      .select('follower_id', { count: 'exact' })
+      .eq('following_id', prof.id)
+      .order('created_at', { ascending: false })
+      .limit(200),
     supabase
       .from('user_follows')
       .select('following_id', { count: 'exact', head: true })
       .eq('follower_id', prof.id),
-    supabase
-      .from('user_follows')
-      .select('follower_id')
-      .eq('following_id', prof.id)
-      .order('created_at', { ascending: false })
-      .limit(200),
     supabase
       .from('profile_medals_all_time')
       .select('gold, silver, bronze')
