@@ -4,8 +4,7 @@ export const revalidate = 60
 import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
-import { formatDateTimeHe } from '@/lib/time'
-import { heRelativeTime } from '@/lib/time/heRelativeTime'
+import { RelativeTime } from '@/components/RelativeTime'
 import HomeWriteCTA from '@/components/HomeWriteCTA'
 import StickySidebar from '@/components/StickySidebar'
 import Avatar from '@/components/Avatar'
@@ -202,7 +201,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
                     <span className="font-bold text-sm">{post.author_name}</span>
                   )}
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
+                    <RelativeTime iso={post.created_at} />
                     {post.subcategory ? (
                       <><span className="mx-2">•</span><span className="font-semibold">{post.subcategory.name_he}</span></>
                     ) : null}
@@ -295,7 +294,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
                   <span className={`font-bold text-sm ${tc.name} block truncate tyuta-panel-author`}>{post.author_name}</span>
                 )}
                 <div className={`text-xs ${tc.meta} mt-0.5`}>
-                  <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
+                  <RelativeTime iso={post.created_at} />
                   {post.subcategory ? (
                     <><span className="mx-2">•</span><span className="font-semibold">{post.subcategory.name_he}</span></>
                   ) : null}
@@ -360,7 +359,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
 
           <div className="min-w-0">
-            <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
+            <RelativeTime iso={post.created_at} />
             {post.subcategory ? (
               <>
                 <span className="mx-2">•</span>
@@ -476,9 +475,7 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
           <div className="min-w-0 flex-1 text-right flex flex-col">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
               <div className="text-xs text-muted-foreground">
-                <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}
-
-                </span>
+                <RelativeTime iso={post.created_at} />
                 {post.subcategory ? (
                   <>
                     <span className="mx-2">•</span>
@@ -637,7 +634,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
               </div>
 
               {/* Time — always fully visible, never shrinks */}
-              <span className="shrink-0 whitespace-nowrap" title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
+              <RelativeTime iso={post.created_at} className="shrink-0 whitespace-nowrap" />
             </div>
           </div>
         </div>

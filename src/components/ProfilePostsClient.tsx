@@ -15,6 +15,7 @@ type PostBase = {
   title: string
   excerpt: string | null
   created_at: string
+  published_at: string | null
   cover_image_url: string | null
   channel_id: number | null
 }
@@ -27,6 +28,7 @@ type PostItem = {
   title: string
   excerpt: string | null
   created_at: string
+  published_at: string | null
   cover_image_url: string | null
   channel_name: string | null
   medals: { gold: number; silver: number; bronze: number } | null
@@ -165,7 +167,7 @@ function DesktopPostCard({
           {/* Meta row: Date • Category | Medals */}
           <div className="flex items-center justify-between mt-auto pt-2">
             <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-muted-foreground">
-              <span>{heRelativeTime(post.created_at)}</span>
+              <span>{heRelativeTime(post.published_at ?? post.created_at)}</span>
               {post.channel_name && (
                 <>
                   <span>•</span>
@@ -275,7 +277,7 @@ function MobilePostCard({
         {/* Meta row: Date • Category | Medals */}
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-neutral-500 dark:text-muted-foreground">{heRelativeTime(post.created_at)}</span>
+            <span className="text-neutral-500 dark:text-muted-foreground">{heRelativeTime(post.published_at ?? post.created_at)}</span>
             {post.channel_name && (
               channelSlug ? (
                 <Link
@@ -424,11 +426,11 @@ export default function ProfilePostsClient({
         if (sort === 'recent') {
           const res = await supabase
             .from('posts')
-            .select('id, slug, title, excerpt, created_at, cover_image_url, channel_id')
+            .select('id, slug, title, excerpt, created_at, published_at, cover_image_url, channel_id')
             .eq('author_id', profileId)
             .eq('status', 'published')
             .is('deleted_at', null)
-            .order('created_at', { ascending: false })
+            .order('published_at', { ascending: false, nullsFirst: false })
             .range(from, to)
 
           if (res.error) throw res.error
@@ -458,6 +460,7 @@ export default function ProfilePostsClient({
             title: p.title,
             excerpt: p.excerpt,
             created_at: p.created_at,
+            published_at: p.published_at,
             cover_image_url: p.cover_image_url,
             channel_name: p.channel_id ? channelsMap.get(p.channel_id) ?? null : null,
             medals: medalsMap.get(p.id) ?? null,
@@ -473,11 +476,11 @@ export default function ProfilePostsClient({
         if (!sortedIds) {
           const allPostsRes = await supabase
             .from('posts')
-            .select('id, slug, title, excerpt, created_at, cover_image_url, channel_id')
+            .select('id, slug, title, excerpt, created_at, published_at, cover_image_url, channel_id')
             .eq('author_id', profileId)
             .eq('status', 'published')
             .is('deleted_at', null)
-            .order('created_at', { ascending: false })
+            .order('published_at', { ascending: false, nullsFirst: false })
             .limit(500)
 
           if (allPostsRes.error) throw allPostsRes.error
@@ -508,8 +511,10 @@ export default function ProfilePostsClient({
             const ca = counts.get(a) ?? 0
             const cb = counts.get(b) ?? 0
             if (cb !== ca) return cb - ca
-            const da = new Date(byId.get(a)?.created_at ?? 0).getTime()
-            const db = new Date(byId.get(b)?.created_at ?? 0).getTime()
+            const pa = byId.get(a)
+            const pb = byId.get(b)
+            const da = new Date(pa?.published_at ?? pa?.created_at ?? 0).getTime()
+            const db = new Date(pb?.published_at ?? pb?.created_at ?? 0).getTime()
             return db - da
           })
 
@@ -524,7 +529,7 @@ export default function ProfilePostsClient({
 
         const res = await supabase
           .from('posts')
-          .select('id, slug, title, excerpt, created_at, cover_image_url, channel_id')
+          .select('id, slug, title, excerpt, created_at, published_at, cover_image_url, channel_id')
           .in('id', sliceIds)
           .is('deleted_at', null)
 
@@ -557,6 +562,7 @@ export default function ProfilePostsClient({
             title: p.title,
             excerpt: p.excerpt,
             created_at: p.created_at,
+            published_at: p.published_at,
             cover_image_url: p.cover_image_url,
             channel_name: p.channel_id ? channelsMap.get(p.channel_id) ?? null : null,
             medals: medalsMap.get(p.id) ?? null,

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 
@@ -239,20 +239,22 @@ export default function PostPage({ initialData }: Props) {
   const [isMobile, setIsMobile] = useState(false)
 
   // Lazy-load comments: eager when deep-link present, deferred via IO otherwise
-  const searchParams = useSearchParams()
   const [commentsReady, setCommentsReady] = useState(false)
   const [sentinelNode, setSentinelNode] = useState<HTMLDivElement | null>(null)
 
   // Deep-link detected → show comments immediately
+  // Read URL directly to avoid useSearchParams() which forces Suspense streaming and causes
+  // scroll-to-top when PostClient mounts after the fallback (null) period.
   useEffect(() => {
     if (commentsReady) return
-    const hl = searchParams?.get('hl')
-    const n = searchParams?.get('n')
-    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    const params = new URLSearchParams(window.location.search)
+    const hl = params.get('hl')
+    const n = params.get('n')
+    const hash = window.location.hash
     if (hl || n || hash.startsWith('#comment-')) {
       setCommentsReady(true)
     }
-  }, [commentsReady, searchParams])
+  }, [commentsReady])
 
   // No deep-link → lazy-load when user scrolls near the comments area
   useEffect(() => {

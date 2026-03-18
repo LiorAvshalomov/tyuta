@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { cache, Suspense } from "react"
+import { cache } from "react"
 import { createClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import PostClient from "./PostClient"
@@ -197,7 +197,7 @@ export default async function PostPage({ params }: PageProps) {
         redirect(`/post/${encodeURIComponent(byId.slug)}`)
       }
     }
-    return <Suspense fallback={null}><PostClient /></Suspense>
+    return <PostClient />
   }
 
   const canonical = `${SITE_URL}/post/${encodeURIComponent(data.slug)}`
@@ -261,7 +261,7 @@ export default async function PostPage({ params }: PageProps) {
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(jsonLd) }}
       />
-      <Suspense fallback={null}><PostClient initialData={data} /></Suspense>
+      <PostClient initialData={data} />
     </>
   )
 }

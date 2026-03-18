@@ -2,8 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
-import { formatDateTimeHe } from '@/lib/time'
-import { heRelativeTime } from '@/lib/time/heRelativeTime'
+import { RelativeTime } from '@/components/RelativeTime'
 import { getPostDisplayDate } from '@/lib/posts'
 import StickySidebar from '@/components/StickySidebar'
 import AuthorHover from '@/components/AuthorHover'
@@ -318,7 +317,7 @@ function ListRow({ post }: { post: CardPost }) {
             )}
 
             <span className="mx-2">•</span>
-            <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
+            <RelativeTime iso={post.published_at ?? post.created_at} />
 
             {post.channel_name && post.channel_slug ? (
               <>
@@ -406,7 +405,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
           </>
         ) : null}
         <span className="mx-1">•</span>
-        <span title={formatDateTimeHe(post.created_at)}>{heRelativeTime(post.created_at)}</span>
+        <RelativeTime iso={post.published_at ?? post.created_at} />
       </div>
     </div>
   )
