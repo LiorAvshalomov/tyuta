@@ -130,7 +130,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       siteName: "Tyuta",
       locale: "he_IL",
       images: rawCoverUrl
-        ? [{ url: imageUrl, alt: title }]
+        ? [{ url: imageUrl, alt: title, width: 1200, height: 630 }]
         : [{ url: imageUrl, alt: title, width: 512, height: 512 }],
       ...(data.published_at ? { publishedTime: new Date(data.published_at).toISOString() } : {}),
       ...(data.updated_at ? { modifiedTime: new Date(data.updated_at).toISOString() } : {}),
