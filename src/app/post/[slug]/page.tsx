@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 import PostClient from "./PostClient"
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 export const runtime = "nodejs"
 export const dynamicParams = true
 
