@@ -1076,6 +1076,15 @@ if (!effectiveChannelId) {
         setInitialSnapshot(currentSnapshot)
         setLastSavedAt(new Date().toISOString())
 
+        // Bust the ISR cache so readers see the updated post immediately.
+        if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') {
+          void fetch('/api/posts/revalidate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slug: draftSlug }),
+          }).catch(() => undefined)
+        }
+
         setSaving(false)
         if (safeReturnParam) return router.push(safeReturnParam)
         if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') return router.push(`/post/${draftSlug}`)
