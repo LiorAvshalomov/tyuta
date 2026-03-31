@@ -13,13 +13,17 @@ const SB_WSS = SB_ORIGINS.map((o) => o.replace('https://', 'wss://'))
 /**
  * Build the Content-Security-Policy header value.
  *
- * script-src strategy (nonce + strict-dynamic):
- *   - 'nonce-{nonce}' — every inline/external <script> tag gets this nonce
- *   - 'strict-dynamic' — scripts loaded by nonce-trusted scripts are also trusted
- *     (required for Next.js chunk loading and GA4/GTM dynamic injection)
- *   - 'unsafe-inline' — CSP Level 2 fallback only; ignored by CSP3 browsers
- *     when a nonce is present
- *   - https://www.googletagmanager.com — CSP2 host fallback; ignored in CSP3
+ * script-src strategy (hash-based — compatible with ISR/edge caching):
+ *   - 'sha256-{hash}' — SHA-256 of the static theme-init inline script in layout.tsx.
+ *     CSP3 ignores 'unsafe-inline' for static inline scripts when a hash is present,
+ *     so injected inline XSS is blocked while the known script is allowed.
+ *   - 'self' — allows Next.js bundle chunks loaded from the same origin.
+ *   - No 'unsafe-inline' — GA init moved to /public/js/ga.js (external 'self' script).
+ *     Zero inline JS remains; any injected inline script is blocked unconditionally.
+ *   - https://www.googletagmanager.com — explicit allowlist for GTM external script.
+ *
+ * Why not nonce-based: nonces require headers() in layout.tsx which forces dynamic
+ * rendering and breaks ISR/Vercel edge caching entirely.
  *
  * style-src keeps 'unsafe-inline' because Tailwind v4 and TipTap inject styles at runtime.
  *
@@ -28,7 +32,7 @@ const SB_WSS = SB_ORIGINS.map((o) => o.replace('https://', 'wss://'))
  *   - upgrade-insecure-requests — upgrades any accidental HTTP sub-resources
  *   - report-uri — browser reports violations to our logging endpoint
  */
-function buildCSP(nonce: string): string {
+function buildCSP(): string {
   const imgSrc = [
     "'self'",
     'data:',
@@ -52,9 +56,10 @@ function buildCSP(nonce: string): string {
 
   return [
     "default-src 'self'",
-    // nonce-based: 'unsafe-inline' is ignored by CSP3 browsers when a nonce is present.
-    // 'strict-dynamic' trusts scripts dynamically injected by nonce-trusted scripts (Next.js chunks, GTM).
-    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https://www.googletagmanager.com`,
+    // SHA-256 hash of the theme-init inline script (layout.tsx) — the only inline script.
+    // All other JS (GA, Next.js bundles) is loaded as external files ('self' / GTM host).
+    // No 'unsafe-inline': without it, any injected inline script is blocked in all CSP levels.
+    `script-src 'sha256-BrQ21Fty0XJkC0AunvvgEWvXkbWfHbpmmJpKVG+Dw48=' 'self' https://www.googletagmanager.com`,
     "style-src 'self' 'unsafe-inline'",
     `img-src ${imgSrc}`,
     "font-src 'self'",
@@ -64,8 +69,11 @@ function buildCSP(nonce: string): string {
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
+    // Block inline event-handler XSS (onclick=, onerror=, etc.) — React never uses HTML event attributes.
+    "script-src-attr 'none'",
+    // No service workers in this app; block explicitly to prevent SW-based cache poisoning.
+    "worker-src 'none'",
     'upgrade-insecure-requests',
-    'report-uri /api/csp-report',
   ].join('; ')
 }
 
@@ -80,7 +88,7 @@ function isStaticAsset(pathname: string): boolean {
   )
 }
 
-/** Auth pages bypass the reset-cookie gate but still receive nonce + CSP */
+/** Auth pages bypass the reset-cookie gate but still receive the CSP header */
 function isAuthPage(pathname: string): boolean {
   return pathname.startsWith('/auth/')
 }
@@ -121,17 +129,8 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // Generate a cryptographically random nonce per request.
-  // btoa(randomUUID()) produces a base64 string — required by the CSP spec.
-  const nonce = btoa(crypto.randomUUID())
-
-  // Forward the nonce to the React server layer so layout.tsx can stamp
-  // it onto inline <script> tags (theme init, GA, JSON-LD).
-  const requestHeaders = new Headers(req.headers)
-  requestHeaders.set('x-nonce', nonce)
-
-  const response = NextResponse.next({ request: { headers: requestHeaders } })
-  response.headers.set('Content-Security-Policy', buildCSP(nonce))
+  const response = NextResponse.next()
+  response.headers.set('Content-Security-Policy', buildCSP())
   return response
 }
 

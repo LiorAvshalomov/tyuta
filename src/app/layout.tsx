@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import Script from "next/script"
 import { Suspense } from "react"
-import { headers } from "next/headers"
 import { Geist, Geist_Mono, Heebo } from "next/font/google"
 import "./globals.css"
 import AuthSync from "@/components/auth/AuthSync"
@@ -79,21 +78,16 @@ function safeJsonLdStringify(data: unknown): string {
   return JSON.stringify(data).replace(/</g, "\\u003c")
 }
 
-function JsonLd({ data, nonce }: { data: unknown; nonce: string }) {
+function JsonLd({ data }: { data: unknown }) {
   return (
     <script
       type="application/ld+json"
-      nonce={nonce}
       dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(data) }}
     />
   )
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Read the per-request nonce injected by middleware so we can stamp it on
-  // every inline <script>. Without matching nonces, CSP blocks inline execution.
-  const nonce = (await headers()).get('x-nonce') ?? ''
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   const organizationSchema = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -121,35 +115,25 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             Reads 'tyuta:theme' from localStorage ('light'|'dark'|'system').
             Falls back to prefers-color-scheme, then light. No external deps. */}
         <script
-          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var s=localStorage.getItem('tyuta:theme');var d=s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`,
           }}
         />
         {process.env.NODE_ENV === "production" && (
           <>
+            {/* GA ID stored in a meta tag so the external ga.js can read it without inline JS */}
+            <meta name="ga-id" content={process.env.NEXT_PUBLIC_GA_ID} />
             <Script
-              nonce={nonce}
               src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
               strategy="afterInteractive"
             />
-            <Script id="ga-init" nonce={nonce} strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                window.gtag = gtag;
-                gtag('js', new Date());
-                gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}', {
-                  page_path: window.location.pathname,
-                });
-              `}
-            </Script>
+            <Script src="/js/ga.js" strategy="afterInteractive" />
           </>
         )}
       </head>
       <body className={`${heebo.variable} ${geistSans.variable} ${geistMono.variable}  antialiased bg-background text-foreground overflow-x-hidden`}>
-        <JsonLd nonce={nonce} data={organizationSchema} />
-        <JsonLd nonce={nonce} data={websiteSchema} />
+        <JsonLd data={organizationSchema} />
+        <JsonLd data={websiteSchema} />
         <ToastProvider>
           <VisualViewportSync />
           <ThemeSync />
