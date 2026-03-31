@@ -165,7 +165,7 @@ function ChannelsInline({ onNavigate, mobile = false }: { onNavigate?: () => voi
             key={it.href}
             href={it.href}
             onClick={onNavigate}
-            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white dark:bg-card border ${it.borderClass} dark:border-border ${it.hoverClass} dark:hover:bg-muted hover:shadow-md active:scale-[0.97] transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
+            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white dark:bg-card border ${it.borderClass} dark:border-border ${it.hoverClass} hover:shadow-md active:scale-[0.97] transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
           >
             <Icon size={17} strokeWidth={2.5} className={`${it.colorClass} group-hover:scale-110 transition-transform`} />
             <span className="text-neutral-700 dark:text-foreground group-hover:text-neutral-900 dark:group-hover:text-foreground transition-colors">{it.label}</span>
@@ -812,7 +812,7 @@ export default function SiteHeader() {
                         <Link
                           href="/saved"
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-muted border border-transparent hover:border-emerald-200 dark:hover:border-border text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm transition-all"
                         >
                           <BookOpen size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>פוסטים שמורים</span>
@@ -1100,7 +1100,7 @@ export default function SiteHeader() {
                         <Link
                           href="/saved"
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-muted border border-transparent hover:border-emerald-200 dark:hover:border-border text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm transition-all"
                         >
                           <BookOpen size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>פוסטים שמורים</span>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Script from "next/script"
 import { Suspense } from "react"
+import { headers } from "next/headers"
 import { Geist, Geist_Mono, Heebo } from "next/font/google"
 import "./globals.css"
 import AuthSync from "@/components/auth/AuthSync"
@@ -78,16 +79,21 @@ function safeJsonLdStringify(data: unknown): string {
   return JSON.stringify(data).replace(/</g, "\\u003c")
 }
 
-function JsonLd({ data }: { data: unknown }) {
+function JsonLd({ data, nonce }: { data: unknown; nonce: string }) {
   return (
     <script
       type="application/ld+json"
+      nonce={nonce}
       dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(data) }}
     />
   )
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read the per-request nonce injected by middleware so we can stamp it on
+  // every inline <script>. Without matching nonces, CSP blocks inline execution.
+  const nonce = (await headers()).get('x-nonce') ?? ''
+
   const organizationSchema = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -115,6 +121,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Reads 'tyuta:theme' from localStorage ('light'|'dark'|'system').
             Falls back to prefers-color-scheme, then light. No external deps. */}
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var s=localStorage.getItem('tyuta:theme');var d=s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`,
           }}
@@ -122,10 +129,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {process.env.NODE_ENV === "production" && (
           <>
             <Script
+              nonce={nonce}
               src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
               strategy="afterInteractive"
             />
-            <Script id="ga-init" strategy="afterInteractive">
+            <Script id="ga-init" nonce={nonce} strategy="afterInteractive">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
@@ -140,8 +148,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
       </head>
       <body className={`${heebo.variable} ${geistSans.variable} ${geistMono.variable}  antialiased bg-background text-foreground overflow-x-hidden`}>
-        <JsonLd data={organizationSchema} />
-        <JsonLd data={websiteSchema} />
+        <JsonLd nonce={nonce} data={organizationSchema} />
+        <JsonLd nonce={nonce} data={websiteSchema} />
         <ToastProvider>
           <VisualViewportSync />
           <ThemeSync />

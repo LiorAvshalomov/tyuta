@@ -5,6 +5,13 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // @resvg/resvg-js ships a native .node binary — must not be bundled by Turbopack/webpack.
+  // Require it at runtime via Node.js instead.
+  serverExternalPackages: ['@resvg/resvg-js', 'fontkit'],
+  // Bundle font TTF files with the share-images API route on Vercel serverless.
+  outputFileTracingIncludes: {
+    '/api/posts/\\[id\\]/share-images': ['./src/lib/share-images/fonts/**'],
+  },
   images: {
     minimumCacheTTL: 86400,
     // Constrain candidate widths so Next.js generates fewer distinct transformed variants.

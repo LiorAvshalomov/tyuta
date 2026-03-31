@@ -13,18 +13,22 @@ const SB_WSS = SB_ORIGINS.map((o) => o.replace('https://', 'wss://'))
 /**
  * Build the Content-Security-Policy header value.
  *
- * script-src:
- *   - 'self'  — allows Next.js chunk scripts served from the same origin
- *   - 'unsafe-inline' — required for Next.js RSC flight payload inline scripts
- *   - https://www.googletagmanager.com — allows GTM external script
+ * script-src strategy (nonce + strict-dynamic):
+ *   - 'nonce-{nonce}' — every inline/external <script> tag gets this nonce
+ *   - 'strict-dynamic' — scripts loaded by nonce-trusted scripts are also trusted
+ *     (required for Next.js chunk loading and GA4/GTM dynamic injection)
+ *   - 'unsafe-inline' — CSP Level 2 fallback only; ignored by CSP3 browsers
+ *     when a nonce is present
+ *   - https://www.googletagmanager.com — CSP2 host fallback; ignored in CSP3
  *
- * style-src keeps 'unsafe-inline' because Tailwind v4 and TipTap use it.
+ * style-src keeps 'unsafe-inline' because Tailwind v4 and TipTap inject styles at runtime.
  *
  * Hardening:
  *   - object-src 'none' — blocks Flash / plugin embeds
  *   - upgrade-insecure-requests — upgrades any accidental HTTP sub-resources
+ *   - report-uri — browser reports violations to our logging endpoint
  */
-function buildCSP(): string {
+function buildCSP(nonce: string): string {
   const imgSrc = [
     "'self'",
     'data:',
@@ -48,7 +52,9 @@ function buildCSP(): string {
 
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline' https://www.googletagmanager.com`,
+    // nonce-based: 'unsafe-inline' is ignored by CSP3 browsers when a nonce is present.
+    // 'strict-dynamic' trusts scripts dynamically injected by nonce-trusted scripts (Next.js chunks, GTM).
+    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline' https://www.googletagmanager.com`,
     "style-src 'self' 'unsafe-inline'",
     `img-src ${imgSrc}`,
     "font-src 'self'",
@@ -59,6 +65,7 @@ function buildCSP(): string {
     "form-action 'self'",
     "object-src 'none'",
     'upgrade-insecure-requests',
+    'report-uri /api/csp-report',
   ].join('; ')
 }
 
@@ -114,8 +121,17 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  const response = NextResponse.next()
-  response.headers.set('Content-Security-Policy', buildCSP())
+  // Generate a cryptographically random nonce per request.
+  // btoa(randomUUID()) produces a base64 string — required by the CSP spec.
+  const nonce = btoa(crypto.randomUUID())
+
+  // Forward the nonce to the React server layer so layout.tsx can stamp
+  // it onto inline <script> tags (theme init, GA, JSON-LD).
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-nonce', nonce)
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } })
+  response.headers.set('Content-Security-Policy', buildCSP(nonce))
   return response
 }
 
