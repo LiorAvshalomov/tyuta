@@ -5,9 +5,9 @@ import * as React from 'react'
 type Props = {
   children: React.ReactNode
   className?: string
-  /** ׳’׳•׳‘׳” ׳”-header + ׳¨׳•׳•׳—. ׳‘׳¨׳™׳¨׳× ׳׳—׳“׳: 80px */
+  /** גובה ה-header + רווח. ברירת מחדל: 80px */
   topOffset?: number
-  /** id ׳©׳ ׳”-wrapper ׳”׳™׳—׳¡׳™ ׳©׳׳›׳™׳ ׳׳× ׳¢׳׳•׳“׳× ׳”׳¡׳™׳™׳“׳‘׳¨ */
+  /** id של ה-wrapper היחסי שמכיל את עמודת הסיידבר */
   containerId: string
 }
 
@@ -62,7 +62,7 @@ export default function StickySidebar({ children, className, topOffset = 80, con
       prev.sidebarWidth === nextMetrics.sidebarWidth
     ) ? prev : nextMetrics)
 
-    // ׳©׳•׳׳¨ ׳׳§׳•׳ ׳‘׳₪׳¨׳™׳¡׳” ׳›׳©׳׳ ׳—׳ ׳• ׳¢׳•׳‘׳¨׳™׳ ׳-fixed
+    // שומר מקום בפריסה כשאנחנו עוברים ל-fixed
     outer.style.height = `${sidebarHeight}px`
   }, [containerId])
 
@@ -74,7 +74,7 @@ export default function StickySidebar({ children, className, topOffset = 80, con
     const start = m.containerTop - topOffset
     const end = m.containerTop + m.containerHeight - m.sidebarHeight - topOffset
 
-    // ׳׳ ׳”׳¡׳™׳™׳“׳‘׳¨ ׳’׳‘׳•׳” ׳׳”׳§׳•׳ ׳˜׳™׳™׳ ׳¨ ג€“ ׳׳™׳ ׳׳” ג€׳׳”׳“׳‘׳™׳§ג€
+    // אם הסיידבר גבוה מהקונטיינר – אין מה "להדביק"
     const nextMode: Mode = m.sidebarHeight >= m.containerHeight
       ? 'static'
       : scrollY < start

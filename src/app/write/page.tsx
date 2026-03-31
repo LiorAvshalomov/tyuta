@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -167,31 +167,31 @@ export default function WritePage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // ג… Lock settings (channel/subcategory/tags) when editing an already published post.
+  // ✅ Lock settings (channel/subcategory/tags) when editing an already published post.
   const settingsLocked = useMemo(() => isEditMode && loadedStatus === 'published', [isEditMode, loadedStatus])
   const autosaveEnabled = useMemo(() => !settingsLocked, [settingsLocked])
 
-  // Chapters feature: enabled only for ׳¡׳™׳₪׳•׳¨׳™׳ > ׳¡׳™׳₪׳•׳¨ ׳‘׳”׳׳©׳›׳™׳
+  // Chapters feature: enabled only for סיפורים > סיפור בהמשכים
   const chaptersEnabled = useMemo(() => {
     const ch = channels.find(c => c.id === channelId)
     const sub = subcategoryOptions.find(s => s.id === subcategoryTagId)
-    return ch?.name_he === '׳¡׳™׳₪׳•׳¨׳™׳' && sub?.name_he === '׳¡׳™׳₪׳•׳¨ ׳‘׳”׳׳©׳›׳™׳'
+    return ch?.name_he === 'סיפורים' && sub?.name_he === 'סיפור בהמשכים'
   }, [channels, channelId, subcategoryOptions, subcategoryTagId])
 
   const [chapterUserPosts, setChapterUserPosts] = useState<Array<{ id: string; slug: string; title: string }>>([])
 
-  // ׳”׳₪׳¨׳§ ׳”׳ ׳•׳›׳—׳™ ׳©׳ ׳׳¦׳ ׳‘׳¢׳¨׳™׳›׳” (׳¨׳§ ׳›׳׳©׳¨ ׳›׳‘׳¨ ׳ ׳•׳¦׳¨׳” ׳˜׳™׳•׳˜׳” ׳¢׳ ID)
+  // הפרק הנוכחי שנמצא בעריכה (רק כאשר כבר נוצרה טיוטה עם ID)
   const currentDraftForChapters = useMemo(() => {
     if (!effectivePostId || !draftSlug) return null
-    return { id: effectivePostId, slug: draftSlug, title: title || '׳”׳₪׳¨׳§ ׳”׳ ׳•׳›׳—׳™' }
+    return { id: effectivePostId, slug: draftSlug, title: title || 'הפרק הנוכחי' }
   }, [effectivePostId, draftSlug, title])
 
-  // ׳›׳©׳”׳׳©׳×׳׳© ׳¢׳•׳–׳‘ ׳׳¦׳‘ "׳¡׳™׳₪׳•׳¨ ׳‘׳”׳׳©׳›׳™׳" ג€“ ׳ ׳§׳” relatedPosts ׳׳™׳“ (׳׳ ׳™׳¢׳× ׳©׳׳™׳¨׳× ׳ ׳×׳•׳ ׳™׳ ׳™׳©׳ ׳™׳)
+  // כשהמשתמש עוזב מצב "סיפור בהמשכים" – נקה relatedPosts מיד (מניעת שמירת נתונים ישנים)
   const prevChaptersEnabledRef = useRef<boolean | null>(null)
   useEffect(() => {
     const prev = prevChaptersEnabledRef.current
     prevChaptersEnabledRef.current = chaptersEnabled
-    // ׳¨׳§ ׳›׳©׳™׳© ׳׳¢׳‘׳¨ ׳׳₪׳¢׳™׳ג†’׳›׳‘׳•׳™ (׳׳ ׳‘׳˜׳¢׳™׳ ׳” ׳¨׳׳©׳•׳ ׳™׳× ׳›׳©׳”׳¢׳¨׳ ׳›׳‘׳¨ false)
+    // רק כשיש מעבר מפעיל→כבוי (לא בטעינה ראשונית כשהערך כבר false)
     if (prev !== true || chaptersEnabled) return
     setContentJson(c => ({
       ...c,
@@ -269,7 +269,7 @@ export default function WritePage() {
     if (typeof window === 'undefined') return
     window.__TYUTA_UNSAVED__ = {
       enabled: shouldWarnNavigation,
-      message: '׳™׳© ׳׳ ׳©׳™׳ ׳•׳™׳™׳ ׳©׳׳ ׳ ׳©׳׳¨׳•. ׳׳¦׳׳× ׳‘׳›׳ ׳–׳׳×?',
+      message: 'יש לך שינויים שלא נשמרו. לצאת בכל זאת?',
     }
     return () => {
       // don't force-disable; just mark disabled when unmount
@@ -324,7 +324,7 @@ export default function WritePage() {
       const { data: ch, error: chErr } = await supabase.from('channels').select('id, name_he').order('sort_order')
 
       if (chErr) {
-        setErrorMsg(chErr.message ?? '׳©׳’׳™׳׳” ׳‘׳˜׳¢׳™׳ ׳× ׳ ׳×׳•׳ ׳™׳')
+        setErrorMsg(chErr.message ?? 'שגיאה בטעינת נתונים')
         setLoading(false)
         return
       }
@@ -353,7 +353,7 @@ useEffect(() => {
   const nextChannel = resolveChannelIdFromParam(channelParam, channels)
   if (nextChannel != null) setChannelId(nextChannel)
 
-  // If we have a channel preset but no explicit subcategory, keep it unselected ("׳‘׳—׳¨ ׳×׳×ײ¾׳§׳˜׳’׳•׳¨׳™׳”")
+  // If we have a channel preset but no explicit subcategory, keep it unselected ("בחר תת־קטגוריה")
   if (channelParam && !subcategoryParam) {
     setSubcategoryTagId(null)
   }
@@ -481,7 +481,7 @@ useEffect(() => {
         .single()
 
       if (error || !post) {
-        setErrorMsg(error?.message ?? '׳׳ ׳”׳¦׳׳—׳×׳™ ׳׳˜׳¢׳•׳ ׳˜׳™׳•׳˜׳”')
+        setErrorMsg(error?.message ?? 'לא הצלחתי לטעון טיוטה')
         return
       }
 
@@ -545,7 +545,7 @@ useEffect(() => {
   const ensureDraft = useCallback(async (): Promise<{ id: string; slug: string } | null> => {
     if (!userId) return null
     const { data: { session: _s } } = await supabase.auth.getSession()
-    if (!_s) { setErrorMsg('׳”׳¡׳©׳ ׳₪׳’ ׳×׳•׳§׳£ ג€“ ׳¨׳¢׳ ׳ ׳׳× ׳”׳“׳£'); return null }
+    if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return null }
     // In edit mode we never create a new draft silently.
     if (isEditMode) return null
     if (effectivePostId && draftSlug) return { id: effectivePostId, slug: draftSlug }
@@ -554,7 +554,7 @@ useEffect(() => {
     if (createdDraftId) return { id: createdDraftId, slug: draftSlug ?? '' }
 
 
-    // ג… channel_id is NOT NULL ג€” make sure we always have one before insert
+    // ✅ channel_id is NOT NULL — make sure we always have one before insert
 let effectiveChannelId = channelId
 
 // Prefer URL preset if provided
@@ -578,7 +578,7 @@ if (!effectiveChannelId) {
   }
 
   if (!effectiveChannelId) {
-    setErrorMsg('׳׳ ׳ ׳׳¦׳׳• ׳¢׳¨׳•׳¦׳™׳ (channels). ׳—׳™׳™׳‘ ׳׳”׳™׳•׳× ׳׳₪׳—׳•׳× ׳¢׳¨׳•׳¥ ׳׳—׳“ ׳›׳“׳™ ׳׳™׳¦׳•׳¨ ׳˜׳™׳•׳˜׳”.')
+    setErrorMsg('לא נמצאו ערוצים (channels). חייב להיות לפחות ערוץ אחד כדי ליצור טיוטה.')
     return null
   }
 
@@ -624,7 +624,7 @@ if (!effectiveChannelId) {
       .single()
 
     if (error || !created) {
-      setErrorMsg(mapSupabaseError(error ?? null) ?? error?.message ?? '׳©׳’׳™׳׳” ׳‘׳™׳¦׳™׳¨׳× ׳˜׳™׳•׳˜׳”')
+      setErrorMsg(mapSupabaseError(error ?? null) ?? error?.message ?? 'שגיאה ביצירת טיוטה')
       return null
     }
 
@@ -669,7 +669,7 @@ if (!effectiveChannelId) {
   const upsertDraftSilently = useCallback(async () => {
     if (!userId) return
     const { data: { session: _s } } = await supabase.auth.getSession()
-    if (!_s) { setErrorMsg('׳”׳¡׳©׳ ׳₪׳’ ׳×׳•׳§׳£ ג€“ ׳¨׳¢׳ ׳ ׳׳× ׳”׳“׳£'); return }
+    if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
 
     const isEmpty = !title.trim() && !excerpt.trim() && JSON.stringify(contentJson) === JSON.stringify(EMPTY_DOC)
     if (isEmpty && !effectivePostId && !isEditMode) return
@@ -682,7 +682,7 @@ if (!effectiveChannelId) {
     setErrorMsg(null)
 
     try {
-      // ג… EDIT MODE:
+      // ✅ EDIT MODE:
       if (isEditMode) {
         if (!effectivePostId) return
 
@@ -817,7 +817,7 @@ if (!effectiveChannelId) {
   useEffect(() => {
     if (!shouldWarnNavigation) return
 
-    const message = '׳™׳© ׳׳ ׳©׳™׳ ׳•׳™׳™׳ ׳©׳׳ ׳ ׳©׳׳¨׳•. ׳׳¦׳׳× ׳‘׳›׳ ׳–׳׳×?'
+    const message = 'יש לך שינויים שלא נשמרו. לצאת בכל זאת?'
 
     const onDocumentClickCapture = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null
@@ -863,7 +863,7 @@ if (!effectiveChannelId) {
   const handlePickCoverFile = async (file: File) => {
     if (!userId) return
     const { data: { session: _coverSession } } = await supabase.auth.getSession()
-    if (!_coverSession) { setErrorMsg('׳”׳¡׳©׳ ׳₪׳’ ׳×׳•׳§׳£ ג€“ ׳¨׳¢׳ ׳ ׳׳× ׳”׳“׳£'); return }
+    if (!_coverSession) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
     const postId = isEditMode ? effectivePostId : (await ensureDraft())?.id
     if (!postId) return
 
@@ -899,7 +899,7 @@ if (!effectiveChannelId) {
 
   const chooseAutoCover = async () => {
     if (!title.trim()) {
-      toast('׳›׳“׳™ ׳׳‘׳—׳•׳¨ ׳§׳׳‘׳¨ ׳׳•׳˜׳•׳׳˜׳™ ׳¦׳¨׳™׳ ׳›׳•׳×׳¨׳× (׳׳׳ ׳¡׳™׳׳ ׳™׳)', 'error')
+      toast('כדי לבחור קאבר אוטומטי צריך כותרת (ללא סימנים)', 'error')
       return
     }
     const postId = isEditMode ? effectivePostId : (await ensureDraft())?.id
@@ -919,7 +919,7 @@ if (!effectiveChannelId) {
     )
     if (!res.ok) {
       setIsCoverLoading(false)
-      setErrorMsg('׳׳ ׳”׳¦׳׳—׳×׳™ ׳׳”׳‘׳™׳ ׳×׳׳•׳ ׳” ׳×׳ ׳¡׳”/׳™ ׳׳›׳×׳•׳‘ ׳›׳•׳×׳¨׳× ׳‘׳¨׳•׳¨׳” ׳׳׳ ׳¡׳™׳׳ ׳™׳')
+      setErrorMsg('לא הצלחתי להביא תמונה תנסה/י לכתוב כותרת ברורה ללא סימנים')
       return
     }
     const json = (await res.json()) as { storagePath?: string | null; signedUrl?: string | null; url?: string }
@@ -933,7 +933,7 @@ if (!effectiveChannelId) {
       setCoverSource('pixabay')
     } else {
       setIsCoverLoading(false)
-      setErrorMsg('׳׳ ׳ ׳׳¦׳׳” ׳×׳׳•׳ ׳” ׳׳×׳׳™׳׳”')
+      setErrorMsg('לא נמצאה תמונה מתאימה')
       return
     }
     setAutoCoverUsed(true)
@@ -973,14 +973,14 @@ if (!effectiveChannelId) {
     if (saving || publishingRef.current) return
     if (!userId) return
     const { data: { session: _pubSession } } = await supabase.auth.getSession()
-    if (!_pubSession) { setErrorMsg('׳”׳¡׳©׳ ׳₪׳’ ׳×׳•׳§׳£ ג€“ ׳¨׳¢׳ ׳ ׳׳× ׳”׳“׳£'); return }
+    if (!_pubSession) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
     publishingRef.current = true
     try {
 
     // === Common validations (both edit and publish modes) ===
 
     if (title.trim().length > TITLE_MAX) {
-      toast(`׳”׳›׳•׳×׳¨׳× ׳™׳›׳•׳׳” ׳׳”׳›׳™׳ ׳¢׳“ ${TITLE_MAX} ׳×׳•׳•׳™׳`, 'error')
+      toast(`הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`, 'error')
       titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       titleInputRef.current?.focus({ preventScroll: true })
       setHighlightTitle(true)
@@ -989,7 +989,7 @@ if (!effectiveChannelId) {
     }
 
     if (contentLength > CONTENT_MAX) {
-      toast(`׳”׳˜׳§׳¡׳˜ ׳׳¨׳•׳ ׳׳“׳™ (${contentLength.toLocaleString('he-IL')} ׳×׳•׳•׳™׳). ׳”׳׳’׳‘׳׳” ׳”׳™׳ ${CONTENT_MAX.toLocaleString('he-IL')} ׳×׳•׳•׳™׳.`, 'error')
+      toast(`הטקסט ארוך מדי (${contentLength.toLocaleString('he-IL')} תווים). המגבלה היא ${CONTENT_MAX.toLocaleString('he-IL')} תווים.`, 'error')
       contentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       setHighlightContent(true)
       setTimeout(() => setHighlightContent(false), 2500)
@@ -1012,8 +1012,6 @@ if (!effectiveChannelId) {
         throw new Error('פג תוקף ההתחברות. רענני את הדף ונסי שוב.')
       }
 
-
-
       const response = await fetch('/api/storage/promote-cover', {
         method: 'POST',
         headers: {
@@ -1035,7 +1033,7 @@ if (!effectiveChannelId) {
       return { publicUrl, source: activeCoverSource }
     }
 
-    // ג… In edit-mode for already published posts, "publish" is actually "save changes".
+    // ✅ In edit-mode for already published posts, "publish" is actually "save changes".
     if (settingsLocked && effectivePostId) {
       setSaving(true)
       setErrorMsg(null)
@@ -1068,7 +1066,7 @@ if (!effectiveChannelId) {
             const msg = error.message
             setErrorMsg(
               msg.includes('value too long') || msg.includes('check constraint')
-                ? `׳”׳›׳•׳×׳¨׳× ׳™׳›׳•׳׳” ׳׳”׳›׳™׳ ׳¢׳“ ${TITLE_MAX} ׳×׳•׳•׳™׳`
+                ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
                 : msg
             )
           }
@@ -1101,7 +1099,7 @@ if (!effectiveChannelId) {
         router.push('/notebook')
         return
       } catch (e: unknown) {
-                setErrorMsg(e instanceof Error ? e.message : '׳©׳’׳™׳׳” ׳‘׳©׳׳™׳¨׳× ׳©׳™׳ ׳•׳™׳™׳')
+                setErrorMsg(e instanceof Error ? e.message : 'שגיאה בשמירת שינויים')
         setSaving(false)
         return
       }
@@ -1111,7 +1109,7 @@ if (!effectiveChannelId) {
 
     // Title required
     if (!title.trim()) {
-      toast('׳›׳•׳×׳¨׳× ׳”׳™׳ ׳—׳•׳‘׳”', 'error')
+      toast('כותרת היא חובה', 'error')
       titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       titleInputRef.current?.focus({ preventScroll: true })
       setHighlightTitle(true)
@@ -1122,14 +1120,14 @@ if (!effectiveChannelId) {
     // Content minimum: at least 5 non-whitespace characters
     const visibleTextLen = extractTextFromDoc(contentJson).replace(/\s/g, '').length
     if (visibleTextLen < 5) {
-      toast('׳”׳˜׳§׳¡׳˜ ׳§׳¦׳¨ ׳׳“׳™ ג€“ ׳›׳×׳•׳‘/׳™ ׳׳₪׳—׳•׳× ׳›׳׳” ׳׳™׳׳™׳ ׳׳₪׳ ׳™ ׳©׳׳₪׳¨׳¡׳׳™׳', 'error')
+      toast('הטקסט קצר מדי – כתוב/י לפחות כמה מילים לפני שמפרסמים', 'error')
       contentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       setHighlightContent(true)
       setTimeout(() => setHighlightContent(false), 2500)
       return
     }
 
-    // Channel / subcategory / tags ג€” open settings and highlight missing fields
+    // Channel / subcategory / tags — open settings and highlight missing fields
     {
       let hasSettingsError = false
       if (!channelId) {
@@ -1142,7 +1140,7 @@ if (!effectiveChannelId) {
         setTimeout(() => setHighlightSubcategory(false), 2500)
         hasSettingsError = true
       } else if (!subcategoryOptions.some(sc => sc.id === subcategoryTagId)) {
-        // ׳×׳×-׳§׳˜׳’׳•׳¨׳™׳” ׳׳ ׳©׳™׳™׳›׳× ׳׳¢׳¨׳•׳¥ ׳”׳ ׳•׳›׳—׳™ (׳¢׳¨׳ ׳™׳©׳ ׳׳¢׳¨׳•׳¥ ׳§׳•׳“׳)
+        // תת-קטגוריה לא שייכת לערוץ הנוכחי (ערך ישן מערוץ קודם)
         setSubcategoryTagId(null)
         setHighlightSubcategory(true)
         setTimeout(() => setHighlightSubcategory(false), 2500)
@@ -1158,7 +1156,7 @@ if (!effectiveChannelId) {
         setTimeout(() => {
           settingsDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }, 50)
-        toast('׳™׳© ׳׳׳׳ ׳׳× ׳›׳ ׳”׳”׳’׳“׳¨׳•׳× ׳׳₪׳ ׳™ ׳₪׳¨׳¡׳•׳', 'error')
+        toast('יש למלא את כל ההגדרות לפני פרסום', 'error')
         return
       }
     }
@@ -1189,7 +1187,7 @@ if (!effectiveChannelId) {
       const auto = await fetchAutoCoverUrl(title.trim(), created.id)
       setIsCoverLoading(false)
       if (!auto) {
-        setErrorMsg('׳׳ ׳”׳¦׳׳—׳×׳™ ׳׳‘׳—׳•׳¨ ׳×׳׳•׳ ׳” ׳׳•׳˜׳•׳׳˜׳™׳×. ׳ ׳¡׳” ׳©׳•׳‘ ׳׳• ׳”׳¢׳׳” ׳×׳׳•׳ ׳” ׳™׳“׳ ׳™׳×.')
+        setErrorMsg('לא הצלחתי לבחור תמונה אוטומטית. נסה שוב או העלה תמונה ידנית.')
         setSaving(false)
         return
       }
@@ -1215,7 +1213,7 @@ if (!effectiveChannelId) {
         setCoverSource(promoted.source)
       }
     } catch (e: unknown) {
-              setErrorMsg(e instanceof Error ? e.message : '׳©׳’׳™׳׳” ׳‘׳”׳¢׳‘׳¨׳× ׳§׳׳‘׳¨')
+              setErrorMsg(e instanceof Error ? e.message : 'שגיאה בהעברת קאבר')
       setSaving(false)
       return
     }
@@ -1252,7 +1250,7 @@ if (!effectiveChannelId) {
         const msg = error.message
         setErrorMsg(
           msg.includes('value too long') || msg.includes('check constraint')
-            ? `׳”׳›׳•׳×׳¨׳× ׳™׳›׳•׳׳” ׳׳”׳›׳™׳ ׳¢׳“ ${TITLE_MAX} ׳×׳•׳•׳™׳`
+            ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
             : msg
         )
       }
@@ -1261,7 +1259,7 @@ if (!effectiveChannelId) {
     }
 
     if (publishedRow?.status !== 'published') {
-      setErrorMsg('׳”׳₪׳¨׳¡׳•׳ ׳ ׳›׳©׳ ג€“ ׳”׳¡׳˜׳˜׳•׳¡ ׳׳ ׳”׳×׳¢׳“׳›׳. ׳ ׳¡׳” ׳©׳•׳‘.')
+      setErrorMsg('הפרסום נכשל – הסטטוס לא התעדכן. נסה שוב.')
       setSaving(false)
       return
     }
@@ -1269,7 +1267,7 @@ if (!effectiveChannelId) {
     gaEvent('post_published', { post_id: created.id })
 
     // Trigger on-demand ISR revalidation so the home feed shows the new post immediately.
-    // Fire-and-forget ג€” don't block the redirect on the result.
+    // Fire-and-forget — don't block the redirect on the result.
     void supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.access_token) return
       const response = await fetch('/api/posts/revalidate', {
@@ -1293,18 +1291,18 @@ if (!effectiveChannelId) {
 
   const savingText = saving
     ? settingsLocked
-      ? '׳©׳•׳׳¨ ׳©׳™׳ ׳•׳™׳™׳ג€¦'
-      : '׳©׳•׳׳¨ ׳˜׳™׳•׳˜׳”ג€¦'
+      ? 'שומר שינויים…'
+      : 'שומר טיוטה…'
     : savePending
-      ? '׳©׳•׳׳¨ג€¦'
+      ? 'שומר…'
       : lastSavedAt
-        ? `׳ ׳©׳׳¨ ג€¢ ${new Date(lastSavedAt).toLocaleString('he-IL')}`
-        : '׳׳ ׳ ׳©׳׳¨ ׳¢׳“׳™׳™׳'
+        ? `נשמר • ${new Date(lastSavedAt).toLocaleString('he-IL')}`
+        : 'לא נשמר עדיין'
 
   if (loading) {
     return (
       <main className="mx-auto max-w-4xl px-4 py-10" dir="rtl">
-        <div className="text-sm text-muted-foreground">׳˜׳•׳¢׳ג€¦</div>
+        <div className="text-sm text-muted-foreground">טוען…</div>
       </main>
     )
   }
@@ -1315,21 +1313,21 @@ if (!effectiveChannelId) {
         <header className="mb-6 flex items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              {loadedStatus === 'published' && effectivePostId ? '׳¢׳¨׳™׳›׳× ׳₪׳•׳¡׳˜' : '׳›׳×׳™׳‘׳”'}
+              {loadedStatus === 'published' && effectivePostId ? 'עריכת פוסט' : 'כתיבה'}
             </h1>
             <div className="mt-2 text-sm text-muted-foreground">
               {settingsLocked
-                ? '׳׳×׳” ׳¢׳•׳¨׳ ׳₪׳•׳¡׳˜ ׳׳₪׳•׳¨׳¡׳. ׳”׳”׳’׳“׳¨׳•׳× (׳§׳˜׳’׳•׳¨׳™׳”/׳×׳×ײ¾׳§׳˜׳’׳•׳¨׳™׳”/׳×׳’׳™׳•׳×) ׳ ׳¢׳•׳׳•׳×.'
+                ? 'אתה עורך פוסט מפורסם. ההגדרות (קטגוריה/תת־קטגוריה/תגיות) נעולות.'
                 : loadedStatus === 'published' && effectivePostId
-                  ? '׳׳×׳” ׳¢׳•׳¨׳ ׳₪׳•׳¡׳˜ ׳§׳™׳™׳.'
-                  : '׳׳§׳•׳ ׳׳¢׳‘׳•׳“. ׳׳™׳ ׳׳—׳¥ ׳׳₪׳¨׳¡׳.'}
+                  ? 'אתה עורך פוסט קיים.'
+                  : 'מקום לעבוד. אין לחץ לפרסם.'}
             </div>
           </div>
           <div className="text-left">
             <div className="text-xs text-muted-foreground">{savingText}</div>
             {effectivePostId ? (
               <div className="mt-1 text-xs text-muted-foreground">
-                {loadedStatus === 'published' ? '׳₪׳•׳¡׳˜:' : '׳˜׳™׳•׳˜׳”:'} {effectivePostId.slice(0, 8)}ג€¦
+                {loadedStatus === 'published' ? 'פוסט:' : 'טיוטה:'} {effectivePostId.slice(0, 8)}…
               </div>
             ) : null}
           </div>
@@ -1348,13 +1346,13 @@ if (!effectiveChannelId) {
                   <img src={coverUrl ?? undefined} alt="" className="h-44 w-full object-cover" onLoad={() => setIsCoverLoading(false)} onError={() => setIsCoverLoading(false)} />
                 ) : (
                   <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
-                    {isCoverLoading ? '׳׳™׳™׳‘׳ ׳×׳׳•׳ ׳”ג€¦' : '׳׳™׳ ׳§׳׳‘׳¨'}
+                    {isCoverLoading ? 'מייבא תמונה…' : 'אין קאבר'}
                   </div>
                 )}
                 {isCoverLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30">
                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    <span className="mt-2 text-xs text-white">׳׳™׳™׳‘׳ ׳×׳׳•׳ ׳”ג€¦</span>
+                    <span className="mt-2 text-xs text-white">מייבא תמונה…</span>
                   </div>
                 )}
               </div>
@@ -1365,11 +1363,11 @@ if (!effectiveChannelId) {
                   onClick={chooseAutoCover}
                   className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
                 >
-                  {autoCoverUsed || coverSource === 'pixabay' ? '׳”׳—׳׳£ ׳×׳׳•׳ ׳” ׳׳•׳˜׳•׳׳˜׳™׳×' : '׳‘׳—׳¨ ׳§׳׳‘׳¨ ׳׳•׳˜׳•׳׳˜׳™׳×'}
+                  {autoCoverUsed || coverSource === 'pixabay' ? 'החלף תמונה אוטומטית' : 'בחר קאבר אוטומטית'}
                 </button>
 
                 <label className="cursor-pointer rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted">
-                  ׳”׳¢׳׳” ׳×׳׳•׳ ׳”
+                  העלה תמונה
                   <input
                     type="file"
                     accept="image/*"
@@ -1388,7 +1386,7 @@ if (!effectiveChannelId) {
                     onClick={() => void removeCover()}
                     className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
                   >
-                    ׳”׳¡׳¨
+                    הסר
                   </button>
                 ) : null}
               </div>
@@ -1397,14 +1395,14 @@ if (!effectiveChannelId) {
 
               {coverSource ? (
                 <div className="mt-2 text-xs text-muted-foreground">
-                  ׳׳§׳•׳¨: <Badge>{coverSource}</Badge>
+                  מקור: <Badge>{coverSource}</Badge>
                 </div>
               ) : null}
             </div>
 
             <div className="md:col-span-2">
               <div className="flex items-center justify-between gap-3">
-                <label className="block text-sm font-medium">׳›׳•׳×׳¨׳×</label>
+                <label className="block text-sm font-medium">כותרת</label>
                 <div className={`text-xs ${title.length >= TITLE_MAX ? 'text-red-600 font-semibold' : title.length >= 65 ? 'text-amber-600' : 'text-muted-foreground'}`}>
                   {title.length}/{TITLE_MAX}
                 </div>
@@ -1414,12 +1412,12 @@ if (!effectiveChannelId) {
                 value={title}
                 onChange={e => setTitle(e.target.value.slice(0, TITLE_MAX))}
                 maxLength={TITLE_MAX}
-                placeholder="׳×׳ ׳©׳ ׳׳›׳•׳×׳¨׳×..."
+                placeholder="תן שם לכותרת..."
                 className={`mt-2 w-full rounded-2xl border px-4 py-3 text-base outline-none transition-shadow duration-500 focus:ring-2 focus:ring-black/10 bg-background text-foreground dark:border-border dark:focus:ring-white/10 ${highlightTitle ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
               />
 
               <div className="mt-4 flex items-center justify-between gap-3">
-                <label className="block text-sm font-medium">׳×׳§׳¦׳™׳¨ ׳§׳¦׳¨</label>
+                <label className="block text-sm font-medium">תקציר קצר</label>
                 <div className="text-xs text-muted-foreground">
                   {excerpt.length}/{EXCERPT_MAX}
                 </div>
@@ -1427,25 +1425,25 @@ if (!effectiveChannelId) {
               <textarea
                 value={excerpt}
                 onChange={e => setExcerpt(clampExcerpt(e.target.value))}
-                placeholder="׳׳©׳₪׳˜ ׳׳• ׳©׳ ׳™׳™׳ ׳©׳׳•׳©׳›׳™׳ ׳׳§׳¨׳™׳׳”ג€¦"
+                placeholder="משפט או שניים שמושכים לקריאה…"
                 rows={3}
                 className="mt-2 w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10 bg-background text-foreground dark:border-border dark:focus:ring-white/10"
               />
 
               <details ref={settingsDetailsRef} className="mt-4 rounded-2xl border bg-neutral-50 p-4 dark:bg-muted/50 dark:border-border" open={settingsLocked ? false : undefined}>
                 <summary className="cursor-pointer text-sm font-medium">
-                  ׳”׳’׳“׳¨׳•׳× (׳¢׳¨׳•׳¥ ֲ· ׳×׳×ײ¾׳§׳˜׳’׳•׳¨׳™׳” ֲ· ׳×׳’׳™׳•׳×){settingsLocked ? ' ג€” ׳ ׳¢׳•׳' : ''}
+                  הגדרות (ערוץ · תת־קטגוריה · תגיות){settingsLocked ? ' — נעול' : ''}
                 </summary>
 
                 {settingsLocked ? (
                   <div className="mt-3 rounded-xl border bg-white p-3 text-xs text-muted-foreground dark:bg-card dark:border-border">
-                    ׳›׳“׳™ ׳׳©׳ ׳•׳× ׳§׳˜׳’׳•׳¨׳™׳”/׳×׳’׳™׳•׳× ׳¦׳¨׳™׳ ׳׳™׳¦׳•׳¨ ׳₪׳•׳¡׳˜ ׳—׳“׳©. ׳›׳׳ ׳ ׳™׳×׳ ׳׳¢׳¨׳•׳ ׳¨׳§ ׳×׳•׳›׳/׳›׳•׳×׳¨׳×/׳×׳§׳¦׳™׳¨/׳§׳׳‘׳¨.
+                    כדי לשנות קטגוריה/תגיות צריך ליצור פוסט חדש. כאן ניתן לערוך רק תוכן/כותרת/תקציר/קאבר.
                   </div>
                 ) : null}
 
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium">׳¢׳¨׳•׳¥</label>
+                    <label className="block text-sm font-medium">ערוץ</label>
                     <select
                       ref={channelSelectRef}
                       disabled={settingsLocked}
@@ -1454,7 +1452,7 @@ if (!effectiveChannelId) {
                         const next = Number(e.target.value)
                         setChannelId(next)
                         setSubcategoryTagId(null)
-                        setSubcategoryOptions([]) // ׳׳ ׳§׳” ׳׳™׳“ ג€“ ׳׳ ׳™׳¢׳× ׳¢׳¨׳›׳™׳ ׳™׳©׳ ׳™׳ ׳¢׳“ ׳©׳”׳©׳׳™׳׳×׳ ׳”׳—׳“׳©׳” ׳×׳—׳–׳•׳¨
+                        setSubcategoryOptions([]) // מנקה מיד – מניעת ערכים ישנים עד שהשאילתא החדשה תחזור
                       }}
                       className={`mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60 transition-shadow duration-500 dark:bg-card dark:border-border dark:text-foreground ${highlightChannel ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
                     >
@@ -1467,7 +1465,7 @@ if (!effectiveChannelId) {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium">׳×׳×ײ¾׳§׳˜׳’׳•׳¨׳™׳”</label>
+                    <label className="block text-sm font-medium">תת־קטגוריה</label>
                     <select
                       ref={subcategorySelectRef}
                       disabled={settingsLocked}
@@ -1479,7 +1477,7 @@ if (!effectiveChannelId) {
                       className={`mt-2 w-full rounded-2xl border bg-white px-4 py-3 text-sm disabled:opacity-60 transition-shadow duration-500 dark:bg-card dark:border-border dark:text-foreground ${highlightSubcategory ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}
                     >
                       <option value="" disabled>
-                        ׳‘׳—׳¨ ׳×׳×ײ¾׳§׳˜׳’׳•׳¨׳™׳”
+                        בחר תת־קטגוריה
                       </option>
                       {subcategoryOptions.map(sc => (
                         <option key={sc.id} value={sc.id}>
@@ -1492,7 +1490,7 @@ if (!effectiveChannelId) {
 
                 <div className="mt-4">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">׳×׳’׳™׳•׳×</div>
+                    <div className="text-sm font-medium">תגיות</div>
                     <div className="text-xs text-muted-foreground">{selectedTagIds.length}/3</div>
                   </div>
                   <div ref={tagsAreaRef} className={`mt-3 flex flex-wrap gap-2 rounded-2xl transition-shadow duration-500 ${highlightTags ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)] p-2' : 'p-0'}`}>
@@ -1538,13 +1536,13 @@ if (!effectiveChannelId) {
 
         <section ref={contentSectionRef} className={`mt-5 rounded-3xl border bg-white p-4 shadow-sm transition-shadow duration-500 dark:bg-card dark:border-border ${highlightContent ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''}`}>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-medium">׳”׳˜׳§׳¡׳˜</h2>
+            <h2 className="text-sm font-medium">הטקסט</h2>
             <div className="flex items-center gap-3">
               <div className={`text-xs font-medium tabular-nums ${contentLength > CONTENT_MAX ? 'text-red-600 font-semibold' : contentLength >= CONTENT_MAX * 0.9 ? 'text-amber-600' : 'text-muted-foreground'}`}>
                 {contentLength.toLocaleString('he-IL')}/{CONTENT_MAX.toLocaleString('he-IL')}
               </div>
               <div className="text-xs text-muted-foreground">
-                {autosaveEnabled ? '׳”׳˜׳§׳¡׳˜ ׳ ׳©׳׳¨ ׳׳•׳˜׳•׳׳˜׳™׳×' : '׳”׳©׳™׳ ׳•׳™׳™׳ ׳׳ ׳ ׳©׳׳¨׳™׳ ׳¢׳“ ׳©׳׳•׳—׳¦׳™׳ ׳©׳׳•׳¨'}
+                {autosaveEnabled ? 'הטקסט נשמר אוטומטית' : 'השינויים לא נשמרים עד שלוחצים שמור'}
               </div>
             </div>
           </div>
@@ -1555,11 +1553,11 @@ if (!effectiveChannelId) {
           <div className="text-xs text-muted-foreground">
             {isEditMode ? (
               <>
-                ׳˜׳™׳₪: ׳׳ ׳׳ ׳‘׳˜׳•׳—ג€”׳׳₪׳©׳¨ ׳׳׳—׳•׳¥ <span className="font-bold">׳‘׳™׳˜׳•׳ ׳©׳™׳ ׳•׳™׳™׳</span>.
+                טיפ: אם לא בטוח—אפשר ללחוץ <span className="font-bold">ביטול שינויים</span>.
               </>
             ) : (
               <>
-                ׳˜׳™׳₪: ׳׳₪׳©׳¨ ׳׳¦׳׳× ׳׳”׳¢׳׳•׳“ ׳•׳׳—׳–׳•׳¨ ׳“׳¨׳ <span className="font-bold">׳”׳׳—׳‘׳¨׳×</span>.
+                טיפ: אפשר לצאת מהעמוד ולחזור דרך <span className="font-bold">המחברת</span>.
               </>
             )}
           </div>
@@ -1570,7 +1568,7 @@ if (!effectiveChannelId) {
                 type="button"
                 onClick={() => {
                   if (shouldWarnNavigation) {
-                    const ok = confirm('׳׳‘׳˜׳ ׳•׳׳–׳¨׳•׳§ ׳׳× ׳”׳©׳™׳ ׳•׳™׳™׳ ׳©׳׳ ׳ ׳©׳׳¨׳•?')
+                    const ok = confirm('לבטל ולזרוק את השינויים שלא נשמרו?')
                     if (!ok) return
                   }
                   if (safeReturnParam) return router.push(safeReturnParam)
@@ -1580,21 +1578,21 @@ if (!effectiveChannelId) {
                 }}
                 className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
               >
-                ׳‘׳™׳˜׳•׳ ׳©׳™׳ ׳•׳™׳™׳
+                ביטול שינויים
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => {
                   if (shouldWarnNavigation) {
-                    const ok = confirm('׳™׳© ׳׳ ׳˜׳§׳¡׳˜ ׳©׳׳ ׳ ׳©׳׳¨ ׳¢׳“׳™׳™׳. ׳׳¦׳׳× ׳‘׳›׳ ׳–׳׳×?')
+                    const ok = confirm('יש לך טקסט שלא נשמר עדיין. לצאת בכל זאת?')
                     if (!ok) return
                   }
                   router.push('/notebook')
                 }}
                 className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
               >
-                ׳׳׳—׳‘׳¨׳×
+                למחברת
               </button>
             )}
 
@@ -1604,7 +1602,7 @@ if (!effectiveChannelId) {
               disabled={saving}
               className="rounded-full bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-800 disabled:opacity-50"
             >
-              {saving ? (settingsLocked ? '׳©׳•׳׳¨ג€¦' : '׳׳₪׳¨׳¡׳ג€¦') : settingsLocked ? '׳©׳׳•׳¨ ׳©׳™׳ ׳•׳™׳™׳' : '׳₪׳¨׳¡׳'}
+              {saving ? (settingsLocked ? 'שומר…' : 'מפרסם…') : settingsLocked ? 'שמור שינויים' : 'פרסם'}
             </button>
           </div>
         </div>
