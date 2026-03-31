@@ -15,17 +15,25 @@ function CheckIcon({ className }: { className?: string }) {
 export default function FollowButton({
   targetUserId,
   variant = 'default',
+  initialViewerId,
+  initialIsFollowing = false,
+  skipInitialLoad = false,
 }: {
   targetUserId: string
   targetUsername?: string
   variant?: 'default' | 'text'
+  initialViewerId?: string | null
+  initialIsFollowing?: boolean
+  skipInitialLoad?: boolean
 }) {
-  const [myId, setMyId] = useState<string | null>(null)
-  const [isFollowing, setIsFollowing] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [myId, setMyId] = useState<string | null>(initialViewerId ?? null)
+  const [isFollowing, setIsFollowing] = useState(initialIsFollowing)
+  const [loading, setLoading] = useState(skipInitialLoad ? false : true)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
+    if (skipInitialLoad) return
+
     let mounted = true
 
     async function init() {
@@ -54,7 +62,7 @@ export default function FollowButton({
     init()
 
     return () => { mounted = false }
-  }, [targetUserId])
+  }, [skipInitialLoad, targetUserId])
 
   // Sync instantly when HoverProfileCard (or any other component) follows/unfollows
   useEffect(() => {

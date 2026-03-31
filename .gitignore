@@ -21,8 +21,11 @@
 db/
 supabase/
 
-.claude/
 .vscode/
+
+lighthouse/
+תמונות לשיתוף/
+.tmp-layout-check/
 
 # production
 /build
@@ -46,6 +49,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-.claude/settings.local.json
-/.claude
-.claude/settings.local.json
+.claude/
+/.claude/logs/
+/.claude/agent-memory-local/
+/.claude/settings.local.json

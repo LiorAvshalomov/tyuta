@@ -104,6 +104,7 @@ export default function ProfileFollowBar({
           <div className="flex items-center gap-2">
             <Link
               href={`/u/${username}/followers`}
+              prefetch
               className="group flex flex-col items-center transition-transform hover:scale-105 active:scale-95"
             >
               <span className="text-2xl font-black leading-none transition-colors group-hover:text-blue-600">
@@ -116,6 +117,7 @@ export default function ProfileFollowBar({
 
             <Link
               href={`/u/${username}/following`}
+              prefetch
               className="group flex flex-col items-center transition-transform hover:scale-105 active:scale-95"
             >
               <span className="text-2xl font-black leading-none transition-colors group-hover:text-blue-600">

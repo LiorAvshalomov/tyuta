@@ -51,6 +51,12 @@ export default function FollowListClient({
   initialUsers: UserCard[]
 }) {
   const [users, setUsers] = useState<UserCard[]>(initialUsers)
+  const [viewerId, setViewerId] = useState<string | null>(null)
+  const [viewerResolved, setViewerResolved] = useState(false)
+  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set())
+
+  const userIds = useMemo(() => users.map(u => u.id).filter(Boolean), [users])
+  const userIdsKey = useMemo(() => userIds.join(','), [userIds])
 
   const refresh = useCallback(async () => {
     if (mode === 'followers') {
@@ -110,6 +116,88 @@ export default function FollowListClient({
   }, [mode, subjectProfileId])
 
   useEffect(() => {
+    let mounted = true
+
+    async function loadViewer() {
+      const { data, error } = await supabase.auth.getUser()
+      if (!mounted) return
+
+      if (error || !data.user?.id) setViewerId(null)
+      else setViewerId(data.user.id)
+      setViewerResolved(true)
+    }
+
+    void loadViewer()
+
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      void loadViewer()
+    })
+
+    return () => {
+      mounted = false
+      sub.subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFollowState() {
+      if (!viewerResolved) return
+      if (!viewerId || userIds.length === 0) {
+        setFollowingIds(new Set())
+        return
+      }
+
+      const candidateIds = userIds.filter(id => id !== viewerId)
+      if (candidateIds.length === 0) {
+        setFollowingIds(new Set())
+        return
+      }
+
+      const { data } = await supabase
+        .from('user_follows')
+        .select('following_id')
+        .eq('follower_id', viewerId)
+        .in('following_id', candidateIds)
+
+      if (cancelled) return
+
+      setFollowingIds(new Set(
+        ((data ?? []) as FollowingRow[])
+          .map(row => row.following_id)
+          .filter((value): value is string => Boolean(value)),
+      ))
+    }
+
+    void loadFollowState()
+
+    return () => {
+      cancelled = true
+    }
+  }, [userIds, userIdsKey, viewerId, viewerResolved])
+
+  useEffect(() => {
+    if (!viewerResolved || !viewerId) return
+
+    function onFollowChange(e: Event) {
+      const detail = (e as CustomEvent<{ followingId?: string; isFollowing?: boolean }>).detail
+      const followingId = detail?.followingId
+      if (!followingId || !userIds.includes(followingId)) return
+
+      setFollowingIds(prev => {
+        const next = new Set(prev)
+        if (detail.isFollowing) next.add(followingId)
+        else next.delete(followingId)
+        return next
+      })
+    }
+
+    window.addEventListener('tyuta:follow-change', onFollowChange)
+    return () => window.removeEventListener('tyuta:follow-change', onFollowChange)
+  }, [userIds, viewerId, viewerResolved])
+
+  useEffect(() => {
     const ch = supabase
       .channel(`follow_list:${subjectProfileId}:${mode}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_follows' }, payload => {
@@ -155,7 +243,7 @@ export default function FollowListClient({
               >
                 <div className="flex items-center gap-3">
                   {/* Avatar - using ProfileAvatarFrame like in profile */}
-                  <Link href={`/u/${u.username}`} className="shrink-0">
+                  <Link href={`/u/${u.username}`} prefetch={false} className="shrink-0">
                     <ProfileAvatarFrame 
                       src={u.avatar_url} 
                       name={name} 
@@ -168,6 +256,7 @@ export default function FollowListClient({
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/u/${u.username}`}
+                      prefetch={false}
                       className="block font-bold text-sm hover:text-blue-600 transition-colors truncate"
                       title={name}
                     >
@@ -183,7 +272,17 @@ export default function FollowListClient({
 
                   {/* Follow button */}
                   <div className="shrink-0">
-                    <FollowButton targetUserId={u.id} targetUsername={u.username} />
+                    {viewerResolved ? (
+                      <FollowButton
+                        key={`${u.id}:${viewerId ?? 'anon'}:${followingIds.has(u.id) ? '1' : '0'}`}
+                        targetUserId={u.id}
+                        initialViewerId={viewerId}
+                        initialIsFollowing={followingIds.has(u.id)}
+                        skipInitialLoad
+                      />
+                    ) : (
+                      <div className="h-10 min-w-[110px]" aria-hidden="true" />
+                    )}
                   </div>
                 </div>
               </div>

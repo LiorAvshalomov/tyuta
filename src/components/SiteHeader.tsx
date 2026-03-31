@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Avatar from '@/components/Avatar'
 import { resolveUserIdentity } from '@/lib/systemIdentity'
@@ -26,9 +26,9 @@ import {
   MessageCircle,
 } from 'lucide-react'
 import NotificationsBell from "@/components/NotificationsBell"
-import { broadcastAuthEvent, setAuthState } from '@/lib/auth/authEvents'
-import { truncateText } from '@/lib/validation'
+import { broadcastAuthEvent, getAuthState, setAuthState } from '@/lib/auth/authEvents'
 import ThemeToggle from '@/components/ThemeToggle'
+import FeedIntentLink from '@/components/FeedIntentLink'
 
 
 type MiniUser = {
@@ -48,6 +48,64 @@ type ThreadRow = {
   last_body: string | null
   unread_count: number | null
 }
+
+const HEADER_USER_CACHE_KEY = 'tyuta:header:user'
+
+function readCachedHeaderUser(): MiniUser | null {
+  if (typeof window === 'undefined') return null
+  if (getAuthState() !== 'in') return null
+
+  try {
+    const raw = window.localStorage.getItem(HEADER_USER_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object') return null
+    const rec = parsed as Record<string, unknown>
+    if (
+      typeof rec.id !== 'string' ||
+      typeof rec.username !== 'string' ||
+      typeof rec.displayName !== 'string' ||
+      (rec.avatarUrl !== null && typeof rec.avatarUrl !== 'string')
+    ) {
+      return null
+    }
+    return {
+      id: rec.id,
+      username: rec.username,
+      displayName: rec.displayName,
+      avatarUrl: rec.avatarUrl as string | null,
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeCachedHeaderUser(user: MiniUser | null): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (!user) {
+      window.localStorage.removeItem(HEADER_USER_CACHE_KEY)
+      return
+    }
+    window.localStorage.setItem(HEADER_USER_CACHE_KEY, JSON.stringify(user))
+  } catch {
+    // ignore
+  }
+}
+
+function sameMiniUser(a: MiniUser | null, b: MiniUser | null): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.id === b.id &&
+    a.username === b.username &&
+    a.displayName === b.displayName &&
+    a.avatarUrl === b.avatarUrl
+  )
+}
+
+const useHeaderLayoutEffect =
+  typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 function useClickOutside<T extends HTMLElement>(
   ref: React.RefObject<T | null>,
@@ -103,15 +161,15 @@ function ChannelsInline({ onNavigate, mobile = false }: { onNavigate?: () => voi
       {items.map(it => {
         const Icon = it.icon
         return (
-          <Link
+          <FeedIntentLink
             key={it.href}
             href={it.href}
             onClick={onNavigate}
-            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white dark:bg-card border ${it.borderClass} dark:border-border ${it.hoverClass} dark:hover:bg-muted hover:shadow-md active:scale-[0.97] transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
+            className={`group inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold bg-white dark:bg-card border ${it.borderClass} dark:border-border ${it.hoverClass} hover:shadow-md active:scale-[0.97] transition-all duration-200 whitespace-nowrap ${mobile ? 'w-full justify-start' : ''}`}
           >
             <Icon size={17} strokeWidth={2.5} className={`${it.colorClass} group-hover:scale-110 transition-transform`} />
             <span className="text-neutral-700 dark:text-foreground group-hover:text-neutral-900 dark:group-hover:text-foreground transition-colors">{it.label}</span>
-          </Link>
+          </FeedIntentLink>
         )
       })}
     </nav>
@@ -144,6 +202,7 @@ export default function SiteHeader() {
     pathname === '/login' ||
     pathname === '/register'
   const [user, setUser] = useState<MiniUser | null>(null)
+  const [userResolved, setUserResolved] = useState(false)
 
   // dropdown states
   const [writeOpen, setWriteOpen] = useState(false)
@@ -161,6 +220,7 @@ export default function SiteHeader() {
   const profileRef = useRef<HTMLDivElement | null>(null)
   const messagesRef = useRef<HTMLDivElement | null>(null)
   const mobileMenuRef = useRef<HTMLDivElement | null>(null)
+  const loadUserSeqRef = useRef(0)
 
   const [threads, setThreads] = useState<ThreadRow[]>([])
   const [msgUnread, setMsgUnread] = useState(0)
@@ -242,12 +302,33 @@ export default function SiteHeader() {
     return () => window.removeEventListener('keydown', onKey)
   }, [anyOpen, mobileMenuOpen, closeAll])
 
+  useHeaderLayoutEffect(() => {
+    const authState = getAuthState()
+    const cachedUser = readCachedHeaderUser()
+
+    if (cachedUser) {
+      setUser((prev) => (sameMiniUser(prev, cachedUser) ? prev : cachedUser))
+      setUserResolved(true)
+      return
+    }
+
+    if (authState === 'out') {
+      setUser(null)
+      setUserResolved(true)
+    }
+  }, [])
+
   const loadUser = useCallback(async () => {
+    const seq = ++loadUserSeqRef.current
     const { data } = await supabase.auth.getSession()
     const session = data.session
 
+    if (seq !== loadUserSeqRef.current) return
+
     if (!session?.user?.id) {
+      writeCachedHeaderUser(null)
       setUser(null)
+      setUserResolved(true)
       return
     }
 
@@ -257,16 +338,22 @@ export default function SiteHeader() {
       .eq('id', session.user.id)
       .single()
 
+    if (seq !== loadUserSeqRef.current) return
+
     if (prof?.id && prof?.username) {
-      setUser({
+      const nextUser = {
         id: prof.id,
         username: prof.username,
         displayName: (prof.display_name ?? '').trim() || prof.username || 'אנונימי',
         avatarUrl: prof.avatar_url ?? null,
-      })
+      }
+      writeCachedHeaderUser(nextUser)
+      setUser((prev) => (sameMiniUser(prev, nextUser) ? prev : nextUser))
     } else {
+      writeCachedHeaderUser(null)
       setUser(null)
     }
+    setUserResolved(true)
   }, [])
 
   const loadThreads = useCallback(async (): Promise<ThreadRow[]> => {
@@ -299,14 +386,27 @@ export default function SiteHeader() {
     return safe
   }, [])
 
-  // Load user initially + whenever route changes
+  // Load user initially
   useEffect(() => {
     void loadUser() // eslint-disable-line react-hooks/set-state-in-effect -- async data fetch
-  }, [loadUser, pathname])
+  }, [loadUser])
 
   // Reload when auth state changes
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || (event as string) === 'TOKEN_REFRESH_FAILED') {
+        writeCachedHeaderUser(null)
+        setUser(null)
+        setUserResolved(true)
+        setThreads([])
+        setMsgUnread(0)
+        return
+      }
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setUserResolved(false)
+      }
+
       void loadUser()
       void loadThreads()
     })
@@ -397,6 +497,9 @@ export default function SiteHeader() {
     if (!confirmed) return
 
     closeAll()
+    writeCachedHeaderUser(null)
+    setUser(null)
+    setUserResolved(true)
     // Cross-tab: notify other tabs + set global state.
     setAuthState('out')
     broadcastAuthEvent('SIGNED_OUT')
@@ -462,7 +565,10 @@ export default function SiteHeader() {
   return (
     <header className="w-full">
       {/* TOP NAVBAR - FIXED (sticky fails inside overflow containers) */}
-      <nav className="fixed top-0 inset-x-0 z-[10000] bg-[#F5F3EE]/95 dark:bg-background/80 backdrop-blur-md border-b border-neutral-300/70 dark:border-border shadow-sm">
+      <nav
+        className="fixed top-0 inset-x-0 z-[10000] bg-[#F5F3EE]/95 dark:bg-background/80 backdrop-blur-md border-b border-neutral-300/70 dark:border-border shadow-sm"
+        style={{ willChange: 'transform' }}
+      >
         <div className="bg-gradient-to-r from-[#F5F3EE] via-[#FAF8F4] to-[#F5F3EE] dark:from-background dark:via-background dark:to-background">
           <div className="mx-auto max-w-6xl px-4">
             <div className="flex h-14 items-center justify-between" dir="rtl">
@@ -483,7 +589,7 @@ export default function SiteHeader() {
                 </button>
 
                 {/* בית - רק בדסקטופ */}
-                <Link
+                <FeedIntentLink
                   href="/"
                   className="hidden lg:flex items-center gap-2 text-sm font-semibold text-neutral-700 dark:text-foreground/80 hover:text-neutral-950 dark:hover:text-foreground transition-all duration-300 group"
                   onClick={closeAll}
@@ -493,11 +599,12 @@ export default function SiteHeader() {
                     <div className="absolute inset-0 bg-neutral-900 dark:bg-foreground rounded-full blur-md opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
                   </div>
                   <span className="group-hover:translate-x-[-1px] transition-all duration-300">בית</span>
-                </Link>
+                </FeedIntentLink>
 
                 {/* לוגו מוקטן - רק במובייל */}
                 <Link
   href="/"
+  prefetch={false}
   className="lg:hidden inline-flex w-fit items-center gap-3 text-right select-none active:scale-[0.99] active:opacity-90"
 
   onClick={closeAll}
@@ -705,7 +812,7 @@ export default function SiteHeader() {
                         <Link
                           href="/saved"
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-muted border border-transparent hover:border-emerald-200 dark:hover:border-border text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm transition-all"
                         >
                           <BookOpen size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>פוסטים שמורים</span>
@@ -730,7 +837,7 @@ export default function SiteHeader() {
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : userResolved ? (
                   <div className="hidden lg:flex items-center gap-2">
                     <Link
                       href="/auth/login"
@@ -747,6 +854,11 @@ export default function SiteHeader() {
                       הירשם
                     </Link>
                   </div>
+                ) : (
+                  <div className="hidden lg:flex items-center gap-2 opacity-0 pointer-events-none select-none" aria-hidden="true">
+                    <div className="rounded-full border border-neutral-300 px-4 py-1.5 text-sm font-semibold">התחבר</div>
+                    <div className="rounded-full px-4 py-1.5 text-sm font-semibold">הירשם</div>
+                  </div>
                 )}
               </div>
             </div>
@@ -759,12 +871,15 @@ export default function SiteHeader() {
 
       {/* שורה 2: BRAND + CHANNELS + SEARCH - Desktop Only (hidden on inbox) */}
       {!pathname.startsWith('/inbox') && !isAuthPage && (
-      <div className="hidden lg:block border-b border-black/[.06] dark:border-white/[.08] w-full bg-[#FBF7EF]/50 dark:bg-background/80 backdrop-blur shadow-[0_6px_20px_-8px_rgba(0,0,0,0.10)] dark:shadow-none">
+      <div
+        className="hidden lg:block border-b border-black/[.06] dark:border-white/[.08] w-full bg-[#FBF7EF]/50 dark:bg-background/80 backdrop-blur shadow-[0_6px_20px_-8px_rgba(0,0,0,0.10)] dark:shadow-none"
+        style={{ willChange: 'transform' }}
+      >
         <div className="mx-auto max-w-6xl px-4">
           <div className="grid items-center gap-4 py-5" dir="rtl" style={{ gridTemplateColumns: '1fr auto 1fr' }}>
             {/* Right: brand */}
             <div className="min-w-0">
-             <Link
+             <FeedIntentLink
   href="/"
   className="group inline-flex w-fit items-center gap-3 text-right transition-all duration-300"
 >
@@ -777,7 +892,7 @@ export default function SiteHeader() {
   <span className="text-sm font-medium text-[#1E2A44]/60 dark:text-foreground/60 transition-colors duration-300 group-hover:text-[#1E2A44]/80 dark:group-hover:text-foreground/80">
     המקום לכל הגרסאות שלך
   </span>
-</Link>
+</FeedIntentLink>
             </div>
 
             {/* Center: channels */}
@@ -838,6 +953,7 @@ export default function SiteHeader() {
               <div className="space-y-2">
                 <Link
                   href="/"
+                  prefetch={false}
                   onClick={closeAll}
                   className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-muted text-sm font-semibold"
                 >
@@ -984,7 +1100,7 @@ export default function SiteHeader() {
                         <Link
                           href="/saved"
                           onClick={closeAll}
-                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-muted border border-transparent hover:border-emerald-200 dark:hover:border-border text-sm transition-all"
+                          className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-stone-50 dark:hover:bg-muted border border-transparent hover:border-stone-200 dark:hover:border-border text-sm transition-all"
                         >
                           <BookOpen size={18} className="text-neutral-600 dark:text-muted-foreground" />
                           <span>פוסטים שמורים</span>

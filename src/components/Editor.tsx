@@ -604,6 +604,29 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
         style:
           'min-height: 320px; padding: 16px; border: 1px solid var(--color-border); border-radius: 16px; outline: none; line-height: 1.8; background: var(--color-background); color: var(--color-foreground); font-size: 16px; font-family: var(--font-editor-hebrew), sans-serif;',
       },
+      transformPastedHTML(html: string) {
+        // Step 1: Convert div blocks to paragraphs (iPhone Notes structure).
+        let result = html
+          .replace(/<div([^>]*)>/gi, '<p$1>')
+          .replace(/<\/div>/gi, '</p>')
+
+        // Step 2: Samsung Notes wraps every line in a <span> ending with <br>,
+        // and blank lines are a separate <span><br></span>.
+        // This hides the consecutive <br> pattern from the next step.
+        // Detect and strip span wrappers only when this pattern is present.
+        if (/<br[^>]*>\s*<\/span>/i.test(result)) {
+          result = result
+            .replace(/<\/span>/gi, '')
+            .replace(/<span[^>]*>/gi, '')
+        }
+
+        return result
+          // Step 3: 2+ consecutive <br> = intentional blank line → real empty paragraph.
+          .replace(/(<br\s*\/?>\s*){2,}/gi, '</p><p><br></p><p>')
+          // Step 4: Remove trailing <br> before </p> when preceded by text content.
+          // The [^>] guard keeps the <br> inside our empty <p><br></p> paragraphs.
+          .replace(/([^>])<br\s*\/?>\s*<\/p>/gi, '$1</p>')
+      },
     },
     onUpdate({ editor }) {
       onChange(appendRelatedPosts(editor.getJSON(), chapterPostIdsRef.current, hasIntroRef.current))

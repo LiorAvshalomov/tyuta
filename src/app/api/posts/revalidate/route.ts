@@ -16,10 +16,14 @@ export async function POST(req: Request) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
 
+  const body = await req.json().catch(() => ({})) as { slug?: unknown }
+  const slug = typeof body.slug === 'string' && body.slug ? body.slug : null
+
   revalidatePath('/')
   revalidatePath('/c/release')
   revalidatePath('/c/stories')
   revalidatePath('/c/magazine')
+  if (slug) revalidatePath(`/post/${slug}`)
 
   return NextResponse.json({ ok: true })
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import FeedIntentLink from '@/components/FeedIntentLink'
 import { supabase } from '@/lib/supabaseClient'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
 import { RelativeTime } from '@/components/RelativeTime'
@@ -74,9 +75,9 @@ function SectionTitle({ title, href }: { title: string; href?: string }) {
      <div className="mb-3 overflow-hidden rounded-2xl border bg-white/70 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="bg-black/5 px-4 py-2 font-bold">
         {href ? (
-          <Link href={href} className="hover:underline">
+          <FeedIntentLink href={href} className="hover:underline">
             {title}
-          </Link>
+          </FeedIntentLink>
         ) : (
           title
         )}
@@ -322,9 +323,9 @@ function ListRow({ post }: { post: CardPost }) {
             {post.channel_name && post.channel_slug ? (
               <>
                 <span className="mx-2">•</span>
-                <Link href={`/c/${post.channel_slug}`} className="hover:underline">
+                <FeedIntentLink href={`/c/${post.channel_slug}`} className="hover:underline">
                   {post.channel_name}
-                </Link>
+                </FeedIntentLink>
               </>
             ) : post.channel_name ? (
               <>

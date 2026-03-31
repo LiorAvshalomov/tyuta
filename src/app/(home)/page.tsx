@@ -9,6 +9,8 @@ import HomeWriteCTA from '@/components/HomeWriteCTA'
 import StickySidebar from '@/components/StickySidebar'
 import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
+import FeedAutoRefresh from '@/components/FeedAutoRefresh'
+import FeedIntentLink from '@/components/FeedIntentLink'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
 import { FeaturedImageGlow } from '@/components/FeaturedImageGlow'
 import { FeaturedColorSync } from '@/components/FeaturedColorSync'
@@ -134,12 +136,12 @@ function channelBadgeColor(slug: string | null) {
 function SectionHeader({ title, href, accent }: { title: string; href: string; accent?: string }) {
   return (
     <div className={`flex items-center justify-between mb-5 ${accent ?? ''}`}>
-      <Link href={href} className="tyuta-section-rule tyuta-hover text-[1.375rem] font-black tracking-tight leading-tight">
+      <FeedIntentLink href={href} className="tyuta-section-rule tyuta-hover text-[1.375rem] font-black tracking-tight leading-tight">
         {title}
-      </Link>
-      <Link href={href} className="text-xs font-semibold text-muted-foreground tyuta-hover">
+      </FeedIntentLink>
+      <FeedIntentLink href={href} className="text-xs font-semibold text-muted-foreground tyuta-hover">
         הכל &larr;
-      </Link>
+      </FeedIntentLink>
     </div>
   )
 }
@@ -222,11 +224,11 @@ function FeaturedPost({ post }: { post: CardPost }) {
             </div>
             {post.channel_name && post.channel_slug ? (
               <div className="mb-2">
-                <Link href={`/c/${post.channel_slug}`} className="pointer-events-auto">
+                <FeedIntentLink href={`/c/${post.channel_slug}`} className="pointer-events-auto">
                   <span className={`inline-flex px-3 py-1 rounded-full font-semibold text-xs ${channelBadgeColor(post.channel_slug)}`}>
                     {post.channel_name}
                   </span>
-                </Link>
+                </FeedIntentLink>
               </div>
             ) : null}
             <h1 className="text-[1.625rem] sm:text-[2rem] lg:text-[2.75rem] font-black leading-[1.1] tracking-[-0.025em] mb-4 line-clamp-3">
@@ -315,11 +317,11 @@ function FeaturedPost({ post }: { post: CardPost }) {
           {/* Channel badge */}
           {post.channel_name && post.channel_slug ? (
             <div className="mb-3">
-              <Link href={`/c/${post.channel_slug}`} className="pointer-events-auto group/channel">
+              <FeedIntentLink href={`/c/${post.channel_slug}`} className="pointer-events-auto group/channel">
                 <span className={`inline-flex px-3 py-1 rounded-full font-semibold text-xs transition-all duration-200 ease-out group-hover/channel:scale-[1.07] group-hover/channel:brightness-105 group-hover/channel:shadow-sm cursor-pointer ${channelBadgeColor(post.channel_slug)}`}>
                   {post.channel_name}
                 </span>
-              </Link>
+              </FeedIntentLink>
             </div>
           ) : null}
 
@@ -846,6 +848,7 @@ export default async function HomePage(props: HomePageProps = {}) {
   if (rpcError) {
     return (
       <main className="min-h-screen" dir="rtl">
+        <FeedAutoRefresh />
         <div className="mx-auto max-w-6xl px-4 py-10">
           <h1 className="text-xl font-bold">שגיאה בטעינת דירוג השבוע</h1>
           <pre className="mt-4 rounded border bg-white p-4 text-xs">{JSON.stringify(rpcError, null, 2)}</pre>
@@ -1174,6 +1177,7 @@ export default async function HomePage(props: HomePageProps = {}) {
 
   return (
     <main className="min-h-screen" dir="rtl">
+      <FeedAutoRefresh />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
         
 {isChannelPage ? (

@@ -12,6 +12,7 @@ type Props = {
   postsCount: number
   commentsWritten: number
   commentsReceived: number
+  loading?: boolean
 
   /** Legacy placeholder (kept for backwards compatibility) */
   medals?: { gold: number; silver: number; bronze: number }
@@ -33,6 +34,7 @@ export default function ProfileStatsCard({
   postsCount,
   commentsWritten,
   commentsReceived,
+  loading,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   medals,
   reactionTotals,
@@ -61,7 +63,16 @@ export default function ProfileStatsCard({
         <h3 className="text-sm font-bold m-0">נתונים</h3>
       </div>
 
-      {reactionsAvailable ? (
+      {loading ? (
+        <div className="mt-3 grid grid-cols-3 gap-3 animate-pulse">
+          {[0, 1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="rounded-2xl border bg-neutral-50 px-3 py-3 dark:bg-muted dark:border-border">
+              <div className="h-3 w-2/3 rounded bg-neutral-200 dark:bg-muted/70" />
+              <div className="mt-2 h-6 w-1/2 rounded bg-neutral-200 dark:bg-muted/70" />
+            </div>
+          ))}
+        </div>
+      ) : reactionsAvailable ? (
         <div className="mt-3 grid grid-cols-3 gap-3">
           {items.map(r => (
             <Tile

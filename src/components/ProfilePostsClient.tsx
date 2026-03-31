@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import FeedIntentLink from '@/components/FeedIntentLink'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
 import { useEffect, useMemo, useState } from 'react'
@@ -172,13 +173,13 @@ function DesktopPostCard({
                 <>
                   <span>•</span>
                   {channelSlug ? (
-                    <Link
+                    <FeedIntentLink
                       href={`/c/${channelSlug}`}
                       onClick={e => e.stopPropagation()}
                       className={`rounded px-2 py-0.5 text-xs font-semibold ${getChannelStyle(post.channel_name)}`}
                     >
                       {post.channel_name}
-                    </Link>
+                    </FeedIntentLink>
                   ) : (
                     <span className={`rounded px-2 py-0.5 text-xs font-semibold ${getChannelStyle(post.channel_name)}`}>
                       {post.channel_name}
@@ -280,13 +281,13 @@ function MobilePostCard({
             <span className="text-neutral-500 dark:text-muted-foreground">{heRelativeTime(post.published_at ?? post.created_at)}</span>
             {post.channel_name && (
               channelSlug ? (
-                <Link
+                <FeedIntentLink
                   href={`/c/${channelSlug}`}
                   onClick={e => e.stopPropagation()}
                   className={`rounded px-2 py-0.5 font-semibold ${getChannelStyle(post.channel_name)}`}
                 >
                   {post.channel_name}
-                </Link>
+                </FeedIntentLink>
               ) : (
                 <span className={`rounded px-2 py-0.5 font-semibold ${getChannelStyle(post.channel_name)}`}>
                   {post.channel_name}

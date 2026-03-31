@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { RICHTEXT_TYPOGRAPHY } from '@/lib/richtextStyles'
+import { isPostImageProxySrc, postImageProxySrc, postImageStoragePath } from '@/lib/postImageUrl'
 import { supabase } from '@/lib/supabaseClient'
 
 type Mark = {
@@ -13,6 +14,7 @@ type Attrs = {
   level?: number
   src?: string
   alt?: string
+  path?: string
   width?: number
   height?: number
   widthPercent?: number
@@ -278,10 +280,11 @@ function renderNode(node: RichNode, key: string, currentPostId?: string, current
 
     case 'image': {
   const attrs = node.attrs as Attrs | undefined
-  const src = attrs?.src
+  const proxySrc = postImageProxySrc(postImageStoragePath(attrs?.path, attrs?.src), currentPostId)
+  const src = proxySrc ?? attrs?.src?.trim() ?? null
   if (!src) return null
   // Only allow http/https — block data:, javascript:, and other schemes
-  if (!/^https?:\/\//i.test(src)) return null
+  if (!proxySrc && !isPostImageProxySrc(src) && !/^https?:\/\//i.test(src)) return null
 
   const alt = attrs?.alt ?? ''
 

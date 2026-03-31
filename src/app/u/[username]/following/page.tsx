@@ -30,14 +30,9 @@ export default async function FollowingPage({ params }: PageProps) {
   // Batch 1: all queries independent of each other — runs in parallel
   // following rows query uses count: 'exact' to get both total count and row data in one request
   const [
-    { count: followersCount = 0 },
     { data: rows, count: followingCount },
     { data: medalsRow },
   ] = await Promise.all([
-    supabase
-      .from('user_follows')
-      .select('follower_id', { count: 'exact', head: true })
-      .eq('following_id', prof.id),
     supabase
       .from('user_follows')
       .select('following_id', { count: 'exact' })
@@ -79,12 +74,9 @@ export default async function FollowingPage({ params }: PageProps) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6" dir="rtl">
       <FollowPageHeader
-        profileId={prof.id}
         username={prof.username}
         displayName={displayName}
         avatarUrl={prof.avatar_url}
-        initialFollowers={followersCount ?? 0}
-        initialFollowing={followingCount ?? 0}
         medals={medals}
       />
 

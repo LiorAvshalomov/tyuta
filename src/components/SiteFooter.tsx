@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import FeedIntentLink from "@/components/FeedIntentLink"
 
 const AUTH_ROUTES = ["/auth/login", "/auth/register", "/auth/signup", "/login", "/register"]
 
@@ -38,15 +39,15 @@ export default function SiteFooter() {
 
           {/* Left side */}
           <nav className="flex flex-wrap justify-center gap-4 md:justify-end">
-            <Link className="tyuta-hover" href="/c/stories">
+            <FeedIntentLink className="tyuta-hover" href="/c/stories">
               סיפורים
-            </Link>
-            <Link className="tyuta-hover" href="/c/release">
+            </FeedIntentLink>
+            <FeedIntentLink className="tyuta-hover" href="/c/release">
               פריקה
-            </Link>
-            <Link className="tyuta-hover" href="/c/magazine">
+            </FeedIntentLink>
+            <FeedIntentLink className="tyuta-hover" href="/c/magazine">
               מגזין
-            </Link>
+            </FeedIntentLink>
             <Link className="tyuta-hover" href="/search">
               חיפוש
             </Link>

@@ -2,33 +2,23 @@ import Link from 'next/link'
 import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
 
 export default function FollowPageHeader({
-  profileId,
   username,
   displayName,
   avatarUrl,
-  initialFollowers,
-  initialFollowing,
   medals,
 }: {
-  profileId: string
   username: string
   displayName: string
   avatarUrl: string | null
-  initialFollowers: number
-  initialFollowing: number
   medals: { gold: number; silver: number; bronze: number }
 }) {
-  // Suppress unused warnings
-  void profileId
-  void initialFollowers
-  void initialFollowing
-
   return (
     <section className="rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm dark:bg-card dark:border-border" dir="rtl">
       {/* Back button - top right */}
       <div className="mb-4">
         <Link
           href={`/u/${username}`}
+          prefetch
           className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-900 dark:border-border dark:bg-card dark:text-muted-foreground dark:hover:bg-muted dark:hover:text-foreground"
         >
           <svg className="h-4 w-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,14 +31,14 @@ export default function FollowPageHeader({
       {/* Profile info */}
       <div className="flex items-center gap-4">
         {/* Avatar */}
-        <Link href={`/u/${username}`} className="shrink-0">
+        <Link href={`/u/${username}`} prefetch className="shrink-0">
           <ProfileAvatarFrame src={avatarUrl} name={displayName} size={80} shape="square" />
         </Link>
 
         {/* Name + Medals */}
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold leading-tight truncate">
-            <Link href={`/u/${username}`} className="hover:text-blue-600 transition-colors">
+            <Link href={`/u/${username}`} prefetch className="hover:text-blue-600 transition-colors">
               {displayName}
             </Link>
           </h1>

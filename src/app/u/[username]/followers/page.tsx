@@ -31,7 +31,6 @@ export default async function FollowersPage({ params }: PageProps) {
   // follower rows query uses count: 'exact' to get both total count and row data in one request
   const [
     { data: rows, count: followersCount },
-    { count: followingCount = 0 },
     { data: medalsRow },
   ] = await Promise.all([
     supabase
@@ -40,10 +39,6 @@ export default async function FollowersPage({ params }: PageProps) {
       .eq('following_id', prof.id)
       .order('created_at', { ascending: false })
       .limit(200),
-    supabase
-      .from('user_follows')
-      .select('following_id', { count: 'exact', head: true })
-      .eq('follower_id', prof.id),
     supabase
       .from('profile_medals_all_time')
       .select('gold, silver, bronze')
@@ -79,12 +74,9 @@ export default async function FollowersPage({ params }: PageProps) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6" dir="rtl">
       <FollowPageHeader
-        profileId={prof.id}
         username={prof.username}
         displayName={displayName}
         avatarUrl={prof.avatar_url}
-        initialFollowers={followersCount ?? 0}
-        initialFollowing={followingCount ?? 0}
         medals={medals}
       />
 

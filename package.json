@@ -29,6 +29,7 @@
     "qa:admin": "npx playwright test qa/tests/agents/admin --config=qa/playwright.config.ts"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.93.3",
     "@tiptap/extension-character-count": "^3.15.3",
@@ -44,6 +45,7 @@
     "@tiptap/starter-kit": "^3.15.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fontkit": "^2.0.4",
     "lucide-react": "^0.562.0",
     "next": "16.1.3",
     "react": "19.2.3",

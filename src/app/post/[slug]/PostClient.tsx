@@ -16,6 +16,7 @@ const PostComments = dynamic(() => import('@/components/PostComments'))
 import FollowButton from '@/components/FollowButton'
 import SavePostButton from '@/components/SavePostButton'
 import SharePostButton from '@/components/SharePostButton'
+import FeedIntentLink from '@/components/FeedIntentLink'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import AuthorHover from '@/components/AuthorHover'
 import { coverProxySrc } from '@/lib/coverUrl'
@@ -185,9 +186,9 @@ function NotFoundPost() {
           <p className="mt-3 text-sm text-muted-foreground">הפוסט לא קיים או הוסר.</p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/" className="rounded-full bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-800">
+            <FeedIntentLink href="/" className="rounded-full bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-800">
               לדף הבית
-            </Link>
+            </FeedIntentLink>
             <Link href="/notebook" className="rounded-full border bg-white dark:bg-card dark:border-border px-4 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-muted">
               למחברת
             </Link>

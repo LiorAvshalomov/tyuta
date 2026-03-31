@@ -176,7 +176,6 @@ export default async function PublicProfilePage({ params }: PageProps) {
     { count: postsCount = 0 },
     { count: commentsWritten = 0 },
     { data: medalsRow },
-    { data: reactionTotals, error: rtErr },
     { data: commentsReceivedRaw },
   ] = await Promise.all([
     supabase
@@ -203,13 +202,8 @@ export default async function PublicProfilePage({ params }: PageProps) {
       .select('gold, silver, bronze')
       .eq('profile_id', prof.id)
       .maybeSingle(),
-    supabase.rpc('get_profile_reaction_totals', { p_profile_id: prof.id }),
     supabase.rpc('get_comments_received_count', { p_author_id: prof.id }),
   ])
-
-  if (rtErr) {
-    console.error('get_profile_reaction_totals error:', rtErr)
-  }
 
   const commentsReceived = Number(commentsReceivedRaw ?? 0)
 
@@ -335,7 +329,6 @@ export default async function PublicProfilePage({ params }: PageProps) {
         commentsWritten={commentsWritten ?? 0}
         commentsReceived={commentsReceived ?? 0}
         medals={medals}
-        reactionTotals={reactionTotals ?? []}
       />
     </div>
   )

@@ -1,8 +1,11 @@
 "use client"
 
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
+
+const ShareImagesModal = dynamic(() => import("./ShareImagesModal"))
 
 function getErrorMessage(e: unknown) {
   if (
@@ -45,6 +48,7 @@ export default function PostOwnerMenu({
   const [viewerId, setViewerId] = useState<string | null>(null)
   const isOwner = useMemo(() => viewerId === authorId, [viewerId, authorId])
   const [open, setOpen] = useState(false)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
   const firstItemRef = useRef<HTMLAnchorElement | null>(null)
 
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -105,6 +109,13 @@ export default function PostOwnerMenu({
   if (!isOwner) return null
 
   return (
+    <>
+    {shareModalOpen && (
+      <ShareImagesModal
+        postId={postId}
+        onClose={() => setShareModalOpen(false)}
+      />
+    )}
     <div ref={wrapRef} className="relative" dir="rtl">
       <button
         type="button"
@@ -124,7 +135,7 @@ export default function PostOwnerMenu({
       </button>
 
       {open ? (
-        <div className="absolute left-0 mt-2 w-40 overflow-hidden rounded border bg-white dark:bg-card dark:border-border text-sm shadow-lg">
+        <div className="absolute left-0 mt-2 w-52 overflow-hidden rounded border bg-white dark:bg-card dark:border-border text-sm shadow-lg">
           <Link
   ref={firstItemRef}
   href={`/write?edit=${encodeURIComponent(postId)}`}
@@ -140,6 +151,16 @@ export default function PostOwnerMenu({
 </Link>
           <button
             type="button"
+            className="block w-full px-3 py-2 text-right hover:bg-neutral-100 dark:hover:bg-muted focus:outline-none focus-visible:bg-neutral-100 dark:focus-visible:bg-muted"
+            onClick={() => {
+              setOpen(false)
+              setShareModalOpen(true)
+            }}
+          >
+            צור תמונות לשיתוף
+          </button>
+          <button
+            type="button"
             className="block w-full px-3 py-2 text-right text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
             onClick={() => {
               setOpen(false)
@@ -151,5 +172,6 @@ export default function PostOwnerMenu({
         </div>
       ) : null}
     </div>
+    </>
   )
 }

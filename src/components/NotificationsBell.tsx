@@ -237,7 +237,10 @@ export default function NotificationsBell() {
   const [loading, setLoading] = useState(false)
   const [unread, setUnread] = useState(0)
   const [groups, setGroups] = useState<NotifGroup[]>([])
+  const [desktopPanelPos, setDesktopPanelPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const loadStampRef = useRef(0)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -402,6 +405,7 @@ export default function NotificationsBell() {
 
       const arr = Array.from(map.values()).sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
       setGroups(arr)
+      loadStampRef.current = Date.now()
     } finally {
       setLoading(false)
     }
@@ -469,12 +473,54 @@ export default function NotificationsBell() {
       // On mobile we use a full-screen panel; don't close it on random taps.
       // Close is handled via the X button or navigation.
       if (typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches) return
-      const el = wrapRef.current
-      if (!el) return
-      if (e.target instanceof Node && !el.contains(e.target)) setOpen(false)
+      const trigger = wrapRef.current
+      const panel = panelRef.current
+      if (!trigger) return
+      if (!(e.target instanceof Node)) return
+      if (trigger.contains(e.target)) return
+      if (panel?.contains(e.target)) return
+      setOpen(false)
     }
     document.addEventListener("mousedown", onDown)
     return () => document.removeEventListener("mousedown", onDown)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    if (typeof window === 'undefined') return
+    if (!window.matchMedia('(min-width: 1024px)').matches) return
+
+    let frame = 0
+
+    const update = () => {
+      const el = wrapRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      setDesktopPanelPos(prev => (
+        prev &&
+        prev.top === rect.bottom + 8 &&
+        prev.left === rect.left &&
+        prev.width === 384
+      ) ? prev : { top: rect.bottom + 8, left: rect.left, width: 384 })
+    }
+
+    const schedule = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        update()
+      })
+    }
+
+    update()
+    window.addEventListener('resize', schedule)
+    window.addEventListener('scroll', schedule, { passive: true })
+
+    return () => {
+      window.removeEventListener('resize', schedule)
+      window.removeEventListener('scroll', schedule)
+      if (frame) window.cancelAnimationFrame(frame)
+    }
   }, [open])
 
   // Close when other header UI opens (hamburger / dropdowns) or on route changes.
@@ -739,10 +785,10 @@ const token = storeHighlightToken(ids)
     const isMobile = mode === 'mobile'
 
     return (
-      <div
-        className={
+        <div
+          className={
           "bg-white dark:bg-popover shadow-xl border border-neutral-200 dark:border-border overflow-hidden " +
-          (isMobile ? "rounded-none h-[calc(100vh-56px)] flex flex-col" : "rounded-xl")
+          (isMobile ? "rounded-none h-[calc(100dvh-56px)] min-h-0 flex flex-col" : "rounded-xl")
         }
       >
         <div className="sticky top-0 z-10 bg-gradient-to-b from-neutral-100 to-neutral-50 dark:from-card dark:to-card border-b border-neutral-200 dark:border-border px-4 py-3">
@@ -778,7 +824,10 @@ const token = storeHighlightToken(ids)
           )}
         </div>
 
-        <div className={isMobile ? "flex-1 overflow-auto" : "max-h-[440px] overflow-auto"}>
+        <div
+          className={isMobile ? "min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y" : "max-h-[440px] overflow-auto overscroll-contain"}
+          style={isMobile ? { WebkitOverflowScrolling: 'touch' } : undefined}
+        >
           {loading ? (
             <div className="py-10 text-center text-sm text-neutral-600 dark:text-muted-foreground">טוען...</div>
           ) : items.length === 0 ? (
@@ -838,6 +887,7 @@ const token = storeHighlightToken(ids)
                   return (
                     <div
                       key={g.key}
+                      style={{ contentVisibility: 'auto', containIntrinsicSize: '76px' }}
                       role="button"
                       tabIndex={0}
                       onClick={doNav}
@@ -854,6 +904,7 @@ const token = storeHighlightToken(ids)
                 return (
                   <div
                     key={g.key}
+                    style={{ contentVisibility: 'auto', containIntrinsicSize: '76px' }}
                     className={blockClass}
                     onClick={() => {
                       if (isSystem) return
@@ -886,7 +937,9 @@ const token = storeHighlightToken(ids)
               window.dispatchEvent(new CustomEvent('tyuta:close-mobile-menu'))
               window.dispatchEvent(new CustomEvent('tyuta:close-header-dropdowns'))
             }
-            void load()
+            if (groups.length === 0 || Date.now() - loadStampRef.current > 15_000) {
+              void load()
+            }
           }
         }}
         className="relative p-2 rounded-lg hover:bg-neutral-300 dark:hover:bg-muted transition-all duration-200"
@@ -902,18 +955,25 @@ const token = storeHighlightToken(ids)
       </button>
 
       {/* Desktop dropdown */}
-      {open ? (
-        <div className="hidden lg:block absolute top-full left-0 mt-2 w-96 max-h-[500px] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          {renderPanel('desktop')}
-        </div>
-      ) : null}
+      {open && desktopPanelPos && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              ref={panelRef}
+              className="hidden lg:block fixed z-[10050] animate-in fade-in slide-in-from-top-2 duration-200"
+              style={{ top: desktopPanelPos.top, left: desktopPanelPos.left, width: desktopPanelPos.width }}
+            >
+              {renderPanel('desktop')}
+            </div>,
+            document.body
+          )
+        : null}
 
       {/* Mobile fullscreen (rendered in a portal to avoid being clipped by parents) */}
       {open && typeof document !== 'undefined'
         ? createPortal(
             <>
               <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9998] bg-black/30 backdrop-blur-sm animate-in fade-in duration-200" />
-              <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9999] p-0 overflow-hidden animate-in slide-in-from-top duration-300">
+              <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9999] p-0 overflow-hidden overscroll-none animate-in slide-in-from-top duration-300">
                 {renderPanel('mobile')}
               </div>
             </>,

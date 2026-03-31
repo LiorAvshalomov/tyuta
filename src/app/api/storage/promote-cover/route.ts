@@ -3,26 +3,45 @@ import { createClient } from '@supabase/supabase-js'
 import sharp from 'sharp'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 
-// sharp uses native binaries — must run in Node.js, not Edge.
 export const runtime = 'nodejs'
 
-// Promote a private draft cover from `post-assets` to the public `post-covers` bucket.
-// Compresses the image to JPEG (max 1600 px wide, quality 80) before uploading,
-// reducing typical cover sizes from ~9 MB to < 300 KB.
-// Uses the service role key on the server to avoid Storage RLS errors.
+// Promote a private draft cover from `post-assets` to the public `post-covers`
+// bucket. Files up to the public bucket limit are copied as-is; only oversized
+// covers are compressed on the server before upload.
 
-const MAX_INPUT_BYTES = 15 * 1024 * 1024 // 15 MB source limit
+const MAX_INPUT_BYTES = 15 * 1024 * 1024
+const PUBLIC_BUCKET_MAX_BYTES = 5 * 1024 * 1024
 const COMPRESS_MAX_WIDTH = 1600
-const COMPRESS_QUALITY = 80
+const COMPRESS_QUALITY = 82
+
+function extensionForUpload(contentType: string | null | undefined, sourcePath: string): string {
+  if (contentType === 'image/jpeg') return 'jpg'
+  if (contentType === 'image/png') return 'png'
+  if (contentType === 'image/webp') return 'webp'
+  if (contentType === 'image/gif') return 'gif'
+
+  const fallback = (sourcePath.split('.').pop() || 'jpg').toLowerCase()
+  return ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fallback) ? fallback : 'jpg'
+}
+
+function alternateCoverPaths(postId: string, currentPath: string): string[] {
+  const candidates = [
+    `${postId}/cover.jpg`,
+    `${postId}/cover.jpeg`,
+    `${postId}/cover.png`,
+    `${postId}/cover.webp`,
+    `${postId}/cover.gif`,
+  ]
+
+  return candidates.filter(path => path !== currentPath)
+}
 
 export async function POST(req: Request) {
   try {
-    // Authenticate the user
     const auth = await requireUserFromRequest(req)
     if (!auth.ok) return auth.response
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
-
     const postId = typeof body.postId === 'string' ? body.postId : ''
     const sourcePath = typeof body.sourcePath === 'string' ? body.sourcePath : ''
 
@@ -30,20 +49,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'חסרים פרמטרים (postId, sourcePath)' }, { status: 400 })
     }
 
-    // C1 FIX: Hard-bind sourcePath to the authenticated user's folder.
-    // Prevents reading/promoting/deleting files belonging to other users
-    // even when the attacker knows the path.
     const expectedPrefix = `${auth.user.id}/`
     if (!sourcePath.startsWith(expectedPrefix)) {
       return NextResponse.json({ error: 'sourcePath אינו שייך למשתמש המחובר' }, { status: 403 })
     }
-
-    // Also reject path traversal attempts
     if (sourcePath.includes('..') || sourcePath.includes('//')) {
       return NextResponse.json({ error: 'sourcePath לא תקין' }, { status: 400 })
     }
 
-    // Verify the user owns this post
     const { data: post } = await auth.supabase
       .from('posts')
       .select('id, author_id')
@@ -56,7 +69,6 @@ export async function POST(req: Request) {
 
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
     if (!url || !serviceKey) {
       return NextResponse.json({ error: 'חסרה קונפיגורציית Supabase בשרת' }, { status: 500 })
     }
@@ -74,23 +86,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'תמונת המקור גדולה מדי (מקסימום 15 MB)' }, { status: 400 })
     }
 
-    // Compress: resize to max 1600 px wide, convert to JPEG quality 80, strip metadata.
-    // This reduces typical uploads from ~9 MB to < 300 KB.
     const inputBuffer = Buffer.from(await download.data.arrayBuffer())
-    let outputBuffer: Buffer
-    try {
-      outputBuffer = await sharp(inputBuffer)
-        .rotate()                                              // auto-rotate using EXIF orientation, then strip tag
-        .resize({ width: COMPRESS_MAX_WIDTH, withoutEnlargement: true })
-        .jpeg({ quality: COMPRESS_QUALITY })
-        .toBuffer()
-    } catch {
-      return NextResponse.json({ error: 'שגיאה בדחיסת התמונה — ייתכן שהפורמט אינו נתמך' }, { status: 400 })
+
+    let outputBuffer: Buffer = inputBuffer
+    let contentType = download.data.type || 'image/jpeg'
+    let publicPath = `${postId}/cover.${extensionForUpload(contentType, sourcePath)}`
+
+    if (inputBuffer.byteLength > PUBLIC_BUCKET_MAX_BYTES) {
+      try {
+        outputBuffer = await sharp(inputBuffer)
+          .rotate()
+          .resize({ width: COMPRESS_MAX_WIDTH, withoutEnlargement: true })
+          .jpeg({ quality: COMPRESS_QUALITY })
+          .toBuffer()
+      } catch {
+        return NextResponse.json({ error: 'שגיאה בדחיסת התמונה' }, { status: 400 })
+      }
+
+      contentType = 'image/jpeg'
+      publicPath = `${postId}/cover.jpg`
     }
 
-    const publicPath = `${postId}/cover.jpg`
-    const version = Date.now()
-    const contentType = 'image/jpeg'
+    if (outputBuffer.byteLength > PUBLIC_BUCKET_MAX_BYTES) {
+      return NextResponse.json({ error: 'הקאבר עדיין גדול מדי אחרי אופטימיזציה' }, { status: 400 })
+    }
 
     const upload = await supabase.storage.from('post-covers').upload(publicPath, outputBuffer, {
       upsert: true,
@@ -101,17 +120,22 @@ export async function POST(req: Request) {
     if (upload.error) {
       return NextResponse.json(
         { error: upload.error.message ?? 'לא הצלחתי להעלות את הקאבר הציבורי' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
-    // Best-effort cleanup (ignore errors).
     try {
       await supabase.storage.from('post-assets').remove([sourcePath])
     } catch {
       // ignore
     }
 
+    const stalePublicPaths = alternateCoverPaths(postId, publicPath)
+    if (stalePublicPaths.length > 0) {
+      void supabase.storage.from('post-covers').remove(stalePublicPaths)
+    }
+
+    const version = Date.now()
     const { data: pub } = supabase.storage.from('post-covers').getPublicUrl(publicPath)
     const publicUrl = pub.publicUrl ? `${pub.publicUrl}?v=${version}` : null
     return NextResponse.json({ publicUrl })

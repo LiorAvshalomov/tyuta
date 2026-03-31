@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import FeedIntentLink from '@/components/FeedIntentLink'
 import { supabase } from '@/lib/supabaseClient'
 import { coverProxySrc } from '@/lib/coverUrl'
 import AuthorHover from '@/components/AuthorHover'
@@ -468,13 +469,13 @@ export default function SearchPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-1.5 text-xs">
                     {p.channel ? (
-                      <Link
+                      <FeedIntentLink
                         href={`/c/${p.channel.slug}`}
                         onClick={(e) => e.stopPropagation()}
                         className={`rounded-full border px-2 py-0.5 font-medium transition-opacity hover:opacity-80 ${channelBadgeColor(p.channel.slug)}`}
                       >
                         {p.channel.name_he}
-                      </Link>
+                      </FeedIntentLink>
                     ) : null}
                     {p.subcategory?.name_he ? (
                       <span className="rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-muted-foreground">

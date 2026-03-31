@@ -21,6 +21,8 @@ type NoteRow = {
   avatar_url: string | null
 }
 
+type NotesViewport = 'mobile' | 'tablet' | 'desktop'
+
 const NOTE_MAX = 220
 const COOLDOWN_SECONDS = 10 * 60
 const NOTE_TTL_SECONDS = 12 * 60 * 60
@@ -29,6 +31,28 @@ function sortNotesByUpdatedAtDesc(arr: NoteRow[]) {
   return arr
     .slice()
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+}
+
+function sameNoteSnapshot(a: NoteRow[], b: NoteRow[]) {
+  if (a === b) return true
+  if (a.length !== b.length) return false
+
+  for (let i = 0; i < a.length; i += 1) {
+    const prev = a[i]
+    const next = b[i]
+    if (
+      prev.id !== next.id ||
+      prev.updated_at !== next.updated_at ||
+      prev.body !== next.body ||
+      prev.username !== next.username ||
+      prev.display_name !== next.display_name ||
+      prev.avatar_url !== next.avatar_url
+    ) {
+      return false
+    }
+  }
+
+  return true
 }
 
 function secondsToClock(sec: number) {
@@ -57,6 +81,13 @@ function hasRepeatedChars(text: string): boolean {
   return /(.)\1{4,}/u.test(text)
 }
 
+function getNotesViewport(): NotesViewport {
+  if (typeof window === 'undefined') return 'mobile'
+  if (window.matchMedia('(min-width: 1024px)').matches) return 'desktop'
+  if (window.matchMedia('(min-width: 640px)').matches) return 'tablet'
+  return 'mobile'
+}
+
 export default function CommunityNotesWall() {
   const router = useRouter()
   const [meId, setMeId] = useState<string | null>(null)
@@ -77,8 +108,10 @@ export default function CommunityNotesWall() {
   const [posting, setPosting] = useState(false)
   const [myLastUpdatedAt, setMyLastUpdatedAt] = useState<string | null>(null)
   const [validationError, setValidationError] = useState<string | null>(null)
+  const [viewport, setViewport] = useState<NotesViewport | null>(null)
 
   const lastPostedIdRef = useRef<string | null>(null)
+  const desktopViewport = viewport === 'desktop'
 
   const [nowMs, setNowMs] = useState(() => Date.now())
   const remainingSeconds = useMemo(() => {
@@ -91,8 +124,56 @@ export default function CommunityNotesWall() {
   const cooldown = remainingSeconds > 0
 
   useEffect(() => {
-    const t = setInterval(() => setNowMs(Date.now()), 1000)
-    return () => clearInterval(t)
+    if (!myLastUpdatedAt) return
+
+    const intervalMs = cooldown ? 1000 : 60_000
+    setNowMs(Date.now())
+    const t = window.setInterval(() => setNowMs(Date.now()), intervalMs)
+    return () => window.clearInterval(t)
+  }, [cooldown, myLastUpdatedAt])
+
+  const desktopColumns = useMemo(
+    () => [
+      notes.filter((_, i) => i % 3 === 0),
+      notes.filter((_, i) => i % 3 === 1),
+      notes.filter((_, i) => i % 3 === 2),
+    ],
+    [notes],
+  )
+
+  const tabletColumns = useMemo(
+    () => [
+      notes.filter((_, i) => i % 2 === 0),
+      notes.filter((_, i) => i % 2 === 1),
+    ],
+    [notes],
+  )
+
+  useEffect(() => {
+    const mqDesktop = window.matchMedia('(min-width: 1024px)')
+    const mqTablet = window.matchMedia('(min-width: 640px)')
+    const applyViewport = () => {
+      const next = getNotesViewport()
+      setViewport((prev) => (prev === next ? prev : next))
+    }
+
+    applyViewport()
+
+    if (typeof mqDesktop.addEventListener === 'function') {
+      mqDesktop.addEventListener('change', applyViewport)
+      mqTablet.addEventListener('change', applyViewport)
+      return () => {
+        mqDesktop.removeEventListener('change', applyViewport)
+        mqTablet.removeEventListener('change', applyViewport)
+      }
+    }
+
+    mqDesktop.addListener(applyViewport)
+    mqTablet.addListener(applyViewport)
+    return () => {
+      mqDesktop.removeListener(applyViewport)
+      mqTablet.removeListener(applyViewport)
+    }
   }, [])
 
   async function loadMe() {
@@ -148,7 +229,8 @@ export default function CommunityNotesWall() {
 
     if (error) return
 
-    setNotes(sortNotesByUpdatedAtDesc((data as NoteRow[]) ?? []))
+    const nextNotes = sortNotesByUpdatedAtDesc((data as NoteRow[]) ?? [])
+    setNotes((prev) => (sameNoteSnapshot(prev, nextNotes) ? prev : nextNotes))
   }
 
   async function loadMyNote() {
@@ -381,7 +463,14 @@ export default function CommunityNotesWall() {
       ) : null}
 
       {/* Header + Composer */}
-      <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/90">
+      <div
+        className={[
+          'isolate rounded-3xl border border-black/5 shadow-sm dark:border-white/10',
+          desktopViewport
+            ? 'bg-[#FAF9F6]/95 dark:bg-card/95'
+            : 'bg-[#FAF9F6]/90 backdrop-blur dark:bg-card/90',
+        ].join(' ')}
+      >
         <div className="px-5 py-4">
           {/* Title row */}
           <div className="flex items-start justify-between gap-3">
@@ -403,7 +492,7 @@ export default function CommunityNotesWall() {
           </div>
 
           {/* Premium composer */}
-          <div className="mt-4 overflow-hidden rounded-2xl border border-amber-300/40 bg-white/80 shadow-[inset_0_1px_3px_0_rgb(0,0,0,0.04)] dark:border-amber-700/20 dark:bg-muted/60">
+          <div className="isolate mt-4 overflow-hidden rounded-2xl border border-amber-300/40 bg-white/80 shadow-[inset_0_1px_3px_0_rgb(0,0,0,0.04)] dark:border-amber-700/20 dark:bg-muted/60">
             {/* Notepad accent strip */}
             <div className="h-1 w-full bg-gradient-to-l from-amber-400/70 via-amber-300/50 to-amber-400/70 dark:from-amber-600/40 dark:via-amber-500/30 dark:to-amber-600/40" />
 
@@ -461,7 +550,15 @@ export default function CommunityNotesWall() {
       </div>
 
       {/* Notes wall */}
-      <div className="rounded-3xl border border-black/5 bg-[#FAF9F6]/80 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-card/80">
+      <div
+        className={[
+          'isolate rounded-3xl border border-black/5 p-4 shadow-sm dark:border-white/10',
+          desktopViewport
+            ? 'bg-[#FAF9F6]/94 dark:bg-card/94'
+            : 'bg-[#FAF9F6]/80 backdrop-blur dark:bg-card/80',
+        ].join(' ')}
+        style={{ contain: 'paint' }}
+      >
         {loading ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" dir="rtl">
             {Array.from({ length: 9 }).map((_, i) => (
@@ -480,23 +577,28 @@ export default function CommunityNotesWall() {
               const mine = meId && n.user_id === meId
               const ttlUpdatedAt = mine && myLastUpdatedAt ? myLastUpdatedAt : n.updated_at
               const expiresInSeconds = mine
-                ? Math.max(0, NOTE_TTL_SECONDS - Math.floor((Date.now() - new Date(ttlUpdatedAt).getTime()) / 1000))
+                ? Math.max(0, NOTE_TTL_SECONDS - Math.floor((nowMs - new Date(ttlUpdatedAt).getTime()) / 1000))
                 : 0
               const expiresText = mine && expiresInSeconds > 0 ? secondsToHumanHe(expiresInSeconds) : null
+              const highlighted = lastPostedIdRef.current === n.id || highlightId === n.id
 
               return (
                 <div
                   key={n.id}
+                  style={{
+                    contentVisibility: 'auto',
+                    containIntrinsicSize: '180px',
+                    contain: 'layout paint style',
+                  }}
                   className={[
                     'group relative text-right w-full rounded-2xl border p-4',
                     'bg-gradient-to-b from-card to-amber-50/10 dark:from-card dark:to-amber-900/5',
                     'shadow-sm tyuta-card-hover',
-                    'transition-[box-shadow,transform,ring] duration-200',
+                    'transition-[box-shadow,transform,border-color] duration-200',
                     mine ? 'opacity-95 cursor-default' : 'cursor-pointer',
-                    'border-border/60',
-                    (lastPostedIdRef.current === n.id || highlightId === n.id)
-                      ? 'ring-2 ring-amber-400/40 shadow-md dark:ring-amber-500/30'
-                      : '',
+                    highlighted
+                      ? "border-amber-300/55 dark:border-amber-500/30 after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] after:shadow-[inset_0_0_0_1px_rgba(245,158,11,0.18)] dark:after:shadow-[inset_0_0_0_1px_rgba(245,158,11,0.14)]"
+                      : 'border-border/60',
                   ].join(' ')}
                   dir="rtl"
                   title={mine ? 'זה הפתק שלך' : 'לחץ על התוכן כדי לפתוח שיחה'}
@@ -536,7 +638,7 @@ export default function CommunityNotesWall() {
                   <div className="flex items-start gap-3">
                     <div className="shrink-0">
                       <AuthorHover username={n.username}>
-                        <Link href={`/u/${n.username}`} onClick={(e) => e.stopPropagation()}>
+                        <Link href={`/u/${n.username}`} prefetch={false} onClick={(e) => e.stopPropagation()}>
                           <Avatar src={n.avatar_url} name={n.display_name || n.username} size={34} />
                         </Link>
                       </AuthorHover>
@@ -546,6 +648,7 @@ export default function CommunityNotesWall() {
                         <AuthorHover username={n.username}>
                           <Link
                             href={`/u/${n.username}`}
+                            prefetch={false}
                             className="truncate text-sm font-bold no-underline hover:no-underline tyuta-hover"
                             onClick={(e) => e.stopPropagation()}
                             title="לפרופיל"
@@ -586,31 +689,31 @@ export default function CommunityNotesWall() {
 
             // lg: 3 flex columns, row-first reading order (newest → top-right, next → top-mid, next → top-left)
             // Each column gets every 3rd note: col0=[0,3,6…], col1=[1,4,7…], col2=[2,5,8…]
-            const col0 = notes.filter((_, i) => i % 3 === 0)
-            const col1 = notes.filter((_, i) => i % 3 === 1)
-            const col2 = notes.filter((_, i) => i % 3 === 2)
+            const col0 = desktopColumns[0]
+            const col1 = desktopColumns[1]
+            const col2 = desktopColumns[2]
 
             // sm: 2 flex columns, same row-first logic
-            const sm0 = notes.filter((_, i) => i % 2 === 0)
-            const sm1 = notes.filter((_, i) => i % 2 === 1)
+            const sm0 = tabletColumns[0]
+            const sm1 = tabletColumns[1]
 
             return (
               <>
                 {/* Desktop (lg+): 3 masonry columns, row-first */}
                 <div className="hidden lg:flex flex-row gap-3" dir="rtl">
-                  <div className="flex flex-col gap-3 flex-1">{col0.map(renderCard)}</div>
-                  <div className="flex flex-col gap-3 flex-1">{col1.map(renderCard)}</div>
-                  <div className="flex flex-col gap-3 flex-1">{col2.map(renderCard)}</div>
+                  <div className="flex flex-col gap-3 flex-1" style={{ contain: 'layout paint' }}>{col0.map(renderCard)}</div>
+                  <div className="flex flex-col gap-3 flex-1" style={{ contain: 'layout paint' }}>{col1.map(renderCard)}</div>
+                  <div className="flex flex-col gap-3 flex-1" style={{ contain: 'layout paint' }}>{col2.map(renderCard)}</div>
                 </div>
 
                 {/* Tablet (sm–lg): 2 masonry columns, row-first */}
                 <div className="hidden sm:flex lg:hidden flex-row gap-3" dir="rtl">
-                  <div className="flex flex-col gap-3 flex-1">{sm0.map(renderCard)}</div>
-                  <div className="flex flex-col gap-3 flex-1">{sm1.map(renderCard)}</div>
+                  <div className="flex flex-col gap-3 flex-1" style={{ contain: 'layout paint' }}>{sm0.map(renderCard)}</div>
+                  <div className="flex flex-col gap-3 flex-1" style={{ contain: 'layout paint' }}>{sm1.map(renderCard)}</div>
                 </div>
 
                 {/* Mobile: single column */}
-                <div className="flex sm:hidden flex-col gap-3" dir="rtl">
+                <div className="flex sm:hidden flex-col gap-3" dir="rtl" style={{ contain: 'layout paint' }}>
                   {notes.map(renderCard)}
                 </div>
               </>

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
+import FeedIntentLink from '@/components/FeedIntentLink'
 import {
   LayoutDashboard,
   Flag,
@@ -102,13 +103,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
         {/* Bottom */}
         <div className="border-t border-neutral-200 px-3 py-3">
-          <Link
+          <FeedIntentLink
             href="/"
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
           >
             <ArrowLeft size={16} />
             <span>חזרה לאתר</span>
-          </Link>
+          </FeedIntentLink>
         </div>
       </aside>
 
@@ -131,13 +132,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <div className="flex-1" />
 
           {/* Topbar right - back to site on mobile */}
-          <Link
+          <FeedIntentLink
             href="/"
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 md:hidden"
           >
             <ArrowLeft size={14} />
             <span>לאתר</span>
-          </Link>
+          </FeedIntentLink>
         </header>
 
         {/* Content */}
@@ -193,14 +194,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             </nav>
 
             <div className="border-t border-neutral-200 px-3 py-3">
-              <Link
+              <FeedIntentLink
                 href="/"
                 onClick={closeDrawer}
                 className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
               >
                 <ArrowLeft size={16} />
                 <span>חזרה לאתר</span>
-              </Link>
+              </FeedIntentLink>
             </div>
           </aside>
         </div>

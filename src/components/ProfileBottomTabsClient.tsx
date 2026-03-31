@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ProfilePostsClient from '@/components/ProfilePostsClient'
 import ProfileStatsCard, { type ProfileReactionTotal } from '@/components/ProfileStatsCard'
+import { supabase } from '@/lib/supabaseClient'
 
 type Tab = 'posts' | 'stats'
 
@@ -13,7 +14,6 @@ export default function ProfileBottomTabsClient({
   commentsWritten,
   commentsReceived,
   medals,
-  reactionTotals,
 }: {
   profileId: string
   username: string
@@ -21,9 +21,40 @@ export default function ProfileBottomTabsClient({
   commentsWritten: number
   commentsReceived: number
   medals: { gold: number; silver: number; bronze: number }
-  reactionTotals?: ProfileReactionTotal[]
 }) {
   const [tab, setTab] = useState<Tab>('posts')
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsLoaded, setStatsLoaded] = useState(false)
+  const [reactionTotals, setReactionTotals] = useState<ProfileReactionTotal[] | undefined>(undefined)
+
+  useEffect(() => {
+    if (tab !== 'stats' || statsLoaded) return
+
+    let cancelled = false
+
+    async function loadStats() {
+      setStatsLoading(true)
+
+      const { data: totals, error: totalsError } = await supabase.rpc('get_profile_reaction_totals', {
+        p_profile_id: profileId,
+      })
+
+      if (cancelled) return
+      if (totalsError) {
+        console.error('get_profile_reaction_totals error:', totalsError)
+      }
+
+      setReactionTotals(Array.isArray(totals) ? (totals as ProfileReactionTotal[]) : undefined)
+      setStatsLoaded(true)
+      setStatsLoading(false)
+    }
+
+    void loadStats()
+
+    return () => {
+      cancelled = true
+    }
+  }, [profileId, statsLoaded, tab])
 
   return (
     <section className="mt-6" dir="rtl">
@@ -83,6 +114,7 @@ export default function ProfileBottomTabsClient({
             >
               {tab === 'stats' && (
                 <ProfileStatsCard
+                  loading={statsLoading && !statsLoaded}
                   postsCount={postsCount}
                   commentsWritten={commentsWritten}
                   commentsReceived={commentsReceived}

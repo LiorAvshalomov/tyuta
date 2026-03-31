@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import FeedIntentLink from '@/components/FeedIntentLink'
 
 export default function SiteNavbar() {
   return (
@@ -8,9 +8,9 @@ export default function SiteNavbar() {
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3" dir="rtl">
         {/* ימין: לוגו + סלוגן */}
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/" className="text-xl font-black tracking-tight">
+          <FeedIntentLink href="/" className="text-xl font-black tracking-tight">
             Tyuta
-          </Link>
+          </FeedIntentLink>
           <span className="text-sm text-muted-foreground whitespace-nowrap">
             המקום שלך לכתוב
           </span>
