@@ -13,17 +13,21 @@ const SB_WSS = SB_ORIGINS.map((o) => o.replace('https://', 'wss://'))
 /**
  * Build the Content-Security-Policy header value.
  *
- * script-src strategy (hash-based — compatible with ISR/edge caching):
- *   - 'sha256-{hash}' — SHA-256 of the static theme-init inline script in layout.tsx.
- *     CSP3 ignores 'unsafe-inline' for static inline scripts when a hash is present,
- *     so injected inline XSS is blocked while the known script is allowed.
+ * script-src strategy ('unsafe-inline' — required by Next.js App Router):
+ *   - 'unsafe-inline' — Next.js App Router injects dynamic inline scripts per-render
+ *     (RSC flight data, hydration bootstrap). These change per response and cannot be hashed.
+ *     NOTE: If a hash OR nonce is also present, CSP3 ignores 'unsafe-inline' entirely,
+ *     which would block Next.js's own scripts. So no hash is used here.
  *   - 'self' — allows Next.js bundle chunks loaded from the same origin.
- *   - No 'unsafe-inline' — GA init moved to /public/js/ga.js (external 'self' script).
- *     Zero inline JS remains; any injected inline script is blocked unconditionally.
  *   - https://www.googletagmanager.com — explicit allowlist for GTM external script.
  *
  * Why not nonce-based: nonces require headers() in layout.tsx which forces dynamic
  * rendering and breaks ISR/Vercel edge caching entirely.
+ *
+ * Inline XSS is still mitigated by:
+ *   - script-src-attr 'none' — blocks onclick=/onerror= event-handler injection.
+ *   - React's output escaping — all template expressions are HTML-entity-encoded.
+ *   - connect-src whitelist — limits where data can be exfiltrated even if JS runs.
  *
  * style-src keeps 'unsafe-inline' because Tailwind v4 and TipTap inject styles at runtime.
  *
@@ -56,10 +60,10 @@ function buildCSP(): string {
 
   return [
     "default-src 'self'",
-    // SHA-256 hash of the theme-init inline script (layout.tsx) — the only inline script.
-    // All other JS (GA, Next.js bundles) is loaded as external files ('self' / GTM host).
-    // No 'unsafe-inline': without it, any injected inline script is blocked in all CSP levels.
-    `script-src 'sha256-BrQ21Fty0XJkC0AunvvgEWvXkbWfHbpmmJpKVG+Dw48=' 'self' https://www.googletagmanager.com`,
+    // 'unsafe-inline' is required: Next.js App Router injects dynamic inline scripts
+    // (RSC streaming data, hydration bootstrap) that cannot be statically hashed.
+    // XSS risk is mitigated by script-src-attr 'none' + React escaping + connect-src whitelist.
+    `script-src 'unsafe-inline' 'self' https://www.googletagmanager.com`,
     "style-src 'self' 'unsafe-inline'",
     `img-src ${imgSrc}`,
     "font-src 'self'",
