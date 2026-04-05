@@ -536,22 +536,24 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
                     <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
                   </>
                 ) : null}
-                {post.subcategory && post.tags.length > 0 && !showMedals ? (
-                  <span className="mx-2 text-muted-foreground/50">{SEPARATOR}</span>
+                {post.subcategory && post.tags.length > 0 ? (
+                  <span className={`mx-2 text-muted-foreground/50${showMedals ? ' hidden md:inline' : ''}`}>{SEPARATOR}</span>
                 ) : null}
-                {post.tags.length > 0 && !showMedals ? (() => {
+                {post.tags.length > 0 ? (() => {
                   const desktopCap = post.channel_slug === 'magazine' ? 3 : 6
                   const leadCls = post.subcategory ? '' : 'mx-2'
                   const mobileOverflow = post.tags.length - 1
                   const desktopOverflow = Math.max(0, post.tags.length - desktopCap)
                   return (
                     <>
-                      {/* mobile: 1 tag + overflow count */}
-                      <span className={`md:hidden ${leadCls} text-muted-foreground/70`.trimEnd()}>
-                        #&nbsp;{post.tags[0].name_he}
-                        {mobileOverflow > 0 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{mobileOverflow}</span>}
-                      </span>
-                      {/* desktop: up to cap + overflow count */}
+                      {/* mobile: 1 tag + overflow count — hidden when medals */}
+                      {!showMedals && (
+                        <span className={`md:hidden ${leadCls} text-muted-foreground/70`.trimEnd()}>
+                          #&nbsp;{post.tags[0].name_he}
+                          {mobileOverflow > 0 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{mobileOverflow}</span>}
+                        </span>
+                      )}
+                      {/* desktop: up to cap + overflow count — always visible */}
                       <span className={`hidden md:inline ${leadCls} text-muted-foreground/70`.trimEnd()}>
                         {post.tags.slice(0, desktopCap).map((t, i) => (
                           <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
@@ -560,7 +562,7 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
                       </span>
                     </>
                   )
-                })() : null}
+                })()}
 
 
 
