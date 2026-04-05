@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { validateImageBuffer } from '@/lib/validateImage'
 
 /**
  * GET /api/media/cover?path=post-covers/<...>/cover.jpg
@@ -17,6 +18,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+
+// Only serve known-safe image types — reject SVG and anything else
+const ALLOWED_SERVE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
 // ── per-IP rate limit ────────────────────────────────────────────────────────
 const WINDOW_MS = 60_000  // 1 minute
@@ -94,7 +98,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return new NextResponse('Payload too large', { status: 413 })
   }
 
-  const contentType = upstream.headers.get('content-type') ?? 'image/jpeg'
+  const rawContentType = upstream.headers.get('content-type') ?? 'image/jpeg'
+  const contentType = rawContentType.split(';')[0].trim().toLowerCase()
+
+  if (!ALLOWED_SERVE_TYPES.has(contentType)) {
+    return new NextResponse('Unsupported media type', { status: 415 })
+  }
+
   const etag = upstream.headers.get('etag')
 
   // ── read body + size guard (actual bytes) ────────────────────────────────
@@ -103,10 +113,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return new NextResponse('Payload too large', { status: 413 })
   }
 
+  // ── magic byte validation (defense-in-depth) ─────────────────────────────
+  // Re-validates actual file content regardless of the upstream Content-Type
+  // header, so files that bypassed upload validation (e.g. via a future admin
+  // tool or direct storage write) are never served through this proxy.
+  const byteCheck = validateImageBuffer(Buffer.from(body))
+  if (!byteCheck.ok) {
+    return new NextResponse('Invalid image content', { status: 415 })
+  }
+
   // ── respond with long TTL ────────────────────────────────────────────────
   const headers: Record<string, string> = {
     'Content-Type': contentType,
     'Cache-Control': 'public, max-age=31536000, immutable',
+    // Keep browser behavior unchanged, but make Vercel and intermediary CDNs
+    // cache the proxy response explicitly instead of invoking compute on misses.
+    'CDN-Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+    'Vercel-CDN-Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+    'X-Content-Type-Options': 'nosniff',
   }
   if (etag) headers['ETag'] = etag
 

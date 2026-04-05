@@ -2,7 +2,6 @@ import { MetadataRoute } from "next"
 import { createClient } from "@supabase/supabase-js"
 
 export const revalidate = 3600 // שעה
-export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 type SitemapPostRow = {
@@ -29,7 +28,11 @@ type PostWithAuthorJoinRow = {
 }
 
 function pickLastModified(p: { published_at: string | null; updated_at: string | null }): string | undefined {
-  return (p.published_at ?? p.updated_at) ?? undefined
+  // Return the later of the two timestamps so edited posts reflect their true last-modified date.
+  const a = p.published_at
+  const b = p.updated_at
+  if (a && b) return a > b ? a : b
+  return (a ?? b) ?? undefined
 }
 
 function pickProfileLastModified(p: ProfileRow): string | undefined {

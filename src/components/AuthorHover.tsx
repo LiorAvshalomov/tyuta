@@ -111,7 +111,7 @@ export default function AuthorHover({
         <HoverProfileCard
           username={username}
           preview={preview}
-          anchorEl={anchorRef.current}
+          anchorEl={anchorRef.current /* eslint-disable-line react-hooks/refs */}
           onClose={close}
           onMouseEnter={keepOpen}
           onMouseLeave={scheduleClose}

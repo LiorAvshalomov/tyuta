@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import {
+  fetchUserProfileSnapshot,
+  logUserModerationAction,
+} from '@/lib/admin/logUserModerationAction'
 
 type Body = {
   user_id?: string
@@ -24,6 +28,10 @@ export async function POST(req: Request) {
 
   if (!userId) {
     return NextResponse.json({ ok: false, error: 'missing user_id' }, { status: 400 })
+  }
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(userId)) {
+    return NextResponse.json({ ok: false, error: 'invalid user_id' }, { status: 400 })
   }
 
   const nowIso = new Date().toISOString()
@@ -50,6 +58,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 })
   }
 
+  const targetProfile = await fetchUserProfileSnapshot(auth.admin, userId)
+
   // Best-effort audit log (won't fail request if table doesn't exist yet)
   await auth.admin.from('user_moderation_events').insert({
     user_id: userId,
@@ -58,6 +68,19 @@ export async function POST(req: Request) {
     reason: reason,
     created_at: nowIso,
   } as never)
+
+  await logUserModerationAction({
+    admin: auth.admin,
+    actorId: auth.user.id,
+    targetUserId: userId,
+    action: isSuspended ? 'user_suspend' : 'user_unsuspend',
+    reason,
+    metadata: {
+      source: 'admin_users',
+      target_profile: targetProfile,
+      is_suspended: isSuspended,
+    },
+  })
 
   return NextResponse.json({ ok: true })
 }

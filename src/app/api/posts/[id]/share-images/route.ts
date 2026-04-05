@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!auth.ok) return auth.response
 
   // Rate limit: 10 renders per minute per user (each slide is one request)
-  const rl = rateLimit(`share-img:${auth.user.id}`, { maxRequests: 10, windowMs: 60_000 })
+  const rl = await rateLimit(`share-img:${auth.user.id}`, { maxRequests: 10, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json(
       { error: { code: 'rate_limited', message: 'יותר מדי בקשות. נסה שוב בעוד רגע.' } },

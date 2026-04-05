@@ -3,12 +3,9 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
-import {
-  getModerationReason,
-  getModerationStatus,
-  setSupportConversationId,
-} from "@/lib/moderation"
+import { setSupportConversationId } from "@/lib/moderation"
 import { mapModerationRpcError } from "@/lib/mapSupabaseError"
+import { getResolvedSession } from "@/lib/auth/getResolvedSession"
 
 const SYSTEM_USER_ID = process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? ""
 
@@ -17,105 +14,130 @@ type ProfileLite = {
   display_name: string | null
 }
 
-function safePath(v: string | null): string | null {
-  if (!v) return null
-  return v.startsWith("/") ? v : null
+function safePath(value: string | null): string | null {
+  if (!value) return null
+  return value.startsWith("/") ? value : null
 }
 
 export default function BannedPage() {
   const router = useRouter()
-  const sp = useSearchParams()
+  const searchParams = useSearchParams()
 
-  const next = useMemo(() => safePath(sp.get("next")), [sp])
-  const [mounted, setMounted] = useState(false)
+  const next = useMemo(
+    () => safePath(searchParams.get("from") ?? searchParams.get("next")),
+    [searchParams],
+  )
+
+  const [ready, setReady] = useState(false)
   const [reason, setReason] = useState<string | null>(null)
   const [profile, setProfile] = useState<ProfileLite | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setMounted(true)
-    // Only after mount: read localStorage-backed status/reason
-    const status = getModerationStatus()
-    if (status !== "banned") {
-      router.replace("/")
-      return
-    }
-    setReason(getModerationReason())
-  }, [router])
-
-  useEffect(() => {
-    if (!mounted) return
     let cancelled = false
 
     async function load() {
-      const { data } = await supabase.auth.getSession()
-      const uid = data.session?.user?.id
-      if (!uid) return
+      const session = await getResolvedSession()
+      const uid = session?.user?.id
+      if (!uid) {
+        router.replace("/")
+        return
+      }
 
-      const { data: p, error: e } = await supabase
-        .from("profiles")
-        .select("username, display_name")
-        .eq("id", uid)
-        .maybeSingle()
+      const [{ data: moderation, error: moderationError }, { data: p, error: profileError }] =
+        await Promise.all([
+          supabase
+            .from("user_moderation")
+            .select("is_banned, is_suspended, reason, ban_reason")
+            .eq("user_id", uid)
+            .maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("username, display_name")
+            .eq("id", uid)
+            .maybeSingle(),
+        ])
 
       if (cancelled) return
-      if (e) return
 
-      const pr = p as unknown
-      const rec = (pr && typeof pr === "object") ? (pr as Record<string, unknown>) : null
-      const username = rec && typeof rec["username"] === "string" ? (rec["username"] as string) : null
-      const display_name = rec && typeof rec["display_name"] === "string" ? (rec["display_name"] as string) : null
+      if (moderationError) {
+        router.replace("/")
+        return
+      }
 
-      setProfile({ username, display_name })
+      if (moderation?.is_banned !== true) {
+        router.replace(moderation?.is_suspended ? "/restricted" : "/")
+        return
+      }
+
+      setReason(
+        (moderation?.ban_reason as string | null) ??
+        (moderation?.reason as string | null) ??
+        null,
+      )
+
+      if (!profileError) {
+        const record =
+          p && typeof p === "object" ? (p as Record<string, unknown>) : null
+        const username =
+          record && typeof record.username === "string" ? record.username : null
+        const display_name =
+          record && typeof record.display_name === "string" ? record.display_name : null
+
+        setProfile({ username, display_name })
+      }
+
+      setReady(true)
     }
 
-    load()
+    void load()
+
     return () => {
       cancelled = true
     }
-  }, [mounted])
+  }, [router])
 
   async function openSupport() {
     if (!SYSTEM_USER_ID) {
-      setError("Missing system user id")
+      setError("חסר מזהה משתמש מערכת.")
       return
     }
+
     setBusy(true)
     setError(null)
+
     try {
-      const { data, error: e } = await supabase.rpc("start_conversation", {
+      const { data, error: rpcError } = await supabase.rpc("start_conversation", {
         other_user_id: SYSTEM_USER_ID,
       })
-      if (e) throw e
 
-      // start_conversation returns uuid directly (string), not an object
+      if (rpcError) throw rpcError
+
       const conversationId =
-        typeof data === "string" && data.trim()
-          ? data.trim()
-          : null
+        typeof data === "string" && data.trim() ? data.trim() : null
 
-      if (conversationId) {
-        setSupportConversationId(conversationId)
-        router.push(`/banned/contact?cid=${encodeURIComponent(conversationId)}`)
-      } else {
+      if (!conversationId) {
         setError("לא התקבל מזהה שיחה ממערכת האתר.")
+        return
       }
-    } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : "Unknown error"
+
+      setSupportConversationId(conversationId)
+      router.push(`/banned/contact?cid=${encodeURIComponent(conversationId)}`)
+    } catch (caught: unknown) {
+      const raw = caught instanceof Error ? caught.message : "Unknown error"
       setError(mapModerationRpcError(raw) ?? raw)
     } finally {
       setBusy(false)
     }
   }
 
-  // Prevent SSR/CSR mismatches: render stable frame until mounted
-  if (!mounted) {
+  if (!ready) {
     return <div className="min-h-screen bg-neutral-950" />
   }
 
   const displayName =
-    profile?.display_name || profile?.username || "המשתמש שלך"
+    profile?.display_name || profile?.username || "החשבון שלך"
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
@@ -126,20 +148,18 @@ export default function BannedPage() {
           </div>
 
           <h1 className="mt-3 text-2xl sm:text-3xl font-black text-red-100">
-            {displayName}, החשבון שלך הושעה לצמיתות
+            {displayName}, החשבון שלך חסום לצמיתות
           </h1>
 
           <p className="mt-3 text-sm sm:text-base text-red-100/80 leading-6">
-            אין באפשרותך להשתמש בפיצ׳רים של האתר. אם לדעתך מדובר בטעות — ניתן לפנות
-            אל צוות המערכת דרך כפתור “צור קשר”.
+            אין לך כרגע גישה לפעולות באתר. אם לדעתך מדובר בטעות, אפשר לפנות
+            לצוות המערכת דרך כפתור יצירת הקשר.
           </p>
 
           {reason ? (
             <div className="mt-5 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3">
-              <div className="text-xs font-bold text-red-200">סיבת חסימה</div>
-              <div className="mt-1 text-sm text-white/90 leading-6">
-                {reason}
-              </div>
+              <div className="text-xs font-bold text-red-200">סיבת החסימה</div>
+              <div className="mt-1 text-sm text-white/90 leading-6">{reason}</div>
             </div>
           ) : null}
 

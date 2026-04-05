@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import {
+  fetchUserProfileSnapshot,
+  logUserModerationAction,
+} from '@/lib/admin/logUserModerationAction'
+import { cleanupPostOwnedAssets } from '@/lib/storage/postAssetLifecycle'
+import { revalidatePath } from 'next/cache'
 
 type Body = {
   user_id?: string
   confirm?: boolean
   /** "anonymize" (default) = scrub PII + ban; "hard" = full cascade delete */
   mode?: 'anonymize' | 'hard'
-  /** Required for mode="hard". Min 15 characters. */
+  /** Required for irreversible modes. */
   reason?: string
 }
 
@@ -86,10 +92,19 @@ export async function POST(req: NextRequest) {
 
   const userId = (body.user_id ?? '').trim()
   if (!userId) return NextResponse.json({ ok: false, error: 'missing user_id' }, { status: 400 })
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(userId)) return NextResponse.json({ ok: false, error: 'invalid user_id' }, { status: 400 })
   if (body.confirm !== true) return NextResponse.json({ ok: false, error: 'missing confirm' }, { status: 400 })
 
   const mode = body.mode ?? 'anonymize'
   const reason = (body.reason ?? '').trim()
+
+  if (mode === 'anonymize' && reason.length < 10) {
+    return NextResponse.json(
+      { ok: false, error: 'anonymize requires reason (min 10 characters)' },
+      { status: 400 },
+    )
+  }
 
   // Hard delete requires a reason (min 15 chars)
   if (mode === 'hard' && reason.length < 15) {
@@ -99,23 +114,26 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Safety gate: must be suspended first
-  const { data: mod, error: mErr } = await auth.admin
-    .from('user_moderation')
-    .select('is_suspended')
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (mErr) return NextResponse.json({ ok: false, error: mErr.message }, { status: 500 })
-  if (!mod?.is_suspended) {
-    return NextResponse.json({ ok: false, error: 'user must be suspended before delete' }, { status: 400 })
-  }
-
   const db = auth.admin
+  const targetProfile = await fetchUserProfileSnapshot(db, userId)
 
   // ── ANONYMIZE MODE ────────────────────────────────────────────
   if (mode === 'anonymize') {
     const anonUsername = `deleted-${userId.slice(0, 8)}`
+    const auditRow = await logUserModerationAction({
+      admin: db,
+      actorId: auth.user.id,
+      targetUserId: userId,
+      action: 'user_anonymize',
+      reason,
+      strict: true,
+      fallbackReasonSuffix: `replacement_username:${anonUsername}`,
+      metadata: {
+        source: 'admin_users',
+        target_profile: targetProfile,
+        replacement_username: anonUsername,
+      },
+    })
 
     const { error: profileErr } = await db
       .from('profiles')
@@ -148,18 +166,38 @@ export async function POST(req: NextRequest) {
     // Mark banned to block login (RLS + SuspensionSync enforce this)
     await db
       .from('user_moderation')
-      .update({
-        is_banned: true,
-        ban_reason: 'account deleted (anonymized)',
-        banned_at: new Date().toISOString(),
-        banned_by: auth.user.id,
-        is_suspended: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
+      .upsert(
+        {
+          user_id: userId,
+          is_banned: true,
+          ban_reason: 'account deleted (anonymized)',
+          banned_at: new Date().toISOString(),
+          banned_by: auth.user.id,
+          is_suspended: false,
+          reason: null,
+          suspended_at: null,
+          suspended_by: null,
+          updated_at: new Date().toISOString(),
+        } as never,
+        { onConflict: 'user_id' },
+      )
 
     // Remove avatar (PII)
     await cleanBucketPrefix(db, 'avatars', userId)
+
+    if (auditRow.id && auditRow.metadataPersisted) {
+      await db
+        .from('moderation_actions')
+        .update({
+          metadata: {
+            source: 'admin_users',
+            target_profile: targetProfile,
+            replacement_username: anonUsername,
+            avatar_removed: true,
+          },
+        } as never)
+        .eq('id', auditRow.id)
+    }
 
     return NextResponse.json({ ok: true, mode: 'anonymize', username: anonUsername })
   }
@@ -174,22 +212,32 @@ export async function POST(req: NextRequest) {
 
   // MANDATORY: insert moderation_actions log BEFORE any deletion.
   // If this fails, abort immediately — no deletion without audit trail.
-  // NOTE: moderation_actions has no metadata column; counts are returned in API
-  // response. To persist counts, add a `metadata jsonb` column to this table.
-  const { data: logRow, error: logErr } = await db
-    .from('moderation_actions')
-    .insert({
-      actor_id: auth.user.id,
-      target_user_id: userId,
+  let logRowId: string | null = null
+  let logMetadataPersisted = false
+  try {
+    const auditRow = await logUserModerationAction({
+      admin: db,
+      actorId: auth.user.id,
+      targetUserId: userId,
       action: 'hard_delete_user',
-      reason: `${reason} | ip:${requestIp} | ua:${userAgent.slice(0, 120)}`,
+      reason,
+      strict: true,
+      fallbackReasonSuffix: `ip:${requestIp} | ua:${userAgent.slice(0, 120)}`,
+      metadata: {
+        source: 'admin_users',
+        target_profile: targetProfile,
+        request_ip: requestIp,
+        user_agent: userAgent,
+      },
     })
-    .select('id')
-    .single()
-
-  if (logErr || !logRow) {
+    logRowId = auditRow.id
+    logMetadataPersisted = auditRow.metadataPersisted
+  } catch (error) {
     return NextResponse.json(
-      { ok: false, error: `moderation log failed — aborting: ${logErr?.message ?? 'no row returned'}` },
+      {
+        ok: false,
+        error: `moderation log failed — aborting: ${error instanceof Error ? error.message : 'unknown error'}`,
+      },
       { status: 500 },
     )
   }
@@ -200,7 +248,7 @@ export async function POST(req: NextRequest) {
   // Phase 0: Fetch user's post IDs
   const { data: userPosts, error: postsErr } = await db
     .from('posts')
-    .select('id')
+    .select('id, slug, title, cover_image_url, status, published_at, created_at, is_anonymous')
     .eq('author_id', userId)
 
   if (postsErr) {
@@ -209,7 +257,19 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     )
   }
-  const postIds = (userPosts ?? []).map((p: { id: string }) => p.id)
+  const postRows = ((userPosts ?? []) as Array<{ id: string; cover_image_url?: string | null }>)
+    .map((post) => ({
+      id: typeof post.id === 'string' ? post.id : '',
+      slug: typeof (post as { slug?: string | null }).slug === 'string' ? (post as { slug?: string | null }).slug ?? null : null,
+      title: typeof (post as { title?: string | null }).title === 'string' ? (post as { title?: string | null }).title ?? null : null,
+      cover_image_url: typeof post.cover_image_url === 'string' ? post.cover_image_url : null,
+      status: typeof (post as { status?: string | null }).status === 'string' ? (post as { status?: string | null }).status ?? null : null,
+      published_at: typeof (post as { published_at?: string | null }).published_at === 'string' ? (post as { published_at?: string | null }).published_at ?? null : null,
+      created_at: typeof (post as { created_at?: string | null }).created_at === 'string' ? (post as { created_at?: string | null }).created_at ?? null : null,
+      is_anonymous: typeof (post as { is_anonymous?: boolean | null }).is_anonymous === 'boolean' ? (post as { is_anonymous?: boolean | null }).is_anonymous ?? null : null,
+    }))
+    .filter((post) => post.id)
+  const postIds = postRows.map((post) => post.id)
 
   // Phase 0b: Fetch comment IDs on user's posts (for comment_likes cleanup)
   let commentIdsOnPosts: string[] = []
@@ -245,10 +305,49 @@ export async function POST(req: NextRequest) {
   }
   const noteIds = (noteData ?? []).map((n: { id: string }) => n.id)
 
+  const precomputedStorage: Record<string, number> = {}
+  precomputedStorage.avatars = await cleanBucketPrefix(db, 'avatars', userId)
+  let precomputedAssetCount = 0
+  let precomputedCoverCount = 0
+  for (const post of postRows) {
+    try {
+      const counts = await cleanupPostOwnedAssets(db, {
+        authorId: userId,
+        postId: post.id,
+        coverImageUrl: post.cover_image_url,
+      })
+      precomputedAssetCount += counts.postAssets
+      precomputedCoverCount += counts.postCovers
+    } catch (error) {
+      return NextResponse.json(
+        { ok: false, error: error instanceof Error ? error.message : 'storage cleanup failed' },
+        { status: 500 },
+      )
+    }
+  }
+  precomputedStorage['post-assets'] = precomputedAssetCount
+  precomputedStorage['post-covers'] = precomputedCoverCount
+
   // ── Phase 1: Others' interactions on user's posts ──────────────
 
   err = await deleteIn(db, 'comment_likes', 'comment_id', commentIdsOnPosts, counts)
   if (err) return NextResponse.json({ ok: false, error: err }, { status: 500 })
+
+  for (let i = 0; i < postIds.length; i += 100) {
+    const ids = postIds.slice(i, i + 100)
+    const { error, count } = await db
+      .from('notifications')
+      .delete({ count: 'exact' })
+      .eq('entity_type', 'post')
+      .in('entity_id', ids)
+    if (error) {
+      return NextResponse.json(
+        { ok: false, error: `notifications(entity_id): ${error.message}` },
+        { status: 500 },
+      )
+    }
+    counts['notifications(entity_id)'] = (counts['notifications(entity_id)'] ?? 0) + (count ?? 0)
+  }
 
   err = await deleteIn(db, 'comments', 'post_id', postIds, counts)
   if (err) return NextResponse.json({ ok: false, error: err }, { status: 500 })
@@ -307,22 +406,54 @@ export async function POST(req: NextRequest) {
 
   // ── Phase 4: Storage cleanup (before deleting post rows) ───────
 
-  const storage: Record<string, number> = {}
-  storage.avatars = await cleanBucketPrefix(db, 'avatars', userId)
-  let assetCount = 0
-  let coverCount = 0
-  for (const postId of postIds) {
-    assetCount += await cleanBucketPrefix(db, 'post-assets', `${userId}/${postId}`)
-    coverCount += await cleanBucketPrefix(db, 'post-covers', `${userId}/${postId}`)
-    coverCount += await cleanBucketPrefix(db, 'post-covers', postId)
+  const storage: Record<string, number> = {
+    avatars: precomputedStorage.avatars ?? 0,
+    'post-assets': precomputedStorage['post-assets'] ?? 0,
+    'post-covers': precomputedStorage['post-covers'] ?? 0,
   }
-  storage['post-assets'] = assetCount
-  storage['post-covers'] = coverCount
 
   // ── Phase 5: Posts ─────────────────────────────────────────────
 
+  if (postRows.length > 0) {
+    const deletionAuditIso = new Date().toISOString()
+    try {
+      for (let i = 0; i < postRows.length; i += 100) {
+        const chunkRows = postRows.slice(i, i + 100)
+        await db.from('deletion_events').insert(
+          chunkRows.map((post) => ({
+            action: 'admin_hard_delete',
+            actor_user_id: auth.user.id,
+            actor_kind: 'admin',
+            target_post_id: post.id,
+            post_snapshot: {
+              title: post.title,
+              slug: post.slug,
+              author_id: userId,
+              status: post.status,
+              published_at: post.published_at,
+              is_anonymous: post.is_anonymous,
+              created_at: post.created_at,
+            },
+            reason,
+            created_at: deletionAuditIso,
+          })),
+        )
+      }
+    } catch {
+      // best effort
+    }
+  }
+
   err = await deleteEq(db, 'posts', 'author_id', userId, counts)
   if (err) return NextResponse.json({ ok: false, error: err }, { status: 500 })
+
+  revalidatePath('/')
+  revalidatePath('/c/release')
+  revalidatePath('/c/stories')
+  revalidatePath('/c/magazine')
+  for (const post of postRows) {
+    if (post.slug) revalidatePath(`/post/${post.slug}`)
+  }
 
   // ── Phase 6: Profile ──────────────────────────────────────────
 
@@ -340,13 +471,30 @@ export async function POST(req: NextRequest) {
   }
   counts['auth.users'] = 1
 
-  // Best-effort: update moderation_actions log with final counts
-  await db
-    .from('moderation_actions')
-    .update({
-      reason: `${reason} | counts:${JSON.stringify(counts)} | storage:${JSON.stringify(storage)}`,
-    })
-    .eq('id', (logRow as { id: string }).id)
+  if (logRowId) {
+    if (logMetadataPersisted) {
+      await db
+        .from('moderation_actions')
+        .update({
+          metadata: {
+            source: 'admin_users',
+            target_profile: targetProfile,
+            request_ip: requestIp,
+            user_agent: userAgent,
+            counts,
+            storage,
+          },
+        } as never)
+        .eq('id', logRowId)
+    } else {
+      await db
+        .from('moderation_actions')
+        .update({
+          reason: `${reason} | counts:${JSON.stringify(counts)} | storage:${JSON.stringify(storage)}`,
+        })
+        .eq('id', logRowId)
+    }
+  }
 
   return NextResponse.json({ ok: true, mode: 'hard', counts, storage })
 }

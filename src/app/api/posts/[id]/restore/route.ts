@@ -1,9 +1,23 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { promotePrivateCoverToPublic, removePostAssetObject } from '@/lib/storage/postCoverLifecycle'
+import {
+  removePublishedPostInlineImages,
+  syncPublishedPostInlineImages,
+} from '@/lib/storage/postInlineLifecycle'
+import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
 
 const RESTORE_WINDOW_DAYS = 14
+
+function serviceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return null
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+}
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUserFromRequest(req)
@@ -17,7 +31,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { data: post, error: postErr } = await auth.supabase
     .from('posts')
-    .select('id, author_id, deleted_at')
+    .select('id, author_id, slug, status, deleted_at, cover_image_url, content_json')
     .eq('id', postId)
     .maybeSingle()
 
@@ -30,6 +44,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: { code: 'bad_request', message: 'post is not deleted' } }, { status: 400 })
   }
 
+  const svc = serviceClient()
+  if (!svc) {
+    return NextResponse.json({ error: { code: 'server_error', message: 'storage not configured' } }, { status: 500 })
+  }
+
   // Enforce restore window
   const deletedAt = new Date(post.deleted_at)
   const maxRestore = new Date(Date.now() - RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000)
@@ -40,13 +59,88 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     )
   }
 
-  const { error: updErr } = await auth.supabase.from('posts').update({ deleted_at: null }).eq('id', postId)
+  const shouldBePublic = post.status === 'published'
+  const privateCoverPath =
+    shouldBePublic &&
+    typeof post.cover_image_url === 'string' &&
+    post.cover_image_url &&
+    !/^https?:\/\//i.test(post.cover_image_url)
+      ? post.cover_image_url
+      : null
+
+  let restoredCoverUrl = post.cover_image_url
+  if (privateCoverPath) {
+    try {
+      const promoted = await promotePrivateCoverToPublic(svc, {
+        postId,
+        sourcePath: privateCoverPath,
+        removeSource: false,
+      })
+      if (!promoted.publicUrl) {
+        return NextResponse.json(
+          { error: { code: 'cover_restore_failed', message: 'cover restore failed' } },
+          { status: 500 },
+        )
+      }
+      restoredCoverUrl = promoted.publicUrl
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'cover_restore_failed',
+            message: error instanceof Error ? error.message : 'cover restore failed',
+          },
+        },
+        { status: 500 },
+      )
+    }
+  }
+
+  const { error: updErr } = await auth.supabase
+    .from('posts')
+    .update({ deleted_at: null, cover_image_url: restoredCoverUrl })
+    .eq('id', postId)
   if (updErr) return NextResponse.json({ error: { code: 'db_error', message: updErr.message } }, { status: 500 })
+
+  const warnings: string[] = []
+  let publicInline = { uploaded: 0, removed: 0, retained: 0 }
+
+  if (privateCoverPath) {
+    try {
+      await removePostAssetObject(svc, privateCoverPath)
+    } catch {
+      // best effort
+    }
+  }
+
+  try {
+    publicInline = shouldBePublic
+      ? await syncPublishedPostInlineImages(svc, {
+          authorId: auth.user.id,
+          postId,
+          content: post.content_json,
+        })
+      : {
+          uploaded: 0,
+          removed: await removePublishedPostInlineImages(svc, postId),
+          retained: 0,
+        }
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : 'public inline sync failed')
+  }
 
   revalidatePath('/')
   revalidatePath('/c/release')
   revalidatePath('/c/stories')
   revalidatePath('/c/magazine')
+  if (typeof post.slug === 'string' && post.slug) {
+    revalidatePath(`/post/${post.slug}`)
+  }
+  await revalidatePublicProfileForUserId(svc, auth.user.id)
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({
+    ok: true,
+    public_inline: publicInline,
+    ...(warnings.length > 0 ? { warning: warnings.join(' | ') } : {}),
+  })
 }

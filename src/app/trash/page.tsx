@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
+import { buildLoginRedirect } from '@/lib/auth/protectedRoutes'
 
 type TrashPostRow = {
   id: string
@@ -28,6 +30,34 @@ function daysLeft(deletedAt: string | null) {
   return left < 0 ? 0 : left
 }
 
+async function authedFetch(input: string, init: RequestInit = {}) {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) throw new Error('Not authenticated')
+
+  const headers: Record<string, string> = {
+    ...(init.headers as Record<string, string> | undefined),
+    Authorization: `Bearer ${token}`,
+  }
+  if (init.body && !headers['Content-Type'] && !(init.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  return fetch(input, { ...init, headers })
+}
+
+async function assertOk(response: Response) {
+  const body = (await response.json().catch(() => ({}))) as {
+    error?: { message?: string } | string
+  }
+  if (response.ok) return
+
+  const message = typeof body.error === 'string'
+    ? body.error
+    : body.error?.message ?? 'Request failed'
+  throw new Error(message)
+}
+
 export default function TrashPage() {
   const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
@@ -38,13 +68,12 @@ export default function TrashPage() {
 
   useEffect(() => {
     const run = async () => {
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
-      if (!user) {
-        router.push('/auth/login')
+      const resolved = await waitForClientSession()
+      if (resolved.status !== 'authenticated') {
+        router.replace(buildLoginRedirect('/trash'))
         return
       }
-      setUserId(user.id)
+      setUserId(resolved.user.id)
     }
     void run()
   }, [router])
@@ -84,14 +113,11 @@ export default function TrashPage() {
       setBusyId(postId)
       setErrorMsg(null)
 
-      const { error } = await supabase
-        .from('posts')
-        .update({ deleted_at: null })
-        .eq('id', postId)
-        .eq('author_id', userId)
-
-      if (error) {
-        setErrorMsg(error.message)
+      try {
+        const response = await authedFetch(`/api/posts/${postId}/restore`, { method: 'POST' })
+        await assertOk(response)
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : 'Request failed')
         setBusyId(null)
         return
       }
@@ -102,30 +128,28 @@ export default function TrashPage() {
     [userId, load]
   )
 
-const restoreAll = useCallback(async () => {
-  if (!userId) return
-  if (rows.length === 0) return
-  const ok = confirm('לשחזר את כל הפוסטים שמופיעים כאן?')
-  if (!ok) return
-  setBusyId('ALL_RESTORE')
-  setErrorMsg(null)
+  const restoreAll = useCallback(async () => {
+    if (!userId) return
+    if (rows.length === 0) return
+    const ok = confirm('לשחזר את כל הפוסטים שמופיעים כאן?')
+    if (!ok) return
+    setBusyId('ALL_RESTORE')
+    setErrorMsg(null)
 
-  const { error } = await supabase
-    .from('posts')
-    .update({ deleted_at: null })
-    .eq('author_id', userId)
-    .not('deleted_at', 'is', null)
+    try {
+      for (const row of rows) {
+        const response = await authedFetch(`/api/posts/${row.id}/restore`, { method: 'POST' })
+        await assertOk(response)
+      }
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Request failed')
+      setBusyId(null)
+      return
+    }
 
-  if (error) {
-    setErrorMsg(error.message)
+    await load(userId)
     setBusyId(null)
-    return
-  }
-
-  await load(userId)
-  setBusyId(null)
-}, [userId, rows.length, load])
-
+  }, [userId, rows, load])
 
   const purge = useCallback(
     async (postId: string) => {
@@ -136,11 +160,11 @@ const restoreAll = useCallback(async () => {
       setBusyId(postId)
       setErrorMsg(null)
 
-      // Preferred: RPC that safely purges related rows + post (checks owner inside).
-      const { error } = await supabase.rpc('purge_post', { p_post_id: postId })
-
-      if (error) {
-        setErrorMsg(error.message)
+      try {
+        const response = await authedFetch(`/api/posts/${postId}/purge`, { method: 'POST' })
+        await assertOk(response)
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : 'Request failed')
         setBusyId(null)
         return
       }
@@ -183,12 +207,12 @@ const restoreAll = useCallback(async () => {
         ) : null}
 
         {loading ? (
-          <div className="text-sm text-muted-foreground">טוען…</div>
+          <div className="text-sm text-muted-foreground">טוען...</div>
         ) : emptyState ? (
           <div className="rounded-3xl border bg-white p-6 text-sm text-muted-foreground dark:bg-card dark:border-border">אין פוסטים שנמחקו.</div>
         ) : (
           <div className="grid gap-3">
-            {rows.map(r => (
+            {rows.map((r) => (
               <div key={r.id} className="rounded-3xl border bg-white p-4 shadow-sm dark:bg-card dark:border-border">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">

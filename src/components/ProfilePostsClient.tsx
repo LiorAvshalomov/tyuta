@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
-import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
-import { useEffect, useMemo, useState } from 'react'
+import { coverProxySrc, isGifUrl } from '@/lib/coverUrl'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import GifCoverImage from '@/components/GifCoverImage'
 
 type SortKey = 'recent' | 'reactions' | 'comments'
 
@@ -38,6 +39,13 @@ type PostItem = {
 type ChannelRow = {
   id: number
   name_he: string
+}
+
+export type ProfilePostsInitialData = {
+  posts: PostItem[]
+  total: number
+  channels: ChannelRow[]
+  perPage: number
 }
 
 function clampPage(n: number) {
@@ -108,6 +116,7 @@ function DesktopPostCard({
   const router = useRouter()
   const hasMedals = post.medals && (post.medals.gold > 0 || post.medals.silver > 0 || post.medals.bronze > 0)
   const channelSlug = getChannelSlug(post.channel_name)
+  const [hovered, setHovered] = useState(false)
 
   return (
     <article
@@ -116,6 +125,8 @@ function DesktopPostCard({
       tabIndex={0}
       onClick={() => router.push(`/post/${post.slug}`)}
       onKeyDown={e => { if (e.key === 'Enter') router.push(`/post/${post.slug}`) }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       {/* Owner actions */}
       {isOwner && post.id && (
@@ -142,11 +153,17 @@ function DesktopPostCard({
         <div className="shrink-0">
           <div className="relative h-28 w-36 overflow-hidden rounded-lg bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
             {post.cover_image_url ? (
-              <div
-                className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
-                style={{ backgroundImage: `url(${coverProxySrc(post.cover_image_url)})` }}
-                aria-hidden="true"
-              />
+              isGifUrl(post.cover_image_url) ? (
+                <div className="absolute inset-0">
+                  <GifCoverImage src={coverProxySrc(post.cover_image_url)!} alt="" cardHovered={hovered} />
+                </div>
+              ) : (
+                <div
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
+                  style={{ backgroundImage: `url(${coverProxySrc(post.cover_image_url)})` }}
+                  aria-hidden="true"
+                />
+              )
             ) : (
               <div className="flex h-full w-full items-center justify-center text-3xl opacity-40">📝</div>
             )}
@@ -221,6 +238,7 @@ function MobilePostCard({
   const router = useRouter()
   const hasMedals = post.medals && (post.medals.gold > 0 || post.medals.silver > 0 || post.medals.bronze > 0)
   const channelSlug = getChannelSlug(post.channel_name)
+  const [hovered, setHovered] = useState(false)
 
   return (
     <article
@@ -229,6 +247,8 @@ function MobilePostCard({
       tabIndex={0}
       onClick={() => router.push(`/post/${post.slug}`)}
       onKeyDown={e => { if (e.key === 'Enter') router.push(`/post/${post.slug}`) }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       {/* Owner actions */}
       {isOwner && post.id && (
@@ -253,11 +273,17 @@ function MobilePostCard({
       {/* Cover Image - Top, full width */}
       <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
         {post.cover_image_url ? (
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${coverProxySrc(post.cover_image_url)})` }}
-            aria-hidden="true"
-          />
+          isGifUrl(post.cover_image_url) ? (
+            <div className="absolute inset-0">
+              <GifCoverImage src={coverProxySrc(post.cover_image_url)!} alt="" cardHovered={hovered} />
+            </div>
+          ) : (
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${coverProxySrc(post.cover_image_url)})` }}
+              aria-hidden="true"
+            />
+          )
         ) : (
           <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">📝</div>
         )}
@@ -313,9 +339,11 @@ function MobilePostCard({
 export default function ProfilePostsClient({
   profileId,
   username,
+  initialData,
 }: {
   profileId: string
   username: string
+  initialData?: ProfilePostsInitialData
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -329,13 +357,16 @@ export default function ProfilePostsClient({
 
   const [sort, setSort] = useState<SortKey>('recent')
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!initialData)
   const [error, setError] = useState<string | null>(null)
-  const [posts, setPosts] = useState<PostItem[]>([])
-  const [total, setTotal] = useState(0)
+  const [posts, setPosts] = useState<PostItem[]>(initialData?.posts ?? [])
+  const [total, setTotal] = useState(initialData?.total ?? 0)
   const [refreshKey, setRefreshKey] = useState(0)
   const [sortedIdsCache, setSortedIdsCache] = useState<Record<string, string[]>>({})
-  const [channelsMap, setChannelsMap] = useState<Map<number, string>>(new Map())
+  const [channelsMap, setChannelsMap] = useState<Map<number, string>>(
+    () => new Map((initialData?.channels ?? []).map((channel) => [channel.id, channel.name_he])),
+  )
+  const skipInitialFetchRef = useRef(Boolean(initialData))
   
   // Mobile: 4 posts, Desktop: 5 posts
   const [isMobile, setIsMobile] = useState(false)
@@ -348,11 +379,14 @@ export default function ProfilePostsClient({
   }, [])
   
   const perPage = isMobile ? 4 : 5
+  const initialPerPage = initialData?.perPage ?? 5
 
   void username // suppress unused warning
 
   // Load channels mapping once
   useEffect(() => {
+    if (channelsMap.size > 0) return
+
     const loadChannels = async () => {
       const { data } = await supabase.from('channels').select('id, name_he')
       if (data) {
@@ -363,8 +397,9 @@ export default function ProfilePostsClient({
         setChannelsMap(map)
       }
     }
-    loadChannels()
-  }, [])
+
+    void loadChannels()
+  }, [channelsMap.size])
 
   useEffect(() => {
     supabase.auth.getUser()
@@ -406,6 +441,18 @@ export default function ProfilePostsClient({
     let cancelled = false
 
     async function run() {
+      if (
+        skipInitialFetchRef.current &&
+        sort === 'recent' &&
+        page === 1 &&
+        refreshKey === 0 &&
+        perPage === initialPerPage
+      ) {
+        skipInitialFetchRef.current = false
+        return
+      }
+
+      skipInitialFetchRef.current = false
       setLoading(true)
       setError(null)
 
@@ -579,7 +626,7 @@ export default function ProfilePostsClient({
 
     void run()
     return () => { cancelled = true }
-  }, [profileId, sort, page, perPage, sortedIdsCache, refreshKey, channelsMap])
+  }, [channelsMap, initialPerPage, page, perPage, profileId, refreshKey, sort, sortedIdsCache])
 
   const pages = useMemo(() => {
     const n = totalPages

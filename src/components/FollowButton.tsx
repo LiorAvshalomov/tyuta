@@ -15,6 +15,7 @@ function CheckIcon({ className }: { className?: string }) {
 export default function FollowButton({
   targetUserId,
   variant = 'default',
+  size = 'default',
   initialViewerId,
   initialIsFollowing = false,
   skipInitialLoad = false,
@@ -22,6 +23,7 @@ export default function FollowButton({
   targetUserId: string
   targetUsername?: string
   variant?: 'default' | 'text'
+  size?: 'default' | 'sm' | 'desktop-sm'
   initialViewerId?: string | null
   initialIsFollowing?: boolean
   skipInitialLoad?: boolean
@@ -188,7 +190,16 @@ export default function FollowButton({
   }
 
   // ── default variant (full-size button, used on profile page) ─────────────
-  const base = 'h-10 min-w-[110px] rounded-full px-4 text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
+  const base = size === 'sm'
+    ? 'h-9 min-w-[98px] rounded-full px-3.5 text-[13px] font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
+    : size === 'desktop-sm'
+      ? 'h-10 min-w-[110px] rounded-full px-4 text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98] md:h-9 md:min-w-[98px] md:px-3.5 md:text-[13px] md:gap-1'
+      : 'h-10 min-w-[110px] rounded-full px-4 text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
+  const iconSize = size === 'sm'
+    ? 'w-3 h-3'
+    : size === 'desktop-sm'
+      ? 'w-3.5 h-3.5 md:w-3 md:h-3'
+      : 'w-3.5 h-3.5'
 
   return (
     <>
@@ -208,7 +219,7 @@ export default function FollowButton({
       >
         {isFollowing ? (
           <>
-            <CheckIcon className="w-3.5 h-3.5 shrink-0 group-hover/fw:hidden" />
+            <CheckIcon className={`${iconSize} shrink-0 group-hover/fw:hidden`} />
             <span className="group-hover/fw:hidden">עוקב</span>
             <span className="hidden group-hover/fw:inline">הסר מעקב</span>
           </>

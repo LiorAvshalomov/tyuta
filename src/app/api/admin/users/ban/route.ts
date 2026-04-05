@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import {
+  fetchUserProfileSnapshot,
+  logUserModerationAction,
+} from '@/lib/admin/logUserModerationAction'
 
 type Body = {
   user_id?: string
@@ -69,6 +73,20 @@ export async function POST(req: Request) {
       reason: reason,
       created_at: nowIso,
     } as never)
+
+    const targetProfile = await fetchUserProfileSnapshot(auth.admin, userId)
+    await logUserModerationAction({
+      admin: auth.admin,
+      actorId: auth.user.id,
+      targetUserId: userId,
+      action: isBanned ? 'user_ban' : 'user_unban',
+      reason,
+      metadata: {
+        source: 'admin_users',
+        target_profile: targetProfile,
+        is_banned: isBanned,
+      },
+    })
 
     return NextResponse.json({ ok: true })
   } catch {

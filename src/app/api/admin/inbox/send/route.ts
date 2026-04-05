@@ -12,6 +12,7 @@ function getSystemUserId(): string | null {
 type Body = {
   conversation_id?: string
   body?: string
+  reply_to_id?: string | null
 }
 
 export async function POST(req: Request) {
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
   const b = (await req.json().catch(() => ({}))) as Body
   const conversationId = String(b.conversation_id ?? '').trim()
   const text = String(b.body ?? '').trim()
+  const replyToId = String(b.reply_to_id ?? '').trim() || null
 
   if (!conversationId) return NextResponse.json({ error: 'missing conversation_id' }, { status: 400 })
   if (text.length < 1) return NextResponse.json({ error: 'missing body' }, { status: 400 })
@@ -44,7 +46,7 @@ export async function POST(req: Request) {
 
   const { data, error } = await auth.admin
     .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: systemUserId, body: text } as never)
+    .insert({ conversation_id: conversationId, sender_id: systemUserId, body: text, reply_to_id: replyToId } as never)
     .select('id')
     .single()
 

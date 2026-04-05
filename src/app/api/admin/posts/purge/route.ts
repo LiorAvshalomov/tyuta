@@ -1,6 +1,9 @@
 import type { NextRequest } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
 import { adminError, adminOk } from '@/lib/admin/adminHttp'
+import { cleanupPostOwnedAssets } from '@/lib/storage/postAssetLifecycle'
+import { revalidatePath } from 'next/cache'
+import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
 
 const MAX_REASON_LEN = 500
 
@@ -9,6 +12,7 @@ type PostLite = {
   author_id: string
   title: string | null
   slug: string | null
+  cover_image_url: string | null
   channel_id: string | null
   status: string | null
   published_at: string | null
@@ -40,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error: postErr } = await auth.admin
     .from('posts')
-    .select('id, author_id, title, slug, channel_id, status, published_at, is_anonymous, created_at')
+    .select('id, author_id, title, slug, cover_image_url, channel_id, status, published_at, is_anonymous, created_at')
     .eq('id', postId)
     .maybeSingle()
 
@@ -48,6 +52,21 @@ export async function POST(req: NextRequest) {
 
   const post = (data as unknown) as PostLite | null
   if (!post) return adminError('Post not found', 404, 'not_found')
+
+  let storage: { postAssets: number; postCovers: number }
+  try {
+    storage = await cleanupPostOwnedAssets(auth.admin, {
+      authorId: post.author_id,
+      postId: post.id,
+      coverImageUrl: post.cover_image_url,
+    })
+  } catch (error) {
+    return adminError(
+      error instanceof Error ? error.message : 'Storage cleanup failed',
+      500,
+      'storage_cleanup_failed',
+    )
+  }
 
   // Hard delete: remove dependencies then the post itself.
   // Expand this list as you add new related tables.
@@ -149,5 +168,12 @@ export async function POST(req: NextRequest) {
   const { error: delErr } = await auth.admin.from('posts').delete().eq('id', postId)
   if (delErr) return adminError(delErr.message, 500, 'db_error')
 
-  return adminOk({})
+  revalidatePath('/')
+  revalidatePath('/c/release')
+  revalidatePath('/c/stories')
+  revalidatePath('/c/magazine')
+  if (post.slug) revalidatePath(`/post/${post.slug}`)
+  await revalidatePublicProfileForUserId(auth.admin, post.author_id)
+
+  return adminOk({ storage })
 }

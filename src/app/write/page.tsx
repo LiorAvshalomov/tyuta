@@ -18,6 +18,9 @@ import {
 } from '@/lib/taxonomy'
 import { generatePostSlug, resolveUniquePostSlug } from '@/lib/postSlug'
 import { notifyFeedContentUpdated } from '@/lib/feedFreshness'
+import { notifyPostUpdated } from '@/lib/postFreshness'
+import { waitForClientSession } from '@/lib/auth/clientSession'
+import { buildLoginRedirect } from '@/lib/auth/protectedRoutes'
 
 type Channel = { id: number; name_he: string }
 type Tag = { id: number; type: 'emotion' | 'theme' | 'genre' | 'topic'; name_he: string; channel_id: number | null }
@@ -27,7 +30,9 @@ type SubcategoryOption = { id: number; name_he: string }
 type TagId = number
 
 const MAX_TAGS = 3
+const ALLOWED_COVER_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const CONTENT_MAX = 15_000
+const PRIVATE_DRAFT_MEDIA_URL_TTL_SECONDS = 60 * 60 * 24
 
 type DraftRow = {
   id: string
@@ -290,6 +295,7 @@ export default function WritePage() {
   const subcatReqSeq = useRef(0)
   const tagsReqSeq = useRef(0)
   const publishingRef = useRef(false)
+  const allowCommittedNavigationRef = useRef(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const contentSectionRef = useRef<HTMLElement>(null)
   const settingsDetailsRef = useRef<HTMLDetailsElement>(null)
@@ -299,19 +305,19 @@ export default function WritePage() {
   const coverAreaRef = useRef<HTMLDivElement>(null)
   const [highlightTitle, setHighlightTitle] = useState(false)
   const [highlightContent, setHighlightContent] = useState(false)
+  const [highlightCover, setHighlightCover] = useState(false)
   const [highlightChannel, setHighlightChannel] = useState(false)
   const [highlightSubcategory, setHighlightSubcategory] = useState(false)
   const [highlightTags, setHighlightTags] = useState(false)
   // --- Auth guard
   useEffect(() => {
     const run = async () => {
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
-      if (!user) {
-        router.push('/auth/login')
+      const resolved = await waitForClientSession()
+      if (resolved.status !== 'authenticated') {
+        router.replace(buildLoginRedirect('/write'))
         return
       }
-      setUserId(user.id)
+      setUserId(resolved.user.id)
     }
     void run()
   }, [router])
@@ -357,7 +363,6 @@ useEffect(() => {
   if (channelParam && !subcategoryParam) {
     setSubcategoryTagId(null)
   }
-// eslint-disable-next-line react-hooks/exhaustive-deps -- param-sync effect, stable function
 }, [presetKey, channels, channelParam, subcategoryParam, activeIdFromUrl])
 
 
@@ -503,11 +508,13 @@ useEffect(() => {
       } else {
         setSubcategoryTagId(d.subcategory_tag_id)
       }
-      // Draft covers might store a storage path (private bucket). For preview we must turn it into a signed URL.
-      if (d.status === 'draft' && d.cover_image_url && !String(d.cover_image_url).startsWith('http')) {
+      // Private cover paths can appear on drafts and on moderated/quarantined posts.
+      if (d.cover_image_url && !String(d.cover_image_url).startsWith('http')) {
         const path = String(d.cover_image_url)
         setCoverStoragePath(path)
-        const { data: signed } = await supabase.storage.from('post-assets').createSignedUrl(path, 60 * 60)
+        const { data: signed } = await supabase.storage
+          .from('post-assets')
+          .createSignedUrl(path, PRIVATE_DRAFT_MEDIA_URL_TTL_SECONDS)
         setCoverUrl(signed?.signedUrl ?? null)
       } else {
         setCoverStoragePath(null)
@@ -633,8 +640,7 @@ if (!effectiveChannelId) {
     const params = new URLSearchParams(searchParams.toString())
     params.set('draft', created.id)
     router.replace(`/write?${params.toString()}`)
-        return { id: created.id, slug: created.slug }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- resolveChannelIdFromParam is stable
+    return { id: created.id, slug: created.slug }
   }, [
     userId,
     isEditMode,
@@ -694,6 +700,7 @@ if (!effectiveChannelId) {
           content_json: contentJson,
           cover_image_url: coverDbValue,
           cover_source: coverSource,
+          updated_at: new Date().toISOString(),
         }
 
         if (!settingsLocked) {
@@ -728,6 +735,7 @@ if (!effectiveChannelId) {
           subcategory_tag_id: subcategoryTagId,
           cover_image_url: coverDbValue,
           cover_source: coverSource,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', id)
         .eq('author_id', userId)
@@ -805,6 +813,7 @@ if (!effectiveChannelId) {
     if (!shouldWarnNavigation) return
 
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (allowCommittedNavigationRef.current) return
       e.preventDefault()
       e.returnValue = ''
     }
@@ -820,6 +829,7 @@ if (!effectiveChannelId) {
     const message = 'יש לך שינויים שלא נשמרו. לצאת בכל זאת?'
 
     const onDocumentClickCapture = (e: MouseEvent) => {
+      if (allowCommittedNavigationRef.current) return
       const target = e.target as HTMLElement | null
       const a = target?.closest?.('a') as HTMLAnchorElement | null
       if (!a) return
@@ -839,6 +849,7 @@ if (!effectiveChannelId) {
 
     // Back/forward button: confirm on pop
     const onPopState = () => {
+      if (allowCommittedNavigationRef.current) return
       const ok = window.confirm(message)
       if (!ok) {
         // Re-stay on the page
@@ -862,6 +873,10 @@ if (!effectiveChannelId) {
 
   const handlePickCoverFile = async (file: File) => {
     if (!userId) return
+    if (!ALLOWED_COVER_MIMES.has(file.type)) {
+      setErrorMsg('סוג קובץ לא נתמך. מותרות תמונות JPEG, PNG, GIF ו-WebP בלבד.')
+      return
+    }
     const { data: { session: _coverSession } } = await supabase.auth.getSession()
     if (!_coverSession) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
     const postId = isEditMode ? effectivePostId : (await ensureDraft())?.id
@@ -888,9 +903,9 @@ if (!effectiveChannelId) {
       return
     }
 
-    const { data: signed } = await supabase.storage
-  .from('post-assets')
-  .createSignedUrl(path, 60 * 60)
+      const { data: signed } = await supabase.storage
+        .from('post-assets')
+        .createSignedUrl(path, PRIVATE_DRAFT_MEDIA_URL_TTL_SECONDS)
     setCoverStoragePath(path)
     setCoverUrl(signed?.signedUrl ?? null)
     setCoverSource('upload')
@@ -969,6 +984,72 @@ if (!effectiveChannelId) {
     return null
   }
 
+  const revalidatePostSurfaces = async (slug: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return
+
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    }
+
+    const send = () =>
+      fetch('/api/posts/revalidate', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ slug }),
+      })
+
+    let ok = false
+
+    try {
+      const response = await send()
+      ok = response.ok
+      if (!ok) {
+        const retry = await send().catch(() => null)
+        ok = !!retry?.ok
+      }
+    } catch {
+      const retry = await send().catch(() => null)
+      ok = !!retry?.ok
+    }
+
+    if (ok) {
+      notifyFeedContentUpdated()
+      notifyPostUpdated({ slug })
+    }
+  }
+
+  const cleanupPostAssets = async (postId: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return
+
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    }
+
+    await fetch(`/api/posts/${postId}/cleanup-assets`, {
+      method: 'POST',
+      headers,
+      keepalive: true,
+    }).catch(() => null)
+  }
+
+  const navigateToCommittedRoute = (target: string) => {
+    allowCommittedNavigationRef.current = true
+    if (typeof window !== 'undefined' && window.__TYUTA_UNSAVED__) {
+      window.__TYUTA_UNSAVED__.enabled = false
+    }
+
+    if (typeof window !== 'undefined' && target.startsWith('/post/')) {
+      window.location.assign(target)
+      return
+    }
+
+    router.replace(target)
+  }
+
   const publish = async () => {
     if (saving || publishingRef.current) return
     if (!userId) return
@@ -1039,6 +1120,15 @@ if (!effectiveChannelId) {
       setErrorMsg(null)
 
       try {
+        if (!coverUrl && !coverStoragePath) {
+          toast('לפוסט מפורסם חייב להיות קאבר. בחר/י תמונה לפני השמירה.', 'error')
+          coverAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setHighlightCover(true)
+          setTimeout(() => setHighlightCover(false), 2500)
+          setSaving(false)
+          return
+        }
+
         const promoted = await promoteCoverIfNeeded({ postId: effectivePostId, postSlug: draftSlug ?? '' })
         if (promoted.publicUrl && promoted.publicUrl !== coverUrl) {
           setCoverUrl(promoted.publicUrl)
@@ -1054,6 +1144,7 @@ if (!effectiveChannelId) {
             content_json: contentJson,
             cover_image_url: promoted.publicUrl,
             cover_source: promoted.source,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', effectivePostId)
           .eq('author_id', userId)
@@ -1077,25 +1168,14 @@ if (!effectiveChannelId) {
         setInitialSnapshot(currentSnapshot)
         setLastSavedAt(new Date().toISOString())
 
-        // Bust the ISR cache so readers see the updated post immediately.
         if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') {
-          void supabase.auth.getSession().then(async ({ data: { session } }) => {
-            if (!session?.access_token) return
-            const response = await fetch('/api/posts/revalidate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-              body: JSON.stringify({ slug: draftSlug }),
-            })
-
-            if (response.ok) {
-              notifyFeedContentUpdated()
-            }
-          }).catch(() => undefined)
+          await revalidatePostSurfaces(draftSlug)
+          void cleanupPostAssets(effectivePostId)
         }
 
         setSaving(false)
-        if (safeReturnParam) return router.push(safeReturnParam)
-        if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') return router.push(`/post/${draftSlug}`)
+        if (safeReturnParam) return navigateToCommittedRoute(safeReturnParam)
+        if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') return navigateToCommittedRoute(`/post/${draftSlug}`)
         router.push('/notebook')
         return
       } catch (e: unknown) {
@@ -1236,6 +1316,7 @@ if (!effectiveChannelId) {
         cover_source: finalCoverSource,
         status: 'published',
         published_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .eq('id', created.id)
       .eq('author_id', userId)
@@ -1266,23 +1347,11 @@ if (!effectiveChannelId) {
 
     gaEvent('post_published', { post_id: created.id })
 
-    // Trigger on-demand ISR revalidation so the home feed shows the new post immediately.
-    // Fire-and-forget — don't block the redirect on the result.
-    void supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session?.access_token) return
-      const response = await fetch('/api/posts/revalidate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ slug: publishedRow.slug }),
-      })
-
-      if (response.ok) {
-        notifyFeedContentUpdated()
-      }
-    }).catch(() => undefined)
+    await revalidatePostSurfaces(publishedRow.slug)
+    void cleanupPostAssets(created.id)
 
     setSaving(false)
-    router.push(`/post/${publishedRow.slug}`)
+    navigateToCommittedRoute(`/post/${publishedRow.slug}`)
 
     } finally {
       publishingRef.current = false
@@ -1340,7 +1409,12 @@ if (!effectiveChannelId) {
         <section className="rounded-3xl border bg-white p-4 shadow-sm dark:bg-card dark:border-border">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="md:col-span-1">
-              <div ref={coverAreaRef} className="relative overflow-hidden rounded-2xl border bg-neutral-50 dark:bg-muted/50 dark:border-border">
+              <div
+                ref={coverAreaRef}
+                className={`relative overflow-hidden rounded-2xl border bg-neutral-50 transition-shadow duration-500 dark:bg-muted/50 dark:border-border ${
+                  highlightCover ? 'ring-2 ring-red-400 shadow-[0_0_0_4px_rgb(248_113_113_/_0.15)]' : ''
+                }`}
+              >
                 {coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={coverUrl ?? undefined} alt="" className="h-44 w-full object-cover" onLoad={() => setIsCoverLoading(false)} onError={() => setIsCoverLoading(false)} />
@@ -1370,7 +1444,7 @@ if (!effectiveChannelId) {
                   העלה תמונה
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
                     className="hidden"
                     onChange={e => {
                       const file = e.target.files?.[0]

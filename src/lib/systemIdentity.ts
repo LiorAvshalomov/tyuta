@@ -3,9 +3,8 @@ export const SYSTEM_USER_ID: string = (process.env.NEXT_PUBLIC_SYSTEM_USER_ID ??
 // Product-facing display for the system account.
 export const SYSTEM_DISPLAY_NAME = 'מערכת האתר'
 
-// Public asset path (served from /public). Replace with your real logo when available.
-// Example: put your logo at /public/system-logo.png then set to '/system-logo.png'.
-export const SYSTEM_AVATAR = '/file.svg'
+// Stable local asset for the system account.
+export const SYSTEM_AVATAR = '/apple-touch-icon.png'
 
 export type ResolvedIdentity = {
   displayName: string

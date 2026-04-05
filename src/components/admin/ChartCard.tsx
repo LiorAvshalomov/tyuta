@@ -24,13 +24,13 @@ export default function ChartCard({
   if (loading) return <ChartSkeleton />
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5">
+    <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-neutral-900">{title}</h3>
+        <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{title}</h3>
         {error && onRetry && (
           <button
             onClick={onRetry}
-            className="rounded-md px-2 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100"
+            className="rounded-md px-2 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           >
             נסה שוב
           </button>
@@ -38,7 +38,7 @@ export default function ChartCard({
       </div>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
           {error}
         </div>
       ) : empty ? (

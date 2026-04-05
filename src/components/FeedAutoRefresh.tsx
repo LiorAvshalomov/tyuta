@@ -1,16 +1,15 @@
 'use client'
 
-import { startTransition, useEffect, useEffectEvent } from 'react'
+import { startTransition, useEffect, useEffectEvent, useLayoutEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   FEED_REFRESH_CHANNEL,
   FEED_REFRESH_EVENT,
   FEED_REFRESH_STORAGE_KEY,
   getSeenFeedVersion,
-  hasFeedRefreshBootstrapped,
   isFeedPathname,
+  isRecentFeedRefreshVersion,
   markFeedVersionSeen,
-  markFeedRefreshBootstrapped,
   pickLatestFeedVersion,
   readFeedRefreshVersion,
 } from '@/lib/feedFreshness'
@@ -19,13 +18,46 @@ type FeedRefreshMessage = {
   version?: string | null
 }
 
-export default function FeedAutoRefresh() {
+export default function FeedAutoRefresh({ initialVersion = null }: { initialVersion?: string | null }) {
   const pathname = usePathname()
   const router = useRouter()
+  const lastNavigationRefreshRef = useRef<{ key: string; at: number } | null>(null)
+  const pendingRefreshRef = useRef<{ path: string; version: string; at: number } | null>(null)
 
   const getActivePathname = useEffectEvent(() => {
     if (typeof window === 'undefined') return pathname
     return window.location.pathname
+  })
+
+  useLayoutEffect(() => {
+    if (!pathname || !isFeedPathname(pathname)) return
+    if (!initialVersion) return
+    markFeedVersionSeen(pathname, initialVersion)
+    if (
+      pendingRefreshRef.current?.path === pathname &&
+      pendingRefreshRef.current.version === initialVersion
+    ) {
+      pendingRefreshRef.current = null
+    }
+  }, [initialVersion, pathname])
+
+  const requestRefresh = useEffectEvent((targetPath: string, version: string) => {
+    const now = Date.now()
+    const pending = pendingRefreshRef.current
+
+    if (
+      pending?.path === targetPath &&
+      pending.version === version &&
+      now - pending.at < 5_000
+    ) {
+      return
+    }
+
+    pendingRefreshRef.current = { path: targetPath, version, at: now }
+
+    startTransition(() => {
+      router.refresh()
+    })
   })
 
   const applyVersionIfNeeded = useEffectEvent((targetPath: string, incomingVersion?: string | null) => {
@@ -36,10 +68,7 @@ export default function FeedAutoRefresh() {
     if (!latestVersion) return
     if (getSeenFeedVersion(targetPath) === latestVersion) return
 
-    markFeedVersionSeen(targetPath, latestVersion)
-    startTransition(() => {
-      router.refresh()
-    })
+    requestRefresh(targetPath, latestVersion)
   })
 
   const syncFromServer = useEffectEvent(async (targetPath: string) => {
@@ -60,25 +89,48 @@ export default function FeedAutoRefresh() {
     if (!latestVersion) return
 
     const seenVersion = getSeenFeedVersion(targetPath)
-    const hasBootstrapped = hasFeedRefreshBootstrapped()
-    markFeedRefreshBootstrapped()
-
     if (!seenVersion) {
       markFeedVersionSeen(targetPath, latestVersion)
-      if (!hasBootstrapped) return
-    } else if (seenVersion === latestVersion) {
       return
     }
 
-    markFeedVersionSeen(targetPath, latestVersion)
-    startTransition(() => {
-      router.refresh()
-    })
+    if (seenVersion === latestVersion) {
+      return
+    }
+
+    requestRefresh(targetPath, latestVersion)
   })
 
   useEffect(() => {
     if (!pathname || !isFeedPathname(pathname)) return
+    const latestLocalVersion = readFeedRefreshVersion()
+    if (isRecentFeedRefreshVersion(latestLocalVersion)) {
+      const refreshKey = `${pathname}:${latestLocalVersion}`
+      const now = Date.now()
+      if (
+        lastNavigationRefreshRef.current?.key !== refreshKey ||
+        now - lastNavigationRefreshRef.current.at >= 1_000
+      ) {
+        lastNavigationRefreshRef.current = { key: refreshKey, at: now }
+        startTransition(() => {
+          router.refresh()
+        })
+      }
+    }
     void syncFromServer(pathname)
+  }, [pathname, router])
+
+  useEffect(() => {
+    if (!pathname || !isFeedPathname(pathname)) return
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void syncFromServer(pathname)
+    }, 15_000)
+
+    return () => {
+      window.clearInterval(interval)
+    }
   }, [pathname])
 
   useEffect(() => {

@@ -1,8 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { adminFetch } from '@/lib/admin/adminFetch'
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
+import { buildAdminUserSearchHref } from '@/lib/admin/adminUsersHref'
 import PageHeader from '@/components/admin/PageHeader'
 import FilterTabs from '@/components/admin/FilterTabs'
 import ErrorBanner from '@/components/admin/ErrorBanner'
@@ -19,6 +22,8 @@ import {
   Trash2,
   EyeOff,
   UserX,
+  History,
+  RotateCcw,
 } from 'lucide-react'
 
 type Moderation = {
@@ -39,6 +44,7 @@ type UserRow = {
   display_name: string | null
   avatar_url: string | null
   created_at: string | null
+  content_hidden_count?: number
   moderation: Moderation
 }
 
@@ -70,15 +76,26 @@ const TAB_OPTIONS: { value: Tab; label: string }[] = [
   { value: 'search', label: 'חיפוש' },
 ]
 
-type ConfirmAction = 'hide' | 'purge' | 'anonymize' | 'hard_delete'
+type ConfirmAction = 'hide' | 'restore_content' | 'purge' | 'anonymize' | 'hard_delete'
 
 export default function AdminUsersPage() {
-  const [tab, setTab] = useState<Tab>('banned')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const requestedQuery = searchParams.get('q') ?? ''
+  const focusUserId = searchParams.get('focusUserId') ?? ''
+  const initialTab: Tab =
+    requestedTab === 'search' || requestedTab === 'limited' || requestedTab === 'banned'
+      ? requestedTab
+      : 'banned'
+
+  const [tab, setTab] = useState<Tab>(initialTab)
 
   // search
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(requestedQuery)
   const canSearch = useMemo(() => q.trim().length >= 2, [q])
   const [searchUsers, setSearchUsers] = useState<UserRow[]>([])
+  const appliedFocusUserIdRef = useRef<string | null>(null)
 
   // lists
   const [limitedUsers, setLimitedUsers] = useState<UserRow[]>([])
@@ -100,10 +117,17 @@ export default function AdminUsersPage() {
   const [hardDeleteConfirmText, setHardDeleteConfirmText] = useState('')
   const [hardDeleteCheck, setHardDeleteCheck] = useState(false)
   const [hardDeleteReason, setHardDeleteReason] = useState('')
+  const [anonymizeConfirmText, setAnonymizeConfirmText] = useState('')
+  const [anonymizeCheck, setAnonymizeCheck] = useState(false)
+  const [anonymizeReason, setAnonymizeReason] = useState('')
   const hardDeleteReady =
     hardDeleteConfirmText === 'DELETE' &&
     hardDeleteCheck &&
     hardDeleteReason.trim().length >= 15
+  const anonymizeReady =
+    anonymizeConfirmText === 'ANONYMIZE' &&
+    anonymizeCheck &&
+    anonymizeReason.trim().length >= 10
 
   const loadLimited = async () => {
     setLoading(true)
@@ -139,8 +163,8 @@ export default function AdminUsersPage() {
     }
   }
 
-  const runSearch = async () => {
-    if (!canSearch) {
+  const runSearch = useCallback(async () => {
+    if (!canSearch && !focusUserId) {
       setSearchUsers([])
       if (tab === 'search') setSelected(null)
       return
@@ -149,7 +173,11 @@ export default function AdminUsersPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await adminFetch(`/api/admin/users/search?q=${encodeURIComponent(q.trim())}`)
+      const params = new URLSearchParams()
+      if (q.trim()) params.set('q', q.trim())
+      if (focusUserId) params.set('user_id', focusUserId)
+
+      const res = await adminFetch(`/api/admin/users/search?${params.toString()}`)
       const json: unknown = await res.json()
       if (!isApiResp(json)) throw new Error('תגובה לא צפויה מהשרת')
       if (!res.ok) throw new Error(getAdminErrorMessage(json, `HTTP ${res.status}`))
@@ -161,7 +189,29 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [canSearch, focusUserId, q, tab])
+
+  const syncSelectionUrl = useCallback((nextUser: UserRow | null, nextTab: Tab = tab) => {
+    const href = buildAdminUserSearchHref({
+      userId: nextUser?.id ?? null,
+      displayName:
+        nextTab === 'search'
+          ? nextUser?.display_name ?? q
+          : nextUser?.display_name ?? null,
+      username:
+        nextTab === 'search'
+          ? nextUser?.username ?? null
+          : nextUser?.username ?? null,
+    })
+
+    const nextUrl =
+      nextTab === 'search'
+        ? href
+        : `/admin/users?tab=${encodeURIComponent(nextTab)}${nextUser ? `&focusUserId=${encodeURIComponent(nextUser.id)}` : ''}`
+
+    if (`?${searchParams.toString()}` === nextUrl.slice('/admin/users'.length)) return
+    router.replace(nextUrl, { scroll: false })
+  }, [q, router, searchParams, tab])
 
   useEffect(() => {
     void loadBanned()
@@ -169,11 +219,24 @@ export default function AdminUsersPage() {
   }, [])
 
   useEffect(() => {
+    const nextTab: Tab =
+      requestedTab === 'search' || requestedTab === 'limited' || requestedTab === 'banned'
+        ? requestedTab
+        : 'banned'
+
+    setTab((prev) => (prev === nextTab ? prev : nextTab))
+    setQ((prev) => (prev === requestedQuery ? prev : requestedQuery))
+
+    if (!focusUserId) {
+      appliedFocusUserIdRef.current = null
+    }
+  }, [focusUserId, requestedQuery, requestedTab])
+
+  useEffect(() => {
     if (tab !== 'search') return
     const t = window.setTimeout(() => void runSearch(), 300)
     return () => window.clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, tab])
+  }, [runSearch, tab])
 
   useEffect(() => {
     setLimitedReason(selected?.moderation.reason || '')
@@ -186,17 +249,30 @@ export default function AdminUsersPage() {
     return searchUsers
   }, [bannedUsers, limitedUsers, searchUsers, tab])
 
-  const selectUser = async (u: UserRow) => {
+  const selectUser = useCallback(async (u: UserRow) => {
     setSelected(u)
+    syncSelectionUrl(u)
     try {
       const res = await adminFetch(`/api/admin/users/status?user_id=${encodeURIComponent(u.id)}`)
       const json: unknown = await res.json()
       if (!isApiResp(json) || !res.ok || !json.user) return
       setSelected(json.user)
+      syncSelectionUrl(json.user)
     } catch {
       // ignore
     }
-  }
+  }, [syncSelectionUrl])
+
+  useEffect(() => {
+    if (tab !== 'search' || !focusUserId || loading) return
+    if (appliedFocusUserIdRef.current === focusUserId) return
+
+    const exact = searchUsers.find((user) => user.id === focusUserId)
+    if (!exact) return
+
+    appliedFocusUserIdRef.current = focusUserId
+    void selectUser(exact)
+  }, [focusUserId, loading, searchUsers, selectUser, tab])
 
   const toggleLimited = async (next: boolean) => {
     if (!selected) return
@@ -308,6 +384,37 @@ export default function AdminUsersPage() {
       } else {
         if (!res.ok) throw new Error(getAdminErrorMessage(json, `HTTP ${res.status}`))
       }
+      await loadLimited()
+      await loadBanned()
+      await runSearch()
+      await selectUser(selected)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'שגיאה לא ידועה')
+    } finally {
+      setSaving(false)
+      setConfirmAction(null)
+    }
+  }
+
+  const restoreHiddenContent = async () => {
+    if (!selected) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await adminFetch('/api/admin/users/restore_content', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: selected.id }),
+      })
+      const json: unknown = await res.json()
+      if (!isApiResp(json)) {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      } else {
+        if (!res.ok) throw new Error(getAdminErrorMessage(json, `HTTP ${res.status}`))
+      }
+      await loadLimited()
+      await loadBanned()
+      await runSearch()
+      await selectUser(selected)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'שגיאה לא ידועה')
     } finally {
@@ -331,6 +438,10 @@ export default function AdminUsersPage() {
       } else {
         if (!res.ok) throw new Error(getAdminErrorMessage(json, `HTTP ${res.status}`))
       }
+      await loadLimited()
+      await loadBanned()
+      await runSearch()
+      await selectUser(selected)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'שגיאה לא ידועה')
     } finally {
@@ -348,7 +459,12 @@ export default function AdminUsersPage() {
     try {
       const res = await adminFetch('/api/admin/users/delete', {
         method: 'POST',
-        body: JSON.stringify({ user_id: selected.id, confirm: true, mode: 'anonymize' }),
+        body: JSON.stringify({
+          user_id: selected.id,
+          confirm: true,
+          mode: 'anonymize',
+          reason: anonymizeReason.trim(),
+        }),
       })
       const json: unknown = await res.json()
       if (!isApiResp(json)) {
@@ -366,6 +482,9 @@ export default function AdminUsersPage() {
     } finally {
       setSaving(false)
       setConfirmAction(null)
+      setAnonymizeConfirmText('')
+      setAnonymizeCheck(false)
+      setAnonymizeReason('')
     }
   }
 
@@ -410,20 +529,20 @@ export default function AdminUsersPage() {
   function statusBadge(u: UserRow) {
     if (u.moderation.is_banned) {
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+        <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-500/10 dark:text-red-400">
           <ShieldBan size={12} /> חסום
         </span>
       )
     }
     if (u.moderation.is_suspended) {
       return (
-        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
           <ShieldAlert size={12} /> מוגבל
         </span>
       )
     }
     return (
-      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
         <ShieldCheck size={12} /> רגיל
       </span>
     )
@@ -447,21 +566,45 @@ export default function AdminUsersPage() {
           ? 'הסרת פרטים מזהים מהפרופיל (שם, תמונה, ביו) וחסימת המשתמש. התוכן שלו יישאר תחת שם אנונימי.'
           : 'מחיקה מלאה של המשתמש, כל התוכן שלו, וכל האינטרקציות. פעולה בלתי הפיכה.'
 
+  const resolvedConfirmTitle =
+    confirmAction === 'restore_content' ? 'שחזור תוכן מוסתר' : confirmTitle
+  const resolvedConfirmDesc =
+    confirmAction === 'restore_content'
+      ? 'שחזור כל הפוסטים שהוסתרו רך עבור המשתמש. פוסטים שפורסמו יחזרו לציבור, וטיוטות יישארו כטיוטות.'
+      : confirmDesc
+
   return (
     <div className="space-y-5" dir="rtl">
       <PageHeader
         title="משתמשים"
-        description="1) משתמש מוגבל (זמני) · 2) משתמש חסום (באן לצמיתות) · 3) מחיקה מלאה"
+        description="1) משתמש מוגבל (זמני) · 2) משתמש חסום (באן לצמיתות) · 3) אנונימיזציה בלתי הפיכה · 4) מחיקה מלאה"
+        actions={
+          <Link
+            href="/admin/users/history"
+            className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
+          >
+            <History size={14} />
+            היסטוריית משתמשים
+          </Link>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <FilterTabs value={tab} onChange={setTab} options={TAB_OPTIONS} />
+        <FilterTabs
+          value={tab}
+          onChange={(nextValue) => {
+            const nextTab = nextValue as Tab
+            setTab(nextTab)
+            syncSelectionUrl(selected, nextTab)
+          }}
+          options={TAB_OPTIONS}
+        />
         {tab !== 'search' && (
           <button
             type="button"
             disabled={loading}
             onClick={() => void (tab === 'banned' ? loadBanned() : loadLimited())}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 disabled:opacity-50 dark:border-border dark:bg-card dark:text-neutral-400 dark:hover:bg-muted/50"
             aria-label="רענן"
           >
             <RefreshCw size={14} />
@@ -473,19 +616,19 @@ export default function AdminUsersPage() {
 
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         {/* Left — list panel */}
-        <div className="rounded-xl border border-neutral-200 bg-white">
+        <div className="rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
           {tab === 'search' && (
-            <div className="border-b border-neutral-100 p-3">
+            <div className="border-b border-neutral-100 p-3 dark:border-border">
               <div className="relative">
                 <Search size={14} className="absolute top-1/2 right-3 -translate-y-1/2 text-neutral-400" />
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="חיפוש לפי username או display name…"
-                  className="w-full rounded-lg border border-neutral-200 bg-white py-2 pr-8 pl-3 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
+                  className="w-full rounded-lg border border-neutral-200 bg-white py-2 pr-8 pl-3 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
                 />
               </div>
-              <div className="mt-1.5 text-[11px] text-neutral-400">לפחות 2 תווים</div>
+              <div className="mt-1.5 text-[11px] text-neutral-400 dark:text-neutral-500">לפחות 2 תווים</div>
             </div>
           )}
 
@@ -500,7 +643,7 @@ export default function AdminUsersPage() {
                 icon={<Users size={32} strokeWidth={1.5} />}
               />
             ) : (
-              <ul className="divide-y divide-neutral-100">
+              <ul className="divide-y divide-neutral-100 dark:divide-border">
                 {list.map((u) => {
                   const label = (u.display_name || u.username || u.id.slice(0, 8)).toString()
                   const subIso = u.moderation.is_banned
@@ -514,16 +657,16 @@ export default function AdminUsersPage() {
                         type="button"
                         onClick={() => void selectUser(u)}
                         className={
-                          'w-full px-4 py-3 text-right transition-colors hover:bg-neutral-50 ' +
-                          (active ? 'bg-neutral-50 border-r-2 border-r-neutral-900' : '')
+                          'w-full px-4 py-3 text-right transition-colors hover:bg-neutral-50 dark:hover:bg-muted/30 ' +
+                          (active ? 'bg-neutral-50 border-r-2 border-r-neutral-900 dark:bg-muted/30 dark:border-r-foreground' : '')
                         }
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-semibold text-neutral-900">{label}</span>
+                          <span className="truncate text-sm font-semibold text-neutral-900 dark:text-foreground">{label}</span>
                           {statusBadge(u)}
                         </div>
                         {subIso && (
-                          <div className="mt-0.5 text-[11px] text-neutral-400">{fmt(subIso)}</div>
+                          <div className="mt-0.5 text-[11px] text-neutral-400 dark:text-neutral-500">{fmt(subIso)}</div>
                         )}
                       </button>
                     </li>
@@ -535,7 +678,7 @@ export default function AdminUsersPage() {
         </div>
 
         {/* Right — detail panel */}
-        <div className="rounded-xl border border-neutral-200 bg-white p-5">
+        <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-border dark:bg-card">
           {!selected ? (
             <EmptyState
               title="בחר משתמש כדי לנהל סטטוס"
@@ -546,33 +689,42 @@ export default function AdminUsersPage() {
               {/* User header */}
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-bold text-neutral-900">
+                  <h2 className="text-base font-bold text-neutral-900 dark:text-foreground">
                     {(selected.display_name || selected.username || selected.id.slice(0, 8)).toString()}
                   </h2>
-                  <p className="mt-0.5 text-xs text-neutral-400">
+                  <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">
                     נרשם: {fmt(selected.created_at)} · id: <span className="font-mono">{selected.id.slice(0, 12)}…</span>
                   </p>
                 </div>
-                {statusBadge(selected)}
+                <div className="flex items-center gap-2">
+                  {statusBadge(selected)}
+                  <Link
+                    href={`/admin/users/${selected.id}`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
+                  >
+                    <History size={12} />
+                    ציר זמן
+                  </Link>
+                </div>
               </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
                 {/* Limited card */}
-                <div className="rounded-xl border border-neutral-200 bg-white p-4">
-                  <div className="flex items-center gap-2 text-sm font-bold text-neutral-900">
+                <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-border dark:bg-card">
+                  <div className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-foreground">
                     <ShieldAlert size={16} className="text-amber-500" />
                     משתמש מוגבל (זמני)
                   </div>
-                  <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed">
+                  <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">
                     מאפשר שיטוט באתר, אבל חוסם כתיבה/הגדרות/דפים מוגנים. מאפשר ״צור קשר״.
                   </p>
 
-                  <label className="mt-3 block text-xs font-medium text-neutral-500">סיבה</label>
+                  <label className="mt-3 block text-xs font-medium text-neutral-500 dark:text-neutral-400">סיבה</label>
                   <textarea
                     value={limitedReason}
                     onChange={(e) => setLimitedReason(e.target.value)}
                     readOnly={selected.moderation.is_suspended || selected.moderation.is_banned}
-                    className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400 read-only:bg-neutral-50"
+                    className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400 read-only:bg-neutral-50 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:read-only:bg-muted/30"
                     rows={3}
                     placeholder={selected.moderation.is_suspended ? 'הסיבה נעולה (כבר הוגדר).' : 'למה המשתמש מוגבל…'}
                   />
@@ -601,21 +753,21 @@ export default function AdminUsersPage() {
                 </div>
 
                 {/* Banned card */}
-                <div className="rounded-xl border border-red-200 bg-red-50/30 p-4">
-                  <div className="flex items-center gap-2 text-sm font-bold text-red-900">
+                <div className="rounded-xl border border-red-200 bg-red-50/30 p-4 dark:border-red-500/30 dark:bg-red-500/5">
+                  <div className="flex items-center gap-2 text-sm font-bold text-red-900 dark:text-red-300">
                     <ShieldBan size={16} className="text-red-500" />
                     משתמש חסום (באן לצמיתות)
                   </div>
-                  <p className="mt-1 text-[11px] text-red-700/70 leading-relaxed">
+                  <p className="mt-1 text-[11px] text-red-700/70 leading-relaxed dark:text-red-400/70">
                     המשתמש נעול למסך /banned בלבד + /banned/contact. אין גישה לשום מקום אחר.
                   </p>
 
-                  <label className="mt-3 block text-xs font-medium text-red-800">סיבת באן</label>
+                  <label className="mt-3 block text-xs font-medium text-red-800 dark:text-red-300">סיבת באן</label>
                   <textarea
                     value={banReason}
                     onChange={(e) => setBanReason(e.target.value)}
                     readOnly={selected.moderation.is_banned}
-                    className="mt-1 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 read-only:bg-red-50/50"
+                    className="mt-1 w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 read-only:bg-red-50/50 dark:border-red-500/30 dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:read-only:bg-red-500/5"
                     rows={3}
                     placeholder={selected.moderation.is_banned ? 'הסיבה נעולה (כבר הוגדר).' : 'למה המשתמש בבאן…'}
                   />
@@ -645,30 +797,44 @@ export default function AdminUsersPage() {
               </div>
 
               {/* Content / Delete section */}
-              <div className="rounded-xl border border-neutral-200 bg-white p-4">
-                <div className="flex items-center gap-2 text-sm font-bold text-neutral-900">
+              <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-border dark:bg-card">
+                <div className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-foreground">
                   <Trash2 size={16} className="text-neutral-500" />
                   תוכן / מחיקה
                 </div>
-                <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed">
-                  ״הסתר תוכן״ לא שולח ל־trash (המשתמש לא יוכל לשחזר). ״מחיקה לצמיתות״ מוחקת פוסטים ותלויות.
+                <p className="mt-1 text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">
+                  ״הסתר תוכן״ מסתיר מהציבור ושומר אפשרות שחזור לאדמין. ״אנונימיזציה״ מסירה זהות ואינה ניתנת לשחזור אוטומטי. ״מחיקה לצמיתות״ מוחקת פוסטים ותלויות.
                 </p>
+                <div className="mt-2 text-[11px] text-neutral-400 dark:text-neutral-500">
+                  {`תוכן מוסתר כרגע: ${selected.content_hidden_count ?? 0} פוסטים`}
+                </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={saving}
                     onClick={() => setConfirmAction('hide')}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                   >
                     <EyeOff size={13} />
                     הסתר תוכן (רך)
                   </button>
+                  {(selected.content_hidden_count ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void restoreHiddenContent()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/15"
+                    >
+                      <RotateCcw size={13} />
+                      שחזר תוכן מוסתר
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={saving}
                     onClick={() => setConfirmAction('purge')}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                   >
                     <Trash2 size={13} />
                     מחיקת פוסטים לצמיתות
@@ -676,7 +842,12 @@ export default function AdminUsersPage() {
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => setConfirmAction('anonymize')}
+                    onClick={() => {
+                      setAnonymizeConfirmText('')
+                      setAnonymizeCheck(false)
+                      setAnonymizeReason('')
+                      setConfirmAction('anonymize')
+                    }}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3 py-2 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
                   >
                     <UserX size={13} />
@@ -698,7 +869,7 @@ export default function AdminUsersPage() {
                   </button>
                 </div>
 
-                <div className="mt-3 text-[11px] text-neutral-400">
+                <div className="mt-3 text-[11px] text-neutral-400 dark:text-neutral-500">
                   {selected.moderation.is_banned
                     ? `סטטוס: חסום מאז ${fmt(selected.moderation.banned_at)}`
                     : selected.moderation.is_suspended
@@ -713,9 +884,9 @@ export default function AdminUsersPage() {
 
       {/* Confirm dialogs */}
       <ConfirmDialog
-        open={confirmAction !== null && confirmAction !== 'hard_delete'}
-        title={confirmTitle}
-        description={confirmDesc}
+        open={confirmAction !== null && confirmAction !== 'hard_delete' && confirmAction !== 'anonymize'}
+        title={resolvedConfirmTitle}
+        description={resolvedConfirmDesc}
         confirmLabel={
           confirmAction === 'hide'
             ? 'הסתר'
@@ -728,10 +899,84 @@ export default function AdminUsersPage() {
         onConfirm={() => {
           if (confirmAction === 'hide') void hideContent()
           else if (confirmAction === 'purge') void purgePosts()
-          else if (confirmAction === 'anonymize') void anonymizeUser()
         }}
         onCancel={() => setConfirmAction(null)}
       />
+
+      <ConfirmDialog
+        open={confirmAction === 'anonymize'}
+        title="אנונימיזציה בלתי הפיכה"
+        description="הפעולה מסירה מהחשבון פרטים מזהים, חוסמת את הגישה לחשבון, ומשאירה את התוכן תחת זהות אנונימית. אין מסלול שחזור אוטומטי אחרי האישור."
+        confirmLabel="בצע אנונימיזציה"
+        destructive
+        loading={saving || !anonymizeReady}
+        onConfirm={() => void anonymizeUser()}
+        onCancel={() => {
+          setConfirmAction(null)
+          setAnonymizeConfirmText('')
+          setAnonymizeCheck(false)
+          setAnonymizeReason('')
+        }}
+      >
+        <div className="space-y-3">
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-xs leading-6 text-neutral-700 dark:border-border dark:bg-muted/30 dark:text-neutral-300">
+            <div>מה יקרה:</div>
+            <div>1. השם, התמונה והפרטים האישיים יוסרו.</div>
+            <div>2. המשתמש ייחסם לכניסה.</div>
+            <div>3. הפוסטים יישארו תחת זהות אנונימית.</div>
+            <div>4. אין שחזור אוטומטי של הזהות המקורית.</div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              סיבת אנונימיזציה (חובה, מינימום 10 תווים)
+            </label>
+            <textarea
+              value={anonymizeReason}
+              onChange={(e) => setAnonymizeReason(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
+              rows={3}
+              placeholder="תאר למה מבוצעת אנונימיזציה על החשבון…"
+            />
+            {anonymizeReason.trim().length > 0 && anonymizeReason.trim().length < 10 && (
+              <p className="mt-1 text-[11px] text-red-500">
+                נדרשים לפחות 10 תווים ({anonymizeReason.trim().length}/10)
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              הקלד <span className="font-mono font-bold text-neutral-900 dark:text-foreground">ANONYMIZE</span> לאישור
+            </label>
+            <input
+              value={anonymizeConfirmText}
+              onChange={(e) => setAnonymizeConfirmText(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
+              placeholder="ANONYMIZE"
+              autoComplete="off"
+            />
+          </div>
+
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={anonymizeCheck}
+              onChange={(e) => setAnonymizeCheck(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
+            />
+            <span className="text-xs text-neutral-700 dark:text-neutral-300">
+              אני מבין/ה שלא ניתן לשחזר אוטומטית את זהות המשתמש לאחר האנונימיזציה
+            </span>
+          </label>
+
+          {!anonymizeReady && (
+            <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
+              יש למלא את כל השדות כדי לאפשר אנונימיזציה.
+            </p>
+          )}
+        </div>
+      </ConfirmDialog>
 
       {/* Hard delete — double confirmation dialog */}
       <ConfirmDialog
@@ -751,13 +996,13 @@ export default function AdminUsersPage() {
       >
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-neutral-700">
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
               סיבת מחיקה (חובה, מינימום 15 תווים)
             </label>
             <textarea
               value={hardDeleteReason}
               onChange={(e) => setHardDeleteReason(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400"
+              className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-red-500/50"
               rows={3}
               placeholder="תאר את הסיבה למחיקה המלאה…"
             />
@@ -769,13 +1014,13 @@ export default function AdminUsersPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-neutral-700">
-              הקלד <span className="font-mono font-bold text-red-600">DELETE</span> לאישור
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              הקלד <span className="font-mono font-bold text-red-600 dark:text-red-400">DELETE</span> לאישור
             </label>
             <input
               value={hardDeleteConfirmText}
               onChange={(e) => setHardDeleteConfirmText(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400"
+              className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-red-500/50"
               placeholder="DELETE"
               autoComplete="off"
             />
@@ -788,13 +1033,13 @@ export default function AdminUsersPage() {
               onChange={(e) => setHardDeleteCheck(e.target.checked)}
               className="mt-0.5 h-4 w-4 rounded border-neutral-300 text-red-600 focus:ring-red-500"
             />
-            <span className="text-xs text-neutral-700">
+            <span className="text-xs text-neutral-700 dark:text-neutral-300">
               אני מבין/ה שהפעולה בלתי הפיכה
             </span>
           </label>
 
           {!hardDeleteReady && (
-            <p className="text-[11px] text-neutral-400">
+            <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
               יש למלא את כל השדות כדי לאפשר מחיקה.
             </p>
           )}

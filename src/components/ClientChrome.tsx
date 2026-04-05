@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation"
 import { useMemo } from "react"
 import AppBackground from "@/components/AppBackground"
 import AnalyticsPageviewClient from "@/components/analytics/AnalyticsPageviewClient"
+import PostRouteAutoRefresh from "@/components/PostRouteAutoRefresh"
+import ProfileRouteAutoRefresh from "@/components/ProfileRouteAutoRefresh"
 import SiteHeader from "@/components/SiteHeader"
 import SiteFooter from "@/components/SiteFooter"
 import BetaWelcomeModal from "@/components/BetaWelcomeModal"
@@ -42,6 +44,8 @@ export default function ClientChrome({ children }: Props) {
     return (
       <div className="min-h-screen flex flex-col">
         <AnalyticsPageviewClient />
+        <PostRouteAutoRefresh />
+        <ProfileRouteAutoRefresh />
         <SiteHeader />
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>
@@ -51,6 +55,8 @@ export default function ClientChrome({ children }: Props) {
   return (
     <>
       <AnalyticsPageviewClient />
+      <PostRouteAutoRefresh />
+      <ProfileRouteAutoRefresh />
       <AppBackground />
       <BetaWelcomeModal />
       <div className="min-h-screen flex flex-col">

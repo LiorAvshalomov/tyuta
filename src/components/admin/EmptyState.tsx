@@ -11,12 +11,12 @@ export default function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="mb-3 text-neutral-300">
+      <div className="mb-3 text-neutral-300 dark:text-neutral-600">
         {icon ?? <Inbox size={40} strokeWidth={1.5} />}
       </div>
-      <div className="text-sm font-semibold text-neutral-600">{title}</div>
+      <div className="text-sm font-semibold text-neutral-600 dark:text-neutral-400">{title}</div>
       {description && (
-        <div className="mt-1 max-w-xs text-xs text-neutral-400">{description}</div>
+        <div className="mt-1 max-w-xs text-xs text-neutral-400 dark:text-neutral-500">{description}</div>
       )}
     </div>
   )

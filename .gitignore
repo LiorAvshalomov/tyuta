@@ -19,7 +19,8 @@
 
 # db files
 db/
-supabase/
+/supabase/
+!src/lib/supabase/
 
 .vscode/
 

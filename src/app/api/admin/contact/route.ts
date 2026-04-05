@@ -33,7 +33,8 @@ export async function GET(req: Request) {
         email,
         subject,
         message,
-        status
+        status,
+        attachment_paths
       `
     )
     .order("created_at", { ascending: false })
@@ -42,7 +43,7 @@ export async function GET(req: Request) {
 
   if (error) return adminError(error.message, 500, "db_error")
 
-  const rows = (data ?? []) as { id: string; created_at: string; user_id: string; email: string | null; subject: string; message: string; status: string }[]
+  const rows = (data ?? []) as { id: string; created_at: string; user_id: string; email: string | null; subject: string; message: string; status: string; attachment_paths: string[] | null }[]
   const ids = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean)))
 
   let profileMap = new Map<string, MiniProfile>()

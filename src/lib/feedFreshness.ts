@@ -1,6 +1,7 @@
 export const FEED_REFRESH_STORAGE_KEY = 'tyuta:feed-refresh-version'
 export const FEED_REFRESH_EVENT = 'tyuta:feed-updated'
 export const FEED_REFRESH_CHANNEL = 'tyuta-feed-updates'
+export const FEED_REFRESH_NAVIGATION_WINDOW_MS = 5 * 60_000
 const FEED_REFRESH_BOOTSTRAP_KEY = 'tyuta:feed-refresh-bootstrapped'
 
 const FEED_PATHS = new Set(['/', '/c/release', '/c/stories', '/c/magazine'])
@@ -63,6 +64,13 @@ export function pickLatestFeedVersion(...versions: Array<string | null | undefin
   }
 
   return latest
+}
+
+export function isRecentFeedRefreshVersion(version: string | null | undefined, now = Date.now()) {
+  if (!version) return false
+  const parsed = Date.parse(version)
+  if (!Number.isFinite(parsed)) return false
+  return now - parsed <= FEED_REFRESH_NAVIGATION_WINDOW_MS
 }
 
 export function notifyFeedContentUpdated(version = new Date().toISOString()) {

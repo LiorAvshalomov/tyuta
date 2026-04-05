@@ -52,10 +52,10 @@ function fmtDateTime(iso: string): string {
 
 function StatCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-4">
-      <p className="text-xs font-medium text-neutral-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-neutral-900">{value.toLocaleString('he-IL')}</p>
-      {sub && <p className="mt-0.5 text-xs text-neutral-400">{sub}</p>}
+    <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-border dark:bg-card">
+      <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-neutral-900 dark:text-foreground">{value.toLocaleString('he-IL')}</p>
+      {sub && <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">{sub}</p>}
     </div>
   )
 }
@@ -64,7 +64,7 @@ function ProfileCell({ profile, userId }: { profile: Profile | null; userId: str
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <Avatar src={profile?.avatar_url} name={profileName(profile, userId)} size={20} />
-      <span className="truncate text-xs text-neutral-700">{profileName(profile, userId)}</span>
+      <span className="truncate text-xs text-neutral-700 dark:text-neutral-300">{profileName(profile, userId)}</span>
     </div>
   )
 }
@@ -72,13 +72,13 @@ function ProfileCell({ profile, userId }: { profile: Profile | null; userId: str
 function TargetBadge({ targetType }: { targetType: string }) {
   if (targetType === 'comment') {
     return (
-      <span className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+      <span className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-400">
         תגובה
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+    <span className="inline-flex items-center rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-400">
       הערה
     </span>
   )
@@ -156,7 +156,7 @@ export default function ModerationStatsTab() {
       {/* Search bar */}
       <div className="flex items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-neutral-500">
+          <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
             חיפוש לפי שם משתמש או UUID
           </label>
           <div className="relative">
@@ -166,7 +166,7 @@ export default function ModerationStatsTab() {
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && search(query)}
               placeholder="שם / UUID…"
-              className="w-[260px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400"
+              className="w-[260px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
             />
           </div>
         </div>
@@ -175,7 +175,7 @@ export default function ModerationStatsTab() {
           type="button"
           onClick={() => search(query)}
           disabled={loading || !query.trim()}
-          className="rounded-lg border border-neutral-200 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40"
+          className="rounded-lg border border-neutral-200 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
         >
           {loading ? 'טוען…' : 'חפש'}
         </button>
@@ -186,7 +186,7 @@ export default function ModerationStatsTab() {
 
       {/* UUID display */}
       {userId && !loading && (
-        <p className="font-mono text-xs text-neutral-400">UUID: {userId}</p>
+        <p className="font-mono text-xs text-neutral-400 dark:text-neutral-500">UUID: {userId}</p>
       )}
 
       {/* Stats cards */}
@@ -201,24 +201,24 @@ export default function ModerationStatsTab() {
 
           {/* Recent events */}
           {stats.recent_events.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-neutral-400">
+            <div className="flex flex-col items-center gap-2 py-10 text-neutral-400 dark:text-neutral-500">
               <Shield size={32} strokeWidth={1.5} />
               <p className="text-sm">אין היסטוריית מחיקות למשתמש זה</p>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-              <div className="border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 text-xs font-medium text-neutral-500">
+            <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
+              <div className="border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 text-xs font-medium text-neutral-500 dark:border-border dark:bg-muted/30 dark:text-neutral-400">
                 20 הפעולות האחרונות
               </div>
 
-              <div className="hidden grid-cols-[140px_70px_1fr_150px] gap-3 border-b border-neutral-100 px-4 py-2 text-xs text-neutral-400 sm:grid">
+              <div className="hidden grid-cols-[140px_70px_1fr_150px] gap-3 border-b border-neutral-100 px-4 py-2 text-xs text-neutral-400 sm:grid dark:border-border dark:text-neutral-500">
                 <span>זמן</span>
                 <span>סוג</span>
                 <span>תמצית / סיבה</span>
                 <span>משתמש מושפע</span>
               </div>
 
-              <div className="divide-y divide-neutral-100">
+              <div className="divide-y divide-neutral-100 dark:divide-border">
                 {stats.recent_events.map(ev => {
                   const snap    = ev.snapshot
                   const excerpt = typeof snap.excerpt === 'string' ? snap.excerpt.slice(0, 80) : null
@@ -228,13 +228,13 @@ export default function ModerationStatsTab() {
                       key={ev.id}
                       className="grid grid-cols-1 gap-2 px-4 py-3 text-sm sm:grid-cols-[140px_70px_1fr_150px] sm:items-center sm:gap-3"
                     >
-                      <div className="text-xs text-neutral-500">{fmtDateTime(ev.created_at)}</div>
+                      <div className="text-xs text-neutral-500 dark:text-neutral-400">{fmtDateTime(ev.created_at)}</div>
                       <div><TargetBadge targetType={ev.target_type} /></div>
                       <div className="min-w-0">
                         {excerpt && (
-                          <p className="truncate text-xs text-neutral-600">{excerpt}</p>
+                          <p className="truncate text-xs text-neutral-600 dark:text-neutral-400">{excerpt}</p>
                         )}
-                        <p className="mt-0.5 truncate text-xs text-neutral-400">
+                        <p className="mt-0.5 truncate text-xs text-neutral-400 dark:text-neutral-500">
                           סיבה: {ev.reason}
                         </p>
                       </div>

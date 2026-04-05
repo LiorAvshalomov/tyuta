@@ -1,5 +1,3 @@
-
-import { createClient } from '@supabase/supabase-js'
 import { cache } from 'react'
 import type { Metadata } from 'next'
 
@@ -8,9 +6,13 @@ export const revalidate = 60
 import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
 import ProfileFollowBar from '@/components/ProfileFollowBar'
 import ProfileBottomTabsClient from '@/components/ProfileBottomTabsClient'
+import ProfileVersionSeed from '@/components/ProfileVersionSeed'
+import type { ProfileReactionTotal } from '@/components/ProfileStatsCard'
 import ProfileInfoCardsSection from '@/components/ProfileInfoCardsSection'
-
-
+import type { ProfilePostsInitialData } from '@/components/ProfilePostsClient'
+import type { ProfileRecentActivityRow } from '@/components/ProfileRecentActivity'
+import { pickLatestVersion } from '@/lib/freshness/serverVersions'
+import { createPublicServerClient } from '@/lib/supabase/createPublicServerClient'
 
 const SITE_URL = 'https://tyuta.net'
 
@@ -20,7 +22,7 @@ type PageProps = {
 
 // React cache deduplicates: generateMetadata + page body share one DB round-trip
 const fetchProfileSeo = cache(async (username: string) => {
-  const supabase = getSupabase()
+  const supabase = createPublicServerClient()
   if (!supabase) return null
   const { data } = await supabase
     .from('profiles')
@@ -83,6 +85,7 @@ type Profile = {
   avatar_url: string | null
   bio: string | null
   created_at: string | null
+  updated_at: string | null
   personal_is_shared?: boolean | null
   personal_about?: string | null
   personal_age?: number | null
@@ -92,11 +95,21 @@ type Profile = {
   personal_favorite_category?: string | null
 }
 
-function getSupabase() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!supabaseUrl || !anonKey) return null
-  return createClient(supabaseUrl, anonKey, { auth: { persistSession: false } })
+type ProfilePostRow = {
+  id: string
+  slug: string
+  title: string
+  excerpt: string | null
+  created_at: string
+  published_at: string | null
+  updated_at: string | null
+  cover_image_url: string | null
+  channel_id: number | null
+}
+
+type ChannelRow = {
+  id: number
+  name_he: string
 }
 
 function safeText(s?: string | null) {
@@ -138,7 +151,7 @@ function StatPill({ label, value }: { label: string; value: number }) {
 export default async function PublicProfilePage({ params }: PageProps) {
   const { username } = await params
 
-  const supabase = getSupabase()
+  const supabase = createPublicServerClient()
   if (!supabase) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10" dir="rtl">
@@ -150,7 +163,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const { data: profile, error: pErr } = await supabase
     .from('profiles')
     .select(
-      'id, username, display_name, avatar_url, bio, created_at, personal_is_shared, personal_about, personal_age, personal_occupation, personal_writing_about, personal_books, personal_favorite_category'
+      'id, username, display_name, avatar_url, bio, created_at, updated_at, personal_is_shared, personal_about, personal_age, personal_occupation, personal_writing_about, personal_books, personal_favorite_category'
     )
     .eq('username', username)
     .single()
@@ -174,9 +187,13 @@ export default async function PublicProfilePage({ params }: PageProps) {
     { count: followersCount = 0 },
     { count: followingCount = 0 },
     { count: postsCount = 0 },
-    { count: commentsWritten = 0 },
+    { data: commentsWrittenRaw },
     { data: medalsRow },
     { data: commentsReceivedRaw },
+    { data: recentActivityRaw },
+    { data: reactionTotalsRaw },
+    { data: recentPostsRaw },
+    { data: channelsRaw },
   ] = await Promise.all([
     supabase
       .from('user_follows')
@@ -193,18 +210,34 @@ export default async function PublicProfilePage({ params }: PageProps) {
       .eq('author_id', prof.id)
       .eq('status', 'published')
       .eq('is_anonymous', false),
-    supabase
-      .from('comments')
-      .select('id', { count: 'exact', head: true })
-      .eq('author_id', prof.id),
+    supabase.rpc('get_visible_comments_written_count', { p_user_id: prof.id }),
     supabase
       .from('profile_medals_all_time')
       .select('gold, silver, bronze')
       .eq('profile_id', prof.id)
       .maybeSingle(),
     supabase.rpc('get_comments_received_count', { p_author_id: prof.id }),
+    supabase
+      .from('user_recent_comments')
+      .select('created_at, content, post_slug, post_title')
+      .eq('user_id', prof.id)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase.rpc('get_profile_reaction_totals', { p_profile_id: prof.id }),
+    supabase
+      .from('posts')
+      .select('id, slug, title, excerpt, created_at, updated_at, published_at, cover_image_url, channel_id')
+      .is('deleted_at', null)
+      .eq('author_id', prof.id)
+      .eq('status', 'published')
+      .eq('is_anonymous', false)
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(5),
+    supabase.from('channels').select('id, name_he').order('sort_order', { ascending: true }),
   ])
 
+  const commentsWritten = Number(commentsWrittenRaw ?? 0)
   const commentsReceived = Number(commentsReceivedRaw ?? 0)
 
   const medals = {
@@ -213,8 +246,56 @@ export default async function PublicProfilePage({ params }: PageProps) {
     bronze: medalsRow?.bronze ?? 0,
   }
 
+  const recentActivity = (recentActivityRaw ?? []) as ProfileRecentActivityRow[]
+  const reactionTotals = Array.isArray(reactionTotalsRaw)
+    ? (reactionTotalsRaw as ProfileReactionTotal[])
+    : []
+  const channels = (channelsRaw ?? []) as ChannelRow[]
+  const channelMap = new Map(channels.map((channel) => [channel.id, channel.name_he]))
+
+  const recentPosts = (recentPostsRaw ?? []) as ProfilePostRow[]
+  const initialProfileVersion = pickLatestVersion(
+    prof.updated_at,
+    ...recentPosts.map((post) => pickLatestVersion(post.updated_at, post.published_at, post.created_at)),
+  )
+  const recentPostIds = recentPosts.map((post) => post.id)
+
+  const postMedalsMap = new Map<string, { gold: number; silver: number; bronze: number }>()
+  if (recentPostIds.length > 0) {
+    const { data: postMedalsRows } = await supabase
+      .from('post_medals_all_time')
+      .select('post_id, gold, silver, bronze')
+      .in('post_id', recentPostIds)
+
+    for (const row of postMedalsRows ?? []) {
+      postMedalsMap.set(row.post_id, {
+        gold: row.gold ?? 0,
+        silver: row.silver ?? 0,
+        bronze: row.bronze ?? 0,
+      })
+    }
+  }
+
+  const initialPostsData: ProfilePostsInitialData = {
+    total: postsCount ?? 0,
+    channels,
+    perPage: 5,
+    posts: recentPosts.map((post) => ({
+      id: post.id,
+      slug: post.slug,
+      title: post.title,
+      excerpt: post.excerpt,
+      created_at: post.created_at,
+      published_at: post.published_at,
+      cover_image_url: post.cover_image_url,
+      channel_name: post.channel_id ? channelMap.get(post.channel_id) ?? null : null,
+      medals: postMedalsMap.get(post.id) ?? null,
+    })),
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 lg:py-8" dir="rtl">
+      <ProfileVersionSeed pathname={`/u/${prof.username}`} version={initialProfileVersion} />
       {/* ════════════════════════════════════════════════════════════
           PROFILE HEADER CARD
           ════════════════════════════════════════════════════════════ */}
@@ -317,6 +398,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           personal_books: prof.personal_books ?? null,
           personal_favorite_category: prof.personal_favorite_category ?? null,
         }}
+        initialRecentActivity={recentActivity}
       />
 
       {/* ════════════════════════════════════════════════════════════
@@ -329,6 +411,8 @@ export default async function PublicProfilePage({ params }: PageProps) {
         commentsWritten={commentsWritten ?? 0}
         commentsReceived={commentsReceived ?? 0}
         medals={medals}
+        initialReactionTotals={reactionTotals}
+        initialPostsData={initialPostsData}
       />
     </div>
   )

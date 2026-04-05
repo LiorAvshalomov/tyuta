@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
 import { adminError, adminOk } from '@/lib/admin/adminHttp'
 
-const VALID_ACTIONS    = new Set(['soft_delete', 'admin_soft_hide', 'hard_delete', 'admin_hard_delete'])
+const VALID_ACTIONS    = new Set(['soft_delete', 'admin_soft_hide', 'hard_delete', 'user_hard_delete', 'admin_hard_delete'])
 const VALID_ACTOR_KINDS = new Set(['user', 'admin', 'system'])
 
 type ProfileRow = {
@@ -43,10 +43,11 @@ export async function GET(req: NextRequest) {
   let matchingAuthorIds: Set<string> | null = null
 
   if (author) {
+    const authorSafe = author.replace(/[%_\\]/g, '\\$&')
     const { data: profMatches, error: profErr } = await sb
       .from('profiles')
       .select('id')
-      .ilike('display_name', `%${author}%`)
+      .ilike('display_name', `%${authorSafe}%`)
       .limit(500)
 
     if (profErr) return adminError(profErr.message, 500, 'db_error')
@@ -74,7 +75,8 @@ export async function GET(req: NextRequest) {
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
 
-  if (action    && VALID_ACTIONS.has(action))          query = query.eq('action',     action)
+  if (action === 'hard_delete')                        query = query.in('action', ['hard_delete', 'user_hard_delete'])
+  else if (action && VALID_ACTIONS.has(action))        query = query.eq('action',     action)
   if (actorKind && VALID_ACTOR_KINDS.has(actorKind))   query = query.eq('actor_kind', actorKind)
   if (from) query = query.gte('created_at', from)
   if (to) {

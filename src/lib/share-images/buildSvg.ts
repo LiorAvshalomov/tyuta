@@ -89,7 +89,6 @@ const FONT_BODY_TITLE = "Assistant"
 const FONT_PAGE_NUMBER = "Shadows Into Light"
 const FONT_HANDWRITTEN_HE = "Gveret Levin"
 const FONT_HANDWRITTEN_LATIN = "Caveat"
-const FONT_BRAND_NET = "Pacifico"
 const RTL_EMBED = "\u202B"
 const RTL_POP = "\u202C"
 

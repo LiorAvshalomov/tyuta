@@ -1,20 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import Avatar from '@/components/Avatar'
-import { adminFetch } from '@/lib/admin/adminFetch'
-import { getAdminErrorMessage } from '@/lib/admin/adminUi'
-import PageHeader from '@/components/admin/PageHeader'
+import ChatClient from '@/components/ChatClient'
 import ErrorBanner from '@/components/admin/ErrorBanner'
 import EmptyState from '@/components/admin/EmptyState'
 import { TableSkeleton } from '@/components/admin/AdminSkeleton'
-import {
-  Search,
-  RefreshCw,
-  MessageSquare,
-  Send,
-  ArrowLeft,
-} from 'lucide-react'
+import { adminFetch } from '@/lib/admin/adminFetch'
+import { getAdminErrorMessage } from '@/lib/admin/adminUi'
+import { supabase } from '@/lib/supabaseClient'
+import { Megaphone, Search, X } from 'lucide-react'
 
 type UserHit = {
   id: string
@@ -34,110 +30,230 @@ type Thread = {
   unread_count: number
 }
 
-type Msg = {
-  id: string
-  conversation_id: string
-  sender_id: string
-  body: string
-  created_at: string
-  read_at: string | null
+type TypingEntry = {
+  isTyping: boolean
 }
 
-function formatTime(iso: string) {
+const REFRESH_INTERVAL_MS = 10_000
+const SYSTEM_USER_ID = (process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? '').trim()
+
+function daysDiff(from: Date, to: Date) {
+  const start = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime()
+  return Math.round((end - start) / (1000 * 60 * 60 * 24))
+}
+
+function formatLastTime(iso: string | null) {
+  if (!iso) return ''
+
   try {
-    return new Date(iso).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    const date = new Date(iso)
+    const now = new Date()
+    const diff = daysDiff(date, now)
+
+    if (diff === 0) return date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+    if (diff === 1) return 'אתמול'
+    if (diff >= 2 && diff <= 6) return date.toLocaleDateString('he-IL', { weekday: 'long' })
+    return date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
   } catch {
     return ''
   }
-}
-
-function formatDay(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  } catch {
-    return ''
-  }
-}
-
-function getSystemUserId(): string | null {
-  const v = process.env.NEXT_PUBLIC_SYSTEM_USER_ID
-  return typeof v === 'string' && v.trim() ? v.trim() : null
 }
 
 export default function AdminInboxPage() {
-  const systemUserId = getSystemUserId()
-
   const [q, setQ] = useState('')
   const [userHits, setUserHits] = useState<UserHit[]>([])
   const [searching, setSearching] = useState(false)
 
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [broadcastBody, setBroadcastBody] = useState('')
+  const [broadcastLoading, setBroadcastLoading] = useState(false)
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null)
+  const [broadcastError, setBroadcastError] = useState<string | null>(null)
+
   const [threads, setThreads] = useState<Thread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(true)
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
-
-  const [messages, setMessages] = useState<Msg[]>([])
-  const [messagesLoading, setMessagesLoading] = useState(false)
-
-  const [text, setText] = useState('')
-  const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [typingMap, setTypingMap] = useState<Record<string, TypingEntry>>({})
 
-  const listRef = useRef<HTMLDivElement | null>(null)
+  const typingChannelsRef = useRef<Map<string, RealtimeChannel>>(new Map())
+  const typingTimersRef = useRef<Map<string, number>>(new Map())
 
-  const selectedThread = useMemo(
-    () => threads.find((t) => t.conversation_id === selectedConversationId) ?? null,
-    [threads, selectedConversationId]
-  )
-
-  const loadThreads = useCallback(async () => {
-    setThreadsLoading(true)
+  const loadThreads = useCallback(async (quiet = false) => {
+    if (!quiet) setThreadsLoading(true)
     setError(null)
-    try {
-      const r = await adminFetch('/api/admin/inbox/threads')
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בטעינת שיחות'))
-      setThreads(Array.isArray(j?.threads) ? (j.threads as Thread[]) : [])
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'שגיאה')
-      setThreads([])
-    } finally {
-      setThreadsLoading(false)
-    }
-  }, [])
 
-  const loadMessages = useCallback(async (conversationId: string) => {
-    setMessagesLoading(true)
-    setError(null)
     try {
-      const r = await adminFetch(`/api/admin/inbox/messages?conversation_id=${encodeURIComponent(conversationId)}`)
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בטעינת הודעות'))
-      setMessages(Array.isArray(j?.messages) ? (j.messages as Msg[]) : [])
-      setTimeout(() => {
-        const el = listRef.current
-        if (!el) return
-        el.scrollTop = el.scrollHeight
-      }, 0)
-      void loadThreads()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'שגיאה')
-      setMessages([])
+      const res = await adminFetch('/api/admin/inbox/threads')
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(getAdminErrorMessage(json, 'שגיאה בטעינת שיחות'))
+      }
+
+      const nextThreads = Array.isArray(json?.threads) ? (json.threads as Thread[]) : []
+      setThreads(nextThreads)
+
+      if (selectedConversationId && !nextThreads.some((thread) => thread.conversation_id === selectedConversationId)) {
+        setSelectedConversationId(null)
+      }
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : 'שגיאה')
+      if (!quiet) setThreads([])
     } finally {
-      setMessagesLoading(false)
+      if (!quiet) setThreadsLoading(false)
     }
-  }, [loadThreads])
+  }, [selectedConversationId])
 
   useEffect(() => {
     void loadThreads()
   }, [loadThreads])
 
   useEffect(() => {
-    if (!selectedConversationId) {
-      setMessages([])
-      return
+    const refreshVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      void loadThreads(true)
     }
-    void loadMessages(selectedConversationId)
-  }, [selectedConversationId, loadMessages])
+
+    const intervalId = window.setInterval(refreshVisible, REFRESH_INTERVAL_MS)
+    window.addEventListener('focus', refreshVisible)
+    document.addEventListener('visibilitychange', refreshVisible)
+    window.addEventListener('tyuta:thread-read', refreshVisible)
+    window.addEventListener('tyuta:inbox-refresh', refreshVisible)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', refreshVisible)
+      document.removeEventListener('visibilitychange', refreshVisible)
+      window.removeEventListener('tyuta:thread-read', refreshVisible)
+      window.removeEventListener('tyuta:inbox-refresh', refreshVisible)
+    }
+  }, [loadThreads])
+
+  useEffect(() => {
+    const bc = new BroadcastChannel('tyuta-inbox')
+    bc.onmessage = (event: MessageEvent) => {
+      const data = event.data as {
+        type: string
+        conversationId: string
+        last_body?: string
+        last_created_at?: string
+        isOwn?: boolean
+        userId?: string
+      }
+
+      if (data.type === 'typing') {
+        if (!data.userId || data.userId === SYSTEM_USER_ID) return
+
+        setTypingMap((prev) => ({
+          ...prev,
+          [data.conversationId]: { isTyping: true },
+        }))
+
+        const timers = typingTimersRef.current
+        if (timers.has(data.conversationId)) window.clearTimeout(timers.get(data.conversationId))
+        timers.set(
+          data.conversationId,
+          window.setTimeout(() => {
+            setTypingMap((prev) => (prev[data.conversationId]?.isTyping ? {
+              ...prev,
+              [data.conversationId]: { isTyping: false },
+            } : prev))
+            timers.delete(data.conversationId)
+          }, 2500),
+        )
+
+        return
+      }
+
+      if (data.type !== 'message') return
+
+      setThreads((prev) => {
+        const index = prev.findIndex((thread) => thread.conversation_id === data.conversationId)
+        if (index === -1) {
+          void loadThreads(true)
+          return prev
+        }
+
+        const next = [...prev]
+        const current = next[index]
+        next.splice(index, 1)
+
+        return [{
+          ...current,
+          last_body: data.last_body ?? current.last_body,
+          last_created_at: data.last_created_at ?? current.last_created_at,
+          unread_count: data.isOwn ? current.unread_count : current.unread_count + 1,
+        }, ...next]
+      })
+    }
+
+    return () => {
+      bc.close()
+    }
+  }, [loadThreads])
+
+  useEffect(() => {
+    const conversationIds = new Set(threads.map((thread) => thread.conversation_id))
+    const existingChannels = typingChannelsRef.current
+
+    for (const [conversationId, channel] of existingChannels) {
+      if (!conversationIds.has(conversationId)) {
+        void supabase.removeChannel(channel)
+        existingChannels.delete(conversationId)
+      }
+    }
+
+    for (const conversationId of conversationIds) {
+      if (existingChannels.has(conversationId)) continue
+
+      const channel = supabase
+        .channel(`typing-${conversationId}`)
+        .on('broadcast', { event: 'typing' }, (payload) => {
+          const broadcast = payload?.payload as { user_id?: string } | undefined
+          const userId = broadcast?.user_id
+          if (!userId || userId === SYSTEM_USER_ID) return
+
+          setTypingMap((prev) => ({
+            ...prev,
+            [conversationId]: { isTyping: true },
+          }))
+
+          const timers = typingTimersRef.current
+          if (timers.has(conversationId)) window.clearTimeout(timers.get(conversationId))
+          timers.set(
+            conversationId,
+            window.setTimeout(() => {
+              setTypingMap((prev) => (prev[conversationId]?.isTyping ? {
+                ...prev,
+                [conversationId]: { isTyping: false },
+              } : prev))
+              timers.delete(conversationId)
+            }, 2500),
+          )
+        })
+        .subscribe()
+
+      existingChannels.set(conversationId, channel)
+    }
+  }, [threads])
+
+  useEffect(() => {
+    const channels = typingChannelsRef.current
+    const timers = typingTimersRef.current
+
+    return () => {
+      for (const channel of channels.values()) {
+        void supabase.removeChannel(channel)
+      }
+      channels.clear()
+
+      for (const timer of timers.values()) {
+        window.clearTimeout(timer)
+      }
+      timers.clear()
+    }
+  }, [])
 
   const searchUsers = useCallback(async () => {
     const term = q.trim()
@@ -145,15 +261,20 @@ export default function AdminInboxPage() {
       setUserHits([])
       return
     }
+
     setSearching(true)
     setError(null)
+
     try {
-      const r = await adminFetch(`/api/admin/inbox/users?q=${encodeURIComponent(term)}`)
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בחיפוש משתמשים'))
-      setUserHits(Array.isArray(j?.users) ? (j.users as UserHit[]) : [])
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'שגיאה')
+      const res = await adminFetch(`/api/admin/inbox/users?q=${encodeURIComponent(term)}`)
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(getAdminErrorMessage(json, 'שגיאה בחיפוש משתמשים'))
+      }
+
+      setUserHits(Array.isArray(json?.users) ? (json.users as UserHit[]) : [])
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : 'שגיאה')
       setUserHits([])
     } finally {
       setSearching(false)
@@ -161,304 +282,314 @@ export default function AdminInboxPage() {
   }, [q])
 
   const startOrOpen = useCallback(async (userId: string) => {
-    if (!systemUserId) {
-      setError('חסר NEXT_PUBLIC_SYSTEM_USER_ID ב-env')
+    if (!SYSTEM_USER_ID) {
+      setError('חסר NEXT_PUBLIC_SYSTEM_USER_ID ב־env')
       return
     }
+
     try {
-      const r = await adminFetch('/api/admin/inbox/thread', {
+      const res = await adminFetch('/api/admin/inbox/thread', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ user_id: userId }),
       })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בפתיחת שיחה'))
-      const cid = String(j?.conversation_id ?? '')
-      if (!cid) throw new Error('שגיאה: חסר conversation_id')
-      setSelectedConversationId(cid)
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(getAdminErrorMessage(json, 'שגיאה בפתיחת שיחה'))
+      }
+
+      const conversationId = String(json?.conversation_id ?? '')
+      if (!conversationId) {
+        throw new Error('שגיאה: חסר conversation_id')
+      }
+
+      setSelectedConversationId(conversationId)
       setQ('')
       setUserHits([])
-      void loadThreads()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'שגיאה')
+      void loadThreads(true)
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : 'שגיאה')
     }
-  }, [loadThreads, systemUserId])
+  }, [loadThreads])
 
-  const send = useCallback(async () => {
-    if (!selectedConversationId) return
-    const body = text.trim()
-    if (body.length < 1) return
-    setSending(true)
-    setError(null)
+  const sendBroadcast = useCallback(async () => {
+    const text = broadcastBody.trim()
+    if (!text) return
+    setBroadcastLoading(true)
+    setBroadcastResult(null)
+    setBroadcastError(null)
     try {
-      const r = await adminFetch('/api/admin/inbox/send', {
+      const res = await adminFetch('/api/admin/inbox/broadcast', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ conversation_id: selectedConversationId, body }),
+        body: JSON.stringify({ body: text }),
       })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בשליחה'))
-      setText('')
-      await loadMessages(selectedConversationId)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'שגיאה')
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(getAdminErrorMessage(json, 'שגיאה בשליחת תפוצה'))
+      const sent = typeof json?.sent === 'number' ? json.sent : '?'
+      setBroadcastResult(`נשלח בהצלחה ל־${sent} משתמשים`)
+      setBroadcastBody('')
+    } catch (caught: unknown) {
+      setBroadcastError(caught instanceof Error ? caught.message : 'שגיאה')
     } finally {
-      setSending(false)
+      setBroadcastLoading(false)
     }
-  }, [loadMessages, selectedConversationId, text])
+  }, [broadcastBody])
 
-  const headerName = useMemo(() => {
-    if (!selectedThread) return ''
-    return (selectedThread.other_display_name ?? '').trim() || (selectedThread.other_username ?? '').trim() || 'שיחה'
-  }, [selectedThread])
-
-  // On mobile: show chat panel when a thread is selected, otherwise show sidebar
-  const showChatOnMobile = selectedConversationId !== null
-
-  return (
-    <div className="space-y-4" dir="rtl">
-      <PageHeader
-        title="אינבוקס תמיכת מערכת"
-        description="חיפוש משתמשים · פתיחת שיחה · היסטוריה · שליחת הודעות כ״מערכת האתר״."
-      />
-
-      {error && <ErrorBanner message={error} />}
-
-      <div className="grid h-[calc(100dvh-160px)] min-h-[400px] gap-4 md:grid-cols-[minmax(320px,360px)_1fr]">
-        {/* Left: threads + user search */}
-        <aside className={
-          'flex min-w-0 min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white ' +
-          (showChatOnMobile ? 'hidden md:flex' : 'flex')
-        }>
-          {/* Search section */}
-          <div className="border-b border-neutral-100 p-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search size={14} className="absolute top-1/2 right-3 -translate-y-1/2 text-neutral-400" />
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void searchUsers()
-                  }}
-                  placeholder="חפש username / שם תצוגה…"
-                  className="w-full rounded-lg border border-neutral-200 bg-white py-2 pr-8 pl-3 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
-                />
-              </div>
-              <button
-                onClick={() => void searchUsers()}
-                disabled={searching}
-                className="shrink-0 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-              >
-                חפש
-              </button>
-            </div>
-
-            {searching && <div className="mt-2 text-[11px] text-neutral-400">מחפש…</div>}
-
-            {userHits.length > 0 && (
-              <div className="mt-3 space-y-1.5">
-                {userHits.map((u) => {
-                  const name = (u.display_name ?? '').trim() || (u.username ?? '').trim()
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => void startOrOpen(u.id)}
-                      className="flex w-full items-center gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-right transition-colors hover:bg-neutral-50"
-                    >
-                      <Avatar src={u.avatar_url} name={name} size={32} shape="square" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-neutral-900">{name}</div>
-                        <div className="truncate text-[11px] text-neutral-400">@{u.username}</div>
-                      </div>
-                      <span className="text-xs font-medium text-neutral-500">פתח</span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+  const threadPane = (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-black/5 bg-[#F7F6F3] px-4 py-3 dark:border-white/10 dark:bg-[#1a1a1a]">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-lg font-black">אינבוקס מערכת</div>
+            <div className="text-xs text-muted-foreground">חיפוש משתמשים, פתיחת שיחות והמשך טיפול</div>
           </div>
+          <button
+            type="button"
+            title="שלח הודעת תפוצה לכלל המשתמשים"
+            onClick={() => {
+              setBroadcastOpen((v) => !v)
+              setBroadcastResult(null)
+              setBroadcastError(null)
+            }}
+            className={[
+              'shrink-0 rounded-xl p-2 transition',
+              broadcastOpen
+                ? 'bg-black text-white dark:bg-white dark:text-black'
+                : 'text-neutral-500 hover:bg-black/5 dark:text-muted-foreground dark:hover:bg-white/10',
+            ].join(' ')}
+          >
+            <Megaphone size={16} />
+          </button>
+        </div>
 
-          {/* Threads list */}
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+        {broadcastOpen && (
+          <div className="mt-3 rounded-2xl border border-black/10 bg-white p-3 dark:border-white/10 dark:bg-card">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">שיחות</span>
+              <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">הודעת תפוצה — כלל המשתמשים</span>
               <button
                 type="button"
-                onClick={() => void loadThreads()}
-                className="flex h-7 w-7 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50"
-                aria-label="רענן"
+                onClick={() => { setBroadcastOpen(false); setBroadcastResult(null); setBroadcastError(null) }}
+                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
               >
-                <RefreshCw size={12} />
+                <X size={14} />
               </button>
             </div>
-            {threadsLoading ? (
-              <TableSkeleton rows={3} />
-            ) : threads.length === 0 ? (
-              <EmptyState
-                title="אין שיחות עדיין"
-                icon={<MessageSquare size={28} strokeWidth={1.5} />}
-              />
-            ) : (
-              <div className="space-y-1.5">
-                {threads.map((t) => {
-                  const name =
-                    (t.other_display_name ?? '').trim() || (t.other_username ?? '').trim() || 'שיחה'
-                  const active = t.conversation_id === selectedConversationId
-                  const unread = Number.isFinite(t.unread_count) ? t.unread_count : 0
-                  const hasUnread = unread > 0
-                  const lastBody = (t.last_body ?? '').trim() || 'אין עדיין הודעות'
-
-                  return (
-                    <button
-                      key={t.conversation_id}
-                      type="button"
-                      onClick={() => setSelectedConversationId(t.conversation_id)}
-                      className={
-                        'w-full rounded-lg p-3 text-right transition-colors ' +
-                        (active
-                          ? 'bg-neutral-100 border border-neutral-300'
-                          : 'border border-transparent hover:bg-neutral-50')
-                      }
-                    >
-                      <div className="flex items-center gap-3">
-                        <Avatar src={t.other_avatar_url} name={name} size={36} shape="square" />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-sm font-semibold text-neutral-900">{name}</span>
-                            {hasUnread && (
-                              <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-neutral-900 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                                {unread > 99 ? '99+' : unread}
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-0.5 truncate text-[11px] text-neutral-400">{lastBody}</div>
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
+            <textarea
+              value={broadcastBody}
+              onChange={(e) => { setBroadcastBody(e.target.value); setBroadcastResult(null); setBroadcastError(null) }}
+              placeholder="כתוב הודעה לכלל המשתמשים…"
+              rows={4}
+              maxLength={4000}
+              className="w-full resize-none rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm outline-none transition focus:border-neutral-400 dark:border-white/10 dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-muted-foreground dark:focus:border-white/20"
+            />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">{broadcastBody.length}/4000</span>
+              <button
+                type="button"
+                onClick={() => void sendBroadcast()}
+                disabled={broadcastLoading || !broadcastBody.trim()}
+                className="rounded-xl bg-black px-4 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40 dark:bg-white dark:text-black"
+              >
+                {broadcastLoading ? 'שולח…' : 'שלח לכולם'}
+              </button>
+            </div>
+            {broadcastResult && (
+              <p className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">{broadcastResult}</p>
+            )}
+            {broadcastError && (
+              <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{broadcastError}</p>
             )}
           </div>
+        )}
+
+        <div className="mt-3 flex gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(event) => {
+                const nextValue = event.target.value
+                setQ(nextValue)
+                if (nextValue.trim().length < 2) setUserHits([])
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void searchUsers()
+              }}
+              placeholder="חפש username או שם תצוגה..."
+              className="w-full rounded-2xl border border-black/10 bg-white py-2.5 pr-9 pl-3 text-sm outline-none transition focus:border-neutral-400 dark:border-white/10 dark:bg-card dark:text-foreground dark:placeholder:text-muted-foreground dark:focus:border-white/20"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void searchUsers()}
+            disabled={searching}
+            className="shrink-0 rounded-2xl bg-black px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            חפש
+          </button>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto bg-[#FBFAF8] p-3 dark:bg-[#141414]">
+        {userHits.length > 0 ? (
+          <div className="mb-3">
+            <div className="mb-2 px-1 text-[11px] font-bold text-muted-foreground">תוצאות חיפוש</div>
+            <div className="space-y-2">
+              {userHits.map((user) => {
+                const name = (user.display_name ?? '').trim() || (user.username ?? '').trim()
+                return (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => void startOrOpen(user.id)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 text-right transition-all duration-150 hover:bg-neutral-50 hover:shadow-sm dark:border-border dark:bg-card dark:hover:bg-muted"
+                  >
+                    <Avatar src={user.avatar_url} name={name} size={44} shape="square" />
+
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-black text-neutral-900 dark:text-foreground">{name}</div>
+                      <div className="mt-1 truncate text-xs text-muted-foreground">@{user.username}</div>
+                    </div>
+
+                    <span className="text-xs font-bold text-neutral-500 dark:text-muted-foreground">פתח</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {threadsLoading ? (
+          <TableSkeleton rows={4} />
+        ) : threads.length === 0 ? (
+          <EmptyState
+            title="אין עדיין שיחות"
+            description="אפשר לחפש משתמש למעלה ולפתוח שיחה חדשה."
+            icon={<Search size={30} strokeWidth={1.5} />}
+          />
+        ) : (
+          <div className="space-y-2">
+            {threads.map((thread) => {
+              const displayName =
+                (thread.other_display_name ?? '').trim() ||
+                (thread.other_username ?? '').trim() ||
+                'שיחה'
+
+              const isActive = selectedConversationId === thread.conversation_id
+              const unread = Number.isFinite(thread.unread_count) ? thread.unread_count : 0
+              const hasUnread = unread > 0
+              const rawBody = (thread.last_body ?? '').trim()
+              const lastBody = rawBody
+                ? (rawBody.length > 200 ? `${rawBody.slice(0, 200)}…` : rawBody)
+                : 'אין עדיין הודעות'
+              const isTyping = typingMap[thread.conversation_id]?.isTyping === true
+
+              return (
+                <button
+                  key={thread.conversation_id}
+                  type="button"
+                  onClick={() => setSelectedConversationId(thread.conversation_id)}
+                  className={[
+                    'group block w-full rounded-2xl border p-3 text-right transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 dark:focus-visible:ring-[#3B6CE3]/50',
+                    isActive
+                      ? 'bg-white border-neutral-300 ring-1 ring-neutral-300 dark:bg-[#1e2d4d] dark:border-[#3B6CE3]/50 dark:ring-[#3B6CE3]/50'
+                      : hasUnread
+                        ? 'bg-white border-neutral-200 hover:bg-neutral-50 hover:shadow-sm hover:-translate-y-[1px] dark:bg-card dark:border-border dark:hover:bg-muted'
+                        : 'bg-white hover:bg-neutral-50 hover:shadow-sm hover:-translate-y-[1px] dark:bg-card dark:border-border dark:hover:bg-muted',
+                  ].join(' ')}
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar src={thread.other_avatar_url} name={displayName} size={44} shape="square" />
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div
+                          className={[
+                            'truncate text-sm font-black',
+                            hasUnread ? 'text-neutral-950 dark:text-foreground' : 'text-neutral-900 dark:text-foreground',
+                          ].join(' ')}
+                        >
+                          {displayName}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={[
+                              'shrink-0 text-[11px]',
+                              hasUnread ? 'font-semibold text-neutral-900 dark:text-foreground' : 'text-muted-foreground',
+                            ].join(' ')}
+                          >
+                            {formatLastTime(thread.last_created_at)}
+                          </div>
+
+                          {hasUnread ? (
+                            <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-black px-2 py-0.5 text-[11px] font-bold text-white">
+                              {unread > 99 ? '99+' : unread}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {isTyping ? (
+                        <div
+                          dir="rtl"
+                          className="mt-1 min-w-0 truncate text-xs italic text-[#3B6CE3] dark:text-[#7a9ff5]"
+                          style={{ unicodeBidi: 'isolate' }}
+                        >
+                          מקליד/ה…
+                        </div>
+                      ) : (
+                        <div
+                          className={[
+                            'mt-1 min-w-0 truncate text-xs',
+                            hasUnread ? 'font-semibold text-neutral-900 dark:text-foreground' : 'text-muted-foreground',
+                          ].join(' ')}
+                        >
+                          {lastBody}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="h-full min-h-0 overflow-hidden" dir="rtl">
+      {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
+
+      <div className="hidden h-full min-h-0 md:grid md:grid-cols-[360px_1fr] md:gap-4">
+        <aside className="h-full min-h-0 overflow-hidden rounded-3xl border border-black/5 bg-[#FAF9F6] shadow-sm dark:border-white/10 dark:bg-[#1a1a1a]">
+          {threadPane}
         </aside>
 
-        {/* Right: chat */}
-        <section className={
-          'flex min-w-0 min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white ' +
-          (showChatOnMobile ? 'flex' : 'hidden md:flex')
-        }>
-          {!selectedConversationId ? (
-            <div className="flex h-full items-center justify-center p-6 text-center">
-              <EmptyState
-                title="בחר שיחה"
-                description="או חפש משתמש כדי לפתוח שיחה חדשה"
-                icon={<MessageSquare size={40} strokeWidth={1.5} />}
-              />
-            </div>
+        <main className="h-full min-h-0 overflow-hidden">
+          {selectedConversationId ? (
+            <ChatClient conversationId={selectedConversationId} mode="admin" />
           ) : (
-            <>
-              {/* Chat header */}
-              <div className="flex items-center gap-3 border-b border-neutral-100 px-4 py-3">
-                {/* Back button on mobile */}
-                <button
-                  type="button"
-                  onClick={() => setSelectedConversationId(null)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 md:hidden"
-                  aria-label="חזרה"
-                >
-                  <ArrowLeft size={16} />
-                </button>
-                <Avatar
-                  src={selectedThread?.other_avatar_url ?? null}
-                  name={headerName}
-                  size={32}
-                  shape="square"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-neutral-900">{headerName}</div>
-                  <div className="text-[11px] text-neutral-400">
-                    {selectedThread?.other_username ? `@${selectedThread.other_username}` : ''}
-                  </div>
-                </div>
+            <div className="flex h-full w-full items-center justify-center rounded-3xl border border-black/5 bg-[#FAF9F6] shadow-sm dark:border-white/10 dark:bg-[#1a1a1a]">
+              <div className="text-center">
+                <div className="text-lg font-black">בחר שיחה</div>
+                <div className="mt-1 text-sm text-muted-foreground">כדי להתחיל לדבר 🙂</div>
               </div>
-
-              {/* Messages */}
-              <div
-                ref={listRef}
-                className="min-h-0 flex-1 overflow-y-auto p-4"
-                style={{ backgroundColor: '#FAFAF9' }}
-              >
-                {messagesLoading ? (
-                  <TableSkeleton rows={3} />
-                ) : messages.length === 0 ? (
-                  <EmptyState
-                    title="אין עדיין הודעות"
-                    icon={<MessageSquare size={28} strokeWidth={1.5} />}
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {messages.map((m) => {
-                      const isMine = systemUserId ? m.sender_id === systemUserId : false
-                      return (
-                        <div key={m.id} className={isMine ? 'flex justify-start' : 'flex justify-end'}>
-                          <div
-                            className={
-                              'max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm whitespace-pre-wrap shadow-sm ' +
-                              (isMine
-                                ? 'bg-white border border-neutral-200 text-neutral-900'
-                                : 'bg-neutral-900 text-white')
-                            }
-                          >
-                            <div>{m.body}</div>
-                            <div className={
-                              'mt-1.5 text-[10px] ' +
-                              (isMine ? 'text-neutral-400' : 'text-white/60')
-                            }>
-                              {formatDay(m.created_at)} · {formatTime(m.created_at)}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Composer */}
-              <div className="border-t border-neutral-100 bg-white p-3">
-                <div className="flex items-end gap-2">
-                  <textarea
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    rows={2}
-                    placeholder="כתוב הודעה…"
-                    className="w-full resize-none rounded-lg border border-neutral-200 bg-white p-3 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
-                    onKeyDown={(e) => {
-                      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                        e.preventDefault()
-                        void send()
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void send()}
-                    disabled={sending || text.trim().length === 0}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-white hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed"
-                    aria-label="שלח"
-                  >
-                    <Send size={16} />
-                  </button>
-                </div>
-                <div className="mt-1.5 text-[11px] text-neutral-400">
-                  שליחה כ״מערכת האתר״ (System User). קיצור: Ctrl/⌘ + Enter.
-                </div>
-              </div>
-            </>
+            </div>
           )}
-        </section>
+        </main>
+      </div>
+
+      <div className="h-full min-h-0 overflow-hidden md:hidden">
+        {selectedConversationId ? (
+          <ChatClient conversationId={selectedConversationId} mode="admin" />
+        ) : (
+          <div className="h-full min-h-0 overflow-hidden rounded-2xl border border-black/5 bg-[#FAF9F6] shadow-sm dark:border-white/10 dark:bg-[#1a1a1a]">
+            {threadPane}
+          </div>
+        )}
       </div>
     </div>
   )

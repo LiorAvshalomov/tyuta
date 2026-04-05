@@ -43,13 +43,13 @@ export default function DateRangeBar({
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* Presets */}
-      <div className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1">
+      <div className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-border dark:bg-card">
         {PRESETS.map((p) => (
           <button
             key={p.days}
             type="button"
             onClick={() => onPreset(p.days)}
-            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+            className="rounded-md px-2.5 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-muted/50 dark:hover:text-neutral-200"
           >
             {p.label}
           </button>
@@ -57,27 +57,27 @@ export default function DateRangeBar({
       </div>
 
       {/* Date pickers */}
-      <div className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5">
-        <Calendar size={14} className="text-neutral-400" />
+      <div className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 dark:border-border dark:bg-card">
+        <Calendar size={14} className="text-neutral-400 dark:text-neutral-500" />
         <input
           type="date"
           value={startDate}
           onChange={(e) => onStartChange(e.target.value)}
-          className="border-none bg-transparent text-xs font-medium text-neutral-700 outline-none"
+          className="border-none bg-transparent text-xs font-medium text-neutral-700 outline-none dark:text-neutral-300 dark:[color-scheme:dark]"
           aria-label="תאריך התחלה"
         />
-        <span className="text-xs text-neutral-300">—</span>
+        <span className="text-xs text-neutral-300 dark:text-neutral-600">—</span>
         <input
           type="date"
           value={endDate}
           onChange={(e) => onEndChange(e.target.value)}
-          className="border-none bg-transparent text-xs font-medium text-neutral-700 outline-none"
+          className="border-none bg-transparent text-xs font-medium text-neutral-700 outline-none dark:text-neutral-300 dark:[color-scheme:dark]"
           aria-label="תאריך סיום"
         />
       </div>
 
       {/* Bucket selector */}
-      <div className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1">
+      <div className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white p-1 dark:border-border dark:bg-card">
         {BUCKETS.map((b) => (
           <button
             key={b.value}
@@ -86,8 +86,8 @@ export default function DateRangeBar({
             className={
               'rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ' +
               (bucket === b.value
-                ? 'bg-neutral-900 text-white'
-                : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900')
+                ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
+                : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-muted/50 dark:hover:text-neutral-200')
             }
           >
             {b.label}

@@ -33,10 +33,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     // 2) Fallback: check if uuid matches a post's id directly (future-proof, in case
     //    any tool or deep link ever uses the DB id instead of the slug).
+    //    Only resolve published, non-deleted posts to prevent leaking draft/deleted slugs.
     const { data: byId } = await supabase
       .from('posts')
       .select('slug')
       .eq('id', uuid)
+      .eq('status', 'published')
+      .is('deleted_at', null)
       .maybeSingle<{ slug: string }>()
 
     if (byId?.slug && byId.slug !== uuid) {

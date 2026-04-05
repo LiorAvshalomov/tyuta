@@ -2,11 +2,12 @@ import Link from 'next/link'
 import Image from 'next/image'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { supabase } from '@/lib/supabaseClient'
-import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
+import { coverProxySrc, isProxySrc, isGifUrl } from '@/lib/coverUrl'
 import { RelativeTime } from '@/components/RelativeTime'
 import { getPostDisplayDate } from '@/lib/posts'
 import StickySidebar from '@/components/StickySidebar'
 import AuthorHover from '@/components/AuthorHover'
+import GifCoverCard from '@/components/GifCoverCard'
 
 type PostRow = {
   id: string
@@ -107,17 +108,22 @@ function CoverFrame({
     return <div className={`${rounded} border bg-neutral-100`} style={{ width: w, height: h }} />
   }
   const proxied = coverProxySrc(src)!
+  const isGif = isGifUrl(proxied)
   return (
     <div className={`relative ${rounded} overflow-hidden border bg-white`} style={{ width: w, height: h }}>
-      <Image
-        src={proxied}
-        alt={alt}
-        fill
-        sizes={sizes ?? `${w}px`}
-        quality={quality}
-        className="object-cover"
-        unoptimized={isProxySrc(proxied)}
-      />
+      {isGif ? (
+        <GifCoverCard src={proxied} alt={alt} />
+      ) : (
+        <Image
+          src={proxied}
+          alt={alt}
+          fill
+          sizes={sizes ?? `${w}px`}
+          quality={quality}
+          className="object-cover"
+          unoptimized={isProxySrc(proxied)}
+        />
+      )}
     </div>
   )
 }
@@ -155,15 +161,22 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
         <Link href={`/post/${post.slug}`} className="absolute inset-0 block tyuta-img-hover" tabIndex={-1} aria-hidden="true">
           <div className="relative w-full h-full">
             {post.cover_image_url ? (
-              <Image
-                src={coverProxySrc(post.cover_image_url)!}
-                alt={post.title}
-                fill
-                sizes="(max-width: 768px) 100vw, 500px"
-                quality={85}
-                className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-                unoptimized={isProxySrc(coverProxySrc(post.cover_image_url)!)}
-              />
+              (() => {
+                const proxied = coverProxySrc(post.cover_image_url)!
+                return isGifUrl(proxied) ? (
+                  <GifCoverCard src={proxied} alt={post.title} />
+                ) : (
+                  <Image
+                    src={proxied}
+                    alt={post.title}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 500px"
+                    quality={85}
+                    className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+                    unoptimized={isProxySrc(proxied)}
+                  />
+                )
+              })()
             ) : null}
           </div>
         </Link>
@@ -341,10 +354,10 @@ function ListRow({ post }: { post: CardPost }) {
                     <span className="font-semibold text-muted-foreground">{post.subcategory_name}</span>
                   </>
                 ) : null}
-                {post.subcategory_name && post.tags.length > 0 ? (
+                {post.subcategory_name && post.tags.length > 0 && !showMedals ? (
                   <span className="mx-2 text-muted-foreground/50">·</span>
                 ) : null}
-                {post.tags.length > 0 ? (() => {
+                {post.tags.length > 0 && !showMedals ? (() => {
                   const desktopCap = post.channel_slug === 'magazine' ? 3 : 6
                   const leadCls = post.subcategory_name ? '' : 'mx-2'
                   const mobileOverflow = post.tags.length - 1
@@ -384,10 +397,18 @@ function RecentMiniRow({ post }: { post: CardPost }) {
     <div className="flex flex-col rounded border bg-white p-2 hover:shadow-sm">
       <Link href={`/post/${post.slug}`} className="block">
         <div className="flex flex-row-reverse items-stretch gap-2">
-          <CoverFrame src={post.cover_image_url} w={72} h={72} rounded="rounded" alt={post.title} sizes="(max-width: 640px) 100px, 120px" quality={90}/>
+          <div className="relative shrink-0">
+            <CoverFrame src={post.cover_image_url} w={72} h={72} rounded="rounded" alt={post.title} sizes="(max-width: 640px) 100px, 120px" quality={90}/>
+            {hasAnyMedals(post.medals) ? (
+              <div dir="ltr" className="absolute top-1 left-1 z-10 pointer-events-none flex items-center gap-0.5 text-[11px] leading-none" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>
+                {post.medals.gold > 0 ? <span>🥇 {post.medals.gold}</span> : null}
+                {post.medals.silver > 0 ? <span>🥈 {post.medals.silver}</span> : null}
+                {post.medals.bronze > 0 ? <span>🥉 {post.medals.bronze}</span> : null}
+              </div>
+            ) : null}
+          </div>
           <div className="min-w-0 flex-1 flex flex-col">
             <div className="text-xs font-bold leading-snug line-clamp-2">{post.title}</div>
-            <MedalsCompact medals={post.medals} />
             {post.excerpt ? (
               <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{post.excerpt}</div>
             ) : (

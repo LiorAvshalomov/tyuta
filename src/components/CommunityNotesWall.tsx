@@ -4,11 +4,20 @@ import { supabase } from '@/lib/supabaseClient'
 import { adminFetch } from '@/lib/admin/adminFetch'
 import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
+import {
+  PROFILE_REFRESH_CHANNEL,
+  PROFILE_REFRESH_EVENT,
+  PROFILE_REFRESH_STORAGE_KEY,
+  readProfileRefreshPayload,
+  type ProfileRefreshPayload,
+} from '@/lib/profileFreshness'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { waitForClientSession } from '@/lib/auth/clientSession'
+import { buildLoginRedirect } from '@/lib/auth/protectedRoutes'
 
 type NoteRow = {
   id: string
@@ -177,20 +186,20 @@ export default function CommunityNotesWall() {
   }, [])
 
   async function loadMe() {
-    const { data } = await supabase.auth.getUser()
-    const uid = data.user?.id ?? null
-    setMeId(uid)
-    setAuthChecked(true)
-
-    if (!uid) {
-      router.replace('/auth/login')
+    const resolved = await waitForClientSession()
+    if (resolved.status !== 'authenticated') {
+      setMeId(null)
+      setAuthChecked(true)
+      router.replace(buildLoginRedirect('/notes'))
       return null
     }
 
-    return uid
+    setMeId(resolved.user.id)
+    setAuthChecked(true)
+    return resolved.user.id
   }
 
-  async function loadAdminFlag(_uid: string) {
+  async function loadAdminFlag() {
     try {
       const res = await adminFetch('/api/me/roles')
       const roles = await res.json() as { isAdmin?: boolean; isMod?: boolean }
@@ -216,7 +225,7 @@ export default function CommunityNotesWall() {
     }
   }, [openMenuId])
 
-  async function loadNotes(silent = false) {
+  const loadNotes = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
 
     const { data, error } = await supabase
@@ -231,11 +240,9 @@ export default function CommunityNotesWall() {
 
     const nextNotes = sortNotesByUpdatedAtDesc((data as NoteRow[]) ?? [])
     setNotes((prev) => (sameNoteSnapshot(prev, nextNotes) ? prev : nextNotes))
-  }
+  }, [])
 
-  async function loadMyNote() {
-    const { data: me } = await supabase.auth.getUser()
-    const uid = me.user?.id
+  const loadMyNote = useCallback(async (uid: string | null = meId) => {
     if (!uid) {
       setMyLastUpdatedAt(null)
       return
@@ -249,7 +256,50 @@ export default function CommunityNotesWall() {
 
     if (error) return
     if (data?.updated_at) setMyLastUpdatedAt(data.updated_at)
-  }
+  }, [meId])
+
+  useEffect(() => {
+    const refreshNotesFromProfileUpdate = (payload: ProfileRefreshPayload | null) => {
+      if (!payload?.userId) return
+      void loadNotes(true)
+
+      if (payload.userId === meId) {
+        void loadMyNote(payload.userId)
+      }
+    }
+
+    const onWindowEvent = (event: Event) => {
+      const detail = (event as CustomEvent<ProfileRefreshPayload>).detail
+      refreshNotesFromProfileUpdate(detail ?? null)
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== PROFILE_REFRESH_STORAGE_KEY || !event.newValue) return
+      refreshNotesFromProfileUpdate(readProfileRefreshPayload())
+    }
+
+    window.addEventListener(PROFILE_REFRESH_EVENT, onWindowEvent as EventListener)
+    window.addEventListener('storage', onStorage)
+
+    let channel: BroadcastChannel | null = null
+
+    if ('BroadcastChannel' in window) {
+      try {
+        channel = new BroadcastChannel(PROFILE_REFRESH_CHANNEL)
+        channel.onmessage = (event) => {
+          refreshNotesFromProfileUpdate((event.data as ProfileRefreshPayload | null) ?? null)
+        }
+      } catch {
+        channel = null
+      }
+    }
+
+    return () => {
+      window.removeEventListener(PROFILE_REFRESH_EVENT, onWindowEvent as EventListener)
+      window.removeEventListener('storage', onStorage)
+      channel?.close()
+    }
+  }, [loadMyNote, loadNotes, meId])
 
   useEffect(() => {
     let ch: ReturnType<typeof supabase.channel> | null = null
@@ -257,7 +307,7 @@ export default function CommunityNotesWall() {
     ;(async () => {
       const uid = await loadMe()
       if (!uid) return
-      await Promise.all([loadNotes(), loadMyNote(), loadAdminFlag(uid)])
+      await Promise.all([loadNotes(), loadMyNote(uid), loadAdminFlag()])
 
       ch = supabase
         .channel('community_notes_changes')
@@ -325,11 +375,11 @@ export default function CommunityNotesWall() {
       clearInterval(t)
       window.removeEventListener('focus', onFocus)
     }
-  }, [meId, rtStatus])
+  }, [loadNotes, meId, rtStatus])
 
   async function handlePost() {
     if (!meId) {
-      router.push('/auth/login')
+      router.push(buildLoginRedirect('/notes'))
       return
     }
 
@@ -389,7 +439,7 @@ export default function CommunityNotesWall() {
 
   async function handleOpenChat(note: NoteRow) {
     if (!meId) {
-      router.push('/auth/login')
+      router.push(buildLoginRedirect('/notes'))
       return
     }
     if (note.user_id === meId) return

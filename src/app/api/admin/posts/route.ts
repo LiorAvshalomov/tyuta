@@ -48,14 +48,19 @@ export async function GET(req: NextRequest) {
 
   const isModeratedExpr = 'moderated_at.not.is.null'
   const isUserDeletedExpr = 'deleted_at.not.is.null'
+  const isHiddenByUserModerationExpr = 'status.eq.banned'
 
   if (filter === 'deleted') {
     // Deleted tab = user trash OR admin temporary delete (moderated)
-    query = query.or(`${isUserDeletedExpr},${isModeratedExpr},status.eq.moderated`)
+    query = query.or(`${isUserDeletedExpr},${isModeratedExpr},status.eq.moderated,${isHiddenByUserModerationExpr}`)
   }
 
   if (filter === 'active') {
-    query = query.is('deleted_at', null).is('moderated_at', null).neq('status', 'moderated')
+    query = query
+      .is('deleted_at', null)
+      .is('moderated_at', null)
+      .neq('status', 'moderated')
+      .neq('status', 'banned')
   }
 
   if (filter === 'published') {
@@ -67,6 +72,7 @@ export async function GET(req: NextRequest) {
     query = query
       .neq('status', 'published')
       .neq('status', 'moderated')
+      .neq('status', 'banned')
       .is('deleted_at', null)
       .is('moderated_at', null)
   }

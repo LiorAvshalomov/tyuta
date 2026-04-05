@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { postImageStoragePath } from '@/lib/postImageUrl'
+import { validateImageBuffer } from '@/lib/validateImage'
 
 export const runtime = 'nodejs'
 
@@ -136,11 +137,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return new NextResponse('Payload too large', { status: 413 })
   }
 
+  const validated = validateImageBuffer(Buffer.from(body))
+  if (!validated.ok) {
+    return new NextResponse('Invalid image content', { status: 415 })
+  }
+
   return new NextResponse(body, {
     status: 200,
     headers: {
-      'Content-Type': data.type || 'image/jpeg',
+      'Content-Type': validated.mimeType,
       'Cache-Control': 'public, max-age=31536000, immutable',
+      // Keep browser semantics unchanged, but let shared caches absorb
+      // repeated public reads without holding removed content for too long.
+      'CDN-Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
+      'Vercel-CDN-Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
+      'X-Content-Type-Options': 'nosniff',
     },
   })
 }

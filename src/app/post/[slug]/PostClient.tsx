@@ -19,8 +19,9 @@ import SharePostButton from '@/components/SharePostButton'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import AuthorHover from '@/components/AuthorHover'
-import { coverProxySrc } from '@/lib/coverUrl'
-import type { PostInitialData } from './page'
+import { coverProxySrc, isGifUrl } from '@/lib/coverUrl'
+import GifCoverCard from '@/components/GifCoverCard'
+import type { PostInitialData, PostSsrExtras } from './page'
 
 type RichNode = ComponentProps<typeof RichText>['content']
 
@@ -67,12 +68,6 @@ function pickAuthor(a: Author[] | Author | null | undefined): Author | null {
   return Array.isArray(a) ? (a[0] ?? null) : a
 }
 
-function trunc(s: string, n: number) {
-  const v = (s ?? '').trim()
-  return v.length > n ? `${v.slice(0, n)}…` : v
-}
-
-
 function SidebarSection({
   title,
   action,
@@ -99,11 +94,9 @@ function SidebarSection({
 function SidebarPostItem({
   post,
   showAuthor,
-  isMobile,
 }: {
   post: SidebarPost
   showAuthor?: boolean
-  isMobile?: boolean
 }) {
   const router = useRouter()
 
@@ -165,8 +158,12 @@ function SidebarPostItem({
       {/* תמונה (שמאל) */}
       <div className="h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-muted ring-1 ring-border/50 flex items-center justify-center">
         {coverSrc ? (
-          // CSS background prevents Google from indexing sidebar thumbnails as standalone images
-          <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${coverSrc})` }} aria-hidden="true" />
+          isGifUrl(coverSrc) ? (
+            <GifCoverCard src={coverSrc} alt="" />
+          ) : (
+            // CSS background prevents Google from indexing sidebar thumbnails as standalone images
+            <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url(${coverSrc})` }} aria-hidden="true" />
+          )
         ) : (
           <span className="text-[28px] font-black text-neutral-300 dark:text-muted-foreground/30 select-none leading-none" aria-hidden="true">
             {(post.title ?? 'פ').charAt(0)}
@@ -201,9 +198,10 @@ function NotFoundPost() {
 
 type Props = {
   initialData?: PostInitialData | null
+  initialExtras?: PostSsrExtras | null
 }
 
-export default function PostPage({ initialData }: Props) {
+export default function PostPage({ initialData, initialExtras }: Props) {
   const params = useParams()
   const slug = useMemo(() => {
     const raw = typeof params?.slug === 'string' ? params.slug : ''
@@ -216,12 +214,31 @@ export default function PostPage({ initialData }: Props) {
   const [notFoundFlag, setNotFoundFlag] = useState(false)
   const [post, setPost] = useState<PostRow | null>(initialData as PostRow | null ?? null)
   const [sidebarLoading, setSidebarLoading] = useState(false)
-  const [moreFromAuthor, setMoreFromAuthor] = useState<SidebarPost[]>([])
-  const [hotInChannel, setHotInChannel] = useState<SidebarPost[]>([])
+  const [moreFromAuthor, setMoreFromAuthor] = useState<SidebarPost[]>(initialExtras?.moreFromAuthor ?? [])
+  const [hotInChannel, setHotInChannel] = useState<SidebarPost[]>(initialExtras?.hotInChannel ?? [])
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [medals, setMedals] = useState<{ gold: number; silver: number; bronze: number }>({ gold: 0, silver: 0, bronze: 0 })
-  const [subcategoryName, setSubcategoryName] = useState<string | null>(null)
-  const [postTags, setPostTags] = useState<string[]>([])
+  const [subcategoryName, setSubcategoryName] = useState<string | null>(initialExtras?.subcategoryName ?? null)
+  const [postTags, setPostTags] = useState<string[]>(initialExtras?.postTags ?? [])
+  const usedServerInitialRef = useRef(Boolean(initialData && initialExtras))
+  const usedServerTaxonomyRef = useRef(Boolean(initialData && initialExtras))
+
+  useEffect(() => {
+    if (!initialData || initialData.slug !== slug) return
+
+    // When router.refresh() delivers a newer server payload for the same slug,
+    // reconcile the client state back to the SSR snapshot instead of keeping stale local state.
+    usedServerInitialRef.current = true
+    usedServerTaxonomyRef.current = true
+    setLoading(false)
+    setNotFoundFlag(false)
+    setPost(initialData as PostRow)
+    setSidebarLoading(false)
+    setMoreFromAuthor(initialExtras?.moreFromAuthor ?? [])
+    setHotInChannel(initialExtras?.hotInChannel ?? [])
+    setSubcategoryName(initialExtras?.subcategoryName ?? null)
+    setPostTags(initialExtras?.postTags ?? [])
+  }, [slug, initialData, initialExtras])
 
   // report post
   type ReportReasonCode = 'abusive_language' | 'spam_promo' | 'hate_incitement' | 'privacy_exposure' | 'other'
@@ -236,8 +253,6 @@ export default function PostPage({ initialData }: Props) {
   const [reportOk, setReportOk] = useState<string | null>(null)
   const [reportErr, setReportErr] = useState<string | null>(null)
 
-
-  const [isMobile, setIsMobile] = useState(false)
 
   // Lazy-load comments: eager when deep-link present, deferred via IO otherwise
   const [commentsReady, setCommentsReady] = useState(false)
@@ -267,15 +282,6 @@ export default function PostPage({ initialData }: Props) {
     io.observe(sentinelNode)
     return () => io.disconnect()
   }, [commentsReady, sentinelNode])
-
-  useEffect(() => {
-    // Tailwind breakpoint md=768
-    const mq = window.matchMedia('(max-width: 767px)')
-    const apply = () => setIsMobile(mq.matches)
-    apply()
-    mq.addEventListener?.('change', apply)
-    return () => mq.removeEventListener?.('change', apply)
-  }, [])
 
   // close dropdown on outside click
   useEffect(() => {
@@ -335,6 +341,11 @@ export default function PostPage({ initialData }: Props) {
   }, [loading, post])
 
   useEffect(() => {
+    if (usedServerTaxonomyRef.current && initialData?.id === post?.id) {
+      usedServerTaxonomyRef.current = false
+      return
+    }
+
     setSubcategoryName(null)
     setPostTags([])
     if (!post?.id) return
@@ -379,12 +390,53 @@ export default function PostPage({ initialData }: Props) {
 
     fetchTaxonomy()
     return () => { cancelled = true }
-  }, [post?.id, post?.subcategory_tag_id])
+  }, [initialData?.id, post?.id, post?.subcategory_tag_id])
 
   useEffect(() => {
     if (!slug) return
 
+    if (usedServerInitialRef.current && initialData?.slug === slug) {
+      usedServerInitialRef.current = false
+      return
+    }
+
     let cancelled = false
+
+    const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+    const fetchPublishedPost = async (attempt = 0): Promise<PostRow | null> => {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(
+          `
+            id,
+            slug,
+            title,
+            excerpt,
+            cover_image_url,
+            status,
+            published_at,
+            content_json,
+            created_at,
+            author_id,
+            channel_id,
+            subcategory_tag_id,
+            channel:channels ( name_he, slug ),
+            author:profiles!posts_author_id_fkey ( id, username, display_name, avatar_url )
+          `
+        )
+        .is('deleted_at', null)
+        .eq('status', 'published')
+        .eq('slug', slug)
+        .maybeSingle()
+
+      if (!error && data) return data as PostRow
+      if (attempt >= 1 || cancelled) return null
+
+      await sleep(250)
+      if (cancelled) return null
+      return fetchPublishedPost(attempt + 1)
+    }
 
     const load = async (skipPostFetch = false) => {
       if (!skipPostFetch) {
@@ -402,34 +454,11 @@ export default function PostPage({ initialData }: Props) {
         // Post data already set from server initialData — use it directly
         p = post
       } else {
-        const { data, error } = await supabase
-          .from('posts')
-          .select(
-            `
-            id,
-            slug,
-            title,
-            excerpt,
-            cover_image_url,
-            status,
-            published_at,
-            content_json,
-            created_at,
-            author_id,
-            channel_id,
-            subcategory_tag_id,
-            channel:channels ( name_he, slug ),
-            author:profiles!posts_author_id_fkey ( id, username, display_name, avatar_url )
-          `
-          )
-          .is('deleted_at', null)
-          .eq('status', 'published')
-          .eq('slug', slug)
-          .single()
+        const data = await fetchPublishedPost()
 
         if (cancelled) return
 
-        if (error || !data) {
+        if (!data) {
           setNotFoundFlag(true)
           setLoading(false)
           return
@@ -809,7 +838,7 @@ export default function PostPage({ initialData }: Props) {
         ) : moreFromAuthor.length === 0 ? (
           <div className="text-sm text-muted-foreground">אין עוד פוסטים.</div>
         ) : (
-          moreFromAuthor.map((p) => <SidebarPostItem key={p.id} post={p} isMobile={isMobile} />)
+          moreFromAuthor.map((p) => <SidebarPostItem key={p.id} post={p} />)
         )}
       </SidebarSection>
 
@@ -840,7 +869,7 @@ export default function PostPage({ initialData }: Props) {
           ) : hotInChannel.length === 0 ? (
             <div className="text-sm text-muted-foreground">אין עדיין פוסטים חמים.</div>
           ) : (
-            hotInChannel.map((p) => <SidebarPostItem key={p.id} post={p} showAuthor isMobile={isMobile} />)
+            hotInChannel.map((p) => <SidebarPostItem key={p.id} post={p} showAuthor />)
           )}
         </SidebarSection>
       ) : null}

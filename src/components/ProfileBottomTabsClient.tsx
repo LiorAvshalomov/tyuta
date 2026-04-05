@@ -1,5 +1,6 @@
 'use client'
 
+import type { ComponentProps } from 'react'
 import { useEffect, useState } from 'react'
 import ProfilePostsClient from '@/components/ProfilePostsClient'
 import ProfileStatsCard, { type ProfileReactionTotal } from '@/components/ProfileStatsCard'
@@ -14,6 +15,8 @@ export default function ProfileBottomTabsClient({
   commentsWritten,
   commentsReceived,
   medals,
+  initialReactionTotals,
+  initialPostsData,
 }: {
   profileId: string
   username: string
@@ -21,11 +24,13 @@ export default function ProfileBottomTabsClient({
   commentsWritten: number
   commentsReceived: number
   medals: { gold: number; silver: number; bronze: number }
+  initialReactionTotals?: ProfileReactionTotal[]
+  initialPostsData?: ComponentProps<typeof ProfilePostsClient>['initialData']
 }) {
   const [tab, setTab] = useState<Tab>('posts')
   const [statsLoading, setStatsLoading] = useState(false)
-  const [statsLoaded, setStatsLoaded] = useState(false)
-  const [reactionTotals, setReactionTotals] = useState<ProfileReactionTotal[] | undefined>(undefined)
+  const [statsLoaded, setStatsLoaded] = useState(Array.isArray(initialReactionTotals))
+  const [reactionTotals, setReactionTotals] = useState<ProfileReactionTotal[] | undefined>(initialReactionTotals)
 
   useEffect(() => {
     if (tab !== 'stats' || statsLoaded) return
@@ -101,7 +106,7 @@ export default function ProfileBottomTabsClient({
                   : 'opacity-0 absolute inset-0 translate-y-2 pointer-events-none'
               }`}
             >
-              {tab === 'posts' && <ProfilePostsClient profileId={profileId} username={username} />}
+              {tab === 'posts' && <ProfilePostsClient profileId={profileId} username={username} initialData={initialPostsData} />}
             </div>
             
             {/* Stats Tab */}

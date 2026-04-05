@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
@@ -36,6 +36,16 @@ type DeleteTarget = {
 }
 
 type LikeSummaryRow = { comment_id: string; likes_count: number }
+
+type CommentLikeSyncPayload = {
+  postId: string
+  commentId: string
+  version: string
+}
+
+const COMMENT_LIKE_SYNC_STORAGE_KEY = 'tyuta:comment-like-sync'
+const COMMENT_LIKE_SYNC_EVENT = 'tyuta:comment-like-sync'
+const COMMENT_LIKE_SYNC_CHANNEL = 'tyuta-comment-like-sync'
 
 type RealtimePayload<T> = {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE'
@@ -108,6 +118,7 @@ export default function PostComments({ postId, postSlug, postTitle, postAuthorId
   const itemIdsRef = useRef<string[]>([])
   const userIdRef = useRef<string | null>(null)
   const likeSyncTimerRef = useRef<number | null>(null)
+  const likeRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const bannerCommentIdRef = useRef<string | null>(null)
 
   const searchParams = useSearchParams()
@@ -548,7 +559,7 @@ async function submitReport() {
     return { topLevel: top, repliesByParent: replies }
   }, [items])
 
-  const refreshLikes = async (commentIds: string[], uid: string | null) => {
+  const refreshLikes = useCallback(async (commentIds: string[], uid: string | null) => {
     if (commentIds.length === 0) {
       setLikeCounts({})
       setMyLiked(new Set())
@@ -583,7 +594,99 @@ async function submitReport() {
       if (r?.comment_id) mine.add(String(r.comment_id))
     })
     setMyLiked(mine)
-  }
+  }, [])
+
+  const notifyCommentLikeSync = useCallback((commentId: string) => {
+    if (typeof window === 'undefined') return
+
+    const payload: CommentLikeSyncPayload = {
+      postId,
+      commentId,
+      version: new Date().toISOString(),
+    }
+
+    try {
+      window.localStorage.setItem(COMMENT_LIKE_SYNC_STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      // Ignore storage failures. In-tab and BroadcastChannel are enough.
+    }
+
+    window.dispatchEvent(new CustomEvent(COMMENT_LIKE_SYNC_EVENT, { detail: payload }))
+
+    if (!('BroadcastChannel' in window)) return
+
+    try {
+      const channel = new BroadcastChannel(COMMENT_LIKE_SYNC_CHANNEL)
+      channel.postMessage(payload)
+      channel.close()
+    } catch {
+      // Ignore BroadcastChannel failures.
+    }
+  }, [postId])
+
+  const broadcastCommentLike = useCallback(async (commentId: string) => {
+    const channel = likeRealtimeChannelRef.current
+    if (!channel) return
+
+    try {
+      await channel.send({
+        type: 'broadcast',
+        event: 'comment-like-sync',
+        payload: {
+          postId,
+          commentId,
+          userId: userIdRef.current,
+          version: new Date().toISOString(),
+        },
+      })
+    } catch {
+      // Keep the optimistic UI even if broadcast fails.
+    }
+  }, [postId])
+
+  useEffect(() => {
+    const syncLikes = (payload: CommentLikeSyncPayload | null) => {
+      if (!payload || payload.postId !== postId) return
+      if (!payload.commentId || !itemIdsRef.current.includes(payload.commentId)) return
+      void refreshLikes(itemIdsRef.current, userIdRef.current)
+    }
+
+    const onWindowEvent = (event: Event) => {
+      const detail = (event as CustomEvent<CommentLikeSyncPayload>).detail
+      syncLikes(detail ?? null)
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== COMMENT_LIKE_SYNC_STORAGE_KEY || !event.newValue) return
+      try {
+        syncLikes(JSON.parse(event.newValue) as CommentLikeSyncPayload)
+      } catch {
+        // Ignore invalid storage payloads.
+      }
+    }
+
+    window.addEventListener(COMMENT_LIKE_SYNC_EVENT, onWindowEvent as EventListener)
+    window.addEventListener('storage', onStorage)
+
+    let channel: BroadcastChannel | null = null
+
+    if ('BroadcastChannel' in window) {
+      try {
+        channel = new BroadcastChannel(COMMENT_LIKE_SYNC_CHANNEL)
+        channel.onmessage = (event) => {
+          syncLikes((event.data as CommentLikeSyncPayload | null) ?? null)
+        }
+      } catch {
+        channel = null
+      }
+    }
+
+    return () => {
+      window.removeEventListener(COMMENT_LIKE_SYNC_EVENT, onWindowEvent as EventListener)
+      window.removeEventListener('storage', onStorage)
+      channel?.close()
+    }
+  }, [postId, refreshLikes])
 
   const load = async () => {
     setErrFor(null)
@@ -672,7 +775,7 @@ async function submitReport() {
     if (!postId) return
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postId])
+  }, [postId, refreshLikes])
 
   // realtime
   useEffect(() => {
@@ -758,7 +861,7 @@ async function submitReport() {
     return () => {
       supabase.removeChannel(ch)
     }
-  }, [postId])
+  }, [postId, refreshLikes])
 
   // Live likes: subscribe to comment_likes; filter client-side by known comment IDs.
   // Own actions are skipped (already handled optimistically in toggleLike).
@@ -767,6 +870,17 @@ async function submitReport() {
     if (!postId) return
     const likeCh = supabase
       .channel(`comment-likes-${postId}`)
+      .on(
+        'broadcast',
+        { event: 'comment-like-sync' },
+        payload => {
+          const data = payload?.payload as { commentId?: string; userId?: string | null } | undefined
+          const commentId = data?.commentId
+          if (!commentId || !itemIdsRef.current.includes(commentId)) return
+          if (data?.userId && userIdRef.current && data.userId === userIdRef.current) return
+          void refreshLikes(itemIdsRef.current, userIdRef.current)
+        }
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'comment_likes' },
@@ -793,8 +907,14 @@ async function submitReport() {
         }
       )
       .subscribe()
-    return () => { supabase.removeChannel(likeCh) }
-  }, [postId])
+    likeRealtimeChannelRef.current = likeCh
+    return () => {
+      if (likeRealtimeChannelRef.current === likeCh) {
+        likeRealtimeChannelRef.current = null
+      }
+      supabase.removeChannel(likeCh)
+    }
+  }, [postId, refreshLikes])
 
   const send = async () => {
     setErrFor(null)
@@ -914,7 +1034,10 @@ async function submitReport() {
         setMyLiked(rb)
         setLikeCounts(prev => ({ ...prev, [commentId]: Number(prev[commentId] ?? 0) + 1 }))
         setErrFor(error.message)
+        return
       }
+      notifyCommentLikeSync(commentId)
+      void broadcastCommentLike(commentId)
       return
     }
 
@@ -930,7 +1053,10 @@ async function submitReport() {
       setMyLiked(rb)
       setLikeCounts(prev => ({ ...prev, [commentId]: Math.max(0, Number(prev[commentId] ?? 0) - 1) }))
       setErrFor(error.message)
+      return
     }
+    notifyCommentLikeSync(commentId)
+    void broadcastCommentLike(commentId)
     // notification is created by DB trigger
   }
 

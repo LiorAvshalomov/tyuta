@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Claude Code hook scripts — Node.js CJS, not TypeScript source
+    ".claude/**",
   ]),
 ]);
 

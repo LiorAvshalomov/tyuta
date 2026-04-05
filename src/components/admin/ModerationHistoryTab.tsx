@@ -91,13 +91,13 @@ function openDatePicker(ref: React.RefObject<HTMLInputElement | null>) {
 function TargetBadge({ targetType }: { targetType: string }) {
   if (targetType === 'comment') {
     return (
-      <span className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+      <span className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-400">
         תגובה
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+    <span className="inline-flex items-center rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-400">
       הערה
     </span>
   )
@@ -106,13 +106,13 @@ function TargetBadge({ targetType }: { targetType: string }) {
 function RoleBadge({ role }: { role: 'admin' | 'moderator' }) {
   if (role === 'admin') {
     return (
-      <span className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700">
+      <span className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
         אדמין
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-xs font-medium text-orange-700">
+    <span className="inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-xs font-medium text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400">
       מוד׳
     </span>
   )
@@ -122,7 +122,7 @@ function ProfileCell({ profile, userId }: { profile: Profile | null; userId: str
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <Avatar src={profile?.avatar_url} name={profileName(profile, userId)} size={20} />
-      <span className="truncate text-xs text-neutral-700">{profileName(profile, userId)}</span>
+      <span className="truncate text-xs text-neutral-700 dark:text-neutral-300">{profileName(profile, userId)}</span>
     </div>
   )
 }
@@ -136,13 +136,13 @@ function EventDrawer({ event, onClose }: { event: ModerationEvent; onClose: () =
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" dir="rtl">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-lg rounded-xl border border-neutral-200 bg-white p-6 shadow-xl">
+      <div className="relative w-full max-w-lg rounded-xl border border-neutral-200 bg-white p-6 shadow-xl dark:border-border dark:bg-card">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-neutral-900">פרטי אירוע מודרציה</h2>
+          <h2 className="text-sm font-bold text-neutral-900 dark:text-foreground">פרטי אירוע מודרציה</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            className="rounded-lg p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:text-neutral-500 dark:hover:bg-muted dark:hover:text-neutral-300"
             aria-label="סגור"
           >
             ✕
@@ -151,44 +151,44 @@ function EventDrawer({ event, onClose }: { event: ModerationEvent; onClose: () =
 
         <dl className="space-y-3 text-sm">
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-xs text-neutral-500">זמן</dt>
-            <dd className="text-neutral-800">{fmtDateTime(event.created_at)}</dd>
+            <dt className="w-24 shrink-0 text-xs text-neutral-500 dark:text-neutral-400">זמן</dt>
+            <dd className="text-neutral-800 dark:text-foreground">{fmtDateTime(event.created_at)}</dd>
           </div>
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-xs text-neutral-500">סוג יעד</dt>
+            <dt className="w-24 shrink-0 text-xs text-neutral-500 dark:text-neutral-400">סוג יעד</dt>
             <dd><TargetBadge targetType={event.target_type} /></dd>
           </div>
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-xs text-neutral-500">מבצע</dt>
+            <dt className="w-24 shrink-0 text-xs text-neutral-500 dark:text-neutral-400">מבצע</dt>
             <dd className="flex items-center gap-2 min-w-0">
               <RoleBadge role={event.actor_role} />
               <ProfileCell profile={event.actor_profile} userId={event.actor_user_id} />
             </dd>
           </div>
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-xs text-neutral-500">מחבר</dt>
+            <dt className="w-24 shrink-0 text-xs text-neutral-500 dark:text-neutral-400">מחבר</dt>
             <dd className="min-w-0">
               <ProfileCell profile={event.author_profile} userId={event.target_author_id} />
             </dd>
           </div>
           {event.target_post_id && (
             <div className="flex gap-3">
-              <dt className="w-24 shrink-0 text-xs text-neutral-500">פוסט</dt>
-              <dd className="font-mono text-xs text-neutral-500 break-all">{event.target_post_id}</dd>
+              <dt className="w-24 shrink-0 text-xs text-neutral-500 dark:text-neutral-400">פוסט</dt>
+              <dd className="font-mono text-xs text-neutral-500 break-all dark:text-neutral-400">{event.target_post_id}</dd>
             </div>
           )}
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-xs text-neutral-500">מזהה יעד</dt>
+            <dt className="w-24 shrink-0 text-xs text-neutral-500 dark:text-neutral-400">מזהה יעד</dt>
             <dd className="font-mono text-xs text-neutral-500 break-all">{event.target_id}</dd>
           </div>
           <div className="flex gap-3">
-            <dt className="w-24 shrink-0 text-xs text-neutral-500">סיבה</dt>
-            <dd className="text-neutral-800">{event.reason}</dd>
+            <dt className="w-24 shrink-0 text-xs text-neutral-500 dark:text-neutral-400">סיבה</dt>
+            <dd className="min-w-0 flex-1 break-words text-neutral-800">{event.reason}</dd>
           </div>
           {excerpt && (
             <div>
-              <dt className="mb-1 text-xs text-neutral-500">תוכן (תמצית)</dt>
-              <dd className="rounded-lg bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-700 whitespace-pre-wrap">
+              <dt className="mb-1 text-xs text-neutral-500 dark:text-neutral-400">תוכן (תמצית)</dt>
+              <dd className="rounded-lg bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-700 whitespace-pre-wrap dark:bg-muted/30 dark:text-neutral-300">
                 {excerpt}
               </dd>
             </div>
@@ -309,18 +309,18 @@ export default function ModerationHistoryTab() {
     <div dir="rtl" className="space-y-4">
 
       {/* ── Filters panel ── */}
-      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-border dark:bg-muted/30">
 
         {/* Row 1: dropdowns */}
         <div className="flex flex-wrap items-end gap-3">
 
           {/* Actor dropdown (active admins/mods from env) */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">מבצע</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">מבצע</label>
             <select
               value={filters.actor_user_id}
               onChange={e => setFilters(f => ({ ...f, actor_user_id: e.target.value }))}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
             >
               <option value="">הכל</option>
               {actors.map(a => (
@@ -333,11 +333,11 @@ export default function ModerationHistoryTab() {
 
           {/* Actor role */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">תפקיד</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">תפקיד</label>
             <select
               value={filters.actor_role}
               onChange={e => setFilters(f => ({ ...f, actor_role: e.target.value }))}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
             >
               <option value="">הכל</option>
               <option value="admin">אדמין</option>
@@ -347,11 +347,11 @@ export default function ModerationHistoryTab() {
 
           {/* Target type */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">סוג תוכן</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">סוג תוכן</label>
             <select
               value={filters.target_type}
               onChange={e => setFilters(f => ({ ...f, target_type: e.target.value }))}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
             >
               <option value="">הכל</option>
               <option value="comment">תגובות</option>
@@ -363,7 +363,7 @@ export default function ModerationHistoryTab() {
         {/* Row 2: date range */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">טווח מהיר</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">טווח מהיר</label>
             <div className="flex gap-1">
               {QUICK_RANGES.map(({ label, days }) => {
                 const isActive = currentRange === days
@@ -376,7 +376,7 @@ export default function ModerationHistoryTab() {
                       'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ' +
                       (isActive
                         ? 'border-neutral-900 bg-neutral-900 text-white'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50')
+                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50')
                     }
                   >
                     {label}
@@ -387,20 +387,20 @@ export default function ModerationHistoryTab() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">מתאריך</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">מתאריך</label>
             <div className="flex items-center gap-1">
               <input
                 ref={fromRef}
                 type="date"
                 value={filters.from}
                 onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
               />
               <button
                 type="button"
                 aria-label="בחר תאריך התחלה"
                 onClick={() => openDatePicker(fromRef)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
               >
                 <CalendarDays size={14} />
               </button>
@@ -408,20 +408,20 @@ export default function ModerationHistoryTab() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">עד תאריך</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">עד תאריך</label>
             <div className="flex items-center gap-1">
               <input
                 ref={toRef}
                 type="date"
                 value={filters.to}
                 onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
               />
               <button
                 type="button"
                 aria-label="בחר תאריך סיום"
                 onClick={() => openDatePicker(toRef)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
               >
                 <CalendarDays size={14} />
               </button>
@@ -432,7 +432,7 @@ export default function ModerationHistoryTab() {
         {/* Row 3: author search */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">שם משתמש מושפע</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">שם משתמש מושפע</label>
             <div className="relative">
               <Search size={13} className="absolute top-1/2 right-2.5 -translate-y-1/2 text-neutral-400" />
               <input
@@ -440,7 +440,7 @@ export default function ModerationHistoryTab() {
                 onChange={e => setDraftAuthor(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && applyAuthorSearch()}
                 placeholder="חפש שם משתמש…"
-                className="w-[200px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400"
+                className="w-[200px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
               />
             </div>
           </div>
@@ -448,7 +448,7 @@ export default function ModerationHistoryTab() {
           <button
             type="button"
             onClick={applyAuthorSearch}
-            className="self-end rounded-lg border border-neutral-200 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            className="self-end rounded-lg border border-neutral-200 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
           >
             חפש
           </button>
@@ -457,7 +457,7 @@ export default function ModerationHistoryTab() {
             <button
               type="button"
               onClick={clearAll}
-              className="self-end rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-400 hover:bg-neutral-50"
+              className="self-end rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
             >
               נקה
             </button>
@@ -467,7 +467,7 @@ export default function ModerationHistoryTab() {
 
       {/* ── Count ── */}
       {!loading && !err && (
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-neutral-400 dark:text-neutral-500">
           {total === 0
             ? 'אין אירועים'
             : `${total.toLocaleString('he-IL')} אירועים בסה״כ`}
@@ -487,9 +487,9 @@ export default function ModerationHistoryTab() {
 
       {/* ── Events table ── */}
       {!loading && events.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
           {/* Header */}
-          <div className="hidden grid-cols-[140px_80px_80px_1fr_150px_150px] gap-3 border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid">
+          <div className="hidden grid-cols-[140px_80px_80px_1fr_150px_150px] gap-3 border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid dark:border-border dark:bg-muted/30 dark:text-neutral-400">
             <span>זמן</span>
             <span>סוג</span>
             <span>תפקיד</span>
@@ -498,7 +498,7 @@ export default function ModerationHistoryTab() {
             <span>משתמש מושפע</span>
           </div>
 
-          <div className="divide-y divide-neutral-100">
+          <div className="divide-y divide-neutral-100 dark:divide-border">
             {events.map((ev) => {
               const snap    = ev.snapshot
               const excerpt = typeof snap.excerpt === 'string' ? snap.excerpt.slice(0, 80) : null
@@ -508,16 +508,16 @@ export default function ModerationHistoryTab() {
                   key={ev.id}
                   type="button"
                   onClick={() => setDrawer(ev)}
-                  className="grid w-full grid-cols-1 gap-2 px-4 py-3 text-right text-sm transition-colors hover:bg-neutral-50 sm:grid-cols-[140px_80px_80px_1fr_150px_150px] sm:items-center sm:gap-3"
+                  className="grid w-full grid-cols-1 gap-2 px-4 py-3 text-right text-sm transition-colors hover:bg-neutral-50 sm:grid-cols-[140px_80px_80px_1fr_150px_150px] sm:items-center sm:gap-3 dark:hover:bg-muted/30"
                 >
-                  <div className="text-xs text-neutral-500">{fmtDateTime(ev.created_at)}</div>
+                  <div className="text-xs text-neutral-500 dark:text-neutral-400">{fmtDateTime(ev.created_at)}</div>
                   <div><TargetBadge targetType={ev.target_type} /></div>
                   <div><RoleBadge role={ev.actor_role} /></div>
                   <div className="min-w-0 text-right">
                     {excerpt && (
-                      <p className="truncate text-xs text-neutral-600">{excerpt}</p>
+                      <p className="truncate text-xs text-neutral-600 dark:text-neutral-400">{excerpt}</p>
                     )}
-                    <p className="mt-0.5 truncate text-xs text-neutral-400">
+                    <p className="mt-0.5 truncate text-xs text-neutral-400 dark:text-neutral-500">
                       סיבה: {ev.reason}
                     </p>
                   </div>
@@ -537,7 +537,7 @@ export default function ModerationHistoryTab() {
             type="button"
             onClick={handleLoadMore}
             disabled={loadingMore}
-            className="rounded-lg border border-neutral-200 bg-white px-5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            className="rounded-lg border border-neutral-200 bg-white px-5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
           >
             {loadingMore ? 'טוען…' : 'טען עוד'}
           </button>

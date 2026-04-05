@@ -27,6 +27,7 @@ type ContactMessage = {
   subject: string | null
   message: string
   status: 'open' | 'resolved'
+  attachment_paths: string[] | null
   user_profile: MiniProfile | null
 }
 
@@ -123,7 +124,7 @@ export default function AdminContactPage() {
             <button
               type="button"
               onClick={load}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-400 dark:hover:bg-muted/50"
               aria-label="רענון"
             >
               <RefreshCw size={14} />
@@ -153,23 +154,23 @@ export default function AdminContactPage() {
                 className={
                   'w-full rounded-xl border p-4 text-right transition-shadow ' +
                   (active?.id === m.id
-                    ? 'border-neutral-300 bg-white shadow-sm'
-                    : 'border-neutral-200 bg-white hover:shadow-sm')
+                    ? 'border-neutral-300 bg-white shadow-sm dark:border-border dark:bg-card'
+                    : 'border-neutral-200 bg-white hover:shadow-sm dark:border-border dark:bg-card')
                 }
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs text-neutral-400">{fmtDateTime(m.created_at)}</div>
-                    <div className="mt-1 text-sm font-semibold text-neutral-900">
+                    <div className="text-xs text-neutral-400 dark:text-neutral-500">{fmtDateTime(m.created_at)}</div>
+                    <div className="mt-1 text-sm font-semibold text-neutral-900 dark:text-foreground">
                       {m.subject || 'ללא נושא'}
                     </div>
-                    <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-neutral-500">
+                    <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-neutral-500 dark:text-neutral-400">
                       {m.message}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Avatar src={m.user_profile?.avatar_url} name={fmtName(m.user_profile, m.user_id ?? undefined)} size={28} />
-                    <div className="text-xs font-medium text-neutral-600">
+                    <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
                       {fmtName(m.user_profile, m.user_id ?? undefined)}
                     </div>
                   </div>
@@ -180,7 +181,7 @@ export default function AdminContactPage() {
         </div>
 
         {/* Detail panel */}
-        <div className="rounded-xl border border-neutral-200 bg-white p-5">
+        <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-border dark:bg-card">
           {!active ? (
             <EmptyState
               title="בחר פנייה"
@@ -192,10 +193,10 @@ export default function AdminContactPage() {
               {/* Header section */}
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-bold text-neutral-900">
+                  <div className="text-sm font-bold text-neutral-900 dark:text-foreground">
                     {active.subject || 'ללא נושא'}
                   </div>
-                  <div className="mt-0.5 text-xs text-neutral-400">
+                  <div className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">
                     {fmtDateTime(active.created_at)}
                   </div>
                 </div>
@@ -203,8 +204,8 @@ export default function AdminContactPage() {
                   className={
                     'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ' +
                     (active.status === 'resolved'
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-amber-50 text-amber-700')
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+                      : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400')
                   }
                 >
                   {active.status === 'resolved' ? 'טופל' : 'פתוח'}
@@ -212,8 +213,8 @@ export default function AdminContactPage() {
               </div>
 
               {/* Sender info section */}
-              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3">
-                <div className="mb-2 text-xs font-medium text-neutral-500">פרטי שולח/ת</div>
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 dark:border-border dark:bg-muted/20">
+                <div className="mb-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">פרטי שולח/ת</div>
                 <div className="flex items-center gap-2.5">
                   <Avatar
                     src={active.user_profile?.avatar_url}
@@ -221,21 +222,51 @@ export default function AdminContactPage() {
                     size={32}
                   />
                   <div>
-                    <div className="text-sm font-semibold text-neutral-900">
+                    <div className="text-sm font-semibold text-neutral-900 dark:text-foreground">
                       {fmtName(active.user_profile, active.user_id ?? undefined)}
                     </div>
                     {active.email && (
-                      <div className="text-xs text-neutral-400">{active.email}</div>
+                      <div className="text-xs text-neutral-400 dark:text-neutral-500">{active.email}</div>
                     )}
                   </div>
                 </div>
               </div>
 
               {/* Message section */}
-              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-4">
-                <div className="mb-2 text-xs font-medium text-neutral-500">הודעה</div>
-                <div className="whitespace-pre-wrap text-sm text-neutral-800">{active.message}</div>
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-border dark:bg-muted/20">
+                <div className="mb-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">הודעה</div>
+                <div className="whitespace-pre-wrap text-sm text-neutral-800 dark:text-foreground">{active.message}</div>
               </div>
+
+              {/* Attachment section */}
+              {active.attachment_paths && active.attachment_paths.length > 0 && (
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-4 dark:border-border dark:bg-muted/20">
+                  <div className="mb-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                    תמונות מצורפות ({active.attachment_paths.length})
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {active.attachment_paths.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
+                        onClick={() => {
+                          void (async () => {
+                            const { adminFetch } = await import('@/lib/admin/adminFetch')
+                            const r = await adminFetch(`/api/admin/contact/${active.id}/attachment?index=${i}`)
+                            if (r.ok) {
+                              const j = await r.json() as { url?: string }
+                              if (j.url) window.open(j.url, '_blank', 'noopener,noreferrer')
+                            }
+                          })()
+                        }}
+                      >
+                        תמונה {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Actions section */}
               <div className="flex flex-wrap gap-2">
@@ -252,7 +283,7 @@ export default function AdminContactPage() {
                   <button
                     type="button"
                     onClick={() => setResolved(active.id, 'open')}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                   >
                     <RotateCcw size={14} />
                     החזר לפתוח
@@ -264,7 +295,7 @@ export default function AdminContactPage() {
                     type="button"
                     onClick={openInboxThread}
                     disabled={openingThread}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50 disabled:opacity-50"
                   >
                     <Inbox size={14} />
                     {openingThread ? 'פותח…' : 'פתח שיחה באינבוקס'}

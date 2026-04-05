@@ -135,11 +135,13 @@ export default function InboxThreads() {
 
   // Cleanup all typing channels and timers on unmount
   useEffect(() => {
+    const channels = typingChannelsRef.current
+    const timers = typingTimersRef.current
     return () => {
-      for (const ch of typingChannelsRef.current.values()) supabase.removeChannel(ch)
-      typingChannelsRef.current.clear()
-      for (const t of typingTimersRef.current.values()) window.clearTimeout(t)
-      typingTimersRef.current.clear()
+      for (const ch of channels.values()) supabase.removeChannel(ch)
+      channels.clear()
+      for (const t of timers.values()) window.clearTimeout(t)
+      timers.clear()
     }
   }, [])
 

@@ -14,12 +14,12 @@ export default function AnimatedIntro() {
     const key = 'pd_auth_intro_v3'
     const already = typeof window !== 'undefined' ? window.sessionStorage.getItem(key) : '1'
     if (!already) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShow(true)
       window.sessionStorage.setItem(key, '1')
       const t = window.setTimeout(() => setShow(false), 1500)
       return () => window.clearTimeout(t)
     }
-    setShow(false)
   }, [])
 
   if (!show) return null

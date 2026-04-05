@@ -32,7 +32,7 @@ type Profile = {
 type DeletionEvent = {
   id: string
   created_at: string
-  action: 'soft_delete' | 'admin_soft_hide' | 'hard_delete' | 'admin_hard_delete'
+  action: 'soft_delete' | 'admin_soft_hide' | 'hard_delete' | 'user_hard_delete' | 'admin_hard_delete'
   actor_kind: 'user' | 'admin' | 'system'
   actor_user_id: string | null
   target_post_id: string
@@ -56,10 +56,10 @@ type Filters = {
 const PAGE_SIZE = 50
 
 const ACTION_CONFIG: Record<string, { label: string; className: string }> = {
-  soft_delete:       { label: 'מחיקה עצמית (זמנית)', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  admin_soft_hide:   { label: 'הסתרה (אדמין)',         className: 'bg-orange-50 text-orange-700 border-orange-200' },
-  hard_delete:       { label: 'מחיקה קבועה (משתמש)',  className: 'bg-red-50 text-red-600 border-red-200' },
-  admin_hard_delete: { label: 'מחיקה קבועה (אדמין)',  className: 'bg-red-100 text-red-800 border-red-300' },
+  soft_delete:       { label: 'מחיקה עצמית (זמנית)', className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30' },
+  admin_soft_hide:   { label: 'הסתרה (אדמין)',         className: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30' },
+  hard_delete:       { label: 'מחיקה קבועה (משתמש)',  className: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/30' },
+  admin_hard_delete: { label: 'מחיקה קבועה (אדמין)',  className: 'bg-red-100 text-red-800 border-red-300 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/40' },
 }
 
 type QuickRange = { label: string; days: number | null }
@@ -71,7 +71,7 @@ const QUICK_RANGES: QuickRange[] = [
 ]
 
 const IS_HARD = (action: string) =>
-  action === 'hard_delete' || action === 'admin_hard_delete'
+  action === 'hard_delete' || action === 'user_hard_delete' || action === 'admin_hard_delete'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -105,9 +105,10 @@ function openDatePicker(ref: React.RefObject<HTMLInputElement | null>) {
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ActionBadge({ action }: { action: string }) {
-  const cfg = ACTION_CONFIG[action] ?? {
+  const normalizedAction = action === 'user_hard_delete' ? 'hard_delete' : action
+  const cfg = ACTION_CONFIG[normalizedAction] ?? {
     label: action,
-    className: 'bg-neutral-100 text-neutral-600 border-neutral-200',
+    className: 'bg-neutral-100 text-neutral-600 border-neutral-200 dark:bg-muted/40 dark:text-neutral-400 dark:border-border',
   }
   return (
     <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${cfg.className}`}>
@@ -120,7 +121,7 @@ function ProfileCell({ profile, userId }: { profile: Profile | null; userId: str
   return (
     <div className="flex min-w-0 items-center gap-1.5">
       <Avatar src={profile?.avatar_url} name={profileName(profile, userId)} size={20} />
-      <span className="truncate text-xs text-neutral-700">{profileName(profile, userId)}</span>
+      <span className="truncate text-xs text-neutral-700 dark:text-neutral-300">{profileName(profile, userId)}</span>
     </div>
   )
 }
@@ -236,17 +237,17 @@ export default function DeletionHistoryTab() {
     <div dir="rtl" className="space-y-4">
 
       {/* ── Filters panel ── */}
-      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-border dark:bg-muted/30">
 
         {/* Row 1: dropdowns */}
         <div className="flex flex-wrap items-end gap-3">
           {/* Action */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">פעולה</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">פעולה</label>
             <select
               value={filters.action}
               onChange={e => setFilters(f => ({ ...f, action: e.target.value }))}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
             >
               <option value="">הכל</option>
               <option value="soft_delete">מחיקה עצמית (זמנית)</option>
@@ -258,11 +259,11 @@ export default function DeletionHistoryTab() {
 
           {/* Actor kind */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">מבצע</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">מבצע</label>
             <select
               value={filters.actor_kind}
               onChange={e => setFilters(f => ({ ...f, actor_kind: e.target.value }))}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
             >
               <option value="">הכל</option>
               <option value="user">משתמש</option>
@@ -276,7 +277,7 @@ export default function DeletionHistoryTab() {
         <div className="flex flex-wrap items-end gap-3">
           {/* Quick-range buttons */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">טווח מהיר</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">טווח מהיר</label>
             <div className="flex gap-1">
               {QUICK_RANGES.map(({ label, days }) => {
                 const isActive = currentRange === days
@@ -289,7 +290,7 @@ export default function DeletionHistoryTab() {
                       'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ' +
                       (isActive
                         ? 'border-neutral-900 bg-neutral-900 text-white'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50')
+                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50')
                     }
                   >
                     {label}
@@ -301,20 +302,20 @@ export default function DeletionHistoryTab() {
 
           {/* From date */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">מתאריך</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">מתאריך</label>
             <div className="flex items-center gap-1">
               <input
                 ref={fromRef}
                 type="date"
                 value={filters.from}
                 onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
               />
               <button
                 type="button"
                 aria-label="בחר תאריך התחלה"
                 onClick={() => openDatePicker(fromRef)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
               >
                 <CalendarDays size={14} />
               </button>
@@ -323,20 +324,20 @@ export default function DeletionHistoryTab() {
 
           {/* To date */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">עד תאריך</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">עד תאריך</label>
             <div className="flex items-center gap-1">
               <input
                 ref={toRef}
                 type="date"
                 value={filters.to}
                 onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400"
+                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
               />
               <button
                 type="button"
                 aria-label="בחר תאריך סיום"
                 onClick={() => openDatePicker(toRef)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
               >
                 <CalendarDays size={14} />
               </button>
@@ -348,7 +349,7 @@ export default function DeletionHistoryTab() {
         <div className="flex flex-wrap items-end gap-3">
           {/* Title / slug search */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">כותרת / slug</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">כותרת / slug</label>
             <div className="relative">
               <Search size={13} className="absolute top-1/2 right-2.5 -translate-y-1/2 text-neutral-400" />
               <input
@@ -356,14 +357,14 @@ export default function DeletionHistoryTab() {
                 onChange={e => setDraftQ(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && applyTextSearch()}
                 placeholder="חפש כותרת…"
-                className="w-[160px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400"
+                className="w-[160px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
               />
             </div>
           </div>
 
           {/* Author display name search */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500">שם מחבר</label>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">שם מחבר</label>
             <div className="relative">
               <Search size={13} className="absolute top-1/2 right-2.5 -translate-y-1/2 text-neutral-400" />
               <input
@@ -371,7 +372,7 @@ export default function DeletionHistoryTab() {
                 onChange={e => setDraftAuthor(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && applyTextSearch()}
                 placeholder="חפש מחבר…"
-                className="w-[160px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400"
+                className="w-[160px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
               />
             </div>
           </div>
@@ -379,7 +380,7 @@ export default function DeletionHistoryTab() {
           <button
             type="button"
             onClick={applyTextSearch}
-            className="self-end rounded-lg border border-neutral-200 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            className="self-end rounded-lg border border-neutral-200 bg-white px-4 py-1.5 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
           >
             חפש
           </button>
@@ -388,7 +389,7 @@ export default function DeletionHistoryTab() {
             <button
               type="button"
               onClick={clearAll}
-              className="self-end rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-400 hover:bg-neutral-50"
+              className="self-end rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
             >
               נקה
             </button>
@@ -398,7 +399,7 @@ export default function DeletionHistoryTab() {
 
       {/* ── Count ── */}
       {!loading && !err && (
-        <p className="text-xs text-neutral-400">
+        <p className="text-xs text-neutral-400 dark:text-neutral-500">
           {total === 0
             ? 'אין אירועים'
             : `${total.toLocaleString('he-IL')} אירועים בסה״כ`}
@@ -418,9 +419,9 @@ export default function DeletionHistoryTab() {
 
       {/* ── Events table ── */}
       {!loading && events.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
           {/* Header — desktop only */}
-          <div className="hidden grid-cols-[160px_180px_1fr_160px_160px] gap-3 border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid">
+          <div className="hidden grid-cols-[160px_180px_1fr_160px_160px] gap-3 border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid dark:border-border dark:bg-muted/30 dark:text-neutral-400">
             <span>זמן</span>
             <span>פעולה</span>
             <span>פוסט</span>
@@ -428,7 +429,7 @@ export default function DeletionHistoryTab() {
             <span>מחבר הפוסט</span>
           </div>
 
-          <div className="divide-y divide-neutral-100">
+          <div className="divide-y divide-neutral-100 dark:divide-border">
             {events.map((ev) => {
               const snap      = ev.post_snapshot
               const isHard    = IS_HARD(ev.action)
@@ -438,10 +439,10 @@ export default function DeletionHistoryTab() {
               return (
                 <div
                   key={ev.id}
-                  className="grid grid-cols-1 gap-2 px-4 py-3 text-sm transition-colors hover:bg-neutral-50 sm:grid-cols-[160px_180px_1fr_160px_160px] sm:items-center sm:gap-3"
+                  className="grid grid-cols-1 gap-2 px-4 py-3 text-sm transition-colors hover:bg-neutral-50 sm:grid-cols-[160px_180px_1fr_160px_160px] sm:items-center sm:gap-3 dark:hover:bg-muted/30"
                 >
                   {/* Time */}
-                  <div className="text-xs text-neutral-500">{fmtDateTime(ev.created_at)}</div>
+                  <div className="text-xs text-neutral-500 dark:text-neutral-400">{fmtDateTime(ev.created_at)}</div>
 
                   {/* Action */}
                   <div><ActionBadge action={ev.action} /></div>
@@ -449,7 +450,7 @@ export default function DeletionHistoryTab() {
                   {/* Post */}
                   <div className="min-w-0">
                     {isHard || !postSlug ? (
-                      <span className="font-medium text-neutral-700">{postTitle}</span>
+                      <span className="font-medium text-neutral-700 dark:text-neutral-300">{postTitle}</span>
                     ) : (
                       <a
                         href={`/post/${postSlug}`}
@@ -461,10 +462,10 @@ export default function DeletionHistoryTab() {
                       </a>
                     )}
                     {postSlug && (
-                      <div className="mt-0.5 font-mono text-xs text-neutral-400">{postSlug}</div>
+                      <div className="mt-0.5 font-mono text-xs text-neutral-400 dark:text-neutral-500">{postSlug}</div>
                     )}
                     {ev.reason && (
-                      <div className="mt-1 rounded border border-neutral-100 bg-neutral-50 px-2 py-1 text-xs text-neutral-500">
+                      <div className="mt-1 rounded border border-neutral-100 bg-neutral-50 px-2 py-1 text-xs text-neutral-500 dark:border-border dark:bg-muted/30 dark:text-neutral-400">
                         סיבה: {ev.reason}
                       </div>
                     )}
@@ -489,7 +490,7 @@ export default function DeletionHistoryTab() {
             type="button"
             onClick={handleLoadMore}
             disabled={loadingMore}
-            className="rounded-lg border border-neutral-200 bg-white px-5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+            className="rounded-lg border border-neutral-200 bg-white px-5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
           >
             {loadingMore ? 'טוען…' : 'טען עוד'}
           </button>

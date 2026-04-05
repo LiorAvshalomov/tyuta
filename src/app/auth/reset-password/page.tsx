@@ -7,6 +7,7 @@ import AuthLayout from '@/components/AuthLayout'
 import { supabase } from '@/lib/supabaseClient'
 import { updatePassword } from '@/lib/auth'
 import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
+import { broadcastAuthEvent } from '@/lib/auth/authEvents'
 
 
 type PageState = 'loading' | 'ready' | 'error' | 'done'
@@ -97,6 +98,7 @@ export default function ResetPasswordPage() {
           setState('error')
           return
         }
+        broadcastAuthEvent('SIGNED_IN')
         setResetGate()
         setState('ready')
         return
@@ -118,6 +120,7 @@ export default function ResetPasswordPage() {
             setState('error')
             return
           }
+          broadcastAuthEvent('SIGNED_IN')
           setResetGate()
           setState('ready')
           return

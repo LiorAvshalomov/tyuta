@@ -2,7 +2,12 @@
 
 import React, { useEffect, useState } from 'react'
 import { RICHTEXT_TYPOGRAPHY } from '@/lib/richtextStyles'
-import { isPostImageProxySrc, postImageProxySrc, postImageStoragePath } from '@/lib/postImageUrl'
+import {
+  isPostImageProxySrc,
+  postImageProxySrc,
+  postImagePublicSrc,
+  postImageStoragePath,
+} from '@/lib/postImageUrl'
 import { supabase } from '@/lib/supabaseClient'
 
 type Mark = {
@@ -280,8 +285,10 @@ function renderNode(node: RichNode, key: string, currentPostId?: string, current
 
     case 'image': {
   const attrs = node.attrs as Attrs | undefined
-  const proxySrc = postImageProxySrc(postImageStoragePath(attrs?.path, attrs?.src), currentPostId)
-  const src = proxySrc ?? attrs?.src?.trim() ?? null
+  const path = postImageStoragePath(attrs?.path, attrs?.src)
+  const proxySrc = postImageProxySrc(path, currentPostId)
+  const publicSrc = postImagePublicSrc(path, currentPostId)
+  const src = publicSrc ?? proxySrc ?? attrs?.src?.trim() ?? null
   if (!src) return null
   // Only allow http/https — block data:, javascript:, and other schemes
   if (!proxySrc && !isPostImageProxySrc(src) && !/^https?:\/\//i.test(src)) return null
@@ -293,12 +300,18 @@ function renderNode(node: RichNode, key: string, currentPostId?: string, current
 
   return (
     <div key={key} className="my-4" style={{ width: `${wp}%` }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- rich-text image sizing and proxy fallback are data-driven here */}
       <img
         src={src}
         alt={alt}
         loading="lazy"
         style={{ width: '100%', height: 'auto', display: 'block' }}
         className="rounded-2xl"
+        onError={(event) => {
+          if (publicSrc && proxySrc && event.currentTarget.src !== proxySrc) {
+            event.currentTarget.src = proxySrc
+          }
+        }}
       />
     </div>
   )

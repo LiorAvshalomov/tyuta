@@ -231,14 +231,14 @@ export default function AdminReportDetailClient({
             <div className="flex items-center gap-2">
               <Link
                 href="/admin/reports"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
               >
                 <ArrowRight size={13} />
                 חזרה
               </Link>
               <button
                 onClick={() => void load()}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-400 dark:hover:bg-muted/50"
                 aria-label="רענון"
               >
                 <RefreshCw size={14} />
@@ -261,26 +261,26 @@ export default function AdminReportDetailClient({
       ) : (
         <>
           {/* Report card */}
-          <div className="rounded-xl border border-neutral-200 bg-white p-5">
+          <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-border dark:bg-card">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+              <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-muted/40 dark:text-neutral-300">
                 {report.category}
               </span>
               {(() => {
                 const reason = reasonLabelFromCode(report.reason_code) || parseDetailValue(report.details, 'reason_label')
                 return reason ? (
-                  <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                  <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-muted/40 dark:text-neutral-300">
                     {reason}
                   </span>
                 ) : null
               })()}
-              <span className="text-xs text-neutral-400">{fmtDateTime(report.created_at)}</span>
+              <span className="text-xs text-neutral-400 dark:text-neutral-500">{fmtDateTime(report.created_at)}</span>
               {report.status === 'open' ? (
-                <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
                   פתוח
                 </span>
               ) : (
-                <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                <span className="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
                   טופל
                 </span>
               )}
@@ -288,8 +288,8 @@ export default function AdminReportDetailClient({
 
             {/* Reporter & Reported */}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-500">
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 dark:border-border dark:bg-muted/20">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
                   <User size={12} />
                   מדווח
                 </div>
@@ -301,18 +301,18 @@ export default function AdminReportDetailClient({
                     shape="circle"
                   />
                   <div>
-                    <div className="text-sm font-semibold text-neutral-900">
+                    <div className="text-sm font-semibold text-neutral-900 dark:text-foreground">
                       {fmtName(report.reporter_profile, report.reporter_id)}
                     </div>
-                    <div className="text-[11px] text-neutral-400">
+                    <div className="text-[11px] text-neutral-400 dark:text-neutral-500">
                       {fmtSub(report.reporter_profile, report.reporter_id)}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3">
-                <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-500">
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 dark:border-border dark:bg-muted/20">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
                   <User size={12} />
                   דווח על
                 </div>
@@ -324,10 +324,10 @@ export default function AdminReportDetailClient({
                     shape="circle"
                   />
                   <div>
-                    <div className="text-sm font-semibold text-neutral-900">
+                    <div className="text-sm font-semibold text-neutral-900 dark:text-foreground">
                       {fmtName(report.reported_profile, report.reported_user_id)}
                     </div>
-                    <div className="text-[11px] text-neutral-400">
+                    <div className="text-[11px] text-neutral-400 dark:text-neutral-500">
                       {fmtSub(report.reported_profile, report.reported_user_id)}
                     </div>
                   </div>
@@ -336,19 +336,19 @@ export default function AdminReportDetailClient({
             </div>
 
             {/* Quote / Details */}
-            <div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50/50 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-500">
+            <div className="mt-4 rounded-lg border border-neutral-200 bg-neutral-50/50 p-3 dark:border-border dark:bg-muted/20">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
                 <FileText size={12} />
                 ציטוט / פרטים
               </div>
               {isPostReport(report.details) ? (
                 <div className="mt-2 space-y-2">
-                  <div className="whitespace-pre-wrap text-sm font-bold text-neutral-900">
+                  <div className="whitespace-pre-wrap text-sm font-bold text-neutral-900 dark:text-foreground">
                     {parseDetailValue(report.details, 'post_title') || 'ללא כותרת'}
                   </div>
 
                   {report.message_excerpt ? (
-                    <div className="whitespace-pre-wrap text-sm text-neutral-700">
+                    <div className="whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-300">
                       {report.message_excerpt}
                     </div>
                   ) : null}
@@ -356,15 +356,15 @@ export default function AdminReportDetailClient({
                   {(() => {
                     const userTxt = extractUserWrittenDetails(report.details)
                     return userTxt ? (
-                      <div className="rounded-lg border border-neutral-200 bg-white p-3">
-                        <div className="text-[11px] font-bold text-neutral-500">מה המשתמש כתב</div>
-                        <div className="mt-1 whitespace-pre-wrap text-sm text-neutral-800">{userTxt}</div>
+                      <div className="rounded-lg border border-neutral-200 bg-white p-3 dark:border-border dark:bg-card">
+                        <div className="text-[11px] font-bold text-neutral-500 dark:text-neutral-400">מה המשתמש כתב</div>
+                        <div className="mt-1 whitespace-pre-wrap text-sm text-neutral-800 dark:text-foreground">{userTxt}</div>
                       </div>
                     ) : null
                   })()}
                 </div>
               ) : (
-                <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">
+                <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-300">
                   {report.message_excerpt || report.details || '—'}
                 </div>
               )}
@@ -374,7 +374,7 @@ export default function AdminReportDetailClient({
                   <div className="mt-3">
                     <Link
                       href={`/post/${slug}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                     >
                       <FileText size={13} />
                       צפה בפוסט
@@ -399,7 +399,7 @@ export default function AdminReportDetailClient({
                 <button
                   onClick={() => void setStatus('open')}
                   disabled={saving}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                 >
                   <RotateCcw size={14} />
                   החזר לפתוח
@@ -409,7 +409,7 @@ export default function AdminReportDetailClient({
               {report.conversation_id && (
                 <Link
                   href={`/inbox?conversation=${report.conversation_id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                 >
                   <MessageSquare size={14} />
                   פתח שיחה
@@ -417,7 +417,7 @@ export default function AdminReportDetailClient({
               )}
             </div>
 
-            <div className="mt-3 text-[11px] text-neutral-400">
+            <div className="mt-3 text-[11px] text-neutral-400 dark:text-neutral-500">
               הערה: צפייה בהודעות כאן מיועדת לאדמין בלבד.
             </div>
           </div>
@@ -425,8 +425,8 @@ export default function AdminReportDetailClient({
           {/* Messages context (Inbox only) */}
           {report.conversation_id ? (
             <div className="space-y-3">
-              <h2 className="flex items-center gap-2 text-sm font-bold text-neutral-900">
-                <MessageSquare size={16} className="text-neutral-500" />
+              <h2 className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-foreground">
+                <MessageSquare size={16} className="text-neutral-500 dark:text-neutral-400" />
                 הקשר הודעות
               </h2>
 
@@ -446,7 +446,7 @@ export default function AdminReportDetailClient({
                         className={
                           isReported
                             ? 'rounded-xl border-2 border-amber-400 bg-amber-50/50 p-3.5'
-                            : 'rounded-xl border border-neutral-200 bg-white p-3.5'
+                            : 'rounded-xl border border-neutral-200 bg-white p-3.5 dark:border-border dark:bg-card'
                         }
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -457,18 +457,18 @@ export default function AdminReportDetailClient({
                               size={24}
                               shape="circle"
                             />
-                            <span className="text-xs font-semibold text-neutral-900">
+                            <span className="text-xs font-semibold text-neutral-900 dark:text-foreground">
                               {fmtName(m.sender_profile, m.sender_id)}
                             </span>
                             {isReported && (
-                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
                                 הודעה מדווחת
                               </span>
                             )}
                           </div>
-                          <span className="text-[11px] text-neutral-400">{fmtDateTime(m.created_at)}</span>
+                          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">{fmtDateTime(m.created_at)}</span>
                         </div>
-                        <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700">{m.body}</div>
+                        <div className="mt-2 whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-300">{m.body}</div>
                       </div>
                     )
                   })}

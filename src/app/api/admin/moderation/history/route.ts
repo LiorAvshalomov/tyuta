@@ -81,10 +81,11 @@ export async function GET(req: NextRequest) {
   let matchingAuthorIds: Set<string> | null = null
 
   if (author) {
+    const authorSafe = author.replace(/[%_\\]/g, '\\$&')
     const { data: profMatches, error: profErr } = await sb
       .from("profiles")
       .select("id")
-      .ilike("display_name", `%${author}%`)
+      .ilike("display_name", `%${authorSafe}%`)
       .limit(500)
     if (profErr) return adminError(profErr.message, 500, "db_error")
 

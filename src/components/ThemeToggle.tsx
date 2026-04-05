@@ -35,6 +35,7 @@ export default function ThemeToggle() {
   const [pref, setPref] = useState<ThemePreference>('system')
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPref(getStoredTheme())
   }, [])
 

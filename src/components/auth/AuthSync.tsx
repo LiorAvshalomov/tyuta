@@ -1,19 +1,33 @@
-"use client"
+'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import { supabase, hydrateSession } from '@/lib/supabaseClient'
 import {
   AUTH_BROADCAST_STORAGE_KEY,
   broadcastAuthEvent,
   getAuthState,
   parseAuthBroadcastEvent,
+  setAuthResolutionState,
   setAuthState,
+  subscribeAuthBroadcast,
 } from '@/lib/auth/authEvents'
+import {
+  buildLoginRedirect,
+  getSafePostAuthRedirect,
+  isAdminPath,
+  isEntryAuthPath,
+  isProtectedPath,
+} from '@/lib/auth/protectedRoutes'
 
 type Props = { children: React.ReactNode }
 
-const CHECK_INTERVAL_MS = 25_000
+type LostAuthReason = 'SIGNED_OUT' | 'TOKEN_REFRESH_FAILED' | 'SESSION_GONE'
+
+const LEGACY_LS_KEYS = [
+  'sb-dowhdgcvxgzaikmpnchv-auth-token',
+  'sb-ckhhngglsipovvvgailq-auth-token',
+]
 
 const RESET_GATE_STORAGE_KEY = 'tyuta:password_reset_required'
 const RESET_GATE_COOKIE = 'tyuta_reset_required'
@@ -33,7 +47,7 @@ function clearResetGateCookie(): void {
 
 function hasResetGateCookie(): boolean {
   if (typeof document === 'undefined') return false
-  return document.cookie.split(';').some((c) => c.trim().startsWith(`${RESET_GATE_COOKIE}=`))
+  return document.cookie.split(';').some((cookie) => cookie.trim().startsWith(`${RESET_GATE_COOKIE}=`))
 }
 
 function isResetRoute(pathname: string): boolean {
@@ -61,16 +75,14 @@ function getFlowTypeFromUrl(): string | null {
   if (typeof window === 'undefined') return null
   const href = window.location.href
 
-  // Check query string
   try {
     const url = new URL(href)
     const queryType = url.searchParams.get('type')
     if (queryType) return queryType
   } catch {
-    // ignore malformed URLs
+    // ignore malformed URL parsing and fall back to the hash parser below
   }
 
-  // Check hash fragment (Supabase implicit flow puts params after #)
   const hashIndex = href.indexOf('#')
   if (hashIndex !== -1) {
     const hashParams = new URLSearchParams(href.slice(hashIndex + 1))
@@ -103,64 +115,216 @@ export default function AuthSync({ children }: Props) {
   const pathname = usePathname() || ''
 
   const hadSessionRef = useRef(false)
-  const lastHandledSignOutTsRef = useRef<number>(0)
+  const lastHandledBroadcastTsRef = useRef(0)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // pathnameRef lets mount-once closures always read the latest pathname
+  const pathnameRef = useRef(pathname)
+  pathnameRef.current = pathname
 
+  // Recovery / reset-gate check — runs on every navigation, lightweight
+  useEffect(() => {
+    if (urlIsRecoveryOrInviteFlow()) {
+      setResetGate()
+      if (!isResetRoute(pathname)) router.replace('/auth/reset-password')
+    } else if (hasResetGate() && !isResetRoute(pathname)) {
+      router.replace('/auth/reset-password')
+    }
+  }, [pathname, router])
+
+  // Auth init + all subscriptions — runs once on mount only
+  // pathnameRef.current is read at call-time so closures always see the live pathname.
+  // router is stable across renders in Next.js App Router.
   useEffect(() => {
     let cancelled = false
 
-    // If the user landed with a recovery or invite link, activate the reset gate.
-    // Signup and magiclink flows must NOT be treated as recovery.
-    if (urlIsRecoveryOrInviteFlow()) {
-      setResetGate()
-      if (!isResetRoute(pathname)) {
+    const redirectAuthenticatedEntryRoute = () => {
+      const currentPath = pathnameRef.current
+      if (hasResetGate() && !isResetRoute(currentPath)) {
         router.replace('/auth/reset-password')
+        return
       }
+
+      if (!isEntryAuthPath(currentPath)) return
+      const nextParam =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('next')
+          : null
+      router.replace(getSafePostAuthRedirect(nextParam))
     }
 
-    // Enforce reset-gate on navigation (client-side). Middleware should handle server-side,
-    // but this covers SPA navigation + cases where middleware isn't applied (e.g., cached).
-    if (hasResetGate() && !isResetRoute(pathname)) {
-      router.replace('/auth/reset-password')
+    const scheduleRefresh = (expiresAt: number) => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      const delayMs = Math.max(0, expiresAt * 1000 - Date.now() - 60_000)
+      refreshTimerRef.current = setTimeout(async () => {
+        const result = await recoverSessionFromServer()
+        if (result === 'unauthenticated') handleLostAuth('SESSION_GONE')
+      }, delayMs)
     }
 
-    const handleLostAuth = (reason: 'SIGNED_OUT' | 'TOKEN_REFRESH_FAILED' | 'SESSION_GONE') => {
+    const markAuthenticated = (expiresAt?: number) => {
+      hadSessionRef.current = true
+      setAuthState('in')
+      setAuthResolutionState('authenticated')
+      if (expiresAt) scheduleRefresh(expiresAt)
+      redirectAuthenticatedEntryRoute()
+    }
+
+    const handleLostAuth = (reason: LostAuthReason, skipBroadcast = false) => {
       if (cancelled) return
 
-      clearResetGate()
-
-      setAuthState('out')
-      if (reason === 'TOKEN_REFRESH_FAILED') broadcastAuthEvent('TOKEN_REFRESH_FAILED')
-      else broadcastAuthEvent('SIGNED_OUT')
-
-      if (!isAuthRoute(pathname) && pathname !== '/') {
-        router.replace('/')
-      } else {
-        router.refresh()
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
       }
+
+      clearResetGate()
+      setAuthState('out')
+      setAuthResolutionState('unauthenticated')
+
+      if (!skipBroadcast) {
+        if (reason === 'TOKEN_REFRESH_FAILED') broadcastAuthEvent('TOKEN_REFRESH_FAILED')
+        else broadcastAuthEvent('SIGNED_OUT')
+      }
+
+      const currentPath = pathnameRef.current
+      if (isAdminPath(currentPath) || isProtectedPath(currentPath)) {
+        router.replace(buildLoginRedirect(currentPath))
+        return
+      }
+
+      if (!isAuthRoute(currentPath) && currentPath !== '/') {
+        router.replace('/')
+        return
+      }
+
+      router.refresh()
+    }
+
+    const recoverSessionFromServer = async (): Promise<'ok' | 'unauthenticated' | 'error'> => {
+      try {
+        const res = await fetch('/api/auth/session', { credentials: 'same-origin' })
+        if (res.status === 401) return 'unauthenticated'
+        if (!res.ok) return 'error'
+
+        const body = await res.json() as { access_token?: string; expires_at?: number }
+        if (!body.access_token) return 'error'
+
+        await hydrateSession(body.access_token)
+        markAuthenticated(body.expires_at)
+        return 'ok'
+      } catch {
+        return 'error'
+      }
+    }
+
+    const migrateLegacySession = async (): Promise<boolean> => {
+      for (const key of LEGACY_LS_KEYS) {
+        let raw: string | null = null
+        try {
+          raw = localStorage.getItem(key)
+        } catch {
+          continue
+        }
+
+        if (!raw) continue
+
+        let refreshToken: string | null = null
+        try {
+          const parsed = JSON.parse(raw) as unknown
+          if (parsed && typeof parsed === 'object') {
+            const record = parsed as Record<string, unknown>
+            refreshToken = typeof record.refresh_token === 'string' ? record.refresh_token : null
+          }
+        } catch {
+          continue
+        }
+
+        if (!refreshToken) continue
+
+        try {
+          const res = await fetch('/api/auth/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ legacy_refresh_token: refreshToken }),
+          })
+
+          if (res.status === 401) {
+            try {
+              localStorage.removeItem(key)
+            } catch {
+              // ignore
+            }
+            continue
+          }
+
+          if (!res.ok) continue
+
+          const body = await res.json() as { access_token?: string; expires_at?: number }
+          if (!body.access_token) continue
+
+          try {
+            localStorage.removeItem(key)
+          } catch {
+            // ignore
+          }
+
+          await hydrateSession(body.access_token)
+          markAuthenticated(body.expires_at)
+          return true
+        } catch {
+          continue
+        }
+      }
+
+      return false
+    }
+
+    const handleIncomingSignIn = async () => {
+      if (cancelled) return
+
+      const existing = await supabase.auth.getSession()
+      if (cancelled) return
+
+      if (existing.data.session?.user?.id) {
+        markAuthenticated(existing.data.session.expires_at)
+        return
+      }
+
+      const result = await recoverSessionFromServer()
+      if (cancelled) return
+      if (result === 'ok') return
     }
 
     const init = async () => {
       const { data } = await supabase.auth.getSession()
-      const session = data.session
-      if (session?.user?.id) {
-        hadSessionRef.current = true
-        setAuthState('in')
+      if (data.session?.user?.id) {
+        markAuthenticated(data.session.expires_at)
+        return
+      }
 
-        // If gate is active, enforce it immediately (covers refresh/new tab).
-        if (hasResetGate() && !isResetRoute(pathname)) {
-          router.replace('/auth/reset-password')
-        }
+      const recoverResult = await recoverSessionFromServer()
+      if (recoverResult === 'ok') return
+      if (recoverResult === 'error') return
+
+      const migrated = await migrateLegacySession()
+      if (migrated) return
+
+      const globalState = getAuthState()
+      if (globalState === 'in') {
+        handleLostAuth('SESSION_GONE')
       } else {
         setAuthState('out')
+        setAuthResolutionState('unauthenticated')
       }
     }
 
     void init()
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event as string) === 'PASSWORD_RECOVERY') {
         setResetGate()
-        if (!isResetRoute(pathname)) router.replace('/auth/reset-password')
+        if (!isResetRoute(pathnameRef.current)) router.replace('/auth/reset-password')
         return
       }
 
@@ -169,57 +333,73 @@ export default function AuthSync({ children }: Props) {
         handleLostAuth('SIGNED_OUT')
         return
       }
-      if ((event as string) === 'TOKEN_REFRESH_FAILED') {
-        clearResetGate()
-        handleLostAuth('TOKEN_REFRESH_FAILED')
-        return
-      }
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        hadSessionRef.current = true
-        setAuthState('in')
+        markAuthenticated(session?.expires_at)
       }
     })
 
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== AUTH_BROADCAST_STORAGE_KEY) return
-      const parsed = parseAuthBroadcastEvent(e.newValue)
+    const unsubscribeBC = subscribeAuthBroadcast((payload) => {
+      if (payload.ts <= lastHandledBroadcastTsRef.current) return
+      lastHandledBroadcastTsRef.current = payload.ts
+
+      if (payload.type === 'SIGNED_IN') {
+        void handleIncomingSignIn()
+        return
+      }
+
+      handleLostAuth(payload.type, true)
+    })
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== AUTH_BROADCAST_STORAGE_KEY) return
+      const parsed = parseAuthBroadcastEvent(event.newValue)
       if (!parsed) return
+      if (parsed.ts <= lastHandledBroadcastTsRef.current) return
+      lastHandledBroadcastTsRef.current = parsed.ts
 
-      if (parsed.ts <= lastHandledSignOutTsRef.current) return
-      lastHandledSignOutTsRef.current = parsed.ts
+      if (parsed.type === 'SIGNED_IN') {
+        void handleIncomingSignIn()
+        return
+      }
 
-      handleLostAuth(parsed.type)
+      handleLostAuth(parsed.type, true)
     }
 
     window.addEventListener('storage', onStorage)
 
-    const interval = window.setInterval(async () => {
-      const { data } = await supabase.auth.getSession()
-      const session = data.session
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
 
-      if (session?.user?.id) {
-        hadSessionRef.current = true
-        setAuthState('in')
+      void supabase.auth.getSession().then(async ({ data }) => {
+        if (!data.session) return
 
-        // keep enforcing gate if active
-        if (hasResetGate() && !isResetRoute(pathname)) router.replace('/auth/reset-password')
-        return
-      }
+        const expiresAt = data.session.expires_at ?? 0
+        const secsLeft = expiresAt - Math.floor(Date.now() / 1000)
+        if (secsLeft < 120) {
+          const result = await recoverSessionFromServer()
+          if (result === 'unauthenticated') handleLostAuth('SESSION_GONE')
+        }
+      }).catch(() => {
+        // ignore
+      })
+    }
 
-      const globalState = getAuthState()
-      const wasAuthed = hadSessionRef.current || globalState === 'in'
-      if (wasAuthed) handleLostAuth('SESSION_GONE')
-      else setAuthState('out')
-    }, CHECK_INTERVAL_MS)
+    document.addEventListener('visibilitychange', onVisibilityChange)
 
     return () => {
       cancelled = true
-      window.clearInterval(interval)
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
+      }
       window.removeEventListener('storage', onStorage)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      unsubscribeBC()
       sub.subscription.unsubscribe()
     }
-  }, [pathname, router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // mount once — pathnameRef.current is read at call-time; router is stable in App Router
 
   return <>{children}</>
 }

@@ -24,6 +24,13 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n))
 }
 
+function getScrollBounds(metrics: Metrics, topOffset: number) {
+  return {
+    start: metrics.containerTop - topOffset,
+    end: metrics.containerTop + metrics.containerHeight - metrics.sidebarHeight - topOffset,
+  }
+}
+
 export default function StickySidebar({ children, className, topOffset = 80, containerId }: Props) {
   const outerRef = React.useRef<HTMLDivElement | null>(null)
   const innerRef = React.useRef<HTMLDivElement | null>(null)
@@ -71,8 +78,7 @@ export default function StickySidebar({ children, className, topOffset = 80, con
     if (!m) return
 
     const scrollY = window.scrollY || window.pageYOffset
-    const start = m.containerTop - topOffset
-    const end = m.containerTop + m.containerHeight - m.sidebarHeight - topOffset
+    const { start, end } = getScrollBounds(m, topOffset)
 
     // אם הסיידבר גבוה מהקונטיינר – אין מה "להדביק"
     const nextMode: Mode = m.sidebarHeight >= m.containerHeight
@@ -87,6 +93,18 @@ export default function StickySidebar({ children, className, topOffset = 80, con
       modeRef.current = nextMode
       setMode(nextMode)
     }
+  }, [topOffset])
+
+  const shouldScheduleForScroll = React.useCallback((scrollY: number) => {
+    const m = metricsRef.current
+    if (!m || m.sidebarHeight >= m.containerHeight) return false
+
+    const { start, end } = getScrollBounds(m, topOffset)
+    const currentMode = modeRef.current
+
+    if (currentMode === 'static') return scrollY >= start
+    if (currentMode === 'fixed') return scrollY < start || scrollY >= end
+    return scrollY < end
   }, [topOffset])
 
   const scheduleRecompute = React.useCallback(() => {
@@ -126,7 +144,12 @@ export default function StickySidebar({ children, className, topOffset = 80, con
   }, [containerId, measure, scheduleRecompute])
 
   React.useEffect(() => {
-    const onScroll = () => scheduleRecompute()
+    const onScroll = () => {
+      const scrollY = window.scrollY || window.pageYOffset
+      if (!shouldScheduleForScroll(scrollY)) return
+      scheduleRecompute()
+    }
+
     const onResize = () => {
       measure()
       scheduleRecompute()
@@ -142,7 +165,7 @@ export default function StickySidebar({ children, className, topOffset = 80, con
         frameRef.current = null
       }
     }
-  }, [measure, scheduleRecompute])
+  }, [measure, scheduleRecompute, shouldScheduleForScroll])
 
   const style: React.CSSProperties = React.useMemo(() => {
     if (!metrics) return {}

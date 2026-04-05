@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { coverProxySrc } from '@/lib/coverUrl'
+import { coverProxySrc, isGifUrl } from '@/lib/coverUrl'
+import GifCoverImage from '@/components/GifCoverImage'
 
 type Suggestion = {
   id: string
@@ -240,13 +241,17 @@ export default function SearchPostsBar() {
                     >
                       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-muted ring-1 ring-black/5">
                         {coverSrc ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={coverSrc}
-                            alt=""
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
+                          isGifUrl(coverSrc) ? (
+                            <GifCoverImage src={coverSrc} alt="" />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={coverSrc}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          )
                         ) : null}
                       </div>
                       <div className="min-w-0 flex-1">

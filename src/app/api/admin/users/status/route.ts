@@ -11,13 +11,30 @@ export async function GET(req: Request) {
   if (!userId) {
     return NextResponse.json({ ok: false, error: 'missing user_id' }, { status: 400 })
   }
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(userId)) {
+    return NextResponse.json({ ok: false, error: 'invalid user_id' }, { status: 400 })
+  }
 
-  const { data: profile, error: pErr } = await auth.admin
-    .from('profiles')
-    .select('id, username, display_name, avatar_url, created_at')
-    .eq('id', userId)
-    .maybeSingle()
+  const [profileRes, modRes, hiddenPostsRes] = await Promise.all([
+    auth.admin
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, created_at')
+      .eq('id', userId)
+      .maybeSingle(),
+    auth.admin
+      .from('user_moderation')
+      .select('user_id, is_suspended, reason, suspended_at, suspended_by, is_banned, ban_reason, banned_at, banned_by')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    auth.admin
+      .from('posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('author_id', userId)
+      .eq('status', 'banned'),
+  ])
 
+  const { data: profile, error: pErr } = profileRes
   if (pErr) {
     return NextResponse.json({ ok: false, error: pErr.message }, { status: 500 })
   }
@@ -25,14 +42,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: 'user not found' }, { status: 404 })
   }
 
-  const { data: mod, error: mErr } = await auth.admin
-    .from('user_moderation')
-    .select('user_id, is_suspended, reason, suspended_at, suspended_by, is_banned, ban_reason, banned_at, banned_by')
-    .eq('user_id', userId)
-    .maybeSingle()
+  const { data: mod, error: mErr } = modRes
 
   if (mErr) {
     return NextResponse.json({ ok: false, error: mErr.message }, { status: 500 })
+  }
+  if (hiddenPostsRes.error) {
+    return NextResponse.json({ ok: false, error: hiddenPostsRes.error.message }, { status: 500 })
   }
 
   type ModRow = {
@@ -47,6 +63,7 @@ export async function GET(req: Request) {
     ok: true,
     user: {
       ...profile,
+      content_hidden_count: hiddenPostsRes.count ?? 0,
       moderation: m
         ? {
             is_suspended: Boolean(m.is_suspended),

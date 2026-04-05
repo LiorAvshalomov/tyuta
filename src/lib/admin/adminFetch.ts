@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { supabase } from "@/lib/supabaseClient"
 
 type AdminFetchInit = Omit<RequestInit, "headers"> & {
@@ -26,4 +27,16 @@ export async function adminFetch(path: string, init: AdminFetchInit = {}): Promi
     ...init,
     headers,
   })
+}
+
+/**
+ * Hook: returns a stable async function that resolves to the current access token,
+ * or null if the session is not hydrated yet.
+ * Used by AdminShell to attach Bearer tokens to badge polling requests.
+ */
+export function useAdminToken(): () => Promise<string | null> {
+  return useCallback(async () => {
+    const { data } = await supabase.auth.getSession()
+    return data.session?.access_token ?? null
+  }, [])
 }

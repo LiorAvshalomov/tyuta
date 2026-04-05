@@ -10,8 +10,10 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { mapSupabaseError, mapModerationRpcError } from '@/lib/mapSupabaseError'
+import { getAdminErrorMessage } from '@/lib/admin/adminUi'
 import { useToast } from '@/components/Toast'
 import Avatar from '@/components/Avatar'
+import { adminFetch } from '@/lib/admin/adminFetch'
 import { resolveUserIdentity } from '@/lib/systemIdentity'
 import { getSupportConversationId } from '@/lib/moderation'
 
@@ -38,6 +40,14 @@ type InboxThreadRow = {
   other_username: string
   other_display_name: string | null
   other_avatar_url: string | null
+}
+
+type ChatClientMode = 'default' | 'admin'
+
+type ReactionRow = {
+  message_id: string
+  sender_id: string
+  emoji: string
 }
 
 // --- Reply / Reactions / Emoji (Patch 3) ---
@@ -118,17 +128,6 @@ function renderMessageBody(body: string): React.ReactNode {
   )
 }
 
-function softWrapEveryN(input: string, n = 55) {
-  const lines = input.replace(/\r\n/g, '\n').split('\n')
-  const wrapped = lines.map(line => {
-    if (line.length <= n) return line
-    const parts: string[] = []
-    for (let i = 0; i < line.length; i += n) parts.push(line.slice(i, i + n))
-    return parts.join('\n')
-  })
-  return wrapped.join('\n')
-}
-
 function mergeMessagesById(prev: Msg[], incoming: Msg[]) {
   const map = new Map<string, Msg>()
   for (const m of prev) map.set(m.id, m)
@@ -152,9 +151,16 @@ function computeFirstUnreadIndex(list: Msg[], myId: string | null) {
   return list.findIndex(m => m.sender_id !== myId && m.read_at == null)
 }
 
-export default function ChatClient({ conversationId }: { conversationId: string }) {
+export default function ChatClient({
+  conversationId,
+  mode = 'default',
+}: {
+  conversationId: string
+  mode?: ChatClientMode
+}) {
   const router = useRouter()
   const { toast } = useToast()
+  const isAdminMode = mode === 'admin'
 
   const [messages, setMessages] = useState<Msg[]>([])
   const [text, setText] = useState('')
@@ -171,8 +177,9 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   const [other, setOther] = useState<MiniProfile | null>(null)
 
   const [reportedMessage, setReportedMessage] = useState<Msg | null>(null)
+  const systemId = useMemo(() => getSystemUserId(), [])
 
-  const canReport = !!myId && !!other?.id && other.id !== myId && !isSystemUser(other.id)
+  const canReport = !isAdminMode && !!myId && !!other?.id && other.id !== myId && !isSystemUser(other.id)
 
   const submitReport = useCallback(async () => {
     if (!canReport || !other?.id || !myId) return
@@ -213,6 +220,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   const listRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [isStrictlyAtBottom, setIsStrictlyAtBottom] = useState(true)
   const isAtBottomRef = useRef(true)
   const didInitialScrollRef = useRef(false)
 
@@ -249,11 +257,14 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
   // timers
   const stableBottomTimerRef = useRef<number | null>(null)
+  const prevUnreadNowRef = useRef(0)
 
   // seen cache
   const seenIdsRef = useRef<Set<string>>(new Set())
   const sendingRef = useRef(false)
   const [hasOlderMessages, setHasOlderMessages] = useState(true)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+  const loadingOlderRef = useRef(false)
   const messagesRef = useRef<Msg[]>([])
   messagesRef.current = messages
 
@@ -298,6 +309,11 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     return el.scrollTop + el.clientHeight >= el.scrollHeight - 8
   }, [])
 
+  const isPageVisible = useCallback(() => {
+    if (typeof document === 'undefined') return true
+    return document.visibilityState === 'visible'
+  }, [])
+
   // Synchronously reads scroll position and updates all derived refs + state.
   // Call after any programmatic scroll that lands immediately (auto), or after smooth
   // scroll settles. Guarded against redundant re-renders via prevScrollStateRef.
@@ -309,6 +325,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     const nearBottom = dist <= 80
 
     isAtBottomRef.current = atBottom
+    setIsStrictlyAtBottom(prev => (prev === atBottom ? prev : atBottom))
 
     // hysteresis: off when dist > 140, on when dist < 80
     autoFollowRef.current = autoFollowRef.current ? dist <= 140 : dist < 80
@@ -334,6 +351,27 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   }, [syncScrollStateNow])
 
   const fetchMessages = useCallback(async () => {
+    if (isAdminMode) {
+      try {
+        const res = await adminFetch(`/api/admin/inbox/messages?conversation_id=${encodeURIComponent(conversationId)}`)
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          console.error('admin fetchMessages error:', json)
+          return []
+        }
+
+        const list = (Array.isArray(json?.messages) ? json.messages : []) as Msg[]
+        const nextSeen = new Set(seenIdsRef.current)
+        for (const m of list) nextSeen.add(m.id)
+        seenIdsRef.current = nextSeen
+        setMessages(prev => mergeMessagesById(prev, list))
+        return list
+      } catch (error) {
+        console.error('admin fetchMessages error:', error)
+        return []
+      }
+    }
+
     const { data, error } = await supabase
       .from('messages')
       .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id')
@@ -353,39 +391,104 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
     setMessages(prev => mergeMessagesById(prev, list))
     return list
-  }, [conversationId])
+  }, [conversationId, isAdminMode])
 
-  /** Load older messages before the earliest currently loaded. Ready for future "load more" UI. */
   const fetchOlderMessages = useCallback(async () => {
-    if (!hasOlderMessages) return
+    if (loadingOlderRef.current || !hasOlderMessages) return
+
     const oldest = messagesRef.current[0]?.created_at
-    if (!oldest) return
-
-    const { data, error } = await supabase
-      .from('messages')
-      .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id')
-      .eq('conversation_id', conversationId)
-      .lt('created_at', oldest)
-      .order('created_at', { ascending: false })
-      .limit(200)
-
-    if (error) {
-      console.error('fetchOlderMessages error:', error)
+    if (!oldest) {
+      setHasOlderMessages(false)
       return
     }
 
-    const list = ((data ?? []) as Msg[]).reverse()
-    if (list.length < 200) setHasOlderMessages(false)
+    const scroller = listRef.current
+    const prevScrollHeight = scroller?.scrollHeight ?? 0
+    const prevScrollTop = scroller?.scrollTop ?? 0
 
-    const s = new Set(seenIdsRef.current)
-    for (const m of list) s.add(m.id)
-    seenIdsRef.current = s
+    loadingOlderRef.current = true
+    setLoadingOlder(true)
 
-    setMessages(prev => mergeMessagesById(prev, list))
-  }, [conversationId, hasOlderMessages])
+    try {
+      let list: Msg[] = []
+
+      if (isAdminMode) {
+        const res = await adminFetch(`/api/admin/inbox/messages?conversation_id=${encodeURIComponent(conversationId)}&before=${encodeURIComponent(oldest)}`)
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          console.error('admin fetchOlderMessages error:', json)
+          return
+        }
+        list = (Array.isArray(json?.messages) ? json.messages : []) as Msg[]
+      } else {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id')
+          .eq('conversation_id', conversationId)
+          .lt('created_at', oldest)
+          .order('created_at', { ascending: false })
+          .limit(200)
+
+        if (error) {
+          console.error('fetchOlderMessages error:', error)
+          return
+        }
+
+        list = ((data ?? []) as Msg[]).reverse()
+      }
+
+      if (list.length === 0) {
+        setHasOlderMessages(false)
+        return
+      }
+
+      if (list.length < 200) {
+        setHasOlderMessages(false)
+      }
+
+      const seen = new Set(seenIdsRef.current)
+      for (const message of list) seen.add(message.id)
+      seenIdsRef.current = seen
+
+      setMessages(prev => mergeMessagesById(prev, list))
+
+      requestAnimationFrame(() => {
+        const el = listRef.current
+        if (!el) return
+        const nextScrollHeight = el.scrollHeight
+        const delta = nextScrollHeight - prevScrollHeight
+        el.scrollTop = prevScrollTop + delta
+      })
+    } finally {
+      loadingOlderRef.current = false
+      setLoadingOlder(false)
+    }
+  }, [conversationId, hasOlderMessages, isAdminMode])
 
   const doLoadReplyMeta = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return
+    if (isAdminMode) {
+      try {
+        const res = await adminFetch(`/api/admin/inbox/messages?ids=${encodeURIComponent(ids.join(','))}`)
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) return
+
+        setReplyMeta(prev => {
+          const next = new Map(prev)
+          for (const row of (json?.references ?? []) as { id: string; body: string; sender_id: string }[]) {
+            next.set(row.id, {
+              snippet: row.body.slice(0, 80) + (row.body.length > 80 ? '…' : ''),
+              sender_id: row.sender_id,
+            })
+          }
+          return next
+        })
+        return
+      } catch {
+        return
+      }
+    }
+
     const { data } = await supabase
       .from('messages')
       .select('id, body, sender_id')
@@ -401,18 +504,34 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       }
       return next
     })
-  }, [])
+  }, [isAdminMode]) 
 
   const loadReactions = useCallback(async (msgs: Msg[], userId: string | null) => {
     const ids = msgs.map(m => m.id)
     if (ids.length === 0) return
-    const { data } = await supabase
-      .from('message_reactions')
-      .select('message_id, sender_id, emoji')
-      .in('message_id', ids)
-    if (!data) return
+
+    let rows: ReactionRow[] = []
+
+    if (isAdminMode) {
+      try {
+        const res = await adminFetch(`/api/admin/inbox/reactions?message_ids=${encodeURIComponent(ids.join(','))}`)
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) return
+        rows = Array.isArray(json?.reactions) ? (json.reactions as ReactionRow[]) : []
+      } catch {
+        return
+      }
+    } else {
+      const { data } = await supabase
+        .from('message_reactions')
+        .select('message_id, sender_id, emoji')
+        .in('message_id', ids)
+      if (!data) return
+      rows = data as ReactionRow[]
+    }
+
     const map = new Map<string, LocalReaction[]>()
-    for (const row of data as { message_id: string; sender_id: string; emoji: string }[]) {
+    for (const row of rows) {
       const list = map.get(row.message_id) ?? []
       const idx = list.findIndex(r => r.emoji === row.emoji)
       if (idx === -1) {
@@ -423,18 +542,48 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       map.set(row.message_id, list)
     }
     setReactions(map)
-  }, [])
+  }, [isAdminMode])
 
-  const markReadNow = useCallback(async () => {
-    const { data } = await supabase.auth.getUser()
-    if (!data.user?.id) return
-    await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
+  const markReadNow = useCallback(async (opts?: { allowEntryBypass?: boolean }) => {
+    if (!isPageVisible()) return
+
+    const allowEntryBypass = opts?.allowEntryBypass === true
+    const scroller = listRef.current
+    if (!scroller) return
+
+    const strictBottomNow = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 8
+    isAtBottomRef.current = strictBottomNow
+    setIsStrictlyAtBottom(prev => (prev === strictBottomNow ? prev : strictBottomNow))
+    if (!strictBottomNow) return
+
+    if (!allowEntryBypass && !hasReachedBottomSinceOpenRef.current) return
+
+    if (!allowEntryBypass) {
+      const dividerEl = scroller.querySelector('[data-unread-divider="1"]')
+      if (dividerEl) {
+        const dividerRect = dividerEl.getBoundingClientRect()
+        const scrollerRect = scroller.getBoundingClientRect()
+        if (dividerRect.bottom >= scrollerRect.top) return
+      }
+    }
+
+    if (isAdminMode) {
+      await adminFetch('/api/admin/inbox/read', {
+        method: 'POST',
+        body: JSON.stringify({ conversation_id: conversationId }),
+      })
+    } else {
+      const { data } = await supabase.auth.getUser()
+      if (!data.user?.id) return
+      await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
+    }
+
     await fetchMessages()
     // Notify sidebar/header to re-query unread counts
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('tyuta:thread-read'))
     }
-  }, [conversationId, fetchMessages])
+  }, [conversationId, fetchMessages, isAdminMode, isPageVisible])
 
   function clearStableBottomTimer() {
     if (stableBottomTimerRef.current) {
@@ -448,6 +597,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     (unreadNowLocal: number) => {
       clearStableBottomTimer()
       if (unreadNowLocal <= 0) return
+      if (!isPageVisible()) return
       if (!isAtBottomRef.current) return
       if (!hasReachedBottomSinceOpenRef.current) return
       // If the unread divider is currently shown, require user to have scrolled past it
@@ -458,6 +608,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
       stableBottomTimerRef.current = window.setTimeout(async () => {
         if (bottomSessionRef.current !== sessionAtSchedule) return
+        if (!isPageVisible()) return
         if (!isAtBottomRef.current) return
         if (!hasReachedBottomSinceOpenRef.current) return
         if (showUnreadDividerRef.current && !passedUnreadDividerRef.current) return
@@ -465,11 +616,16 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         await markReadNow()
       }, 1800)
     },
-    [markReadNow]
+    [isPageVisible, markReadNow]
   )
 
   // ---- auth (me) ----
   useEffect(() => {
+    if (isAdminMode) {
+      setMyId(systemId ?? null)
+      return
+    }
+
     let mounted = true
 
     async function loadMe() {
@@ -488,7 +644,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       mounted = false
       sub.subscription.unsubscribe()
     }
-  }, [])
+  }, [isAdminMode, systemId])
 
   // BroadcastChannel — live inbox thread list updates
   useEffect(() => {
@@ -501,6 +657,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   useEffect(() => {
     setMessages([])
     setHasOlderMessages(true)
+    setLoadingOlder(false)
     setLoading(true)
     setUnreadUiVisible(false)
     setStickyDay(null)
@@ -509,10 +666,12 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     autoFollowRef.current = true
 
     setIsAtBottom(true)
+    setIsStrictlyAtBottom(true)
     isAtBottomRef.current = true
 
     clearStableBottomTimer()
     seenIdsRef.current = new Set()
+    loadingOlderRef.current = false
     didInitialScrollRef.current = false
     passedUnreadDividerRef.current = false
     hasUserInteractedRef.current = false
@@ -524,6 +683,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     showUnreadDividerRef.current = false
     entryReadCheckedRef.current = false
     prevScrollStateRef.current = { atBottom: true, atTop: true, stickyDay: null, autoFollow: true, unreadUiVisible: false }
+    prevUnreadNowRef.current = 0
   }, [conversationId])
 
   // load other
@@ -531,6 +691,31 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     let mounted = true
 
     async function loadOther() {
+      if (isAdminMode) {
+        try {
+          const res = await adminFetch(`/api/admin/inbox/thread?conversation_id=${encodeURIComponent(conversationId)}`)
+          const json = await res.json().catch(() => ({}))
+
+          if (!mounted) return
+          if (!res.ok || !json?.thread) {
+            setOther(null)
+            return
+          }
+
+          const row = json.thread as InboxThreadRow
+          setOther({
+            id: row.other_user_id,
+            username: row.other_username,
+            display_name: row.other_display_name,
+            avatar_url: row.other_avatar_url,
+          })
+          return
+        } catch {
+          if (mounted) setOther(null)
+          return
+        }
+      }
+
       const { data: me } = await supabase.auth.getUser()
       if (!me.user?.id) return
 
@@ -559,7 +744,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     return () => {
       mounted = false
     }
-  }, [conversationId])
+  }, [conversationId, isAdminMode])
 
   // unreadNow as truth (state)
   const unreadNow = useMemo(() => computeUnreadCount(messages, myId), [messages, myId])
@@ -578,7 +763,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
     const interval = window.setInterval(() => {
       // Phase 1: wait for initial scroll to complete and enter-stick window to end
-      if (!didInitialScrollRef.current || Date.now() < enterStickUntilRef.current) {
+      if (!isPageVisible() || !didInitialScrollRef.current || Date.now() < enterStickUntilRef.current) {
         stableMs = 0
         return
       }
@@ -588,7 +773,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         if (stableMs >= REQUIRED_MS) {
           window.clearInterval(interval)
           window.clearTimeout(maxTimer)
-          void markReadNow()
+          void markReadNow({ allowEntryBypass: true })
         }
       } else {
         stableMs = 0 // user scrolled up — reset
@@ -599,7 +784,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     const maxTimer = window.setTimeout(() => window.clearInterval(interval), 15000)
 
     return () => { window.clearInterval(interval); window.clearTimeout(maxTimer) }
-  }, [loading, unreadNow, markReadNow])
+  }, [isPageVisible, loading, unreadNow, markReadNow])
 
   const firstUnreadIndex = useMemo(() => computeFirstUnreadIndex(messages, myId), [messages, myId])
 
@@ -643,8 +828,9 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     let mounted = true
 
     void (async () => {
-      const { data: me } = await supabase.auth.getUser()
-      const uid = me.user?.id ?? null
+      const uid = isAdminMode
+        ? (systemId ?? null)
+        : ((await supabase.auth.getUser()).data.user?.id ?? null)
       if (!mounted) return
       if (uid && uid !== myId) setMyId(uid)
 
@@ -671,7 +857,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       mounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, fetchMessages])
+  }, [conversationId, fetchMessages, isAdminMode, systemId])
 
   // auto-hide divider only when truth says 0 and we are at bottom
   useEffect(() => {
@@ -680,6 +866,27 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       setUnreadUiVisible(false)
     }
   }, [unreadNow, isAtBottom])
+
+  useEffect(() => {
+    const prevUnread = prevUnreadNowRef.current
+    prevUnreadNowRef.current = unreadNow
+
+    if (unreadNow <= prevUnread) return
+    if (isAtBottomForRead()) return
+
+    autoFollowRef.current = false
+    prevScrollStateRef.current.autoFollow = false
+    prevScrollStateRef.current.unreadUiVisible = true
+    passedUnreadDividerRef.current = false
+    hasReachedBottomSinceOpenRef.current = false
+    if (reachedBottomDebounceRef.current !== null) {
+      window.clearTimeout(reachedBottomDebounceRef.current)
+      reachedBottomDebounceRef.current = null
+    }
+    bottomSessionRef.current += 1
+    clearStableBottomTimer()
+    setUnreadUiVisible(true)
+  }, [isAtBottomForRead, unreadNow])
 
   // Sticky day label — IntersectionObserver + MutationObserver, no per-scroll DOM reads
   useEffect(() => {
@@ -759,7 +966,9 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
 
     const obs = new ResizeObserver(() => {
-      if (autoFollowRef.current || Date.now() < enterStickUntilRef.current) scrollListToBottom('auto')
+      if (autoFollowRef.current || (!hasUserInteractedRef.current && Date.now() < enterStickUntilRef.current)) {
+        scrollListToBottom('auto')
+      }
       if (stableTimer !== null) window.clearTimeout(stableTimer)
       stableTimer = window.setTimeout(stop, 400)
     })
@@ -801,9 +1010,16 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         const el = listRef.current
         if (!el) return
 
+        if (!suppressIntentRef.current && didInitialScrollRef.current) {
+          hasUserInteractedRef.current = true
+          enterStickUntilRef.current = 0
+        }
+
         // UI / autoFollow uses permissive threshold; read-receipts use strict
         const nearBottomNow = isNearBottomForAutoFollow()
-        isAtBottomRef.current = isAtBottomForRead()
+        const strictBottomNow = isAtBottomForRead()
+        isAtBottomRef.current = strictBottomNow
+        setIsStrictlyAtBottom(prev => (prev === strictBottomNow ? prev : strictBottomNow))
         if (nearBottomNow !== prevScrollStateRef.current.atBottom) {
           prevScrollStateRef.current.atBottom = nearBottomNow
           setIsAtBottom(nearBottomNow)
@@ -853,10 +1069,20 @@ export default function ChatClient({ conversationId }: { conversationId: string 
           setUnreadUiVisible(true)
         }
 
-        const atTopNow = el.scrollTop <= 2
+        const atTopNow = el.scrollTop <= 24
         if (atTopNow !== prevScrollStateRef.current.atTop) {
           prevScrollStateRef.current.atTop = atTopNow
           setIsAtTop(atTopNow)
+        }
+
+        if (
+          hasUserInteractedRef.current &&
+          atTopNow &&
+          didInitialScrollRef.current &&
+          hasOlderMessages &&
+          !loadingOlderRef.current
+        ) {
+          void fetchOlderMessages()
         }
 
         // mark read only when strictly at bottom (isAtBottomRef = strict threshold)
@@ -886,10 +1112,29 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       root.removeEventListener('keydown', markInteractedKey)
       cancelAnimationFrame(raf)
     }
-  }, [isNearBottomForAutoFollow, isAtBottomForRead, scheduleMarkReadIfStableBottom, unreadNow])
+  }, [fetchOlderMessages, hasOlderMessages, isNearBottomForAutoFollow, isAtBottomForRead, scheduleMarkReadIfStableBottom, unreadNow])
 
   // realtime subscription
   useEffect(() => {
+    if (isAdminMode) {
+      const interval = window.setInterval(() => {
+        void (async () => {
+          if (!isPageVisible()) return
+          const list = await fetchMessages()
+          const replyIds = list.map((m) => m.reply_to_id).filter((id): id is string => id != null)
+          void doLoadReplyMeta(replyIds)
+          void loadReactions(list, myId)
+          if (isAtBottomRef.current) {
+            scheduleMarkReadIfStableBottom(computeUnreadCount(list, myId))
+          }
+        })()
+      }, 2500)
+
+      return () => {
+        window.clearInterval(interval)
+      }
+    }
+
     const channel = supabase
       .channel(`chat-${conversationId}`)
       .on(
@@ -931,7 +1176,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
               ? listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 8
               : true
 
-            if (atBottomStrictNow) {
+            if (atBottomStrictNow && isPageVisible()) {
               // Already seeing the latest — scroll to keep up and arm mark-read.
               // No unread UI: user is at the bottom and will see it immediately.
               hasUserInteractedRef.current = true
@@ -942,6 +1187,17 @@ export default function ChatClient({ conversationId }: { conversationId: string 
               }, 0)
             } else {
               // Not at bottom — show unread badge/pill immediately, no read receipt
+              autoFollowRef.current = false
+              prevScrollStateRef.current.autoFollow = false
+              prevScrollStateRef.current.unreadUiVisible = true
+              passedUnreadDividerRef.current = false
+              hasReachedBottomSinceOpenRef.current = false
+              if (reachedBottomDebounceRef.current !== null) {
+                window.clearTimeout(reachedBottomDebounceRef.current)
+                reachedBottomDebounceRef.current = null
+              }
+              bottomSessionRef.current += 1
+              clearStableBottomTimer()
               setUnreadUiVisible(true)
             }
 
@@ -958,6 +1214,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
     // safety polling
     const interval = window.setInterval(() => {
+      if (!isPageVisible()) return
       void fetchMessages()
     }, 6000)
 
@@ -967,9 +1224,13 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     }
   }, [
     conversationId,
+    isAdminMode,
     isNearBottomForAutoFollow,
     isAtBottomForRead,
+    isPageVisible,
+    doLoadReplyMeta,
     fetchMessages,
+    loadReactions,
     myId,
     scheduleMarkReadIfStableBottom,
     scrollListToBottom,
@@ -1002,7 +1263,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
   // realtime: message_reactions — re-fetch on any change to keep counts in sync
   useEffect(() => {
-    if (!myId) return
+    if (isAdminMode || !myId) return
     const channel = supabase
       .channel(`reactions-${conversationId}`)
       .on(
@@ -1012,7 +1273,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [conversationId, myId, loadReactions])
+  }, [conversationId, isAdminMode, myId, loadReactions])
 
   const sendTyping = useCallback(async () => {
     if (!myId) return
@@ -1079,6 +1340,14 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     })
 
     // Persist to DB
+    if (isAdminMode) {
+      await adminFetch('/api/admin/inbox/reactions', {
+        method: 'POST',
+        body: JSON.stringify({ message_id: msgId, emoji }),
+      })
+      return
+    }
+
     if (myCurrentReaction && myCurrentReaction.emoji === emoji) {
       // Toggle off: remove reaction
       await supabase
@@ -1092,7 +1361,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         .from('message_reactions')
         .upsert({ message_id: msgId, sender_id: myId, emoji }, { onConflict: 'message_id,sender_id' })
     }
-  }, [myId, reactions])
+  }, [isAdminMode, myId, reactions])
 
   function handleReply(m: Msg, mine: boolean) {
     const authorName = mine ? 'אתה' : (other?.display_name ?? other?.username ?? 'צד שני')
@@ -1197,8 +1466,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
     const capturedReply = replyTo
     setReplyTo(null)
 
-    const { data } = await supabase.auth.getUser()
-    const uid = data.user?.id
+    const uid = isAdminMode ? myId : (await supabase.auth.getUser()).data.user?.id
     if (!uid) {
       sendingRef.current = false
       toast('כדי לשלוח הודעה צריך להתחבר', 'info')
@@ -1208,46 +1476,65 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
     // Soft-suspend enforcement: allow messaging only to "System" while suspended.
     // DB/RLS should also enforce this, but this prevents confusing UX.
-    try {
-      const { data: mod, error: modErr } = await supabase
-        .from('user_moderation')
-        .select('is_suspended, is_banned')
-        .eq('user_id', uid)
-        .maybeSingle()
+    if (!isAdminMode) {
+      try {
+        const { data: mod, error: modErr } = await supabase
+          .from('user_moderation')
+          .select('is_suspended, is_banned')
+          .eq('user_id', uid)
+          .maybeSingle()
 
-      if (!modErr && mod?.is_banned === true && !isSystem) {
-        sendingRef.current = false
-        toast('החשבון שלך הורחק לצמיתות. אפשר לפנות למערכת האתר.', 'error')
-        router.replace(`/banned?from=${encodeURIComponent(`/inbox/${conversationId}`)}`)
-        return
-      }
+        if (!modErr && mod?.is_banned === true && !isSystem) {
+          sendingRef.current = false
+          toast('החשבון שלך הורחק לצמיתות. אפשר לפנות למערכת האתר.', 'error')
+          router.replace(`/banned?from=${encodeURIComponent(`/inbox/${conversationId}`)}`)
+          return
+        }
 
-      if (!modErr && mod?.is_suspended === true && !isSystem) {
-        sendingRef.current = false
-        toast('החשבון שלך הוגבל. אפשר לפנות למערכת האתר דרך האינבוקס.', 'error')
-        router.replace(`/restricted?from=${encodeURIComponent(`/inbox/${conversationId}`)}`)
-        return
+        if (!modErr && mod?.is_suspended === true && !isSystem) {
+          sendingRef.current = false
+          toast('החשבון שלך הוגבל. אפשר לפנות למערכת האתר דרך האינבוקס.', 'error')
+          router.replace(`/restricted?from=${encodeURIComponent(`/inbox/${conversationId}`)}`)
+          return
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
 
     setSending(true)
     try {
-      const { data: messageId, error } = await supabase.rpc('send_message', {
-        p_conversation_id: conversationId,
-        p_body: bodyTrimmed,
-        p_reply_to_id: capturedReply?.id ?? null,
-      })
+      if (isAdminMode) {
+        const res = await adminFetch('/api/admin/inbox/send', {
+          method: 'POST',
+          body: JSON.stringify({
+            conversation_id: conversationId,
+            body: bodyTrimmed,
+            reply_to_id: capturedReply?.id ?? null,
+          }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          toast(getAdminErrorMessage(json, 'לא הצלחתי לשלוח הודעה.'), 'error')
+          if (capturedReply) setReplyTo(capturedReply)
+          return
+        }
+      } else {
+        const { data: messageId, error } = await supabase.rpc('send_message', {
+          p_conversation_id: conversationId,
+          p_body: bodyTrimmed,
+          p_reply_to_id: capturedReply?.id ?? null,
+        })
 
-      if (error || !messageId) {
-        const friendly = mapSupabaseError(error ?? null)
-          ?? mapModerationRpcError(error?.message ?? '')
-        toast(friendly ?? `לא הצלחתי לשלוח הודעה.\n${error?.message ?? 'נסי שוב.'}`, 'error')
-        if (!friendly) console.error('send_message error:', error)
-        // Restore reply state so user can retry with the same quote
-        if (capturedReply) setReplyTo(capturedReply)
-        return
+        if (error || !messageId) {
+          const friendly = mapSupabaseError(error ?? null)
+            ?? mapModerationRpcError(error?.message ?? '')
+          toast(friendly ?? `לא הצלחתי לשלוח הודעה.\n${error?.message ?? 'נסי שוב.'}`, 'error')
+          if (!friendly) console.error('send_message error:', error)
+          // Restore reply state so user can retry with the same quote
+          if (capturedReply) setReplyTo(capturedReply)
+          return
+        }
       }
 
       setText('')
@@ -1262,7 +1549,6 @@ export default function ChatClient({ conversationId }: { conversationId: string 
   }
 
   const supportCid = useMemo(() => getSupportConversationId(), [])
-  const systemId = useMemo(() => getSystemUserId(), [])
 
   const identity = other?.id
     ? resolveUserIdentity({
@@ -1286,6 +1572,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
 
   // arrow badge: use unreadNow (אמת של read_at==null)
   const arrowBadgeCount = clampBadge(unreadNow)
+  const showScrollToLatest = unreadNow > 0 ? !isStrictlyAtBottom : !isAtBottom
 
   return (
     <>
@@ -1440,9 +1727,17 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         )}
         {/* Scroller + day-pill overlay — relative wrapper so pill can be absolute */}
         <div className="relative min-h-0 flex-1 flex flex-col">
+          {(loadingOlder || (didInitialScrollRef.current && hasUserInteractedRef.current && isAtTop && hasOlderMessages)) && (
+            <div className="pointer-events-none absolute top-2 left-0 right-0 z-10 flex justify-center">
+              <div className="rounded-full border bg-white/92 px-3 py-1 text-xs font-semibold text-neutral-700 shadow-sm dark:bg-[#2a2a2a] dark:border-white/10 dark:text-muted-foreground">
+                {loadingOlder ? 'טוען הודעות קודמות…' : 'יש הודעות קודמות למעלה'}
+              </div>
+            </div>
+          )}
+
           {/* Day pill — absolute overlay, zero layout impact on the message list */}
           {!isAtBottom && stickyDay && (
-            <div className="pointer-events-none absolute top-2 left-0 right-0 z-10 flex justify-center">
+            <div className="pointer-events-none absolute top-12 left-0 right-0 z-10 flex justify-center">
               <div className="rounded-full border bg-white/92 px-3 py-1 text-xs font-semibold text-neutral-700 shadow-sm dark:bg-[#2a2a2a] dark:border-white/10 dark:text-muted-foreground">
                 {stickyDay}
               </div>
@@ -1494,7 +1789,7 @@ export default function ChatClient({ conversationId }: { conversationId: string 
         </div>{/* end scroller+pill wrapper */}
 
         {/* Scroll-to-bottom FAB — centered, circular */}
-        {!isAtBottom && (
+        {showScrollToLatest && (
           <div className="pointer-events-none absolute bottom-4 inset-x-0 z-20 flex justify-center">
             <button
               onClick={() => {

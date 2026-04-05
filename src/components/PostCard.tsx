@@ -1,8 +1,12 @@
+'use client'
+
+import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import Link from 'next/link'
 import Badge from '@/components/Badge'
 import { coverProxySrc } from '@/lib/coverUrl'
 import { formatDateTimeHe, formatRelativeHe, isNewPost } from '@/lib/time'
+import GifCoverImage from '@/components/GifCoverImage'
 
 export type PostCardMedals = { gold: number; silver: number; bronze: number }
 
@@ -37,6 +41,7 @@ function channelHrefByName(name?: string | null) {
   return null
 }
 
+
 /**
  * IMPORTANT:
  * We hard-enforce image sizing via width/height + inline styles,
@@ -49,13 +54,25 @@ function CoverImage({
   width,
   height,
   className,
+  cardHovered,
 }: {
   src: string
   alt: string
   width: number
   height: number
   className?: string
+  cardHovered?: boolean
 }) {
+  const isGif = src.toLowerCase().includes('.gif')
+
+  if (isGif) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'block' }} className={className ?? ''}>
+        <GifCoverImage src={src} alt={alt} cardHovered={cardHovered ?? false} />
+      </div>
+    )
+  }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -108,11 +125,20 @@ export default function PostCard({
   )
 
   const chHref = channelHrefByName(post.channel_name)
+  const [hovered, setHovered] = useState(false)
+
+  const hoverHandlers = {
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+  }
 
   if (variant === 'list-featured') {
     // Featured: title/excerpt/author above a constrained image.
     return (
-      <article className="block rounded-2xl border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 p-4 shadow-sm transition hover:shadow-md">
+      <article
+        className="block rounded-2xl border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 p-4 shadow-sm transition hover:shadow-md"
+        {...hoverHandlers}
+      >
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {post.channel_name ? (
             chHref ? (
@@ -155,7 +181,7 @@ export default function PostCard({
               <Link href={`/post/${post.slug}`} className="block">
                 <CoverFrame className="rounded-xl" style={{ width: '100%' }}>
                   <div style={{ width: '100%', height: 260 }}>
-                    <CoverImage src={coverSrc!} alt="" width={1280} height={720} />
+                    <CoverImage src={coverSrc!} alt="" width={1280} height={720} cardHovered={hovered} />
                   </div>
                 </CoverFrame>
               </Link>
@@ -174,12 +200,15 @@ export default function PostCard({
   if (variant === 'tile') {
     // Small category tiles
     return (
-      <article className="group block overflow-hidden rounded border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 shadow-sm transition hover:shadow-md">
+      <article
+        className="group block overflow-hidden rounded border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 shadow-sm transition hover:shadow-md"
+        {...hoverHandlers}
+      >
         <div className="relative">
           {hasCover ? (
             <Link href={`/post/${post.slug}`} className="block">
               <CoverFrame className="rounded-none border-0" style={{ borderRadius: 0, width: '100%', height: 160 }}>
-                <CoverImage src={coverSrc!} alt="" width={320} height={200} />
+                <CoverImage src={coverSrc!} alt="" width={320} height={200} cardHovered={hovered} />
               </CoverFrame>
             </Link>
           ) : (
@@ -204,14 +233,17 @@ export default function PostCard({
 
   // Default: list row
   return (
-    <article className="block rounded border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 p-3 shadow-sm transition hover:shadow-md">
+    <article
+      className="block rounded border bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 p-3 shadow-sm transition hover:shadow-md"
+      {...hoverHandlers}
+    >
       <div className="flex flex-row-reverse items-start gap-3">
         {/* IMAGE on the right (fixed size, never overflows) */}
         <div className="shrink-0">
           {hasCover ? (
             <Link href={`/post/${post.slug}`} className="block">
               <CoverFrame className="rounded" style={{ width: 140, height: 90 }}>
-                <CoverImage src={coverSrc!} alt="" width={140} height={90} />
+                <CoverImage src={coverSrc!} alt="" width={140} height={90} cardHovered={hovered} />
               </CoverFrame>
             </Link>
           ) : (

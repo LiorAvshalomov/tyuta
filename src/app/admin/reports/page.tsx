@@ -5,6 +5,7 @@ import Link from "next/link"
 import Avatar from "@/components/Avatar"
 import { adminFetch } from "@/lib/admin/adminFetch"
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
+import { buildAdminUserSearchHref } from '@/lib/admin/adminUsersHref'
 import PageHeader from '@/components/admin/PageHeader'
 import FilterTabs from '@/components/admin/FilterTabs'
 import ErrorBanner from '@/components/admin/ErrorBanner'
@@ -259,47 +260,47 @@ export default function ReportsPage() {
             return (
               <div
                 key={r.id}
-                className="rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm"
+                className="rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm dark:border-border dark:bg-card"
               >
                 {/* Header row */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     {/* Source badge */}
                     {src === "inbox" && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">
                         <MessageSquare size={11} /> אינבוקס
                       </span>
                     )}
                     {src === "posts" && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:bg-violet-500/10 dark:text-violet-400">
                         <FileText size={11} /> פוסט / תגובה
                       </span>
                     )}
                     {src === "users" && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 dark:bg-muted/40 dark:text-neutral-400">
                         <User size={11} /> משתמש
                       </span>
                     )}
-                    <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                    <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-muted/40 dark:text-neutral-300">
                       {r.category || "כללי"}
                     </span>
                     {(() => {
                       const reason = reportReasonLabel(r)
                       return reason ? (
-                        <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                        <span className="inline-flex items-center rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-muted/40 dark:text-neutral-300">
                           {reason}
                         </span>
                       ) : null
                     })()}
 
-                    <span className="text-xs text-neutral-400">{when}</span>
+                    <span className="text-xs text-neutral-400 dark:text-neutral-500">{when}</span>
                   </div>
                   <span
                     className={
                       'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ' +
                       (r.status === 'resolved'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-amber-50 text-amber-700')
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+                        : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400')
                     }
                   >
                     {r.status === 'resolved' ? 'טופל' : 'פתוח'}
@@ -307,7 +308,7 @@ export default function ReportsPage() {
                 </div>
 
                 {/* Reporter → Reported */}
-                <div className="mt-2 flex items-center gap-2 text-sm text-neutral-800">
+                <div className="mt-2 flex items-center gap-2 text-sm text-neutral-800 dark:text-foreground">
                   <div className="flex items-center gap-1.5">
                     <Avatar
                       src={r.reporter_profile?.avatar_url ?? null}
@@ -317,7 +318,7 @@ export default function ReportsPage() {
                     />
                     <span className="font-semibold">{reporterName}</span>
                   </div>
-                  <span className="text-neutral-400">דיווח/ה על</span>
+                  <span className="text-neutral-400 dark:text-neutral-500">דיווח/ה על</span>
                   <div className="flex items-center gap-1.5">
                     <Avatar
                       src={r.reported_profile?.avatar_url ?? null}
@@ -331,15 +332,15 @@ export default function ReportsPage() {
 
                 {/* Context — varies by source */}
                 {src === "inbox" && (r.message_preview || r.message_excerpt) && (
-                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:bg-muted/30 dark:text-neutral-300">
                     {r.message_excerpt || r.message_preview}
                   </div>
                 )}
                 {src === "posts" && (r.message_preview || r.message_excerpt || r.details) && (
-                  <div className="mt-2 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                  <div className="mt-2 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:bg-muted/30 dark:text-neutral-300">
                     {isPostReport(r.details) ? (
                       <div className="space-y-1">
-                        <div className="font-bold text-neutral-900">
+                        <div className="font-bold text-neutral-900 dark:text-foreground">
                           {parseDetailValue(r.details, 'post_title') || 'ללא כותרת'}
                         </div>
                         {r.message_excerpt ? (
@@ -348,7 +349,7 @@ export default function ReportsPage() {
                         {(() => {
                           const userTxt = extractUserWrittenDetails(r.details)
                           return userTxt ? (
-                            <div className="line-clamp-2 whitespace-pre-wrap text-[13px] text-neutral-600">
+                            <div className="line-clamp-2 whitespace-pre-wrap text-[13px] text-neutral-600 dark:text-neutral-400">
                               {userTxt}
                             </div>
                           ) : null
@@ -360,7 +361,7 @@ export default function ReportsPage() {
                   </div>
                 )}
                 {src === "users" && r.details && (
-                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700">
+                  <div className="mt-2 line-clamp-3 whitespace-pre-wrap rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-700 dark:bg-muted/30 dark:text-neutral-300">
                     {r.details}
                   </div>
                 )}
@@ -370,7 +371,7 @@ export default function ReportsPage() {
                   {src === "inbox" && (
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                       onClick={() => setActiveReportId(r.id)}
                     >
                       <MessageSquare size={13} />
@@ -383,7 +384,7 @@ export default function ReportsPage() {
                     return slug ? (
                       <Link
                         href={`/post/${slug}`}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                       >
                         <FileText size={13} />
                         צפה בפוסט
@@ -393,8 +394,12 @@ export default function ReportsPage() {
 
                   {src === "users" && (
                     <Link
-                      href="/admin/users"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      href={buildAdminUserSearchHref({
+                        userId: r.reported_user_id,
+                        displayName: r.reported_profile?.display_name ?? r.reported_display_name,
+                        username: r.reported_profile?.username ?? r.reported_username,
+                      })}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                     >
                       <User size={13} />
                       ניהול משתמש
@@ -404,7 +409,7 @@ export default function ReportsPage() {
                   {src !== "inbox" && (
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                       onClick={() => setActiveReportId(r.id)}
                     >
                       פירוט
@@ -414,7 +419,7 @@ export default function ReportsPage() {
                   {r.status !== "resolved" ? (
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                       onClick={() => toggleResolve(r.id, "resolved")}
                     >
                       <CheckCircle2 size={13} />
@@ -423,7 +428,7 @@ export default function ReportsPage() {
                   ) : (
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50"
                       onClick={() => toggleResolve(r.id, "open")}
                     >
                       <RotateCcw size={13} />
@@ -461,13 +466,13 @@ function ReportDrawer({ id, onClose }: { id: string; onClose: () => void }) {
       />
 
       {/* Drawer panel */}
-      <div className="absolute inset-y-0 right-0 w-full max-w-lg overflow-y-auto bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-3">
-          <h2 className="text-sm font-bold text-neutral-900">פרטי דיווח</h2>
+      <div className="absolute inset-y-0 right-0 w-full max-w-lg overflow-y-auto bg-white shadow-2xl dark:bg-card">
+        <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-3 dark:border-border">
+          <h2 className="text-sm font-bold text-neutral-900 dark:text-foreground">פרטי דיווח</h2>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-muted"
             aria-label="סגור"
           >
             <X size={18} />

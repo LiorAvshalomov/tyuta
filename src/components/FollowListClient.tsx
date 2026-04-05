@@ -276,12 +276,13 @@ export default function FollowListClient({
                       <FollowButton
                         key={`${u.id}:${viewerId ?? 'anon'}:${followingIds.has(u.id) ? '1' : '0'}`}
                         targetUserId={u.id}
+                        size="desktop-sm"
                         initialViewerId={viewerId}
                         initialIsFollowing={followingIds.has(u.id)}
                         skipInitialLoad
                       />
                     ) : (
-                      <div className="h-10 min-w-[110px]" aria-hidden="true" />
+                      <div className="h-10 min-w-[110px] md:h-9 md:min-w-[98px]" aria-hidden="true" />
                     )}
                   </div>
                 </div>

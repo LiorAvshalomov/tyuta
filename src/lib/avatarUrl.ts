@@ -1,4 +1,4 @@
-/** True when a src has already been routed through /api/media/avatar (Supabase avatars). */
+/** True when a src has already been routed through /api/media/avatar (legacy proxy path). */
 export function isAvatarProxySrc(src: string | null | undefined): boolean {
   return (src ?? '').startsWith('/api/media/avatar')
 }
@@ -12,16 +12,7 @@ export function avatarProxySrc(url: string | null | undefined): string | null {
   const idx = safeUrl.indexOf(marker)
   if (idx === -1) return safeUrl
 
-  const rawPath = safeUrl.slice(idx + marker.length)
-  const qIdx = rawPath.indexOf('?')
-  const path = qIdx === -1 ? rawPath : rawPath.slice(0, qIdx)
-  const search = qIdx === -1 ? '' : rawPath.slice(qIdx + 1)
-  const params = new URLSearchParams({ path })
-
-  if (search) {
-    const sourceParams = new URLSearchParams(search)
-    sourceParams.forEach((value, key) => params.append(key, value))
-  }
-
-  return `/api/media/avatar?${params.toString()}`
+  // Avatars live in a public bucket and already carry version params on update.
+  // Serve them directly from Supabase CDN to avoid an unnecessary Vercel Function hop.
+  return safeUrl
 }

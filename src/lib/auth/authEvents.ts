@@ -1,4 +1,11 @@
-export type AuthBroadcastEventType = 'SIGNED_OUT' | 'TOKEN_REFRESH_FAILED'
+export type AuthBroadcastEventType = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESH_FAILED'
+
+export type AuthBroadcastPayload = {
+  type: AuthBroadcastEventType
+  ts: number
+}
+
+export type AuthResolutionState = 'unknown' | 'authenticated' | 'unauthenticated'
 
 const AUTH_EVENT_KEY = 'tyuta:auth:event'
 const AUTH_STATE_KEY = 'tyuta:auth:state'
@@ -28,10 +35,16 @@ function migrateAuthKeys(): void {
 
 if (typeof window !== 'undefined') migrateAuthKeys()
 
-type AuthBroadcastPayload = {
-  type: AuthBroadcastEventType
-  ts: number
-}
+/**
+ * BroadcastChannel singleton for cross-tab auth events.
+ * Primary channel — works in all modern browsers (Safari ≥ 15.4, all Chromium, Firefox).
+ * StorageEvent remains as a fallback for older Safari.
+ */
+const _bc =
+  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('tyuta:auth') : null
+
+let authResolutionState: AuthResolutionState = 'unknown'
+const authResolutionListeners = new Set<(state: AuthResolutionState) => void>()
 
 export function setAuthState(state: 'in' | 'out'): void {
   try {
@@ -50,13 +63,45 @@ export function getAuthState(): 'in' | 'out' | null {
   }
 }
 
+export function setAuthResolutionState(state: AuthResolutionState): void {
+  authResolutionState = state
+  for (const listener of authResolutionListeners) listener(state)
+}
+
+export function getAuthResolutionState(): AuthResolutionState {
+  return authResolutionState
+}
+
+export function subscribeAuthResolutionState(
+  listener: (state: AuthResolutionState) => void,
+): () => void {
+  authResolutionListeners.add(listener)
+  return () => authResolutionListeners.delete(listener)
+}
+
+export function waitForAuthResolution(timeoutMs = 8000): Promise<AuthResolutionState | 'timeout'> {
+  if (authResolutionState !== 'unknown') return Promise.resolve(authResolutionState)
+
+  return new Promise((resolve) => {
+    const timeout = window.setTimeout(() => {
+      unsubscribe()
+      resolve('timeout')
+    }, timeoutMs)
+
+    const unsubscribe = subscribeAuthResolutionState((state) => {
+      if (state === 'unknown') return
+      window.clearTimeout(timeout)
+      unsubscribe()
+      resolve(state)
+    })
+  })
+}
+
+/** Broadcast an auth event to all tabs (BroadcastChannel + StorageEvent fallback). */
 export function broadcastAuthEvent(type: AuthBroadcastEventType): void {
   const payload: AuthBroadcastPayload = { type, ts: Date.now() }
-  try {
-    localStorage.setItem(AUTH_EVENT_KEY, JSON.stringify(payload))
-  } catch {
-    // ignore
-  }
+  try { _bc?.postMessage(payload) } catch { /* ignore */ }
+  try { localStorage.setItem(AUTH_EVENT_KEY, JSON.stringify(payload)) } catch { /* ignore */ }
 }
 
 export function parseAuthBroadcastEvent(raw: string | null): AuthBroadcastPayload | null {
@@ -67,13 +112,45 @@ export function parseAuthBroadcastEvent(raw: string | null): AuthBroadcastPayloa
     const rec = v as Record<string, unknown>
     const type = rec.type
     const ts = rec.ts
-    if ((type === 'SIGNED_OUT' || type === 'TOKEN_REFRESH_FAILED') && typeof ts === 'number') {
+    if (
+      (type === 'SIGNED_IN' || type === 'SIGNED_OUT' || type === 'TOKEN_REFRESH_FAILED') &&
+      typeof ts === 'number'
+    ) {
       return { type, ts }
     }
     return null
   } catch {
     return null
   }
+}
+
+/**
+ * Subscribe to cross-tab auth events via BroadcastChannel.
+ * Falls back silently to no-op on browsers without BroadcastChannel
+ * (StorageEvent subscription in AuthSync covers that path).
+ *
+ * Returns an unsubscribe function.
+ */
+export function subscribeAuthBroadcast(
+  handler: (payload: AuthBroadcastPayload) => void,
+): () => void {
+  if (!_bc) return () => { /* noop */ }
+
+  const onMessage = (e: MessageEvent<unknown>) => {
+    if (!e.data || typeof e.data !== 'object') return
+    const rec = e.data as Record<string, unknown>
+    const type = rec.type
+    const ts = rec.ts
+    if (
+      (type === 'SIGNED_IN' || type === 'SIGNED_OUT' || type === 'TOKEN_REFRESH_FAILED') &&
+      typeof ts === 'number'
+    ) {
+      handler({ type, ts })
+    }
+  }
+
+  _bc.addEventListener('message', onMessage)
+  return () => _bc.removeEventListener('message', onMessage)
 }
 
 export const AUTH_BROADCAST_STORAGE_KEY = AUTH_EVENT_KEY

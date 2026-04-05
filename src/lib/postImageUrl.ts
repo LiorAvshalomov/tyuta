@@ -3,6 +3,9 @@ export function isPostImageProxySrc(src: string | null | undefined): boolean {
   return (src ?? '').startsWith('/api/media/post-image')
 }
 
+const PUBLIC_POST_MEDIA_BUCKET = 'post-covers'
+const INLINE_PREFIX = 'inline'
+
 export function postImageStoragePath(
   path: string | null | undefined,
   src: string | null | undefined,
@@ -29,6 +32,32 @@ export function postImageStoragePath(
   }
 
   return null
+}
+
+export function publicPostImagePath(
+  privatePath: string | null | undefined,
+  postId: string | null | undefined,
+): string | null {
+  const safePath = privatePath?.trim()
+  const safePostId = postId?.trim()
+  if (!safePath || !safePostId) return null
+
+  const parts = safePath.split('/').filter(Boolean)
+  if (parts.length < 3 || parts[1] !== safePostId) return null
+
+  const suffix = parts.slice(2).join('/')
+  if (!suffix) return null
+  return `${safePostId}/${INLINE_PREFIX}/${suffix}`
+}
+
+export function postImagePublicSrc(
+  privatePath: string | null | undefined,
+  postId: string | null | undefined,
+): string | null {
+  const publicPath = publicPostImagePath(privatePath, postId)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (!publicPath || !supabaseUrl) return null
+  return `${supabaseUrl}/storage/v1/object/public/${PUBLIC_POST_MEDIA_BUCKET}/${publicPath}`
 }
 
 /**

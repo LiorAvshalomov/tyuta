@@ -57,52 +57,52 @@ export default function AdminSystemPage() {
         description="שליחת הודעה מערכתית דרך notifications."
       />
 
-      <div className="rounded-xl border border-neutral-200 bg-white p-5">
+      <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-border dark:bg-card">
         <FilterTabs value={mode} onChange={setMode} options={MODE_OPTIONS} />
 
         <div className="mt-5 space-y-4">
           {mode === 'user' && (
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-neutral-500">
+              <label className="mb-1.5 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
                 username יעד
               </label>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="למשל: lior"
-                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
               />
             </div>
           )}
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
               כותרת
             </label>
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="כותרת קצרה..."
-              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500 dark:text-neutral-400">
               הודעה
             </label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="מה תרצה שהמערכת תשלח..."
-              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400"
+              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
               rows={6}
             />
           </div>
         </div>
 
         <div className="mt-5 flex items-center justify-between">
-          <div className="text-xs text-neutral-400">
+          <div className="text-xs text-neutral-400 dark:text-neutral-500">
             טיפ: כדי שזה יראה יפה למשתמשים, אנחנו מרנדרים &quot;מערכת האתר&quot; וכוללים את הכותרת/הטקסט מתוך payload.
           </div>
           <button
@@ -113,7 +113,7 @@ export default function AdminSystemPage() {
               'inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white ' +
               (canSend
                 ? 'bg-neutral-900 hover:bg-neutral-800'
-                : 'cursor-not-allowed bg-neutral-300')
+                : 'cursor-not-allowed bg-neutral-300 dark:bg-zinc-600')
             }
           >
             <Send size={14} />

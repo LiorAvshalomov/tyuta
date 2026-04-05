@@ -3,7 +3,6 @@ export const revalidate = 60
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { supabase } from '@/lib/supabaseClient'
 import { RelativeTime } from '@/components/RelativeTime'
 import HomeWriteCTA from '@/components/HomeWriteCTA'
 import StickySidebar from '@/components/StickySidebar'
@@ -11,9 +10,38 @@ import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
 import FeedAutoRefresh from '@/components/FeedAutoRefresh'
 import FeedIntentLink from '@/components/FeedIntentLink'
-import { coverProxySrc, isProxySrc } from '@/lib/coverUrl'
+import { coverProxySrc, isProxySrc, isGifUrl } from '@/lib/coverUrl'
 import { FeaturedImageGlow } from '@/components/FeaturedImageGlow'
 import { FeaturedColorSync } from '@/components/FeaturedColorSync'
+import GifCoverCard from '@/components/GifCoverCard'
+import { getFeedVersionForPath, type FeedPath } from '@/lib/freshness/serverVersions'
+import { CHANNEL_PAGE_CONFIGS } from '@/lib/home/channelPageConfig'
+import { createPublicServerClient } from '@/lib/supabase/createPublicServerClient'
+
+const MEDAL_EMOJIS = {
+  gold: '🥇',
+  silver: '🥈',
+  bronze: '🥉',
+} as const
+
+const SEPARATOR = '•'
+const READ_POST_SR_LABEL = 'לקריאה'
+const VIEW_ALL_LABEL = 'הכל ←'
+const RECENT_POSTS_LABEL = 'פוסטים אחרונים'
+const NO_RECENT_POSTS_LABEL = 'אין עדיין פוסטים אחרונים.'
+const HOME_ERROR_TITLE = 'שגיאת מערכת'
+const HOME_ERROR_DESCRIPTION = 'לא ניתן לטעון את דף הבית כרגע.'
+const HOME_EMPTY_TITLE = 'אין עדיין פוסטים להצגה'
+const HOME_EMPTY_DESCRIPTION = 'ברגע שיפורסמו פוסטים, הם יופיעו כאן.'
+const WRITERS_OF_WEEK_LABEL = 'כותבי השבוע'
+const WRITERS_OF_MONTH_LABEL = 'כותבי החודש'
+const NO_WEEK_ACTIVITY_LABEL = 'אין עדיין פעילות לשבוע הזה.'
+const NO_MONTH_ACTIVITY_LABEL = 'אין עדיין פעילות לחודש הזה.'
+const WRITER_REACTIONS_LABEL = '❤️'
+
+function postAriaLabel(title: string) {
+  return `לקריאת ${title}`
+}
 
 
 type PostRow = {
@@ -72,6 +100,39 @@ function firstRel<T>(rel: T[] | T | null | undefined): T | null {
   return Array.isArray(rel) ? (rel[0] ?? null) : rel
 }
 
+/** Render a cover image: GifCoverImage for .gif URLs, Next/Image otherwise. */
+function CoverImg({
+  src,
+  alt,
+  priority,
+  sizes,
+  quality,
+  className,
+}: {
+  src: string
+  alt: string
+  priority?: boolean
+  sizes?: string
+  quality?: number
+  className?: string
+}) {
+  if (isGifUrl(src)) {
+    return <GifCoverCard src={src} alt={alt} />
+  }
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      priority={priority}
+      sizes={sizes}
+      quality={quality}
+      className={className}
+      unoptimized={isProxySrc(src)}
+    />
+  )
+}
+
 function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
   const out: CardPost[] = []
   for (const p of arr) {
@@ -100,9 +161,9 @@ function MedalsInline({
 
   return (
     <div dir="ltr" className={`flex items-center ${cls} text-muted-foreground`}>
-      {gold > 0 ? <span className="inline-flex items-center gap-1">🥇 {gold}</span> : null}
-      {silver > 0 ? <span className="inline-flex items-center gap-1">🥈 {silver}</span> : null}
-      {bronze > 0 ? <span className="inline-flex items-center gap-1">🥉 {bronze}</span> : null}
+      {gold > 0 ? <span className="inline-flex items-center gap-1">{MEDAL_EMOJIS.gold} {gold}</span> : null}
+      {silver > 0 ? <span className="inline-flex items-center gap-1">{MEDAL_EMOJIS.silver} {silver}</span> : null}
+      {bronze > 0 ? <span className="inline-flex items-center gap-1">{MEDAL_EMOJIS.bronze} {bronze}</span> : null}
     </div>
   )
 }
@@ -110,9 +171,9 @@ function MedalsInline({
 function MedalsCompact({ medals }: { medals: { gold: number; silver: number; bronze: number } | null }) {
   if (!medals) return null
   const items: { emoji: string; count: number }[] = []
-  if (medals.gold > 0) items.push({ emoji: '🥇', count: medals.gold })
-  if (medals.silver > 0) items.push({ emoji: '🥈', count: medals.silver })
-  if (medals.bronze > 0) items.push({ emoji: '🥉', count: medals.bronze })
+  if (medals.gold > 0) items.push({ emoji: MEDAL_EMOJIS.gold, count: medals.gold })
+  if (medals.silver > 0) items.push({ emoji: MEDAL_EMOJIS.silver, count: medals.silver })
+  if (medals.bronze > 0) items.push({ emoji: MEDAL_EMOJIS.bronze, count: medals.bronze })
   if (items.length === 0) return null
   const shown = items.slice(0, 2)
   const extra = items.length - shown.length
@@ -140,7 +201,7 @@ function SectionHeader({ title, href, accent }: { title: string; href: string; a
         {title}
       </FeedIntentLink>
       <FeedIntentLink href={href} className="text-xs font-semibold text-muted-foreground tyuta-hover">
-        הכל &larr;
+        {VIEW_ALL_LABEL}
       </FeedIntentLink>
     </div>
   )
@@ -156,24 +217,22 @@ function FeaturedPost({ post }: { post: CardPost }) {
     : { name: 'text-foreground', meta: 'text-muted-foreground', tags: 'text-muted-foreground/60', title: 'text-foreground', excerpt: 'text-muted-foreground' }
   return (
     <article className="group relative font-sans">
-      {/* ── Mobile: restored old-style card (image on top, content right, stacked on small screens) ── */}
+      {/* ג”€ג”€ Mobile: restored old-style card (image on top, content right, stacked on small screens) ג”€ג”€ */}
       <div className="lg:hidden relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl overflow-hidden tyuta-featured-border tyuta-card-hover">
-        <Link href={`/post/${post.slug}`} className="absolute inset-0 z-10 rounded-2xl" aria-label={`לקריאת ${post.title}`}><span className="sr-only">לקריאה</span></Link>
+        <Link href={`/post/${post.slug}`} className="absolute inset-0 z-10 rounded-2xl" aria-label={postAriaLabel(post.title)}><span className="sr-only">{READ_POST_SR_LABEL}</span></Link>
         <div className="relative z-20 pointer-events-none grid grid-cols-1 sm:grid-cols-2 sm:min-h-[320px]">
           {/* Image */}
           <div className="sm:order-2">
             <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
               <div className="relative aspect-[16/10] sm:aspect-auto sm:h-full overflow-hidden bg-muted">
                 {post.cover_image_url ? (
-                  <Image
+                  <CoverImg
                     src={coverProxySrc(post.cover_image_url)!}
                     alt={post.title}
-                    fill
                     priority
                     sizes="(max-width: 640px) 100vw, 50vw"
                     quality={85}
                     className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
-                    unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
                   />
                 ) : null}
               </div>
@@ -205,12 +264,12 @@ function FeaturedPost({ post }: { post: CardPost }) {
                   <div className="text-xs text-muted-foreground mt-0.5">
                     <RelativeTime iso={post.created_at} />
                     {post.subcategory ? (
-                      <><span className="mx-2">•</span><span className="font-semibold">{post.subcategory.name_he}</span></>
+                      <><span className="mx-2">{SEPARATOR}</span><span className="font-semibold">{post.subcategory.name_he}</span></>
                     ) : null}
                     {post.tags.length > 0 ? (
                       
                       <span className={`${!post.subcategory ? 'ms-2' : 'ms-1'} text-muted-foreground/70`}>
-                        <span className="mx-2">•</span>
+                        <span className="mx-2">{SEPARATOR}</span>
                         {post.tags.slice(0, 2).map((t, i) => (
                           <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
                         ))}
@@ -241,39 +300,36 @@ function FeaturedPost({ post }: { post: CardPost }) {
         </div>
       </div>
 
-      {/* ── Desktop: cinematic full-bleed image with right-side readability veil ── */}
+      {/* ג”€ג”€ Desktop: cinematic full-bleed image with right-side readability veil ג”€ג”€ */}
       <div className={`hidden lg:block tyuta-featured-desktop${hasCover ? ' has-cover' : ''}`}>
 
-        {/* Full-card click target — below frame and panel, handles empty-area clicks */}
-        <Link href={`/post/${post.slug}`} className="absolute inset-0 z-[1]" aria-label={`לקריאת ${post.title}`} tabIndex={-1}><span className="sr-only">לקריאה</span></Link>
+        {/* Full-card click target ג€” below frame and panel, handles empty-area clicks */}
+        <Link href={`/post/${post.slug}`} className="absolute inset-0 z-[1]" aria-label={postAriaLabel(post.title)} tabIndex={-1}><span className="sr-only">{READ_POST_SR_LABEL}</span></Link>
 
-        {/* Image layer — fills the full desktop block, clips at rounded boundary */}
+        {/* Image layer ג€” fills the full desktop block, clips at rounded boundary */}
         <div className="tyuta-featured-img-frame z-[2]">
           <Link href={`/post/${post.slug}`} className="absolute inset-0 block" tabIndex={-1} aria-hidden="true">
             {post.cover_image_url ? (
-              <Image
+              <CoverImg
                 src={coverProxySrc(post.cover_image_url)!}
                 alt={post.title}
-                fill
                 priority
                 sizes="(max-width: 1280px) 100vw, 900px"
                 quality={88}
                 className="object-cover object-left"
-                unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
               />
             ) : null}
           </Link>
         </div>
 
-        {/* Mouse spotlight glow — sibling to frame, above all frame pseudo-elements */}
+        {/* Mouse spotlight glow ג€” sibling to frame, above all frame pseudo-elements */}
         {hasCover ? <FeaturedImageGlow /> : null}
 
-        {/* Color sync — samples image right-edge pixels, sets --img-edge-* CSS vars */}
+        {/* Color sync ג€” samples image right-edge pixels, sets --img-edge-* CSS vars */}
         {post.cover_image_url ? <FeaturedColorSync src={coverProxySrc(post.cover_image_url)!} /> : null}
 
-        {/* Text panel — right 46%, floats over image, text in white */}
+        {/* Text panel ג€” right 46%, floats over image, text in white */}
         <div className="tyuta-featured-text-panel absolute top-0 bottom-0 right-0 w-[46%] flex flex-col justify-center px-10 py-8 z-[3] pointer-events-none">
-          {/* Author row */}
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
               {post.author_username ? (
@@ -298,11 +354,11 @@ function FeaturedPost({ post }: { post: CardPost }) {
                 <div className={`text-xs ${tc.meta} mt-0.5`}>
                   <RelativeTime iso={post.created_at} />
                   {post.subcategory ? (
-                    <><span className="mx-2">•</span><span className="font-semibold">{post.subcategory.name_he}</span></>
+                    <><span className="mx-2">{SEPARATOR}</span><span className="font-semibold">{post.subcategory.name_he}</span></>
                   ) : null}
                   {post.tags.length > 0 ? (
                     <span className={`${!post.subcategory ? 'ms-2' : 'ms-1'} ${tc.tags}`}>
-                      <span className="mx-2">•</span>
+                      <span className="mx-2">{SEPARATOR}</span>
                       {post.tags.slice(0, 2).map((t, i) => (
                         <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
                       ))}
@@ -314,7 +370,6 @@ function FeaturedPost({ post }: { post: CardPost }) {
             <div className="shrink-0 pt-1"><MedalsInline medals={post.allTimeMedals} /></div>
           </div>
 
-          {/* Channel badge */}
           {post.channel_name && post.channel_slug ? (
             <div className="mb-3">
               <FeedIntentLink href={`/c/${post.channel_slug}`} className="pointer-events-auto group/channel">
@@ -325,14 +380,12 @@ function FeaturedPost({ post }: { post: CardPost }) {
             </div>
           ) : null}
 
-          {/* Title */}
           <h1 className={`text-[1.875rem] xl:text-[2.375rem] font-black leading-[1.08] tracking-[-0.03em] mb-4 ${tc.title}`}>
             <Link href={`/post/${post.slug}`} className="tyuta-hover pointer-events-auto">
               {post.title}
             </Link>
           </h1>
 
-          {/* Excerpt */}
           {post.excerpt ? (
             <p className={`${tc.excerpt} text-sm leading-[1.75]`}>
               {post.excerpt}
@@ -347,12 +400,12 @@ function FeaturedPost({ post }: { post: CardPost }) {
 function SimplePostCard({ post }: { post: CardPost }) {
   return (
     <article className="group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-xl overflow-hidden tyuta-card-hover tyuta-gold-border flex flex-col">
-      <Link href={`/post/${post.slug}`} className="absolute inset-0 z-10 rounded-xl" aria-label={`לקריאת ${post.title}`}><span className="sr-only">לקריאה</span></Link>
+      <Link href={`/post/${post.slug}`} className="absolute inset-0 z-10 rounded-xl" aria-label={postAriaLabel(post.title)}><span className="sr-only">{READ_POST_SR_LABEL}</span></Link>
       <div className="relative z-20 pointer-events-none flex flex-col flex-1">
       <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
         <div className="relative aspect-[4/3] bg-muted tyuta-img-hover">
           {post.cover_image_url ? (
-            <Image src={coverProxySrc(post.cover_image_url)!} alt={post.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 260px" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))} />
+            <CoverImg src={coverProxySrc(post.cover_image_url)!} alt={post.title} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 260px" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
           ) : null}
         </div>
       </Link>
@@ -364,16 +417,16 @@ function SimplePostCard({ post }: { post: CardPost }) {
             <RelativeTime iso={post.created_at} />
             {post.subcategory ? (
               <>
-                <span className="mx-2">•</span>
+                <span className="mx-2">{SEPARATOR}</span>
                 <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
               </>
             ) : null}
             {post.subcategory && post.tags.length > 0 ? (
-              <span className="mx-2 text-muted-foreground/50">·</span>
+              <span className="mx-2 text-muted-foreground/50">{SEPARATOR}</span>
             ) : null}
             {post.tags.length > 0 ? (
               <>
-                {/* desktop ≥md: 2 tags + +N */}
+                {/* desktop ג‰¥md: 2 tags + +N */}
                 <span className={`hidden md:inline ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
                   {post.tags.slice(0, 2).map((t, i) => (
                     <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
@@ -425,9 +478,9 @@ function SimplePostCard({ post }: { post: CardPost }) {
 
         {/* Small proof these are "hot" this week */}
         {/* <div className="mt-2 text-[11px] text-muted-foreground">
-          השבוע: <span className="font-semibold">{post.weekReactionsTotal}</span> ❤️
-          <span className="mx-1">•</span>
-          <span className="font-semibold">{post.weekCommentsTotal}</span> תגובות
+          ׳”׳©׳‘׳•׳¢: <span className="font-semibold">{post.weekReactionsTotal}</span> ג₪ן¸
+          <span className="mx-1">ג€¢</span>
+          <span className="font-semibold">{post.weekCommentsTotal}</span> ׳×׳’׳•׳‘׳•׳×
         </div> */}
       </div>
       </div>
@@ -436,15 +489,16 @@ function SimplePostCard({ post }: { post: CardPost }) {
 }
 
 function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: string }) {
+  const showMedals = Boolean(post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0))
   return (
     <article className={`group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl border border-border p-4 tyuta-card-hover active:scale-[0.99] ${accentClass ?? ''}`}>
       {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
       <Link
         href={`/post/${post.slug}`}
-        aria-label={`לקריאת ${post.title}`}
+        aria-label={postAriaLabel(post.title)}
         className="absolute inset-0 rounded-2xl z-10"
       >
-        <span className="sr-only">לקריאה</span>
+        <span className="sr-only">{READ_POST_SR_LABEL}</span>
       </Link>
 
       {/* Make the layout non-interactive so clicks fall through to the overlay link.
@@ -460,14 +514,12 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
             */}
               <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 tyuta-img-hover">
                 {post.cover_image_url ? (
-                  <Image
+                  <CoverImg
                     src={coverProxySrc(post.cover_image_url)!}
                     alt={post.title}
-                    fill
                     sizes="(max-width: 640px) 136px, 168px"
                     quality={85}
                     className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
-                    unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
                   />
                 ) : null}
               </div>
@@ -480,14 +532,14 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
                 <RelativeTime iso={post.created_at} />
                 {post.subcategory ? (
                   <>
-                    <span className="mx-2">•</span>
+                    <span className="mx-2">{SEPARATOR}</span>
                     <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
                   </>
                 ) : null}
-                {post.subcategory && post.tags.length > 0 ? (
-                  <span className="mx-2 text-muted-foreground/50">·</span>
+                {post.subcategory && post.tags.length > 0 && !showMedals ? (
+                  <span className="mx-2 text-muted-foreground/50">{SEPARATOR}</span>
                 ) : null}
-                {post.tags.length > 0 ? (() => {
+                {post.tags.length > 0 && !showMedals ? (() => {
                   const desktopCap = post.channel_slug === 'magazine' ? 3 : 6
                   const leadCls = post.subcategory ? '' : 'mx-2'
                   const mobileOverflow = post.tags.length - 1
@@ -564,49 +616,53 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
 
 function RecentMiniRow({ post }: { post: CardPost }) {
   return (
-    <div className="group relative rounded-2xl border border-border bg-gradient-to-b from-card to-amber-50/20 dark:to-amber-900/5 p-3 tyuta-card-hover active:scale-[0.99]">
+    <div data-gif-card="" className="group relative rounded-2xl border border-border bg-gradient-to-b from-card to-amber-50/20 dark:to-amber-900/5 p-3 tyuta-card-hover active:scale-[0.99]">
       {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
       <Link
         href={`/post/${post.slug}`}
-        aria-label={`לקריאת ${post.title}`}
+        aria-label={postAriaLabel(post.title)}
         className="absolute inset-0 rounded-2xl z-10"
       >
-        <span className="sr-only">לקריאה</span>
+        <span className="sr-only">{READ_POST_SR_LABEL}</span>
       </Link>
 
       <div className="relative z-20 pointer-events-none">
         {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
         <div className="flex flex-row-reverse items-stretch gap-3">
-          <div className="w-[94px] shrink-0">
+          <div className="w-[94px] shrink-0 relative">
             <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
               <div className="relative aspect-square rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 tyuta-img-hover">
                 {post.cover_image_url ? (
-                  <Image
+                  <CoverImg
                     src={coverProxySrc(post.cover_image_url)!}
                     alt={post.title}
-                    fill
                     sizes="(max-width: 640px) 120px, 140px"
                     quality={90}
                     className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
-                    unoptimized={isProxySrc(coverProxySrc(post.cover_image_url))}
                   />
                 ) : null}
               </div>
             </Link>
+            {post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0) ? (
+              <div dir="ltr" className="absolute top-1 left-1 z-10 pointer-events-none flex items-center gap-0.5 text-[11px] leading-none" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>
+                {post.allTimeMedals.gold > 0 ? <span>{MEDAL_EMOJIS.gold} {post.allTimeMedals.gold}</span> : null}
+                {post.allTimeMedals.silver > 0 ? <span>{MEDAL_EMOJIS.silver} {post.allTimeMedals.silver}</span> : null}
+                {post.allTimeMedals.bronze > 0 ? <span>{MEDAL_EMOJIS.bronze} {post.allTimeMedals.bronze}</span> : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="min-w-0 flex-1 text-right flex flex-col justify-between">
-            {/* Top: title + medals */}
+            {/* Top: title */}
             <div>
               <div className="text-sm font-black leading-snug tracking-tight">
                 <Link href={`/post/${post.slug}`} className="tyuta-hover line-clamp-2 pointer-events-auto">
                   {post.title}
                 </Link>
               </div>
-              <MedalsCompact medals={post.allTimeMedals} />
             </div>
 
-            {/* Middle: excerpt — sits between title and author via justify-between */}
+            {/* Middle: excerpt ג€” sits between title and author via justify-between */}
             {post.excerpt ? (
               <p className="text-xs text-muted-foreground leading-snug line-clamp-1 py-0.5">
                 {post.excerpt}
@@ -615,7 +671,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
 
             {/* Bottom: author + time */}
             <div className="text-[12px] text-muted-foreground flex items-center gap-2 flex-nowrap min-w-0">
-              {/* Author — [&>span]:max-w-full constrains AuthorHover's inline-flex span so truncate fires via CSS */}
+              {/* Author ג€” [&>span]:max-w-full constrains AuthorHover's inline-flex span so truncate fires via CSS */}
               <div className="min-w-0 flex-1 overflow-hidden [&>span]:max-w-full">
                 {post.author_username ? (
                   <AuthorHover username={post.author_username}>
@@ -635,7 +691,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
                 )}
               </div>
 
-              {/* Time — always fully visible, never shrinks */}
+              {/* Time ג€” always fully visible, never shrinks */}
               <RelativeTime iso={post.created_at} className="shrink-0 whitespace-nowrap" />
             </div>
           </div>
@@ -653,6 +709,20 @@ export type HomePageProps = {
 }
 
 export default async function HomePage(props: HomePageProps = {}) {
+  const supabase = createPublicServerClient()
+  if (!supabase) {
+    return (
+      <main className="min-h-screen" dir="rtl">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+          <div className="rounded-2xl border border-border bg-card/60 p-8 text-center">
+            <div className="text-lg font-black text-foreground">{HOME_ERROR_TITLE}</div>
+            <div className="mt-2 text-sm text-muted-foreground">{HOME_ERROR_DESCRIPTION}</div>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   type RankedRow = {
     post_id: string
     reactions_total: number
@@ -672,6 +742,14 @@ export default async function HomePage(props: HomePageProps = {}) {
   const channelName = props.forcedChannelName ?? null
   const channelSubtitle = props.forcedSubtitle ?? null
   const forcedSubcategories = props.forcedSubcategories ?? []
+  const feedPath: FeedPath = channelSlug === 'release'
+    ? '/c/release'
+    : channelSlug === 'stories'
+      ? '/c/stories'
+      : channelSlug === 'magazine'
+        ? '/c/magazine'
+        : '/'
+  const initialFeedVersion = await getFeedVersionForPath(feedPath)
 
   // Resolve channel id + subcategory tag ids in parallel (both independent on channel pages)
   const forcedSubcatIdsByName = new Map<string, number>()
@@ -697,7 +775,7 @@ export default async function HomePage(props: HomePageProps = {}) {
   
   // Kick off subcategory posts fetch as a real Promise (via .then()) so it fires the HTTP request
   // immediately and runs in parallel with Phase 2 RPCs below.
-  // Supabase builders are lazy thenables — calling .then(r=>r) converts to a real Promise that starts now.
+  // Supabase builders are lazy thenables ג€” calling .then(r=>r) converts to a real Promise that starts now.
   const subcatIdsForFetch = (isChannelPage && channelId !== null && forcedSubcatIdsByName.size > 0)
     ? Array.from(new Set(Array.from(forcedSubcatIdsByName.values())))
     : []
@@ -725,7 +803,7 @@ export default async function HomePage(props: HomePageProps = {}) {
         .in('subcategory_tag_id', subcatIdsForFetch)
         .order('published_at', { ascending: false })
         .limit(250)
-        .then(r => r)  // convert to real Promise → HTTP request fires immediately
+        .then(r => r)  // convert to real Promise ג†’ HTTP request fires immediately
     : null
 
   const [rankedCombinedRes, rankedStoriesRes, rankedReleaseRes, rankedMagazineRes, rankedAllRes, recentRes] =
@@ -848,7 +926,7 @@ export default async function HomePage(props: HomePageProps = {}) {
   if (rpcError) {
     return (
       <main className="min-h-screen" dir="rtl">
-        <FeedAutoRefresh />
+        <FeedAutoRefresh initialVersion={initialFeedVersion} />
         <div className="mx-auto max-w-6xl px-4 py-10">
           <h1 className="text-xl font-bold">שגיאה בטעינת דירוג השבוע</h1>
           <pre className="mt-4 rounded border bg-white p-4 text-xs">{JSON.stringify(rpcError, null, 2)}</pre>
@@ -857,7 +935,7 @@ export default async function HomePage(props: HomePageProps = {}) {
     )
   }
 
-  // Resolve subcatPostsPromise now — it started before Phase 2 so it was running in parallel
+  // Resolve subcatPostsPromise now ג€” it started before Phase 2 so it was running in parallel
   if (subcatPostsPromise) {
     const { data: subcatPostRows } = await subcatPostsPromise
     ;(subcatPostRows ?? []).forEach(r => {
@@ -947,7 +1025,7 @@ export default async function HomePage(props: HomePageProps = {}) {
     )
   )
 
-  // Batch 3: postsRows, medalsRows, writerPostRows all depend only on Phase 2 — run in parallel
+  // Batch 3: postsRows, medalsRows, writerPostRows all depend only on Phase 2 ג€” run in parallel
   const rankedAllIds = rankedAll.map(r => r.post_id)
   const [
     { data: postsRows, error: postsErr },
@@ -1177,7 +1255,7 @@ export default async function HomePage(props: HomePageProps = {}) {
 
   return (
     <main className="min-h-screen" dir="rtl">
-      <FeedAutoRefresh />
+      <FeedAutoRefresh initialVersion={initialFeedVersion} />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
         
 {isChannelPage ? (
@@ -1252,9 +1330,9 @@ export default async function HomePage(props: HomePageProps = {}) {
                             <div className="mt-1 text-xs text-muted-foreground">רוצה לפתוח את זה עם משהו קצר?</div>
                             <Link
                               href={`/write?channel=${encodeURIComponent(channelSlug ?? '')}&subcategory=${encodeURIComponent(sc.name_he)}&return=${encodeURIComponent(`/c/${channelSlug}`)}`}
-                              className="mt-3 inline-flex items-center justify-center rounded-xl bg-sky- (p.subcategory?.name_he === sc.name_he || p.tags.some(t => t.name_he === sc.name_he))00 px-3 py-2 text-xs font-black text-black shadow-sm transition hover:bg-sky-800 active:scale-[0.99]"
+                              className="mt-3 inline-flex items-center justify-center rounded-xl bg-sky-500 px-3 py-2 text-xs font-black text-white shadow-sm transition hover:bg-sky-600 active:scale-[0.99] dark:bg-sky-600 dark:hover:bg-sky-700"
                             >
-                              כתוב/י ראשון/ה בתת־קטגוריה הזו
+                              כתוב/י ראשון/ה בקטגוריה הזו
                             </Link>
                           </div>
                         )}
@@ -1271,21 +1349,21 @@ export default async function HomePage(props: HomePageProps = {}) {
                 <div className="space-y-8">
                   {/* Recent posts FIRST */}
                   <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
-                    <Link href={channelSlug ? `/search?sort=recent&channel=${channelSlug}` : "/search?sort=recent"} scroll={true} className="tyuta-panel-title tyuta-hover mb-4 inline-flex">פוסטים אחרונים</Link>
+                    <Link href={channelSlug ? `/search?sort=recent&channel=${channelSlug}` : "/search?sort=recent"} scroll={true} className="tyuta-panel-title tyuta-hover mb-4 inline-flex">{RECENT_POSTS_LABEL}</Link>
                     <div className="space-y-3">
                       {recentMini.length > 0 ? (
                         recentMini.slice(0, 8).map(p => (
                           <RecentMiniRow key={p.id} post={p} />
                         ))
                       ) : (
-                        <div className="text-sm text-muted-foreground">אין עדיין פוסטים אחרונים.</div>
+                        <div className="text-sm text-muted-foreground">{NO_RECENT_POSTS_LABEL}</div>
                       )}
                     </div>
                   </div>
 
                   {/* Writers of week */}
                   <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
-                    <div className="tyuta-panel-title mb-4">{isChannelPage ? 'כותבי החודש' : 'כותבי השבוע'}</div>
+                    <div className="tyuta-panel-title mb-4">{isChannelPage ? WRITERS_OF_MONTH_LABEL : WRITERS_OF_WEEK_LABEL}</div>
 
                     {writerScores.length ? (
                       <div className="space-y-3">
@@ -1314,16 +1392,16 @@ export default async function HomePage(props: HomePageProps = {}) {
                             </div>
 
                             <div dir="ltr" className="shrink-0 text-xs text-foreground flex items-center gap-2">
-                              {w.gold ? <span>🥇 {w.gold}</span> : null}
-                              {w.silver ? <span>🥈 {w.silver}</span> : null}
-                              {w.bronze ? <span>🥉 {w.bronze}</span> : null}
-                              {!w.gold && !w.silver && !w.bronze ? <span>❤️ {w.reactions}</span> : null}
+                              {w.gold ? <span>{MEDAL_EMOJIS.gold} {w.gold}</span> : null}
+                              {w.silver ? <span>{MEDAL_EMOJIS.silver} {w.silver}</span> : null}
+                              {w.bronze ? <span>{MEDAL_EMOJIS.bronze} {w.bronze}</span> : null}
+                              {!w.gold && !w.silver && !w.bronze ? <span>{WRITER_REACTIONS_LABEL} {w.reactions}</span> : null}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-sm text-muted-foreground">אין עדיין פעילות לחודש הזה.</div>
+                      <div className="text-sm text-muted-foreground">{NO_MONTH_ACTIVITY_LABEL}</div>
                     )}
 
                     <div className="mt-5">
@@ -1370,7 +1448,7 @@ export default async function HomePage(props: HomePageProps = {}) {
               {/* Categories */}
               <div className="space-y-10">
                 <div>
-                  <SectionHeader title="פריקה" href="/c/release" accent="tyuta-section-release" />
+                  <SectionHeader title={CHANNEL_PAGE_CONFIGS.release.homeLabel} href="/c/release" accent="tyuta-section-release" />
                   <div className="space-y-3">
                     {releaseFinal.map(p => (
                       <ListRowCompact key={p.id} post={p} accentClass="tyuta-row-accent-release" />
@@ -1379,7 +1457,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                 </div>
 
                 <div>
-                  <SectionHeader title="סיפורים" href="/c/stories" accent="tyuta-section-stories" />
+                  <SectionHeader title={CHANNEL_PAGE_CONFIGS.stories.homeLabel} href="/c/stories" accent="tyuta-section-stories" />
                   <div className="space-y-3">
                     {storiesFinal.map(p => (
                       <ListRowCompact key={p.id} post={p} accentClass="tyuta-row-accent-stories" />
@@ -1388,7 +1466,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                 </div>
 
                 <div>
-                  <SectionHeader title="מגזין" href="/c/magazine" accent="tyuta-section-magazine" />
+                  <SectionHeader title={CHANNEL_PAGE_CONFIGS.magazine.homeLabel} href="/c/magazine" accent="tyuta-section-magazine" />
                   <div className="space-y-3">
                     {magazineFinal.map(p => (
                       <ListRowCompact key={p.id} post={p} accentClass="tyuta-row-accent-magazine" />
@@ -1402,21 +1480,21 @@ export default async function HomePage(props: HomePageProps = {}) {
                 <div className="space-y-8">
                   {/* Recent posts FIRST */}
                   <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
-                    <Link href="/search?sort=recent" scroll={true} className="tyuta-panel-title tyuta-hover mb-4 inline-flex">פוסטים אחרונים</Link>
+                    <Link href="/search?sort=recent" scroll={true} className="tyuta-panel-title tyuta-hover mb-4 inline-flex">{RECENT_POSTS_LABEL}</Link>
                     <div className="space-y-3">
                       {recentMini.length > 0 ? (
                         recentMini.slice(0, 8).map(p => (
                           <RecentMiniRow key={p.id} post={p} />
                         ))
                       ) : (
-                        <div className="text-sm text-muted-foreground">אין עדיין פוסטים אחרונים.</div>
+                        <div className="text-sm text-muted-foreground">{NO_RECENT_POSTS_LABEL}</div>
                       )}
                     </div>
                   </div>
 
                   {/* Writers of week */}
                   <div className="bg-card rounded-2xl p-5 shadow-sm border border-border">
-                    <div className="tyuta-panel-title mb-4">כותבי השבוע</div>
+                    <div className="tyuta-panel-title mb-4">{WRITERS_OF_WEEK_LABEL}</div>
 
                     {writerScores.length ? (
                       <div className="space-y-3">
@@ -1445,17 +1523,17 @@ export default async function HomePage(props: HomePageProps = {}) {
                             </div>
 
                             <div dir="ltr" className="shrink-0 text-xs text-foreground flex items-center gap-2">
-                              {w.gold ? <span>🥇 {w.gold}</span> : null}
-                              {w.silver ? <span>🥈 {w.silver}</span> : null}
-                              {w.bronze ? <span>🥉 {w.bronze}</span> : null}
-                              {!w.gold && !w.silver && !w.bronze ? <span>❤️ {w.reactions}</span> : null}
+                              {w.gold ? <span>{MEDAL_EMOJIS.gold} {w.gold}</span> : null}
+                              {w.silver ? <span>{MEDAL_EMOJIS.silver} {w.silver}</span> : null}
+                              {w.bronze ? <span>{MEDAL_EMOJIS.bronze} {w.bronze}</span> : null}
+                              {!w.gold && !w.silver && !w.bronze ? <span>{WRITER_REACTIONS_LABEL} {w.reactions}</span> : null}
                             </div>
                           </div>
                         ))}
 
                       </div>
                     ) : (
-                      <div className="text-sm text-muted-foreground">אין עדיין פעילות לשבוע הזה.</div>
+                      <div className="text-sm text-muted-foreground">{NO_WEEK_ACTIVITY_LABEL}</div>
                     )}
 
                     <div className="mt-5">
@@ -1468,8 +1546,8 @@ export default async function HomePage(props: HomePageProps = {}) {
           </div>
           ) : (
             <div className="rounded-2xl border border-border bg-card/60 p-8 text-center">
-              <div className="text-lg font-black text-foreground">אין עדיין פוסטים להצגה</div>
-              <div className="mt-2 text-sm text-muted-foreground">ברגע שיפורסמו פוסטים, הם יופיעו כאן.</div>
+              <div className="text-lg font-black text-foreground">{HOME_EMPTY_TITLE}</div>
+              <div className="mt-2 text-sm text-muted-foreground">{HOME_EMPTY_DESCRIPTION}</div>
             </div>
           )
         )}

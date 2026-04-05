@@ -41,7 +41,7 @@ const empty200 = NextResponse.json({ suggestions: [] }, { headers: CACHE_HEADERS
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── rate limit ───────────────────────────────────────────────────────────
-  const rl = rateLimit(`suggest:${clientIp(req)}`, { maxRequests: 40, windowMs: 60_000 })
+  const rl = await rateLimit(`suggest:${clientIp(req)}`, { maxRequests: 40, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json({ suggestions: [] }, { status: 429 })
   }
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Fetch 9 candidates so JS can re-rank by title match quality.
   // posts_with_counts computes reactions_count via correlated subquery —
   // acceptable cost for LIMIT 9 after an ILIKE filter on a small result set.
-  // Filters: published + not deleted (explicit — service role bypasses RLS).
+  // Filter: published only. The view already excludes soft-deleted rows.
   const { data: posts, error } = await supabase
     .from('posts_with_counts')
     .select('id, slug, title, cover_image_url, reactions_count, published_at, author_id')

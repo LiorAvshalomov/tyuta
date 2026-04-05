@@ -3,6 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest"
 import { adminError, adminOk } from "@/lib/admin/adminHttp"
+import { copyPublicCoverToPrivate, removePostCoverPublicObject } from "@/lib/storage/postCoverLifecycle"
+import { removePublishedPostInlineImages } from "@/lib/storage/postInlineLifecycle"
+import { revalidatePublicProfileForUserId } from "@/lib/revalidatePublicProfile"
 
 const MAX_REASON_LEN = 500
 
@@ -11,6 +14,7 @@ type PostRow = {
   author_id: string
   title: string | null
   slug: string | null
+  cover_image_url: string | null
   status: string | null
   published_at: string | null
   deleted_at: string | null
@@ -49,7 +53,7 @@ export async function POST(req: NextRequest) {
   // Load post (need author + title + previous state)
   const { data: postRaw, error: postErr } = await sb
     .from("posts")
-    .select("id, author_id, title, slug, status, published_at, deleted_at, moderated_at, channel_id, is_anonymous, created_at")
+    .select("id, author_id, title, slug, cover_image_url, status, published_at, deleted_at, moderated_at, channel_id, is_anonymous, created_at")
     .eq("id", postId)
     .maybeSingle()
 
@@ -61,6 +65,23 @@ export async function POST(req: NextRequest) {
   if (post.moderated_at) return adminError("Post already moderated/hidden by admin.", 400, "bad_request")
 
   const now = new Date().toISOString()
+  let coverWarning: string | null = null
+  let inlineWarning: string | null = null
+  let removedPublicInlineImages = 0
+  let quarantinedCover: Awaited<ReturnType<typeof copyPublicCoverToPrivate>>
+  try {
+    quarantinedCover = await copyPublicCoverToPrivate(sb, {
+      authorId: post.author_id,
+      postId: post.id,
+      coverImageUrl: post.cover_image_url,
+    })
+  } catch (error) {
+    return adminError(
+      error instanceof Error ? error.message : "Cover quarantine failed",
+      500,
+      "cover_quarantine_failed",
+    )
+  }
 
   // Admin soft-hide (NOT user trash):
   // - keep deleted_at NULL
@@ -74,17 +95,34 @@ export async function POST(req: NextRequest) {
     prev_published_at: post.published_at,
     status: "moderated",
     published_at: null,
+    cover_image_url: quarantinedCover?.privatePath ?? post.cover_image_url,
     updated_at: now,
   }
 
   const { error: updErr } = await sb.from("posts").update(updatePayload).eq("id", postId)
   if (updErr) return adminError(updErr.message, 500, "db_error")
 
+  if (quarantinedCover) {
+    try {
+      await removePostCoverPublicObject(sb, quarantinedCover.publicPath)
+    } catch (error) {
+      coverWarning = error instanceof Error ? error.message : "Public cover cleanup failed"
+    }
+  }
+
+  try {
+    removedPublicInlineImages = await removePublishedPostInlineImages(sb, post.id)
+  } catch (error) {
+    inlineWarning = error instanceof Error ? error.message : "Public inline cleanup failed"
+  }
+
   // Invalidate ISR cache for all public post lists immediately.
   revalidatePath("/")
   revalidatePath("/c/release")
   revalidatePath("/c/stories")
   revalidatePath("/c/magazine")
+  if (post.slug) revalidatePath(`/post/${post.slug}`)
+  await revalidatePublicProfileForUserId(sb, post.author_id)
 
   // Notify post author (system notification) - best effort
   const notifPayload = {
@@ -106,7 +144,12 @@ export async function POST(req: NextRequest) {
   })
 
   if (notifErr) {
-    return adminOk({ warning: `Post hidden, but notification failed: ${notifErr.message}` })
+    return adminOk({
+      removed_public_inline_images: removedPublicInlineImages,
+      warning: [coverWarning, inlineWarning, `Notification warning: ${notifErr.message}`]
+        .filter(Boolean)
+        .join(". "),
+    })
   }
 
   // Audit: deletion_events (immutable history)
@@ -147,5 +190,9 @@ export async function POST(req: NextRequest) {
     // ignore
   }
 
-  return adminOk({})
+  const warnings = [coverWarning, inlineWarning].filter(Boolean)
+  return adminOk({
+    removed_public_inline_images: removedPublicInlineImages,
+    ...(warnings.length > 0 ? { warning: warnings.join(". ") } : {}),
+  })
 }

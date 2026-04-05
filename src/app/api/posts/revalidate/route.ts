@@ -23,6 +23,7 @@ export async function POST(req: Request) {
   revalidatePath('/c/release')
   revalidatePath('/c/stories')
   revalidatePath('/c/magazine')
+  revalidatePath('/search')
   if (slug) revalidatePath(`/post/${slug}`)
 
   return NextResponse.json({ ok: true })

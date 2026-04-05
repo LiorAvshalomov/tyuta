@@ -1,7 +1,7 @@
 'use client'
 
 import ProfilePersonalInfoCardClient from '@/components/ProfilePersonalInfoCardClient'
-import ProfileRecentActivity from '@/components/ProfileRecentActivity'
+import ProfileRecentActivity, { type ProfileRecentActivityRow } from '@/components/ProfileRecentActivity'
 
 type PersonalInfo = {
   personal_is_shared: boolean
@@ -17,10 +17,12 @@ export default function ProfileInfoCardsSection({
   profileId,
   userId,
   initial,
+  initialRecentActivity,
 }: {
   profileId: string
   userId: string
   initial: PersonalInfo
+  initialRecentActivity?: ProfileRecentActivityRow[]
 }) {
   return (
     <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -29,7 +31,7 @@ export default function ProfileInfoCardsSection({
         initial={initial}
       />
       <div className="lg:relative">
-        <ProfileRecentActivity userId={userId} />
+        <ProfileRecentActivity userId={userId} initialRows={initialRecentActivity} />
       </div>
     </section>
   )

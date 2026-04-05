@@ -7,6 +7,9 @@ import { slugifyUsername } from '@/lib/auth'
 import { USERNAME_MAX, DISPLAY_NAME_MAX } from '@/lib/validation'
 import Avatar from '@/components/Avatar'
 import AvatarUpload from '@/components/AvatarUpload'
+import { waitForClientSession } from '@/lib/auth/clientSession'
+import { buildLoginRedirect } from '@/lib/auth/protectedRoutes'
+import { notifyProfileUpdated } from '@/lib/profileFreshness'
 
 type ProfileRow = {
   id: string
@@ -39,7 +42,6 @@ export default function ProfileSettingsPage() {
   const [removeAvatar, setRemoveAvatar] = useState(false)
 
   const avatarPreview = useMemo(() => {
-    // Prefer stored avatar_url unless user chose to remove it.
     if (!removeAvatar && profile?.avatar_url) return profile.avatar_url
     const seed = (displayName || profile?.display_name || 'משתמש').trim()
     return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}`
@@ -51,13 +53,13 @@ export default function ProfileSettingsPage() {
       setErr(null)
       setMsg(null)
 
-      const { data } = await supabase.auth.getUser()
-      const u = data.user
-      if (!u) {
-        router.push('/auth/login')
+      const resolved = await waitForClientSession()
+      if (resolved.status !== 'authenticated') {
+        router.replace(buildLoginRedirect('/settings/profile'))
         return
       }
 
+      const u = resolved.user
       setUserId(u.id)
 
       const { data: p, error } = await supabase
@@ -80,9 +82,8 @@ export default function ProfileSettingsPage() {
       setLoading(false)
     }
 
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    void load()
+  }, [router])
 
   const save = async () => {
     setErr(null)
@@ -115,7 +116,9 @@ export default function ProfileSettingsPage() {
 
     setSaving(true)
 
-    // 1) check username uniqueness (excluding me)
+    const previousUsername = profile?.username ?? null
+    let finalAvatarUrl = removeAvatar ? null : profile?.avatar_url ?? null
+
     const { data: takenRows, error: takenErr } = await supabase
       .from('profiles')
       .select('id')
@@ -135,7 +138,6 @@ export default function ProfileSettingsPage() {
       return
     }
 
-    // 2) update basic profile fields
     const { error: upErr } = await supabase
       .from('profiles')
       .update({
@@ -156,29 +158,58 @@ export default function ProfileSettingsPage() {
       return
     }
 
-    // 3) upload avatar only on save (if user selected a new file)
     if (avatarFile) {
-      const ok = await uploadAvatar(userId, avatarFile)
-      if (!ok) {
+      const uploadedAvatarUrl = await uploadAvatar(userId, avatarFile)
+      if (!uploadedAvatarUrl) {
         setSaving(false)
         return
       }
+      finalAvatarUrl = uploadedAvatarUrl
       setAvatarFile(null)
     }
 
     if (removeAvatar) {
-      setProfile(prev => (prev ? { ...prev, avatar_url: null } : prev))
+      setProfile((prev) => (prev ? { ...prev, avatar_url: null } : prev))
       setRemoveAvatar(false)
+      void removeStoredAvatar()
     }
 
-    setSaving(false)
+    const nextProfile: ProfileRow | null = profile
+      ? {
+          ...profile,
+          username: un,
+          display_name: dn,
+          bio: b || null,
+          avatar_url: finalAvatarUrl,
+        }
+      : null
 
-    // Redirect to the updated profile (use the new username if changed)
+    if (nextProfile) {
+      setProfile(nextProfile)
+    }
+
+    void logIdentityAudit({
+      previousUsername,
+      nextUsername: un,
+      previousDisplayName: profile?.display_name ?? null,
+      nextDisplayName: dn,
+    })
+
+    await revalidateProfileSurfaces(previousUsername, un)
+    notifyProfileUpdated({
+      userId,
+      previousUsername,
+      username: un,
+      displayName: dn,
+      avatarUrl: finalAvatarUrl,
+    })
+
+    setSaving(false)
     router.push(`/u/${un}`)
     router.refresh()
   }
 
-  const uploadAvatar = async (uid: string, file: File): Promise<boolean> => {
+  const uploadAvatar = async (uid: string, file: File): Promise<string | null> => {
     try {
       setAvatarUploading(true)
 
@@ -195,7 +226,6 @@ export default function ProfileSettingsPage() {
       const baseUrl = data.publicUrl
       const versionedUrl = `${baseUrl}?v=${version}`
 
-      // Persist a version token so long-lived caches still refresh after avatar updates.
       const { error: pErr } = await supabase
         .from('profiles')
         .update({ avatar_url: versionedUrl })
@@ -203,21 +233,85 @@ export default function ProfileSettingsPage() {
 
       if (pErr) throw pErr
 
-      setProfile(prev => (prev ? { ...prev, avatar_url: versionedUrl } : prev))
-      return true
+      setProfile((prev) => (prev ? { ...prev, avatar_url: versionedUrl } : prev))
+      return versionedUrl
     } catch (e: unknown) {
       const m = e instanceof Error ? e.message : String(e)
       setErr(m)
-      return false
+      return null
     } finally {
       setAvatarUploading(false)
     }
   }
 
+  const revalidateProfileSurfaces = async (previousUsername: string | null, nextUsername: string) => {
+    const { data } = await supabase.auth.getSession()
+    const accessToken = data.session?.access_token
+    if (!accessToken) return
+
+    const requestBody = JSON.stringify({
+      previousUsername,
+      nextUsername,
+    })
+
+    const send = () =>
+      fetch('/api/profile/revalidate', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: requestBody,
+      })
+
+    try {
+      const response = await send()
+      if (!response.ok) await send().catch(() => null)
+    } catch {
+      await send().catch(() => null)
+    }
+  }
+
+  const logIdentityAudit = async (opts: {
+    previousUsername: string | null
+    nextUsername: string
+    previousDisplayName: string | null
+    nextDisplayName: string
+  }) => {
+    const { data } = await supabase.auth.getSession()
+    const accessToken = data.session?.access_token
+    if (!accessToken) return
+
+    await fetch('/api/profile/audit-identity', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(opts),
+    }).catch(() => null)
+  }
+
+  const removeStoredAvatar = async () => {
+    const { data } = await supabase.auth.getSession()
+    const accessToken = data.session?.access_token
+    if (!accessToken) return
+
+    await fetch('/api/profile/avatar/remove', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }).catch(() => null)
+  }
+
   if (loading) {
     return (
       <div className="mx-auto max-w-xl px-4 py-8" dir="rtl">
-        <div className="text-sm text-muted-foreground">טוען פרופיל…</div>
+        <div className="text-sm text-muted-foreground">טוען פרופיל...</div>
       </div>
     )
   }
@@ -246,9 +340,7 @@ export default function ProfileSettingsPage() {
             <Avatar src={avatarPreview} name={displayName || 'משתמש'} />
             <div className="text-sm">
               <div className="font-semibold">{displayName || '—'}</div>
-              <div className="text-muted-foreground">
-                @{slugifyUsername(username) || '—'}
-              </div>
+              <div className="text-muted-foreground">@{slugifyUsername(username) || '—'}</div>
             </div>
           </div>
 
@@ -279,7 +371,7 @@ export default function ProfileSettingsPage() {
               className="mt-1 w-full rounded-xl border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
               placeholder="למשל: יוסי, אנונימי"
               value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
+              onChange={(e) => setDisplayName(e.target.value)}
               maxLength={DISPLAY_NAME_MAX}
             />
             <div className={`mt-1 text-xs ${displayName.length >= DISPLAY_NAME_MAX ? 'text-red-600' : 'text-muted-foreground'}`}>
@@ -288,19 +380,16 @@ export default function ProfileSettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              שם משתמש (באנגלית)
-            </label>
+            <label className="block text-sm font-medium">שם משתמש (באנגלית)</label>
             <input
               className="mt-1 w-full rounded-xl border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
               placeholder="למשל: pen_writer_12"
               value={username}
-              onChange={e => setUsername(e.target.value)}
+              onChange={(e) => setUsername(e.target.value)}
               maxLength={USERNAME_MAX}
             />
             <div className="mt-1 text-xs text-muted-foreground">
-              מותר: a-z, 0-9, underscore. נשמר כ:{' '}
-              <b>{slugifyUsername(username) || '—'}</b>
+              מותר: a-z, 0-9, underscore. נשמר כך: <b>{slugifyUsername(username) || '—'}</b>
             </div>
             <div className={`mt-1 text-xs ${slugifyUsername(username).length >= USERNAME_MAX ? 'text-red-600' : 'text-muted-foreground'}`}>
               עד {USERNAME_MAX} תווים. כרגע: <b>{slugifyUsername(username).length}</b>
@@ -308,15 +397,13 @@ export default function ProfileSettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium">
-              ביו קצר (אופציונלי)
-            </label>
+            <label className="block text-sm font-medium">ביו קצר (אופציונלי)</label>
             <textarea
               className="mt-1 w-full rounded-xl border px-3 py-2 leading-6 resize-none overflow-y-auto max-h-32 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
               rows={3}
-              placeholder="משפט-שניים עליך… (עד 120 תווים)"
+              placeholder="משפט-שניים עליך... (עד 120 תווים)"
               value={bio}
-              onChange={e => setBio(e.target.value.slice(0, BIO_MAX))}
+              onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX))}
               maxLength={BIO_MAX}
             />
             <div className="mt-1 text-xs text-muted-foreground">
@@ -341,17 +428,14 @@ export default function ProfileSettingsPage() {
             disabled={saving || avatarUploading}
             className="w-full rounded-xl bg-black py-2 font-semibold text-white disabled:opacity-50"
           >
-            {saving || avatarUploading ? (avatarUploading ? 'מעלה תמונה…' : 'שומר…') : 'שמירה'}
+            {saving || avatarUploading ? (avatarUploading ? 'מעלה תמונה...' : 'שומר...') : 'שמירה'}
           </button>
         </div>
       </div>
 
       {profile?.username ? (
         <div className="mt-4 text-sm text-muted-foreground">
-          צפייה בפרופיל:{' '}
-          <a className="hover:underline" href={`/u/${profile.username}`}>
-            /u/{profile.username}
-          </a>
+          צפייה בפרופיל: <a className="hover:underline" href={`/u/${profile.username}`}>/u/{profile.username}</a>
         </div>
       ) : null}
     </div>

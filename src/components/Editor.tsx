@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, JSONContent, useEditor, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { RICHTEXT_TYPOGRAPHY } from '@/lib/richtextStyles'
 import type { NodeViewProps } from '@tiptap/react'
@@ -16,6 +16,9 @@ import Youtube from '@tiptap/extension-youtube'
 import CharacterCount from '@tiptap/extension-character-count'
 
 import { supabase } from '@/lib/supabaseClient'
+
+const ALLOWED_EDITOR_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+const PRIVATE_EDITOR_IMAGE_URL_TTL_SECONDS = 60 * 60 * 24
 
 type Props = {
   value: JSONContent
@@ -218,6 +221,7 @@ function appendRelatedPosts(json: JSONContent, postIds: string[], hasIntro: bool
 function ImageNodeView({ node, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
   const raw = node.attrs.widthPercent as number | null | undefined
   const wp = raw === 33 || raw === 66 || raw === 100 ? raw : 100
+  const refreshAttemptedRef = useRef(false)
 
   const nextWidth = () => {
     const cycle: Record<number, number> = { 100: 33, 33: 66, 66: 100 }
@@ -266,14 +270,29 @@ function ImageNodeView({ node, updateAttributes, deleteNode, editor, getPos }: N
   }
 
   const label = wp === 33 ? 'S' : wp === 66 ? 'M' : 'L'
+  const imagePath = typeof node.attrs.path === 'string' ? node.attrs.path : null
+
+  const refreshExpiredImage = async () => {
+    if (!imagePath || refreshAttemptedRef.current) return
+    refreshAttemptedRef.current = true
+
+    const { data, error } = await supabase.storage
+      .from('post-assets')
+      .createSignedUrl(imagePath, PRIVATE_EDITOR_IMAGE_URL_TTL_SECONDS)
+
+    if (error || !data?.signedUrl) return
+    updateAttributes({ src: data.signedUrl })
+  }
 
   return (
     <NodeViewWrapper className="relative block" draggable data-drag-handle style={{ width: `${wp}%`, cursor: 'grab' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={(node.attrs.src as string) || ''}
         alt={(node.attrs.alt as string) ?? ''}
         style={{ width: '100%', borderRadius: 14, display: 'block' }}
         draggable={false}
+        onError={() => { void refreshExpiredImage() }}
       />
 
       {/* Remove */}
@@ -552,7 +571,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
   const [hasIntro, setHasIntro] = useState(false)
   const [pendingIds, setPendingIds] = useState<string[]>([])
   const [chapterSearch, setChapterSearch] = useState('')
-  const userPosts = userPostsProp ?? []
+  const userPosts = useMemo(() => userPostsProp ?? [], [userPostsProp])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -671,10 +690,10 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
   }, [userPosts, currentDraft])
 
   // רענון Signed URLs לתמונות פרטיות כשפותחים/טוענים טיוטה
-  useEffect(() => {
+  const refreshPrivateImageUrls = useCallback(async () => {
     if (!editor) return
 
-    const refresh = async () => {
+    try {
       const json = editor.getJSON()
       const paths = Array.from(new Set(findImagePaths(json)))
       if (paths.length === 0) return
@@ -682,7 +701,9 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
       const map: Record<string, string> = {}
 
       for (const p of paths) {
-        const { data, error } = await supabase.storage.from('post-assets').createSignedUrl(p, 60 * 60)
+        const { data, error } = await supabase.storage
+          .from('post-assets')
+          .createSignedUrl(p, PRIVATE_EDITOR_IMAGE_URL_TTL_SECONDS)
         if (!error && data?.signedUrl) map[p] = data.signedUrl
       }
 
@@ -690,13 +711,35 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
 
       const next = replaceImageSrcByPath(json, map)
       setTimeout(() => {
-      if (editor.isDestroyed) return
-      editor.commands.setContent(next, { emitUpdate: false })
-    }, 0)
+        if (editor.isDestroyed) return
+        editor.commands.setContent(next, { emitUpdate: false })
+      }, 0)
+    } catch {
+      // Keep the editor usable even if a refresh attempt fails.
     }
+  }, [editor])
 
-    void refresh()
-  }, [editor, postId])
+  useEffect(() => {
+    if (!editor) return
+
+    void refreshPrivateImageUrls()
+
+    const onFocus = () => void refreshPrivateImageUrls()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshPrivateImageUrls()
+    }
+    const onPageShow = () => void refreshPrivateImageUrls()
+
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('pageshow', onPageShow)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('pageshow', onPageShow)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [editor, postId, refreshPrivateImageUrls])
 
   const setLink = useCallback(() => {
     if (!editor) return
@@ -754,6 +797,11 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
       if (!file) return
       if (!postId) return
 
+      if (!ALLOWED_EDITOR_MIMES.has(file.type)) {
+        alert('סוג קובץ לא נתמך. מותרות תמונות JPEG, PNG, GIF ו-WebP בלבד.')
+        return
+      }
+
       setUploading(true)
 
       let uid = userId ?? null
@@ -794,7 +842,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
 
       const { data: signed, error: signErr } = await supabase.storage
         .from('post-assets')
-        .createSignedUrl(path, 60 * 60)
+        .createSignedUrl(path, PRIVATE_EDITOR_IMAGE_URL_TTL_SECONDS)
 
       if (signErr || !signed?.signedUrl) {
         console.error(signErr)
@@ -1345,7 +1393,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/gif,image/webp"
             style={{ display: 'none' }}
             onChange={e => {
               const f = e.target.files?.[0] ?? null

@@ -7,6 +7,7 @@ import AuthLayout from '@/components/AuthLayout'
 import { signIn } from '@/lib/auth'
 import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 import { event as gaEvent } from '@/lib/gtag'
+import { getSafePostAuthRedirect } from '@/lib/auth/protectedRoutes'
 
 const WITTY = [
   'שורה אחת יכולה לשנות יום.',
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(true)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -48,14 +50,13 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const { error } = await signIn(email.trim(), password)
+      const { error } = await signIn(email.trim(), password, rememberMe)
       if (error) {
         setErr(error.message)
         return
       }
       gaEvent('login_success')
-      const next = searchParams.get('next')
-      const safeNext = next && next.startsWith('/') ? next : '/'
+      const safeNext = getSafePostAuthRedirect(searchParams.get('next'))
       router.replace(safeNext)
       router.refresh()
     } finally {
@@ -100,6 +101,16 @@ export default function LoginPage() {
             />
             <div className="text-xs text-black/55">{PASSWORD_HINT_HE}</div>
           </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-black/70 select-none">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={e => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded accent-black"
+            />
+            זכור אותי
+          </label>
 
           {err ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{err}</div>

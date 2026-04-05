@@ -67,11 +67,12 @@ export default function HoverProfileCard({
     let left = aRect.right - CARD_W
     left = Math.max(GAP, Math.min(left, vw - CARD_W - GAP))
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setStyle({ position: 'fixed', top, left, width: CARD_W, zIndex: 9999, visibility: 'visible' })
   }, [anchorEl]) // preview is fully ready on first render — no rerun needed
 
   // ── ESC closes ───────────────────────────────────────────────────────────────
-  const stableClose = useCallback(onClose, [onClose]) // eslint-disable-line react-hooks/exhaustive-deps
+  const stableClose = useCallback(() => onClose(), [onClose])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') stableClose() }
     window.addEventListener('keydown', onKey)

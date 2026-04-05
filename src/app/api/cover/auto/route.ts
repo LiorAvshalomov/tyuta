@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { validateImageBuffer } from '@/lib/validateImage'
+
+const MAX_DOWNLOAD_BYTES = 15 * 1024 * 1024 // 15 MB
+const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 type PixabayHit = {
   id: number
@@ -40,7 +44,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Rate limit: 20 requests per 60 seconds per user
-  const rl = rateLimit(`cover-auto:${authResult.user.id}`, { maxRequests: 20, windowMs: 60_000 })
+  const rl = await rateLimit(`cover-auto:${authResult.user.id}`, { maxRequests: 20, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
@@ -51,7 +55,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const qHebrew = (searchParams.get('q') ?? '').trim()
+  const qHebrew = (searchParams.get('q') ?? '').trim().slice(0, 200)
   const seed = Number(searchParams.get('seed') ?? Date.now())
   const postId = searchParams.get('postId')
 
@@ -89,6 +93,11 @@ export async function GET(req: NextRequest) {
 
     // If postId provided, download image and upload to private storage
     if (postId) {
+      // Reject malformed postId before any DB/storage access
+      if (!POST_ID_RE.test(postId)) {
+        return NextResponse.json({ storagePath: null, signedUrl: null })
+      }
+
       const { user, supabase: scopedClient } = authResult
 
       // Verify post ownership via RLS (only returns rows where author_id = auth.uid())
@@ -108,14 +117,27 @@ export async function GET(req: NextRequest) {
           return NextResponse.json({ storagePath: null, signedUrl: null })
         }
         const blob = await imgRes.blob()
+
+        // Enforce size limit before buffering into memory
+        if (blob.size > MAX_DOWNLOAD_BYTES) {
+          return NextResponse.json({ storagePath: null, signedUrl: null })
+        }
+
+        // Validate actual image bytes — never trust Content-Type from third parties
+        const inputBuffer = Buffer.from(await blob.arrayBuffer())
+        const imageCheck = validateImageBuffer(inputBuffer)
+        if (!imageCheck.ok) {
+          return NextResponse.json({ storagePath: null, signedUrl: null })
+        }
+
         const uuid = crypto.randomUUID()
         const storagePath = `${user.id}/${postId}/cover-${uuid}.jpg`
 
         const { error: uploadErr } = await scopedClient.storage
           .from('post-assets')
-          .upload(storagePath, blob, {
+          .upload(storagePath, inputBuffer, {
             upsert: false,
-            contentType: blob.type || 'image/jpeg',
+            contentType: imageCheck.mimeType,
           })
 
         if (uploadErr) {

@@ -697,7 +697,7 @@ const token = storeHighlightToken(ids)
     return (
       <div className="text-right leading-snug">
         <div className="font-semibold">מערכת האתר ״{t || "הודעה"}״</div>
-        {m ? <div className="text-neutral-600 dark:text-muted-foreground mt-0.5">{m}</div> : null}
+        {m ? <div className="text-neutral-600 dark:text-muted-foreground mt-0.5 whitespace-pre-wrap">{m}</div> : null}
       </div>
     )
   }

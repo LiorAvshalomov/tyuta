@@ -27,6 +27,13 @@ import {
 } from 'lucide-react'
 import NotificationsBell from "@/components/NotificationsBell"
 import { broadcastAuthEvent, getAuthState, setAuthState } from '@/lib/auth/authEvents'
+import {
+  PROFILE_REFRESH_CHANNEL,
+  PROFILE_REFRESH_EVENT,
+  PROFILE_REFRESH_STORAGE_KEY,
+  readProfileRefreshPayload,
+  type ProfileRefreshPayload,
+} from '@/lib/profileFreshness'
 import ThemeToggle from '@/components/ThemeToggle'
 import FeedIntentLink from '@/components/FeedIntentLink'
 
@@ -415,6 +422,58 @@ export default function SiteHeader() {
     }
   }, [loadUser, loadThreads])
 
+  useEffect(() => {
+    if (!user?.id) return
+
+    const applyProfileUpdate = (payload: ProfileRefreshPayload | null) => {
+      if (!payload || payload.userId !== user.id) return
+
+      const nextUser: MiniUser = {
+        id: user.id,
+        username: payload.username ?? user.username,
+        displayName: payload.displayName ?? user.displayName,
+        avatarUrl: payload.avatarUrl === undefined ? user.avatarUrl : payload.avatarUrl,
+      }
+
+      writeCachedHeaderUser(nextUser)
+      setUser((prev) => (sameMiniUser(prev, nextUser) ? prev : nextUser))
+      setUserResolved(true)
+      void loadUser()
+    }
+
+    const onWindowEvent = (event: Event) => {
+      const detail = (event as CustomEvent<ProfileRefreshPayload>).detail
+      applyProfileUpdate(detail ?? null)
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== PROFILE_REFRESH_STORAGE_KEY || !event.newValue) return
+      applyProfileUpdate(readProfileRefreshPayload())
+    }
+
+    window.addEventListener(PROFILE_REFRESH_EVENT, onWindowEvent as EventListener)
+    window.addEventListener('storage', onStorage)
+
+    let channel: BroadcastChannel | null = null
+
+    if ('BroadcastChannel' in window) {
+      try {
+        channel = new BroadcastChannel(PROFILE_REFRESH_CHANNEL)
+        channel.onmessage = (event) => {
+          applyProfileUpdate((event.data as ProfileRefreshPayload | null) ?? null)
+        }
+      } catch {
+        channel = null
+      }
+    }
+
+    return () => {
+      window.removeEventListener(PROFILE_REFRESH_EVENT, onWindowEvent as EventListener)
+      window.removeEventListener('storage', onStorage)
+      channel?.close()
+    }
+  }, [loadUser, user])
+
   // Live updates (realtime)
   useEffect(() => {
     if (!user?.id) return
@@ -495,6 +554,25 @@ export default function SiteHeader() {
   async function handleSignOut() {
     const confirmed = window.confirm('האם אתה בטוח שברצונך להתנתק? 👋')
     if (!confirmed) return
+
+    // Clear httpOnly RT cookie server-side + write audit log.
+    // Best-effort with one retry: if the first request fails (network hiccup), retry once.
+    // We always proceed with local signout regardless of server outcome.
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData?.session?.access_token
+    if (token) {
+      const doSignoutRequest = () => fetch('/api/auth/signout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      try {
+        const res = await doSignoutRequest()
+        if (!res.ok) await doSignoutRequest().catch(() => null)
+      } catch {
+        await doSignoutRequest().catch(() => null)
+      }
+    }
 
     closeAll()
     writeCachedHeaderUser(null)

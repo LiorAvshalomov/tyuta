@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
   // Rate limit: 60 requests per 60 seconds per IP
   const ip = getClientIp(req) ?? "unknown"
-  const rl = rateLimit(`pv:${ip}`, { maxRequests: 60, windowMs: 60_000 })
+  const rl = await rateLimit(`pv:${ip}`, { maxRequests: 60, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 })
   }
@@ -150,16 +150,16 @@ export async function POST(req: NextRequest) {
   if (pvErr) {
     return NextResponse.json({ ok: false, error: "pageview_insert_failed" }, { status: 500 })
   }
-const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV === "production"
   const res = NextResponse.json({ ok: true, new_session: isNewSession })
   if (isNewSession) {
-res.cookies.set("pd_sid", sessionId, {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: "lax",
-  path: "/",
-  maxAge: 60 * 60 * 24 * 30,
-});
+    res.cookies.set("pd_sid", sessionId, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    })
   }
 
   return res
