@@ -412,6 +412,16 @@ html {
   color: oklch(0.145 0 0);
 }
 
+/* Bold text in dark mode: lift to pure white so weight contrast is readable.
+   Regular text sits at oklch(0.91) — bold at oklch(1) creates clear luminosity
+   hierarchy without changing the weight itself. Applies to both editor and viewer. */
+.dark .ProseMirror strong,
+.dark .ProseMirror b,
+.dark .richtext-viewer strong,
+.dark .richtext-viewer b {
+  color: oklch(0.985 0 0);
+}
+
 /* === Tyuta editorial tokens === */
 
 /* Warm hover accent — replaces repetitive sky-blue across feed surfaces */
