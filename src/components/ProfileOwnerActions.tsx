@@ -11,8 +11,8 @@ export default function ProfileOwnerActions({ profileId }: { profileId: string }
     let mounted = true
 
     ;(async () => {
-      const { data } = await supabase.auth.getUser()
-      const uid = data.user?.id
+      const { data } = await supabase.auth.getSession()
+      const uid = data.session?.user?.id
       if (!mounted) return
       setIsOwner(Boolean(uid && uid === profileId))
     })()

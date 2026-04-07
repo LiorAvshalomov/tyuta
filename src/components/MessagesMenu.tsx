@@ -64,8 +64,8 @@ export default function MessagesMenu() {
   }, [])
 
   const load = useCallback(async () => {
-    const { data: me } = await supabase.auth.getUser()
-    if (!me.user?.id) {
+    const { data: me } = await supabase.auth.getSession()
+    if (!me.session?.user?.id) {
       setRows([])
       setTotalUnread(0)
       return

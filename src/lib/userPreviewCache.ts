@@ -31,8 +31,8 @@ const inflight = new Map<string, Promise<UserPreview | null>>()
 
 export async function fetchUserPreview(username: string): Promise<UserPreview | null> {
   // Auth is a fast local session check — no network round-trip
-  const { data: { user } } = await supabase.auth.getUser()
-  const viewerId = user?.id ?? null
+  const { data: { session } } = await supabase.auth.getSession()
+  const viewerId = session?.user?.id ?? null
   const cacheKey = `${viewerId ?? 'anon'}:${username}`
 
   // Return cache hit if still fresh

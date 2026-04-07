@@ -8,7 +8,7 @@ import { pickLatestVersion } from "@/lib/freshness/serverVersions"
 
 export const runtime = "nodejs"
 export const dynamicParams = true
-export const dynamic = "force-dynamic"
+export const revalidate = 300 // 5 minutes; revalidatePath clears it immediately on publish/edit/delete
 
 const SITE_URL = "https://tyuta.net"
 

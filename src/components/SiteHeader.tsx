@@ -333,6 +333,10 @@ export default function SiteHeader() {
     if (seq !== loadUserSeqRef.current) return
 
     if (!session?.user?.id) {
+      // AuthSync may still be hydrating the session (RT cookie exchange in flight).
+      // If localStorage says the user was logged in, hold the cached header state
+      // until onAuthStateChange fires with the real session.
+      if (getAuthState() === 'in') return
       writeCachedHeaderUser(null)
       setUser(null)
       setUserResolved(true)
@@ -364,8 +368,8 @@ export default function SiteHeader() {
   }, [])
 
   const loadThreads = useCallback(async (): Promise<ThreadRow[]> => {
-    const { data } = await supabase.auth.getUser()
-    const uid = data.user?.id
+    const { data } = await supabase.auth.getSession()
+    const uid = data.session?.user?.id
     if (!uid) {
       setThreads([])
       setMsgUnread(0)
@@ -582,7 +586,8 @@ export default function SiteHeader() {
     setAuthState('out')
     broadcastAuthEvent('SIGNED_OUT')
     await supabase.auth.signOut()
-    router.replace('/')
+    // Navigation is handled by AuthSync.handleLostAuth which fires via onAuthStateChange.
+    // Protected pages → redirect to login; public pages → refresh in guest mode.
   }
 
 

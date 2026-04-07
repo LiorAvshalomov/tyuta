@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 
 type Reaction = {
   key: string
@@ -106,6 +107,19 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
     userIdRef.current = userId
   }, [userId])
 
+  // Clear auth state on logout so buttons switch to guest mode immediately
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUserId(null)
+        setMyVotes(new Set())
+      } else if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user?.id) {
+        setUserId(session.user.id)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   // --------
   // Fetch summary only (truth from DB)
   // --------
@@ -151,9 +165,9 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
       setLoading(true)
       setErrorMsg(null)
 
-      const { data: auth } = await supabase.auth.getUser()
+      const { data: auth } = await supabase.auth.getSession()
       if (cancelled) return
-      const u = auth.user
+      const u = auth.session?.user
       setUserId(u?.id ?? null)
 
       const { data: rx, error: rxErr } = await supabase
@@ -299,7 +313,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
         // rollback
         setMyVotes(prev => new Set(prev).add(reactionKey))
         optimisticDelta(reactionKey, 1)
-        setErrorMsg(error.message)
+        setErrorMsg(mapSupabaseError(error) ?? error.message)
         return
       }
 
@@ -333,7 +347,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
       const msg = String(error.message).toLowerCase()
       if (msg.includes('max 3 reactions')) setErrorMsg('אפשר לבחור עד 3 דירוגים לפוסט')
       else if (msg.includes('own post')) setErrorMsg('אי אפשר לדרג פוסט של עצמך')
-      else setErrorMsg(error.message)
+      else setErrorMsg(mapSupabaseError(error) ?? error.message)
       return
     }
 

@@ -958,18 +958,24 @@ export default async function HomePage(props: HomePageProps = {}) {
 
   const used = new Set<string>()
 
-  const featuredRank = rankedCombined[0] ?? null
+  // Pick featured by combined score: reactions are primary (×2), comments add a
+  // quality boost (×1). A post with many reactions always wins over one with only comments.
+  const featuredRank = rankedCombined.length === 0 ? null :
+    [...rankedCombined].sort(
+      (a, b) => (b.reactions_total * 2 + b.comments_total) - (a.reactions_total * 2 + a.comments_total)
+    )[0] ?? null
   const featuredId = featuredRank?.post_id ?? null
   if (featuredId) used.add(featuredId)
 
   const pickTopByKey = (key: string): RankedRow | null => {
     let best: RankedRow | null = null
-    let bestCount = -1
+    let bestScore = -1
     for (const r of rankedForPage) {
       if (used.has(r.post_id)) continue
       const v = r.reactions_by_key?.[key] ?? 0
-      if (v > bestCount) {
-        bestCount = v
+      const score = v * 2 + r.comments_total
+      if (score > bestScore) {
+        bestScore = score
         best = r
       }
     }
@@ -1183,11 +1189,21 @@ export default async function HomePage(props: HomePageProps = {}) {
   const recentPosts = ((recentRes.data ?? []) as PostRow[]).map(p => toCard(p, rankByPostId.get(p.id)))
   const recentMini = recentPosts.slice(0, 8)
 
-  // Home fallback: if weekly ranking returns no posts (e.g., zero reactions this week), fill category sections from recent posts.
-  // Filter out IDs already shown in Featured / Leading posts to avoid duplicates.
-  const storiesFinal = stories.length > 0 ? stories : recentPosts.filter(p => p.channel_slug === 'stories' && !used.has(p.id)).slice(0, 5)
-  const releaseFinal = release.length > 0 ? release : recentPosts.filter(p => p.channel_slug === 'release' && !used.has(p.id)).slice(0, 5)
-  const magazineFinal = magazine.length > 0 ? magazine : recentPosts.filter(p => p.channel_slug === 'magazine' && !used.has(p.id)).slice(0, 5)
+  // Sparse blend: when fewer than 3 posts in a section had actual engagement this
+  // period, pad with recent posts so the feed never looks empty after a quiet stretch.
+  const SPARSE_THRESHOLD = 3
+  const blendWithRecent = (ranked: CardPost[], channelSlug: string, max: number): CardPost[] => {
+    const activeCount = ranked.filter(p => p.weekReactionsTotal > 0 || p.weekCommentsTotal > 0).length
+    if (activeCount >= SPARSE_THRESHOLD) return ranked
+    const usedIds = new Set(ranked.map(p => p.id))
+    const fill = recentPosts.filter(
+      p => p.channel_slug === channelSlug && !usedIds.has(p.id) && !used.has(p.id)
+    )
+    return [...ranked, ...fill].slice(0, max)
+  }
+  const storiesFinal = blendWithRecent(stories, 'stories', 5)
+  const releaseFinal = blendWithRecent(release, 'release', 5)
+  const magazineFinal = blendWithRecent(magazine, 'magazine', 3)
 
   const homeHasAnyPosts = Boolean(featured) || Boolean(top1) || Boolean(top2) || Boolean(top3) || storiesFinal.length > 0 || releaseFinal.length > 0 || magazineFinal.length > 0
 

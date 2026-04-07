@@ -9,6 +9,7 @@ import {
   syncPublishedPostInlineImages,
 } from '@/lib/storage/postInlineLifecycle'
 import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
+import { revalidateAuthorSidebars } from '@/lib/revalidateAuthorSidebars'
 
 const RESTORE_WINDOW_DAYS = 14
 
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (typeof post.slug === 'string' && post.slug) {
     revalidatePath(`/post/${post.slug}`)
   }
+  await revalidateAuthorSidebars(auth.user.id, typeof post.slug === 'string' ? post.slug : undefined)
   await revalidatePublicProfileForUserId(svc, auth.user.id)
 
   return NextResponse.json({

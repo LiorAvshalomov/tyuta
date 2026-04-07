@@ -91,8 +91,8 @@ export default function ProfilePersonalInfoCardClient({
   useEffect(() => {
     let mounted = true
     const run = async () => {
-      const { data } = await supabase.auth.getUser()
-      const uid = data?.user?.id
+      const { data } = await supabase.auth.getSession()
+      const uid = data?.session?.user?.id
       if (!mounted) return
       setIsOwner(Boolean(uid && uid === profileId))
     }

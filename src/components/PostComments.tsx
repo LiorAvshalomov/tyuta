@@ -693,8 +693,8 @@ async function submitReport() {
     setLoading(true)
     setNewCommentBanner(false)
 
-    const { data: auth } = await supabase.auth.getUser()
-    const u = auth.user
+    const { data: auth } = await supabase.auth.getSession()
+    const u = auth.session?.user
     setUserId(u?.id ?? null)
     userIdRef.current = u?.id ?? null
 
@@ -916,6 +916,19 @@ async function submitReport() {
     }
   }, [postId, refreshLikes])
 
+  // Clear auth state on logout so comment box and like buttons switch to guest mode immediately
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setUserId(null)
+        userIdRef.current = null
+        setMe(null)
+        setIsAdmin(false)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   const send = async () => {
     setErrFor(null)
 
@@ -925,8 +938,8 @@ async function submitReport() {
       return
     }
 
-    const { data: auth } = await supabase.auth.getUser()
-    const u = auth.user
+    const { data: auth } = await supabase.auth.getSession()
+    const u = auth.session?.user
     if (!u) {
       setErrFor('צריך להתחבר כדי להגיב')
       return

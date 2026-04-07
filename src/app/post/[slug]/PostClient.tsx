@@ -297,9 +297,9 @@ export default function PostPage({ initialData, initialExtras }: Props) {
 
   useEffect(() => {
     let alive = true
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getSession().then(({ data }) => {
       if (!alive) return
-      setMyUserId(data.user?.id ?? null)
+      setMyUserId(data.session?.user?.id ?? null)
     })
     return () => {
       alive = false

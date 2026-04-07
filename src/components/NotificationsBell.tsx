@@ -246,8 +246,8 @@ export default function NotificationsBell() {
   const searchParams = useSearchParams()
 
   const getUid = useCallback(async () => {
-    const { data } = await supabase.auth.getUser()
-    return data.user?.id ?? null
+    const { data } = await supabase.auth.getSession()
+    return data.session?.user?.id ?? null
   }, [])
 
   const load = useCallback(async () => {

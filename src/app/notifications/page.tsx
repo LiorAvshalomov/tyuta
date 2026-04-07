@@ -90,8 +90,8 @@ export default function NotificationsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const { data: u } = await supabase.auth.getUser()
-      const uid = u.user?.id
+      const { data: u } = await supabase.auth.getSession()
+      const uid = u.session?.user?.id
       if (!uid) {
         setRows([])
         return

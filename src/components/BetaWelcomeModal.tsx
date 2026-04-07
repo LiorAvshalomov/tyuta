@@ -21,8 +21,8 @@ export default function BetaWelcomeModal() {
     let cancelled = false
 
     const init = async () => {
-      const { data } = await supabase.auth.getUser()
-      const uid = data.user?.id ?? null
+      const { data } = await supabase.auth.getSession()
+      const uid = data.session?.user?.id ?? null
       if (cancelled) return
 
       setUserId(uid)

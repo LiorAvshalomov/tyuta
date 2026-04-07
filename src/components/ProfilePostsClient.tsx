@@ -402,8 +402,8 @@ export default function ProfilePostsClient({
   }, [channelsMap.size])
 
   useEffect(() => {
-    supabase.auth.getUser()
-      .then(({ data }) => setViewerId(data.user?.id ?? null))
+    supabase.auth.getSession()
+      .then(({ data }) => setViewerId(data.session?.user?.id ?? null))
       .catch(() => setViewerId(null))
   }, [])
 

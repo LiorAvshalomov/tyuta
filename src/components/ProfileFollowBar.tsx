@@ -53,14 +53,14 @@ export default function ProfileFollowBar({
     let mounted = true
 
     async function loadMe() {
-      const { data, error } = await supabase.auth.getUser()
+      const { data } = await supabase.auth.getSession()
       if (!mounted) return
 
-      if (error || !data.user?.id) {
+      if (!data.session?.user?.id) {
         setMeId(null)
         return
       }
-      setMeId(data.user.id)
+      setMeId(data.session.user.id)
     }
 
     loadMe()

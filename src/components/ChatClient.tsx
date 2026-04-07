@@ -573,8 +573,8 @@ export default function ChatClient({
         body: JSON.stringify({ conversation_id: conversationId }),
       })
     } else {
-      const { data } = await supabase.auth.getUser()
-      if (!data.user?.id) return
+      const { data } = await supabase.auth.getSession()
+      if (!data.session?.user?.id) return
       await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
     }
 
@@ -629,9 +629,9 @@ export default function ChatClient({
     let mounted = true
 
     async function loadMe() {
-      const { data } = await supabase.auth.getUser()
+      const { data } = await supabase.auth.getSession()
       if (!mounted) return
-      setMyId(data.user?.id ?? null)
+      setMyId(data.session?.user?.id ?? null)
     }
 
     void loadMe()
@@ -716,8 +716,8 @@ export default function ChatClient({
         }
       }
 
-      const { data: me } = await supabase.auth.getUser()
-      if (!me.user?.id) return
+      const { data: me } = await supabase.auth.getSession()
+      if (!me.session?.user?.id) return
 
       const { data, error } = await supabase
         .from('inbox_threads')
@@ -830,7 +830,7 @@ export default function ChatClient({
     void (async () => {
       const uid = isAdminMode
         ? (systemId ?? null)
-        : ((await supabase.auth.getUser()).data.user?.id ?? null)
+        : ((await supabase.auth.getSession()).data.session?.user?.id ?? null)
       if (!mounted) return
       if (uid && uid !== myId) setMyId(uid)
 
@@ -1466,7 +1466,7 @@ export default function ChatClient({
     const capturedReply = replyTo
     setReplyTo(null)
 
-    const uid = isAdminMode ? myId : (await supabase.auth.getUser()).data.user?.id
+    const uid = isAdminMode ? myId : (await supabase.auth.getSession()).data.session?.user?.id
     if (!uid) {
       sendingRef.current = false
       toast('כדי לשלוח הודעה צריך להתחבר', 'info')

@@ -67,14 +67,15 @@ export default function InboxThreads() {
   const load = useCallback(async () => {
     setLoading(true)
 
-    const { data: me } = await supabase.auth.getUser()
-    if (!me.user?.id) {
+    const { data: me } = await supabase.auth.getSession()
+    const meUser = me.session?.user
+    if (!meUser?.id) {
       setRows([])
       setLoading(false)
       return
     }
     // Cache meId for typing filter
-    meIdRef.current = me.user.id
+    meIdRef.current = meUser.id
 
     const { data, error } = await supabase
       .from('inbox_threads')

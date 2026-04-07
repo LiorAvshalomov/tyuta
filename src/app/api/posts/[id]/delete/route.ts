@@ -6,6 +6,7 @@ import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { copyPublicCoverToPrivate, removePostCoverPublicObject } from '@/lib/storage/postCoverLifecycle'
 import { removePublishedPostInlineImages } from '@/lib/storage/postInlineLifecycle'
 import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
+import { revalidateAuthorSidebars } from '@/lib/revalidateAuthorSidebars'
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -89,6 +90,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (typeof post.slug === 'string' && post.slug) {
     revalidatePath(`/post/${post.slug}`)
   }
+  await revalidateAuthorSidebars(auth.user.id, typeof post.slug === 'string' ? post.slug : undefined)
   await revalidatePublicProfileForUserId(svc, auth.user.id)
 
   const warnings: string[] = []

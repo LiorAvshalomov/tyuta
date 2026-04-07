@@ -39,8 +39,8 @@ export default function FollowButton({
     let mounted = true
 
     async function init() {
-      const { data } = await supabase.auth.getUser()
-      const uid = data?.user?.id ?? null
+      const { data } = await supabase.auth.getSession()
+      const uid = data?.session?.user?.id ?? null
       if (!mounted) return
       setMyId(uid)
 
@@ -65,6 +65,16 @@ export default function FollowButton({
 
     return () => { mounted = false }
   }, [skipInitialLoad, targetUserId])
+
+  // Clear auth state on logout so the button hides immediately
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setMyId(null)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   // Sync instantly when HoverProfileCard (or any other component) follows/unfollows
   useEffect(() => {

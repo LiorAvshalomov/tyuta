@@ -21,8 +21,8 @@ export default function SavePostButton({ postId }: { postId: string }) {
     let mounted = true
 
     async function init() {
-      const { data } = await supabase.auth.getUser()
-      const uid = data?.user?.id ?? null
+      const { data } = await supabase.auth.getSession()
+      const uid = data?.session?.user?.id ?? null
       if (!mounted) return
       setMyId(uid)
 
@@ -56,6 +56,17 @@ export default function SavePostButton({ postId }: { postId: string }) {
       mounted = false
     }
   }, [postId])
+
+  // Clear auth state on logout so the button hides immediately
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setMyId(null)
+        setSaved(false)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
 
   async function toggle() {
     if (!myId) {

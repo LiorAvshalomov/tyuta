@@ -117,6 +117,8 @@ export default function AuthSync({ children }: Props) {
   const hadSessionRef = useRef(false)
   const lastHandledBroadcastTsRef = useRef(0)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Guards against the handleLostAuth → signOut({ scope:'local' }) → onAuthStateChange loop.
+  const isHandlingSignOutRef = useRef(false)
   // pathnameRef lets mount-once closures always read the latest pathname
   const pathnameRef = useRef(pathname)
   pathnameRef.current = pathname
@@ -186,17 +188,25 @@ export default function AuthSync({ children }: Props) {
         else broadcastAuthEvent('SIGNED_OUT')
       }
 
+      // Clear the in-memory session so onAuthStateChange('SIGNED_OUT') fires for
+      // all in-tab Supabase subscribers (e.g. SiteHeader clears the user avatar/name).
+      // scope:'local' = no network call, just wipes memStorage and fires the event.
+      if (!isHandlingSignOutRef.current) {
+        isHandlingSignOutRef.current = true
+        void supabase.auth.signOut({ scope: 'local' })
+          .catch(() => { /* ignore — session may already be gone */ })
+          .finally(() => { isHandlingSignOutRef.current = false })
+      }
+
       const currentPath = pathnameRef.current
       if (isAdminPath(currentPath) || isProtectedPath(currentPath)) {
         router.replace(buildLoginRedirect(currentPath))
         return
       }
 
-      if (!isAuthRoute(currentPath) && currentPath !== '/') {
-        router.replace('/')
-        return
-      }
-
+      // Public pages (post, channel, search, profile, homepage, auth routes) stay
+      // in place and simply refresh so the server re-renders the guest view.
+      // No disorienting redirect to the homepage.
       router.refresh()
     }
 
@@ -329,6 +339,9 @@ export default function AuthSync({ children }: Props) {
       }
 
       if (event === 'SIGNED_OUT') {
+        // Skip if we triggered this signOut ourselves inside handleLostAuth —
+        // otherwise we'd enter an infinite handleLostAuth → signOut → SIGNED_OUT loop.
+        if (isHandlingSignOutRef.current) return
         clearResetGate()
         handleLostAuth('SIGNED_OUT')
         return

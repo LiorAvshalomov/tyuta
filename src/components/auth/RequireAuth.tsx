@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { waitForAuthResolution } from '@/lib/auth/authEvents'
+import { getAuthState, waitForAuthResolution } from '@/lib/auth/authEvents'
 import { buildLoginRedirect } from '@/lib/auth/protectedRoutes'
 import { getBannedFlag, getSuspendedFlag } from '@/lib/moderation'
 
@@ -51,6 +51,15 @@ export default function RequireAuth({ children, unauthRedirectTo = '/auth/login'
       // Fast path: session already hydrated in memory (same-tab navigation, post-login)
       const { data } = await supabase.auth.getSession()
       if (data.session?.user?.id) {
+        if (!cancelled) setReady(true)
+        return
+      }
+
+      // Optimistic path: localStorage says user was logged in.
+      // Show content immediately; AuthSync will redirect to login if the RT cookie
+      // is actually expired. Avoids a visible skeleton on every cold-start navigation
+      // to a protected route for a known-logged-in user.
+      if (getAuthState() === 'in') {
         if (!cancelled) setReady(true)
         return
       }

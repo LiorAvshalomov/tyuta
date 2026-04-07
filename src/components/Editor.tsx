@@ -806,8 +806,8 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
 
       let uid = userId ?? null
       if (!uid) {
-        const { data } = await supabase.auth.getUser()
-        uid = data.user?.id ?? null
+        const { data } = await supabase.auth.getSession()
+        uid = data.session?.user?.id ?? null
       }
 
       if (!uid) {

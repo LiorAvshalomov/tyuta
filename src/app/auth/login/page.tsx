@@ -58,7 +58,6 @@ export default function LoginPage() {
       gaEvent('login_success')
       const safeNext = getSafePostAuthRedirect(searchParams.get('next'))
       router.replace(safeNext)
-      router.refresh()
     } finally {
       setLoading(false)
     }

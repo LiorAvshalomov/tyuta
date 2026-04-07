@@ -119,11 +119,11 @@ export default function FollowListClient({
     let mounted = true
 
     async function loadViewer() {
-      const { data, error } = await supabase.auth.getUser()
+      const { data } = await supabase.auth.getSession()
       if (!mounted) return
 
-      if (error || !data.user?.id) setViewerId(null)
-      else setViewerId(data.user.id)
+      if (!data.session?.user?.id) setViewerId(null)
+      else setViewerId(data.session.user.id)
       setViewerResolved(true)
     }
 

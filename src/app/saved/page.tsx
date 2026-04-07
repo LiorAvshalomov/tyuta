@@ -89,8 +89,8 @@ export default function SavedPostsPage() {
         setLoading(true)
         setErr(null)
 
-        const { data: u } = await supabase.auth.getUser()
-        if (!u.user) {
+        const { data: u } = await supabase.auth.getSession()
+        if (!u.session?.user) {
           if (alive) {
             setRows([])
             setErr('כדי לראות פוסטים שמורים צריך להתחבר.')
@@ -99,7 +99,7 @@ export default function SavedPostsPage() {
           return
         }
 
-        if (alive) setUserId(u.user.id)
+        if (alive) setUserId(u.session.user.id)
 
         const from = pg.page * pg.pageSize
         const to = from + pg.pageSize - 1
@@ -113,7 +113,7 @@ export default function SavedPostsPage() {
             'created_at, post_id, post:posts!post_bookmarks_post_id_fkey(id, slug, title, excerpt, published_at, author:profiles!posts_author_id_fkey(username, display_name, avatar_url), channel:channels!posts_channel_id_fkey(slug, name_he))',
             { count: 'exact' }
           )
-          .eq('user_id', u.user.id)
+          .eq('user_id', u.session.user.id)
           .order('created_at', { ascending: false })
           .range(from, to)
 
