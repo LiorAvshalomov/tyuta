@@ -3,6 +3,8 @@ export type Bucket = "day" | "week" | "month";
 export type KpisPayload = {
   pageviews: number;
   visits: number;
+  signedInVisits: number;
+  guestVisits: number;
   bounceRate: number; // percent 0-100
   avgSessionMinutes: number;
   uniqueUsers: number;
@@ -23,9 +25,11 @@ export type TrafficPoint = {
   uniqueUsers: number;
 };
 
-export type ActiveUsersPoint = {
+export type AudiencePoint = {
   bucketStart: string;
-  activeUsers: number;
+  signedInVisits: number;
+  guestVisits: number;
+  signedInUsers: number;
 };
 
 export type SignupsPoint = {
@@ -48,7 +52,7 @@ export type PurgesPoint = {
 
 export type DashboardSeries = {
   traffic: TrafficPoint[];
-  activeUsers: ActiveUsersPoint[];
+  audience: AudiencePoint[];
   signups: SignupsPoint[];
   posts: PostsPoint[];
   purges: PurgesPoint[];

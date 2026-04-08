@@ -6,6 +6,7 @@ import { supabase, hydrateSession } from '@/lib/supabaseClient'
 import {
   AUTH_BROADCAST_STORAGE_KEY,
   broadcastAuthEvent,
+  getAuthResolutionState,
   getAuthState,
   parseAuthBroadcastEvent,
   setAuthResolutionState,
@@ -127,14 +128,6 @@ export default function AuthSync({ children }: Props) {
   // router is stable across renders in Next.js App Router.
   useEffect(() => {
     let cancelled = false
-
-    const hasLegacySession = () => {
-      try {
-        return LEGACY_LS_KEYS.some((key) => Boolean(localStorage.getItem(key)))
-      } catch {
-        return false
-      }
-    }
 
     const redirectAuthenticatedEntryRoute = () => {
       const currentPath = pathnameRef.current
@@ -314,11 +307,6 @@ export default function AuthSync({ children }: Props) {
       }
 
       const globalState = getAuthState()
-      if (globalState === 'out' && !hasLegacySession()) {
-        setAuthResolutionState('unauthenticated')
-        return
-      }
-
       const recoverResult = await recoverSessionFromServer()
       if (recoverResult === 'ok') return
       if (recoverResult === 'error') return
@@ -391,9 +379,17 @@ export default function AuthSync({ children }: Props) {
 
       void supabase.auth.getSession().then(async ({ data }) => {
         if (!data.session) {
-          if (getAuthState() === 'in') {
-            const result = await recoverSessionFromServer()
-            if (result === 'unauthenticated') handleLostAuth('SESSION_GONE')
+          if (getAuthResolutionState() === 'unauthenticated' && !hadSessionRef.current) return
+
+          const expectedAuthenticated = hadSessionRef.current || getAuthState() === 'in'
+          const result = await recoverSessionFromServer()
+          if (result === 'unauthenticated') {
+            if (expectedAuthenticated) {
+              handleLostAuth('SESSION_GONE')
+            } else {
+              setAuthState('out')
+              setAuthResolutionState('unauthenticated')
+            }
           }
           return
         }

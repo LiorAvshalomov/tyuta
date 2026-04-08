@@ -5,6 +5,8 @@ export type DashboardSnapshot = {
   kpis: {
     pageviews: number
     visits: number
+    signedInVisits: number
+    guestVisits: number
     bounceRate: number
     avgSessionMinutes: number
     uniqueUsers: number
@@ -19,7 +21,7 @@ export type DashboardSnapshot = {
   }
   series: {
     traffic: Array<{ bucketStart: string; pageviews: number; sessions: number; uniqueUsers: number }>
-    activeUsers: Array<{ bucketStart: string; activeUsers: number }>
+    audience: Array<{ bucketStart: string; signedInVisits: number; guestVisits: number; signedInUsers: number }>
     signups: Array<{ bucketStart: string; signups: number }>
     posts: Array<{ bucketStart: string; postsCreated: number; postsPublished: number; postsSoftDeleted: number }>
     purges: Array<{ bucketStart: string; postsPurged: number; usersPurged: number }>
@@ -91,10 +93,11 @@ export async function loadDashboardPayload(
     bucket: Bucket
   },
 ): Promise<DashboardSnapshot> {
-  const [kpis, traffic, activeUsers, signups, posts, postPurges, userPurges] = await Promise.all([
+  const [kpis, audienceKpis, traffic, audience, signups, posts, postPurges, userPurges] = await Promise.all([
     admin.rpc('admin_kpis_v2', { p_start: start, p_end: end }) as unknown as Promise<RpcResult<unknown>>,
+    admin.rpc('admin_audience_kpis', { p_start: start, p_end: end }) as unknown as Promise<RpcResult<unknown>>,
     admin.rpc('admin_pageviews_timeseries', { p_start: start, p_end: end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
-    admin.rpc('admin_active_users_timeseries', { p_start: start, p_end: end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
+    admin.rpc('admin_audience_timeseries', { p_start: start, p_end: end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
     admin.rpc('admin_signups_timeseries', { p_start: start, p_end: end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
     admin.rpc('admin_posts_timeseries', { p_start: start, p_end: end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
     admin.rpc('admin_post_purges_timeseries', { p_start: start, p_end: end, p_bucket: bucket }) as unknown as Promise<RpcResult<unknown[]>>,
@@ -103,8 +106,9 @@ export async function loadDashboardPayload(
 
   const firstError =
     kpis.error ||
+    audienceKpis.error ||
     traffic.error ||
-    activeUsers.error ||
+    audience.error ||
     signups.error ||
     posts.error ||
     postPurges.error ||
@@ -116,6 +120,8 @@ export async function loadDashboardPayload(
 
   const kpisRow = Array.isArray(kpis.data) ? kpis.data[0] : kpis.data
   const kpiRecord = asRecord(kpisRow)
+  const audienceKpisRow = Array.isArray(audienceKpis.data) ? audienceKpis.data[0] : audienceKpis.data
+  const audienceKpiRecord = asRecord(audienceKpisRow)
 
   const trafficSeries = (traffic.data ?? []).map((row) => {
     const record = asRecord(row)
@@ -127,11 +133,13 @@ export async function loadDashboardPayload(
     }
   })
 
-  const activeUsersSeries = (activeUsers.data ?? []).map((row) => {
+  const audienceSeries = (audience.data ?? []).map((row) => {
     const record = asRecord(row)
     return {
       bucketStart: str(record.bucket_start),
-      activeUsers: num(record.active_users),
+      signedInVisits: num(record.signed_in_visits),
+      guestVisits: num(record.guest_visits),
+      signedInUsers: num(record.signed_in_users),
     }
   })
 
@@ -174,6 +182,8 @@ export async function loadDashboardPayload(
     kpis: {
       pageviews: num(kpiRecord.pageviews),
       visits: num(kpiRecord.visits),
+      signedInVisits: num(audienceKpiRecord.signed_in_visits),
+      guestVisits: num(audienceKpiRecord.guest_visits),
       bounceRate: num(kpiRecord.bounce_rate),
       avgSessionMinutes: num(kpiRecord.avg_session_minutes),
       uniqueUsers: num(kpiRecord.unique_users),
@@ -188,7 +198,7 @@ export async function loadDashboardPayload(
     },
     series: {
       traffic: trafficSeries,
-      activeUsers: activeUsersSeries,
+      audience: audienceSeries,
       signups: signupsSeries,
       posts: postsSeries,
       purges: bucketKeys.map((bucketStart) => ({

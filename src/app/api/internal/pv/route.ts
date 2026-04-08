@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { randomUUID } from "crypto"
 import { rateLimit } from "@/lib/rateLimit"
+import { PRESENCE_COOKIE, verifyPresence } from "@/lib/auth/presenceCookie"
 
 type PageviewBody = {
   path?: string
@@ -97,6 +98,16 @@ export async function POST(req: NextRequest) {
   if (token) {
     const { data, error } = await admin.auth.getUser(token)
     if (!error && data?.user?.id) userId = data.user.id
+  }
+
+  // Safe fallback for pageviews that arrive before the client has hydrated an access token:
+  // only a currently valid, signed presence cookie can attribute the visit to a user.
+  if (!userId) {
+    const secret = process.env.PRESENCE_HMAC_SECRET
+    if (secret) {
+      const presence = await verifyPresence(req.cookies.get(PRESENCE_COOKIE)?.value ?? "", secret)
+      if (presence?.uid) userId = presence.uid
+    }
   }
 
   const nowIso = new Date().toISOString()
