@@ -1525,7 +1525,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                               {w.gold ? <span>{w.gold} {MEDAL_EMOJIS.gold}</span> : null}
                               {w.silver ? <span>{w.silver} {MEDAL_EMOJIS.silver}</span> : null}
                               {w.bronze ? <span>{w.bronze} {MEDAL_EMOJIS.bronze}</span> : null}
-                              {!w.gold && !w.silver && !w.bronze ? <span>{WRITER_REACTIONS_LABEL} {w.reactions}</span> : null}
+                              {!w.gold && !w.silver && !w.bronze ? <span>{w.reactions} {WRITER_REACTIONS_LABEL}</span> : null}
                             </div>
                           </div>
                         ))}
