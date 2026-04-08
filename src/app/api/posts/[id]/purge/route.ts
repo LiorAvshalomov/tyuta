@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { rateLimit } from '@/lib/rateLimit'
 import { cleanupPostOwnedAssets } from '@/lib/storage/postAssetLifecycle'
 import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
 
@@ -25,6 +26,14 @@ type PostRow = {
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const rl = await rateLimit(`post-trash:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: { code: 'rate_limited', message: 'Too many requests' } },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
 
   const { id } = await ctx.params
   const postId = (id ?? '').toString().trim()
@@ -114,6 +123,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   revalidatePath('/c/release')
   revalidatePath('/c/stories')
   revalidatePath('/c/magazine')
+  revalidatePath('/sitemap.xml')
   if (post.slug) revalidatePath(`/post/${post.slug}`)
   await revalidatePublicProfileForUserId(svc, auth.user.id)
 

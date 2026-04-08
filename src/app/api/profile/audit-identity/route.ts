@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { rateLimit } from '@/lib/rateLimit'
 
 function normalizeValue(value: unknown) {
   if (typeof value !== 'string') return null
@@ -19,6 +20,14 @@ function getIp(req: Request) {
 export async function POST(req: Request) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const rl = await rateLimit(`profile-audit:${auth.user.id}`, { maxRequests: 15, windowMs: 10 * 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { ok: false, error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
 
   const body = await req.json().catch(() => ({})) as {
     previousUsername?: unknown

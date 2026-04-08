@@ -78,6 +78,7 @@ export async function POST(req: Request) {
   revalidatePath('/c/release')
   revalidatePath('/c/stories')
   revalidatePath('/c/magazine')
+  revalidatePath('/sitemap.xml')
   await revalidatePublicProfileForUserId(auth.admin, userId)
 
   for (const post of posts) {

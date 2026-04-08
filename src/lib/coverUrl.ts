@@ -43,3 +43,30 @@ export function coverProxySrc(url: string | null | undefined): string | null {
   // both cheaper and faster than proxying them through Vercel compute.
   return safeUrl
 }
+
+export function coverNoindexThumbSrc(url: string | null | undefined): string | null {
+  const safeUrl = url?.trim()
+  if (!safeUrl) return null
+
+  if (isProxySrc(safeUrl)) {
+    const qIdx = safeUrl.indexOf('?')
+    const params = new URLSearchParams(qIdx === -1 ? '' : safeUrl.slice(qIdx + 1))
+    const path = params.get('path')?.trim() ?? ''
+    if (!path.startsWith('post-covers/')) return safeUrl
+    params.set('path', path)
+    params.set('noindex', '1')
+    return `/api/media/cover?${params.toString()}`
+  }
+
+  const marker = '/storage/v1/object/public/'
+  const idx = safeUrl.indexOf(marker)
+  if (idx === -1) return safeUrl
+
+  const rawPath = safeUrl.slice(idx + marker.length)
+  const qIdx = rawPath.indexOf('?')
+  const path = (qIdx === -1 ? rawPath : rawPath.slice(0, qIdx)).trim()
+  if (!path.startsWith('post-covers/')) return safeUrl
+
+  const params = new URLSearchParams({ path, noindex: '1' })
+  return `/api/media/cover?${params.toString()}`
+}

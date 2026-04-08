@@ -48,21 +48,21 @@ export default function FollowPageHeader({
           {(medals.gold > 0 || medals.silver > 0 || medals.bronze > 0) && (
             <div className="flex items-center gap-2 mt-2">
               {medals.gold > 0 && (
-                <span className="inline-flex items-center gap-1 text-sm">
-                  <span>🥇</span>
+                <span dir="ltr" className="inline-flex items-center gap-1 text-sm">
                   <span className="font-semibold">{medals.gold}</span>
+                  <span>🥇</span>
                 </span>
               )}
               {medals.silver > 0 && (
-                <span className="inline-flex items-center gap-1 text-sm">
-                  <span>🥈</span>
+                <span dir="ltr" className="inline-flex items-center gap-1 text-sm">
                   <span className="font-semibold">{medals.silver}</span>
+                  <span>🥈</span>
                 </span>
               )}
               {medals.bronze > 0 && (
-                <span className="inline-flex items-center gap-1 text-sm">
-                  <span>🥉</span>
+                <span dir="ltr" className="inline-flex items-center gap-1 text-sm">
                   <span className="font-semibold">{medals.bronze}</span>
+                  <span>🥉</span>
                 </span>
               )}
             </div>

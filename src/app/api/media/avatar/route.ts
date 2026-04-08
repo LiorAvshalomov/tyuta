@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit } from '@/lib/rateLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 
 /**
@@ -22,6 +23,18 @@ const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 const ALLOWED_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown'
+  const rl = await rateLimit(`avatar-proxy:${ip}`, { maxRequests: 300, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return new NextResponse('Too many requests', {
+      status: 429,
+      headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) },
+    })
+  }
+
   const path = req.nextUrl.searchParams.get('path') ?? ''
 
   if (!path.startsWith('avatars/')) {

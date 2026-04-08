@@ -264,9 +264,9 @@ export default function PostCard({
 
             {showMedals ? (
               <div dir="ltr" className="shrink-0 flex items-center gap-2 text-xs text-muted-foreground">
-                <span>🥇 {medals?.gold ?? 0}</span>
-                <span>🥈 {medals?.silver ?? 0}</span>
-                <span>🥉 {medals?.bronze ?? 0}</span>
+                <span>{medals?.gold ?? 0} 🥇</span>
+                <span>{medals?.silver ?? 0} 🥈</span>
+                <span>{medals?.bronze ?? 0} 🥉</span>
               </div>
             ) : null}
           </div>

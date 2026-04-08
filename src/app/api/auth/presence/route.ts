@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { rateLimit } from '@/lib/rateLimit'
 import { fetchModerationRoutingHint } from '@/lib/auth/fetchModerationRoutingHint'
 import { isAdminUser } from '@/lib/auth/isAdminUser'
 import {
@@ -18,6 +19,14 @@ import {
 export async function POST(req: NextRequest) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const rl = await rateLimit(`presence:${auth.user.id}`, { maxRequests: 60, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
 
   const secret = process.env.PRESENCE_HMAC_SECRET
   const oldPresence = secret

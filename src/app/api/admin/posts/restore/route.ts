@@ -120,11 +120,12 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       inlineWarning = error instanceof Error ? error.message : "Public inline sync failed"
     }
-    revalidatePath("/")
-    revalidatePath("/c/release")
-    revalidatePath("/c/stories")
-    revalidatePath("/c/magazine")
-    if (post.slug) revalidatePath(`/post/${post.slug}`)
+  revalidatePath("/")
+  revalidatePath("/c/release")
+  revalidatePath("/c/stories")
+  revalidatePath("/c/magazine")
+  revalidatePath("/sitemap.xml")
+  if (post.slug) revalidatePath(`/post/${post.slug}`)
     await revalidatePublicProfileForUserId(auth.admin, post.author_id)
     return adminOk({
       restored: true,
@@ -200,11 +201,12 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       inlineWarning = error instanceof Error ? error.message : "Public inline sync failed"
     }
-    revalidatePath("/")
-    revalidatePath("/c/release")
-    revalidatePath("/c/stories")
-    revalidatePath("/c/magazine")
-    if (post.slug) revalidatePath(`/post/${post.slug}`)
+  revalidatePath("/")
+  revalidatePath("/c/release")
+  revalidatePath("/c/stories")
+  revalidatePath("/c/magazine")
+  revalidatePath("/sitemap.xml")
+  if (post.slug) revalidatePath(`/post/${post.slug}`)
     await revalidatePublicProfileForUserId(auth.admin, post.author_id)
     return adminOk({
       restored: true,

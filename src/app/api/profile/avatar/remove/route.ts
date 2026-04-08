@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { rateLimit } from '@/lib/rateLimit'
 
 const ALLOWED_PROFILE_FILENAMES = new Set([
   'profile.jpg',
@@ -13,6 +14,14 @@ const ALLOWED_PROFILE_FILENAMES = new Set([
 export async function POST(req: Request) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const rl = await rateLimit(`avatar-remove:${auth.user.id}`, { maxRequests: 10, windowMs: 5 * 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { ok: false, error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY

@@ -31,6 +31,7 @@ const LEGACY_LS_KEYS = [
 
 const RESET_GATE_STORAGE_KEY = 'tyuta:password_reset_required'
 const RESET_GATE_COOKIE = 'tyuta_reset_required'
+const CLIENT_REFRESH_LEEWAY_MS = 2 * 60_000
 
 function setResetGateCookie(): void {
   if (typeof document === 'undefined') return
@@ -52,18 +53,6 @@ function hasResetGateCookie(): boolean {
 
 function isResetRoute(pathname: string): boolean {
   return pathname.startsWith('/auth/reset-password')
-}
-
-function isAuthRoute(pathname: string): boolean {
-  return (
-    pathname.startsWith('/auth/login') ||
-    pathname.startsWith('/auth/register') ||
-    pathname.startsWith('/auth/signup') ||
-    pathname.startsWith('/auth/forgot-password') ||
-    pathname.startsWith('/auth/reset-password') ||
-    pathname === '/login' ||
-    pathname === '/register'
-  )
 }
 
 function hasResetGate(): boolean {
@@ -139,6 +128,14 @@ export default function AuthSync({ children }: Props) {
   useEffect(() => {
     let cancelled = false
 
+    const hasLegacySession = () => {
+      try {
+        return LEGACY_LS_KEYS.some((key) => Boolean(localStorage.getItem(key)))
+      } catch {
+        return false
+      }
+    }
+
     const redirectAuthenticatedEntryRoute = () => {
       const currentPath = pathnameRef.current
       if (hasResetGate() && !isResetRoute(currentPath)) {
@@ -156,9 +153,10 @@ export default function AuthSync({ children }: Props) {
 
     const scheduleRefresh = (expiresAt: number) => {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-      const delayMs = Math.max(0, expiresAt * 1000 - Date.now() - 60_000)
+      const delayMs = Math.max(0, expiresAt * 1000 - Date.now() - CLIENT_REFRESH_LEEWAY_MS)
       refreshTimerRef.current = setTimeout(async () => {
         const result = await recoverSessionFromServer()
+        if (cancelled) return
         if (result === 'unauthenticated') handleLostAuth('SESSION_GONE')
       }, delayMs)
     }
@@ -211,9 +209,10 @@ export default function AuthSync({ children }: Props) {
     }
 
     const recoverSessionFromServer = async (): Promise<'ok' | 'unauthenticated' | 'error'> => {
+      setAuthResolutionState('unknown')
       try {
         const res = await fetch('/api/auth/session', { credentials: 'same-origin' })
-        if (res.status === 401) return 'unauthenticated'
+        if (res.status === 204 || res.status === 401) return 'unauthenticated'
         if (!res.ok) return 'error'
 
         const body = await res.json() as { access_token?: string; expires_at?: number }
@@ -307,9 +306,16 @@ export default function AuthSync({ children }: Props) {
     }
 
     const init = async () => {
+      setAuthResolutionState('unknown')
       const { data } = await supabase.auth.getSession()
       if (data.session?.user?.id) {
         markAuthenticated(data.session.expires_at)
+        return
+      }
+
+      const globalState = getAuthState()
+      if (globalState === 'out' && !hasLegacySession()) {
+        setAuthResolutionState('unauthenticated')
         return
       }
 
@@ -320,7 +326,6 @@ export default function AuthSync({ children }: Props) {
       const migrated = await migrateLegacySession()
       if (migrated) return
 
-      const globalState = getAuthState()
       if (globalState === 'in') {
         handleLostAuth('SESSION_GONE')
       } else {
@@ -385,11 +390,17 @@ export default function AuthSync({ children }: Props) {
       if (document.visibilityState !== 'visible') return
 
       void supabase.auth.getSession().then(async ({ data }) => {
-        if (!data.session) return
+        if (!data.session) {
+          if (getAuthState() === 'in') {
+            const result = await recoverSessionFromServer()
+            if (result === 'unauthenticated') handleLostAuth('SESSION_GONE')
+          }
+          return
+        }
 
         const expiresAt = data.session.expires_at ?? 0
         const secsLeft = expiresAt - Math.floor(Date.now() / 1000)
-        if (secsLeft < 120) {
+        if (secsLeft < 180) {
           const result = await recoverSessionFromServer()
           if (result === 'unauthenticated') handleLostAuth('SESSION_GONE')
         }

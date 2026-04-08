@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { rateLimit } from '@/lib/rateLimit'
 
 export const runtime = 'nodejs'
 
@@ -7,6 +8,14 @@ type RouteParams = { params: Promise<{ uuid: string }> }
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { uuid } = await params
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const rl = await rateLimit(`post-by-id:${ip}`, { maxRequests: 60, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY

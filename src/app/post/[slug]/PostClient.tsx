@@ -19,7 +19,7 @@ import SharePostButton from '@/components/SharePostButton'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import AuthorHover from '@/components/AuthorHover'
-import { coverProxySrc, isGifUrl } from '@/lib/coverUrl'
+import { coverNoindexThumbSrc, isGifUrl } from '@/lib/coverUrl'
 import GifCoverCard from '@/components/GifCoverCard'
 import type { PostInitialData, PostSsrExtras } from './page'
 
@@ -101,7 +101,7 @@ function SidebarPostItem({
   const router = useRouter()
 
   const pAuthor = pickAuthor(post.author)
-  const coverSrc = coverProxySrc(post.cover_image_url)
+  const coverSrc = coverNoindexThumbSrc(post.cover_image_url)
   const authorName = pAuthor?.display_name ?? 'אנונימי'
   const authorUsername = pAuthor?.username ?? null
   const date = post.published_at ?? post.created_at
@@ -746,9 +746,9 @@ export default function PostPage({ initialData, initialExtras }: Props) {
 
           {hasMedals ? (
             <div className="flex shrink-0 items-center gap-2 text-sm">
-              {medals.gold > 0 && <span>🥇 {medals.gold}</span>}
-              {medals.silver > 0 && <span>🥈 {medals.silver}</span>}
-              {medals.bronze > 0 && <span>🥉 {medals.bronze}</span>}
+              {medals.gold > 0 && <span dir="ltr">{medals.gold} 🥇</span>}
+              {medals.silver > 0 && <span dir="ltr">{medals.silver} 🥈</span>}
+              {medals.bronze > 0 && <span dir="ltr">{medals.bronze} 🥉</span>}
             </div>
           ) : null}
         </div>

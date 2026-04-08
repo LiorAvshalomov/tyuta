@@ -161,28 +161,9 @@ function MedalsInline({
 
   return (
     <div dir="ltr" className={`flex items-center ${cls} text-muted-foreground`}>
-      {gold > 0 ? <span className="inline-flex items-center gap-1">{MEDAL_EMOJIS.gold} {gold}</span> : null}
-      {silver > 0 ? <span className="inline-flex items-center gap-1">{MEDAL_EMOJIS.silver} {silver}</span> : null}
-      {bronze > 0 ? <span className="inline-flex items-center gap-1">{MEDAL_EMOJIS.bronze} {bronze}</span> : null}
-    </div>
-  )
-}
-
-function MedalsCompact({ medals }: { medals: { gold: number; silver: number; bronze: number } | null }) {
-  if (!medals) return null
-  const items: { emoji: string; count: number }[] = []
-  if (medals.gold > 0) items.push({ emoji: MEDAL_EMOJIS.gold, count: medals.gold })
-  if (medals.silver > 0) items.push({ emoji: MEDAL_EMOJIS.silver, count: medals.silver })
-  if (medals.bronze > 0) items.push({ emoji: MEDAL_EMOJIS.bronze, count: medals.bronze })
-  if (items.length === 0) return null
-  const shown = items.slice(0, 2)
-  const extra = items.length - shown.length
-  return (
-    <div dir="ltr" className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/70">
-      {shown.map(m => (
-        <span key={m.emoji} className="shrink-0">{m.emoji} {m.count}</span>
-      ))}
-      {extra > 0 ? <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px]">+{extra}</span> : null}
+      {gold > 0 ? <span className="inline-flex items-center gap-1">{gold} {MEDAL_EMOJIS.gold}</span> : null}
+      {silver > 0 ? <span className="inline-flex items-center gap-1">{silver} {MEDAL_EMOJIS.silver}</span> : null}
+      {bronze > 0 ? <span className="inline-flex items-center gap-1">{bronze} {MEDAL_EMOJIS.bronze}</span> : null}
     </div>
   )
 }
@@ -398,6 +379,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
 }
 
 function SimplePostCard({ post }: { post: CardPost }) {
+  const showMedals = Boolean(post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0))
   return (
     <article className="group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-xl overflow-hidden tyuta-card-hover tyuta-gold-border flex flex-col">
       <Link href={`/post/${post.slug}`} className="absolute inset-0 z-10 rounded-xl" aria-label={postAriaLabel(post.title)}><span className="sr-only">{READ_POST_SR_LABEL}</span></Link>
@@ -422,23 +404,25 @@ function SimplePostCard({ post }: { post: CardPost }) {
               </>
             ) : null}
             {post.subcategory && post.tags.length > 0 ? (
-              <span className="mx-2 text-muted-foreground/50">{SEPARATOR}</span>
+              <span className={`mx-2 text-muted-foreground/50${showMedals ? ' md:inline hidden' : ''}`}>{SEPARATOR}</span>
             ) : null}
             {post.tags.length > 0 ? (
               <>
-                {/* desktop ג‰¥md: 2 tags + +N */}
+                {/* desktop ≥md: 2 tags + +N */}
                 <span className={`hidden md:inline ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
                   {post.tags.slice(0, 2).map((t, i) => (
                     <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
                   ))}
                   {post.tags.length > 2 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{post.tags.length - 2}</span>}
                 </span>
-                {/* mobile <md: up to 3, no +N */}
-                <span className={`md:hidden ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
-                  {post.tags.slice(0, 3).map((t, i) => (
-                    <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
-                  ))}
-                </span>
+                {/* mobile <md: 1 tag when medals present (to avoid crowding), up to 3 otherwise */}
+                {showMedals ? null : (
+                  <span className={`md:hidden ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
+                    {post.tags.slice(0, 3).map((t, i) => (
+                      <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
+                    ))}
+                  </span>
+                )}
               </>
             ) : null}
           </div>
@@ -542,15 +526,13 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
                 {post.tags.length > 0 ? (() => {
                   const desktopCap = post.channel_slug === 'magazine' ? 3 : 6
                   const leadCls = post.subcategory ? '' : 'mx-2'
-                  const mobileOverflow = post.tags.length - 1
                   const desktopOverflow = Math.max(0, post.tags.length - desktopCap)
                   return (
                     <>
-                      {/* mobile: 1 tag + overflow count — hidden when medals */}
+                      {/* mobile: 1 tag only — hidden when medals to avoid crowding */}
                       {!showMedals && (
                         <span className={`md:hidden ${leadCls} text-muted-foreground/70`.trimEnd()}>
                           #&nbsp;{post.tags[0].name_he}
-                          {mobileOverflow > 0 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{mobileOverflow}</span>}
                         </span>
                       )}
                       {/* desktop: up to cap + overflow count — always visible */}
@@ -581,7 +563,7 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
 
 
             {post.excerpt ? (
-              <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2">
+              <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-1">
                 {post.excerpt}
               </p>
             ) : (
@@ -646,9 +628,9 @@ function RecentMiniRow({ post }: { post: CardPost }) {
             </Link>
             {post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0) ? (
               <div dir="ltr" className="absolute top-1 left-1 z-10 pointer-events-none flex items-center gap-0.5 text-[11px] leading-none" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>
-                {post.allTimeMedals.gold > 0 ? <span>{MEDAL_EMOJIS.gold} {post.allTimeMedals.gold}</span> : null}
-                {post.allTimeMedals.silver > 0 ? <span>{MEDAL_EMOJIS.silver} {post.allTimeMedals.silver}</span> : null}
-                {post.allTimeMedals.bronze > 0 ? <span>{MEDAL_EMOJIS.bronze} {post.allTimeMedals.bronze}</span> : null}
+                {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold} {MEDAL_EMOJIS.gold}</span> : null}
+                {post.allTimeMedals.silver > 0 ? <span>{post.allTimeMedals.silver} {MEDAL_EMOJIS.silver}</span> : null}
+                {post.allTimeMedals.bronze > 0 ? <span>{post.allTimeMedals.bronze} {MEDAL_EMOJIS.bronze}</span> : null}
               </div>
             ) : null}
           </div>
@@ -1409,10 +1391,10 @@ export default async function HomePage(props: HomePageProps = {}) {
                             </div>
 
                             <div dir="ltr" className="shrink-0 text-xs text-foreground flex items-center gap-2">
-                              {w.gold ? <span>{MEDAL_EMOJIS.gold} {w.gold}</span> : null}
-                              {w.silver ? <span>{MEDAL_EMOJIS.silver} {w.silver}</span> : null}
-                              {w.bronze ? <span>{MEDAL_EMOJIS.bronze} {w.bronze}</span> : null}
-                              {!w.gold && !w.silver && !w.bronze ? <span>{WRITER_REACTIONS_LABEL} {w.reactions}</span> : null}
+                              {w.gold ? <span>{w.gold} {MEDAL_EMOJIS.gold}</span> : null}
+                              {w.silver ? <span>{w.silver} {MEDAL_EMOJIS.silver}</span> : null}
+                              {w.bronze ? <span>{w.bronze} {MEDAL_EMOJIS.bronze}</span> : null}
+                              {!w.gold && !w.silver && !w.bronze ? <span>{w.reactions} {WRITER_REACTIONS_LABEL}</span> : null}
                             </div>
                           </div>
                         ))}
@@ -1540,9 +1522,9 @@ export default async function HomePage(props: HomePageProps = {}) {
                             </div>
 
                             <div dir="ltr" className="shrink-0 text-xs text-foreground flex items-center gap-2">
-                              {w.gold ? <span>{MEDAL_EMOJIS.gold} {w.gold}</span> : null}
-                              {w.silver ? <span>{MEDAL_EMOJIS.silver} {w.silver}</span> : null}
-                              {w.bronze ? <span>{MEDAL_EMOJIS.bronze} {w.bronze}</span> : null}
+                              {w.gold ? <span>{w.gold} {MEDAL_EMOJIS.gold}</span> : null}
+                              {w.silver ? <span>{w.silver} {MEDAL_EMOJIS.silver}</span> : null}
+                              {w.bronze ? <span>{w.bronze} {MEDAL_EMOJIS.bronze}</span> : null}
                               {!w.gold && !w.silver && !w.bronze ? <span>{WRITER_REACTIONS_LABEL} {w.reactions}</span> : null}
                             </div>
                           </div>

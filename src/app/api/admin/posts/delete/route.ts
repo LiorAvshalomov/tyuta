@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
   revalidatePath("/c/release")
   revalidatePath("/c/stories")
   revalidatePath("/c/magazine")
+  revalidatePath("/sitemap.xml")
   if (post.slug) revalidatePath(`/post/${post.slug}`)
   await revalidatePublicProfileForUserId(sb, post.author_id)
 

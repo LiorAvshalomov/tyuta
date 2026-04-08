@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { clearRefreshCookie } from '@/lib/auth/cookieHelpers'
 import { clearPresenceCookie } from '@/lib/auth/presenceCookie'
+import { rateLimit } from '@/lib/rateLimit'
 
 function getIp(req: NextRequest): string {
   return (
@@ -12,6 +13,14 @@ function getIp(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  const rl = await rateLimit(`signout:${getIp(req)}`, { maxRequests: 30, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY

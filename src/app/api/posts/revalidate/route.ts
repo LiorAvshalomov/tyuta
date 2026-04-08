@@ -36,6 +36,7 @@ export async function POST(req: Request) {
   revalidatePath('/c/stories')
   revalidatePath('/c/magazine')
   revalidatePath('/search')
+  revalidatePath('/sitemap.xml')
   if (slug) revalidatePath(`/post/${slug}`)
 
   // Revalidate the author's other post pages so their "More from author"

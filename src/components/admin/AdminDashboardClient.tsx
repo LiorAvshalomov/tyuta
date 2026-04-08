@@ -364,7 +364,6 @@ export default function AdminDashboardClient({
   const [isDark, setIsDark] = useState(false);
   useEffect(() => {
     const el = document.documentElement;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDark(el.classList.contains("dark"));
     const observer = new MutationObserver(() => {
       setIsDark(el.classList.contains("dark"));

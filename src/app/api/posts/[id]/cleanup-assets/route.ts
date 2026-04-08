@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { rateLimit } from '@/lib/rateLimit'
 import {
   extractReferencedPostImagePaths,
   normalizeOwnedPrivatePostAssetPath,
@@ -26,6 +27,14 @@ type PostRow = {
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const rl = await rateLimit(`cleanup-assets:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: { code: 'rate_limited', message: 'Too many requests' } },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
 
   const { id } = await ctx.params
   const postId = (id ?? '').toString().trim()

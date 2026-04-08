@@ -102,7 +102,7 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
       }}
       className="cursor-pointer rounded-2xl border bg-white p-4 hover:shadow-sm dark:border-border dark:bg-card"
     >
-      <div className="flex h-[108px] flex-row-reverse items-stretch gap-4">
+      <div className="flex min-h-[108px] flex-row-reverse items-stretch gap-4">
         {coverSrc ? (
           isGifUrl(coverSrc) ? (
             <div className="w-28 shrink-0 self-stretch overflow-hidden rounded-xl">
@@ -142,14 +142,14 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
           </div>
 
           {post.excerpt ? (
-            <div className="line-clamp-1 py-0.5 text-sm leading-relaxed text-muted-foreground">
+            <div className="mt-1 line-clamp-1 text-sm leading-relaxed text-muted-foreground">
               {post.excerpt}
             </div>
           ) : (
             <div />
           )}
 
-          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-2 pt-1.5 text-xs text-muted-foreground">
             {post.author?.username ? (
               <div className="min-w-0 flex-1 overflow-hidden [&>span]:max-w-full">
                 <AuthorHover username={post.author.username}>

@@ -123,13 +123,13 @@ function safeText(s?: string | null) {
 function MedalPills({ gold, silver, bronze }: { gold: number; silver: number; bronze: number }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
+      <span dir="ltr" className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
         {bronze} <span className="text-base">🥉</span>
       </span>
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
+      <span dir="ltr" className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
         {silver} <span className="text-base">🥈</span>
       </span>
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
+      <span dir="ltr" className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm font-semibold transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted dark:hover:bg-muted/80">
         {gold} <span className="text-base">🥇</span>
       </span>
     </div>

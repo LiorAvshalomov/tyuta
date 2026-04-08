@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { rateLimit } from '@/lib/rateLimit'
 
 function parseIds(envKey: string): string[] {
   return (process.env[envKey] ?? "")
@@ -15,6 +16,18 @@ function parseIds(envKey: string): string[] {
  * can safely hide privileged UI without crashing.
  */
 export async function GET(req: Request) {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown'
+  const rl = await rateLimit(`me-roles:${ip}`, { maxRequests: 120, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
+
   const authHeader = req.headers.get("authorization") || ""
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : ""
 

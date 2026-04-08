@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
   const sessionRt = req.cookies.get(RT_SESSION_COOKIE)?.value ?? null
   const persistentRt = req.cookies.get(RT_COOKIE)?.value ?? null
   if (!sessionRt && !persistentRt) {
-    return NextResponse.json({ error: 'no session' }, { status: 401 })
+    return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
   const rt = cookieState.refreshToken
   const rememberMe = cookieState.rememberMe
   if (!rt) {
-    return NextResponse.json({ error: 'no session' }, { status: 401 })
+    return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
   }
 
   const client = createClient(url, anonKey, { auth: { persistSession: false } })
@@ -77,10 +77,10 @@ export async function GET(req: NextRequest) {
 
   if (error || !data.session) {
     // RT is invalid or expired; clear the cookies so the browser stops sending them.
-    const errRes = NextResponse.json(
-      { error: 'session expired' },
-      { status: 401, headers: { 'Cache-Control': 'no-store' } },
-    )
+    const errRes = new NextResponse(null, {
+      status: 204,
+      headers: { 'Cache-Control': 'no-store' },
+    })
     clearRefreshCookie(errRes)
     clearPresenceCookie(errRes)
 

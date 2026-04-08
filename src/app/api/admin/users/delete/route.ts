@@ -451,6 +451,7 @@ export async function POST(req: NextRequest) {
   revalidatePath('/c/release')
   revalidatePath('/c/stories')
   revalidatePath('/c/magazine')
+  revalidatePath('/sitemap.xml')
   for (const post of postRows) {
     if (post.slug) revalidatePath(`/post/${post.slug}`)
   }

@@ -132,24 +132,6 @@ function hasAnyMedals(m: { gold: number; silver: number; bronze: number }) {
   return (m.gold ?? 0) + (m.silver ?? 0) + (m.bronze ?? 0) > 0
 }
 
-function MedalsCompact({ medals }: { medals: { gold: number; silver: number; bronze: number } }) {
-  const items: { emoji: string; count: number }[] = []
-  if (medals.gold > 0) items.push({ emoji: '🥇', count: medals.gold })
-  if (medals.silver > 0) items.push({ emoji: '🥈', count: medals.silver })
-  if (medals.bronze > 0) items.push({ emoji: '🥉', count: medals.bronze })
-  if (items.length === 0) return null
-  const shown = items.slice(0, 2)
-  const extra = items.length - shown.length
-  return (
-    <div dir="ltr" className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground/70">
-      {shown.map(m => (
-        <span key={m.emoji} className="shrink-0">{m.emoji} {m.count}</span>
-      ))}
-      {extra > 0 ? <span className="shrink-0 rounded-full bg-black/5 px-1.5 text-[10px]">+{extra}</span> : null}
-    </div>
-  )
-}
-
 /** הגדול - בצד ימין, גובה קבוע — cinematic editorial layout */
 function FeaturedTopCard({ post }: { post: CardPost }) {
   const showMedals = hasAnyMedals(post.medals)
@@ -158,7 +140,7 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
     <article className="group tyuta-featured-shell h-[420px] overflow-hidden lg:overflow-visible" style={{ position: 'relative' }}>
       {/* Image frame — clipped at its own border-radius, not at the article level */}
       <div className="tyuta-featured-img-frame" style={{ position: 'absolute', inset: 0 }}>
-        <Link href={`/post/${post.slug}`} className="absolute inset-0 block tyuta-img-hover" tabIndex={-1} aria-hidden="true">
+        <Link href={`/post/${post.slug}`} className="absolute inset-0 block tyuta-img-hover" tabIndex={-1}>
           <div className="relative w-full h-full">
             {post.cover_image_url ? (
               (() => {
@@ -194,9 +176,9 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
           <div className="flex items-start justify-between gap-2 mb-2">
             {showMedals ? (
               <div dir="ltr" className="shrink-0 flex items-center gap-1 text-xs text-white/60">
-                {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
-                {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
-                {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+                {post.medals.gold ? <span>{post.medals.gold} 🥇</span> : null}
+                {post.medals.silver ? <span>{post.medals.silver} 🥈</span> : null}
+                {post.medals.bronze ? <span>{post.medals.bronze} 🥉</span> : null}
               </div>
             ) : null}
             <Link
@@ -240,9 +222,9 @@ function SmallTopCard({ post }: { post: CardPost }) {
             <div className="flex items-start justify-between gap-2">
               {showMedals ? (
                 <div dir="ltr"className="shrink-0 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
-                  {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
-                  {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+                  {post.medals.gold ? <span>{post.medals.gold} 🥇</span> : null}
+                  {post.medals.silver ? <span>{post.medals.silver} 🥈</span> : null}
+                  {post.medals.bronze ? <span>{post.medals.bronze} 🥉</span> : null}
                 </div>
               ) : null}
 
@@ -305,9 +287,9 @@ function ListRow({ post }: { post: CardPost }) {
           <div className="flex items-start justify-between gap-3">
             {showMedals ? (
               <div dir="ltr"className="shrink-0 flex items-center gap-2 text-[11px] text-muted-foreground">
-                {post.medals.gold ? <span>🥇 {post.medals.gold}</span> : null}
-                {post.medals.silver ? <span>🥈 {post.medals.silver}</span> : null}
-                {post.medals.bronze ? <span>🥉 {post.medals.bronze}</span> : null}
+                {post.medals.gold ? <span>{post.medals.gold} 🥇</span> : null}
+                {post.medals.silver ? <span>{post.medals.silver} 🥈</span> : null}
+                {post.medals.bronze ? <span>{post.medals.bronze} 🥉</span> : null}
               </div>
             ) : null}
 
@@ -403,9 +385,9 @@ function RecentMiniRow({ post }: { post: CardPost }) {
             <CoverFrame src={post.cover_image_url} w={72} h={72} rounded="rounded" alt={post.title} sizes="(max-width: 640px) 100px, 120px" quality={90}/>
             {hasAnyMedals(post.medals) ? (
               <div dir="ltr" className="absolute top-1 left-1 z-10 pointer-events-none flex items-center gap-0.5 text-[11px] leading-none" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>
-                {post.medals.gold > 0 ? <span>🥇 {post.medals.gold}</span> : null}
-                {post.medals.silver > 0 ? <span>🥈 {post.medals.silver}</span> : null}
-                {post.medals.bronze > 0 ? <span>🥉 {post.medals.bronze}</span> : null}
+                {post.medals.gold > 0 ? <span>{post.medals.gold} 🥇</span> : null}
+                {post.medals.silver > 0 ? <span>{post.medals.silver} 🥈</span> : null}
+                {post.medals.bronze > 0 ? <span>{post.medals.bronze} 🥉</span> : null}
               </div>
             ) : null}
           </div>
@@ -757,7 +739,7 @@ export default async function ChannelFeedPage({
                           <div className="font-bold">{w.name}</div>
                         )}
                         <div dir="ltr"className="mt-1 text-xs text-muted-foreground">
-                          🥇 {w.gold}  🥈 {w.silver}  🥉 {w.bronze}
+                          {w.gold} 🥇  {w.silver} 🥈  {w.bronze} 🥉
                         </div>
                       </div>
                     </div>

@@ -209,9 +209,9 @@ function DesktopPostCard({
             {/* Medals - left side */}
             {hasMedals && (
               <div className="flex items-center gap-1.5 text-sm">
-                {post.medals!.bronze > 0 && <span>{post.medals!.bronze} 🥉</span>}
-                {post.medals!.silver > 0 && <span>{post.medals!.silver} 🥈</span>}
-                {post.medals!.gold > 0 && <span>{post.medals!.gold} 🥇</span>}
+                {post.medals!.bronze > 0 && <span dir="ltr">{post.medals!.bronze} 🥉</span>}
+                {post.medals!.silver > 0 && <span dir="ltr">{post.medals!.silver} 🥈</span>}
+                {post.medals!.gold > 0 && <span dir="ltr">{post.medals!.gold} 🥇</span>}
               </div>
             )}
           </div>
@@ -325,9 +325,9 @@ function MobilePostCard({
           {/* Medals */}
           {hasMedals && (
             <div className="flex items-center gap-1 text-sm">
-              {post.medals!.bronze > 0 && <span>{post.medals!.bronze} 🥉</span>}
-              {post.medals!.silver > 0 && <span>{post.medals!.silver} 🥈</span>}
-              {post.medals!.gold > 0 && <span>{post.medals!.gold} 🥇</span>}
+              {post.medals!.bronze > 0 && <span dir="ltr">{post.medals!.bronze} 🥉</span>}
+              {post.medals!.silver > 0 && <span dir="ltr">{post.medals!.silver} 🥈</span>}
+              {post.medals!.gold > 0 && <span dir="ltr">{post.medals!.gold} 🥇</span>}
             </div>
           )}
         </div>

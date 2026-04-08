@@ -61,6 +61,7 @@ function clientIp(req: NextRequest): string {
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const path = req.nextUrl.searchParams.get('path') ?? ''
+  const noindex = req.nextUrl.searchParams.get('noindex') === '1'
 
   // ── validation ──────────────────────────────────────────────────────────
   if (!path.startsWith('post-covers/')) {
@@ -132,6 +133,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     'Vercel-CDN-Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
     'X-Content-Type-Options': 'nosniff',
   }
+  if (noindex) headers['X-Robots-Tag'] = 'noindex, noimageindex'
   if (etag) headers['ETag'] = etag
 
   return new NextResponse(body, { status: 200, headers })
