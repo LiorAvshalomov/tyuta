@@ -788,7 +788,7 @@ export default function AdminDashboardClient({
 
             <DashChartCard
               title="פוסטים (נוצרו / פורסמו / נמחקו / נמחקו לצמיתות)"
-              subtitle="מחזור החיים של פוסטים לאורך הטווח, כולל מחיקה זמנית ומחיקה לצמיתות."
+              subtitle="מחזור החיים של פוסטים לאורך הטווח. מחיקה זמנית נספרת רק כל עוד הפוסט עדיין בפח, כך ששחזור או מחיקה קבועה מעדכנים אותה."
               chips={postsChips}
             >
               {isPostsEmpty ? (
@@ -1079,7 +1079,7 @@ export default function AdminDashboardClient({
           {/* Posts */}
           <DashChartCard
             title="פוסטים (נוצרו / פורסמו / נמחקו / נמחקו לצמיתות)"
-            subtitle="מחזור החיים של פוסטים לאורך הטווח, כולל מחיקה זמנית ומחיקה לצמיתות."
+            subtitle="מחזור החיים של פוסטים לאורך הטווח. מחיקה זמנית נספרת רק כל עוד הפוסט עדיין בפח, כך ששחזור או מחיקה קבועה מעדכנים אותה."
             chips={postsChips}
           >
             {isPostsEmpty ? (

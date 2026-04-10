@@ -10,7 +10,6 @@ import PageTracker from "@/components/analytics/PageTracker"
 import ToastProvider from "@/components/Toast"
 import VisualViewportSync from "@/components/VisualViewportSync"
 import ThemeSync from "@/components/ThemeSync"
-import { resolveInitialHeaderUser } from "@/lib/auth/serverHeaderUser"
 
 const SITE_URL = "https://tyuta.net"
 
@@ -88,8 +87,7 @@ function JsonLd({ data }: { data: unknown }) {
   )
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const initialHeaderUser = await resolveInitialHeaderUser()
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   const organizationSchema = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -141,7 +139,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ThemeSync />
           <AuthSync>
             <SuspensionSync>
-              <ClientChrome initialHeaderUser={initialHeaderUser}>{children}</ClientChrome>
+              <ClientChrome>{children}</ClientChrome>
             </SuspensionSync>
           </AuthSync>
           <Suspense fallback={null}><PageTracker /></Suspense>

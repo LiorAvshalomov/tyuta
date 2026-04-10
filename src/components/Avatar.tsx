@@ -1,3 +1,4 @@
+import React from 'react'
 import Image from 'next/image'
 import { avatarProxySrc } from '@/lib/avatarUrl'
 
@@ -6,7 +7,7 @@ function dicebearUrl(seed: string) {
   return `https://api.dicebear.com/7.x/initials/svg?seed=${s}`
 }
 
-export default function Avatar({
+function Avatar({
   src,
   name,
   size = 36,
@@ -36,3 +37,5 @@ export default function Avatar({
     </div>
   )
 }
+
+export default React.memo(Avatar)

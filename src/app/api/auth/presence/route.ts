@@ -16,7 +16,6 @@ import {
   verifyPresence,
 } from '@/lib/auth/presenceCookie'
 import { fetchHeaderUserById } from '@/lib/auth/headerUser'
-import { setHeaderUserCookie } from '@/lib/auth/headerUserCookie'
 
 export async function POST(req: NextRequest) {
   const auth = await requireUserFromRequest(req)
@@ -75,7 +74,6 @@ export async function POST(req: NextRequest) {
     cookieState.rememberMe,
     moderation,
   )
-  await setHeaderUserCookie(res, headerUser, cookieState.rememberMe)
 
   return res
 }

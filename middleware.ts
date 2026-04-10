@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyAuthHint, verifyPresence, AUTH_HINT_COOKIE, PRESENCE_COOKIE } from '@/lib/auth/presenceCookie'
-import { buildLoginRedirect } from '@/lib/auth/protectedRoutes'
+import { buildLoginRedirect, isProtectedPath } from '@/lib/auth/protectedRoutes'
 
 const RESET_COOKIE = 'tyuta_reset_required'
 const PUBLIC_FILE_RE = /\.(?:png|svg|jpe?g|gif|webp|ico|txt|xml|json|webmanifest|woff2?|ttf|otf|mp4|webm)$/i
@@ -98,7 +98,7 @@ function applySecurityHeaders(res: NextResponse): void {
   // Prevent this window from being opened in a cross-origin context (clickjacking, Spectre)
   res.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
   // Opt out of browser features not used by this app
-  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
   // HSTS — tell browsers to always use HTTPS for 2 years, including subdomains.
   // Vercel already adds this in production, but defence-in-depth keeps it here too.
   res.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
@@ -152,6 +152,7 @@ function redirectWithHeaders(req: NextRequest, target: string): NextResponse {
 
 export async function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl
+  const requestPath = `${pathname}${req.nextUrl.search}`
 
   // Static assets and API routes: skip middleware entirely
   if (isStaticAsset(pathname)) return NextResponse.next()
@@ -202,7 +203,16 @@ export async function middleware(req: NextRequest) {
         return redirectWithHeaders(req, '/')
       }
       if (!adminHint) {
-        return redirectWithHeaders(req, buildLoginRedirect(pathname))
+        return redirectWithHeaders(req, buildLoginRedirect(requestPath))
+      }
+    }
+  }
+
+  if (!pathname.startsWith('/admin') && isProtectedPath(pathname)) {
+    if (secret) {
+      const userHint = presence ?? authHint
+      if (!userHint) {
+        return redirectWithHeaders(req, buildLoginRedirect(requestPath))
       }
     }
   }
