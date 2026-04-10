@@ -9,11 +9,9 @@ import ProfileRouteAutoRefresh from "@/components/ProfileRouteAutoRefresh"
 import SiteHeader from "@/components/SiteHeader"
 import SiteFooter from "@/components/SiteFooter"
 import BetaWelcomeModal from "@/components/BetaWelcomeModal"
-import type { HeaderUser } from "@/lib/auth/headerUser"
 
 type Props = {
   children: React.ReactNode
-  initialHeaderUser?: HeaderUser | null
 }
 
 function isCleanRoute(pathname: string): boolean {
@@ -35,7 +33,7 @@ function isAuthRoute(pathname: string): boolean {
   return false
 }
 
-export default function ClientChrome({ children, initialHeaderUser = null }: Props) {
+export default function ClientChrome({ children }: Props) {
   const pathname = usePathname() || "/"
   const clean = useMemo(() => isCleanRoute(pathname), [pathname])
   const auth = useMemo(() => isAuthRoute(pathname), [pathname])
@@ -50,7 +48,7 @@ export default function ClientChrome({ children, initialHeaderUser = null }: Pro
         <AnalyticsPageviewClient />
         <PostRouteAutoRefresh />
         <ProfileRouteAutoRefresh />
-        <SiteHeader initialUser={initialHeaderUser} />
+        <SiteHeader />
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>
     )
@@ -64,7 +62,7 @@ export default function ClientChrome({ children, initialHeaderUser = null }: Pro
       <AppBackground />
       <BetaWelcomeModal />
       <div className="min-h-screen flex flex-col">
-        <SiteHeader initialUser={initialHeaderUser} />
+        <SiteHeader />
         <main className="flex-1">{children}</main>
         <SiteFooter />
       </div>

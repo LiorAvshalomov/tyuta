@@ -32,6 +32,8 @@ import {
   setAuthState,
   subscribeAuthResolutionState,
 } from '@/lib/auth/authEvents'
+import { waitForClientSession } from '@/lib/auth/clientSession'
+import { buildLoginRedirect } from '@/lib/auth/protectedRoutes'
 import {
   PROFILE_REFRESH_CHANNEL,
   PROFILE_REFRESH_EVENT,
@@ -42,6 +44,7 @@ import {
 import ThemeToggle from '@/components/ThemeToggle'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import {
+  buildHeaderUserFromAuthUser,
   clearCachedHeaderUser,
   readCachedHeaderUser,
   sameHeaderUser,
@@ -59,10 +62,6 @@ type ThreadRow = {
   last_created_at: string | null
   last_body: string | null
   unread_count: number | null
-}
-
-type SiteHeaderProps = {
-  initialUser?: HeaderUser | null
 }
 
 const useHeaderLayoutEffect =
@@ -148,22 +147,54 @@ function formatDateTime(dt: string) {
   return `${hh}:${mi} · ${dd}.${mm}.${yy}`
 }
 
-export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
+function HeaderPendingIcon({ wide = false }: { wide?: boolean }) {
+  return (
+    <div
+      className={`rounded-full bg-neutral-200/80 dark:bg-muted/80 animate-pulse ${
+        wide ? 'h-8 w-20' : 'h-9 w-9'
+      }`}
+      aria-hidden="true"
+    />
+  )
+}
+
+function isHeaderAuthPath(pathname: string): boolean {
+  return (
+    pathname.startsWith('/auth/login') ||
+    pathname.startsWith('/auth/register') ||
+    pathname.startsWith('/auth/signup') ||
+    pathname.startsWith('/auth/forgot-password') ||
+    pathname.startsWith('/auth/reset-password') ||
+    pathname === '/login' ||
+    pathname === '/register'
+  )
+}
+
+function mergeHeaderUserSeed(existing: HeaderUser | null, candidate: HeaderUser | null): HeaderUser | null {
+  if (!candidate) return null
+  if (!existing || existing.id !== candidate.id) return candidate
+
+  return {
+    id: existing.id,
+    username: existing.username || candidate.username,
+    displayName: existing.displayName || candidate.displayName || candidate.username,
+    avatarUrl: existing.avatarUrl ?? candidate.avatarUrl ?? null,
+  }
+}
+
+const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
+  hideSecondaryRow,
+  isAuthPage,
+}: {
+  hideSecondaryRow: boolean
+  isAuthPage: boolean
+}) {
   const router = useRouter()
-  const pathname = usePathname()
 
   // Used for UI overrides (showing "מערכת האתר" instead of the system user's profile).
   // Not a secret; it is safe as NEXT_PUBLIC.
-  const isAuthPage =
-    (pathname ?? '').startsWith('/auth/login') ||
-    (pathname ?? '').startsWith('/auth/register') ||
-    (pathname ?? '').startsWith('/auth/signup') ||
-    (pathname ?? '').startsWith('/auth/forgot-password') ||
-    (pathname ?? '').startsWith('/auth/reset-password') ||
-    pathname === '/login' ||
-    pathname === '/register'
-  const [user, setUser] = useState<HeaderUser | null>(initialUser)
-  const [userResolved, setUserResolved] = useState(Boolean(initialUser))
+  const [user, setUser] = useState<HeaderUser | null>(null)
+  const [userResolved, setUserResolved] = useState(false)
 
   // dropdown states
   const [writeOpen, setWriteOpen] = useState(false)
@@ -185,6 +216,7 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
 
   const [threads, setThreads] = useState<ThreadRow[]>([])
   const [msgUnread, setMsgUnread] = useState(0)
+  const showPendingAuthShell = !user && !userResolved
 
   const anyOpen = useMemo(
     () => writeOpen || profileOpen || messagesOpen,
@@ -264,13 +296,6 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
   }, [anyOpen, mobileMenuOpen, closeAll])
 
   useHeaderLayoutEffect(() => {
-    if (initialUser) {
-      writeCachedHeaderUser(initialUser)
-      setUser((prev) => (sameHeaderUser(prev, initialUser) ? prev : initialUser))
-      setUserResolved(true)
-      return
-    }
-
     const authState = getAuthState()
     const cachedUser = readCachedHeaderUser()
 
@@ -284,7 +309,7 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
       setUser(null)
       setUserResolved(true)
     }
-  }, [initialUser])
+  }, [])
 
   const loadUser = useCallback(async () => {
     const seq = ++loadUserSeqRef.current
@@ -315,6 +340,16 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
       return
     }
 
+    const fallbackUser = mergeHeaderUserSeed(
+      readCachedHeaderUser(),
+      buildHeaderUserFromAuthUser(session.user),
+    )
+    if (fallbackUser) {
+      writeCachedHeaderUser(fallbackUser, session.expires_at)
+      setUser((prev) => (sameHeaderUser(prev, fallbackUser) ? prev : fallbackUser))
+      setUserResolved(true)
+    }
+
     const { data: prof } = await supabase
       .from('profiles')
       .select('id, username, display_name, avatar_url')
@@ -330,9 +365,9 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
         displayName: (prof.display_name ?? '').trim() || prof.username || 'אנונימי',
         avatarUrl: prof.avatar_url ?? null,
       }
-      writeCachedHeaderUser(nextUser)
+      writeCachedHeaderUser(nextUser, session.expires_at)
       setUser((prev) => (sameHeaderUser(prev, nextUser) ? prev : nextUser))
-    } else {
+    } else if (!fallbackUser) {
       clearCachedHeaderUser()
       setUser(null)
     }
@@ -374,9 +409,40 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
     void loadUser() // eslint-disable-line react-hooks/set-state-in-effect -- async data fetch
   }, [loadUser])
 
+  const ensureAuthenticatedNavigation = useCallback(
+    async (targetPath: string): Promise<boolean> => {
+      if (user) return true
+
+      const authResolution = getAuthResolutionState()
+      if (authResolution === 'unauthenticated' || getAuthState() === 'out') {
+        router.push(buildLoginRedirect(targetPath))
+        return false
+      }
+
+      const resolved = await waitForClientSession(4000)
+      if (resolved.status !== 'authenticated') {
+        router.push(buildLoginRedirect(targetPath))
+        return false
+      }
+
+      const nextUser = mergeHeaderUserSeed(
+        readCachedHeaderUser(),
+        buildHeaderUserFromAuthUser(resolved.user),
+      )
+      if (nextUser) {
+        writeCachedHeaderUser(nextUser, resolved.session.expires_at)
+        setUser((prev) => (sameHeaderUser(prev, nextUser) ? prev : nextUser))
+      }
+      setUserResolved(true)
+      void loadUser()
+      return true
+    },
+    [loadUser, router, user],
+  )
+
   // Reload when auth state changes
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || (event as string) === 'TOKEN_REFRESH_FAILED') {
         clearCachedHeaderUser()
         setUser(null)
@@ -387,11 +453,23 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
       }
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        setUserResolved(false)
+        const sessionUser = mergeHeaderUserSeed(
+          readCachedHeaderUser(),
+          buildHeaderUserFromAuthUser(session?.user ?? null),
+        )
+
+        if (sessionUser) {
+          writeCachedHeaderUser(sessionUser, session?.expires_at)
+          setUser((prev) => (sameHeaderUser(prev, sessionUser) ? prev : sessionUser))
+          setUserResolved(true)
+        }
       }
 
-      void loadUser()
-      void loadThreads()
+      window.setTimeout(() => {
+        void loadUser()
+        // loadThreads only on SIGNED_IN — threads don't change on token refresh
+        if (event === 'SIGNED_IN') void loadThreads()
+      }, 0)
     })
     return () => {
       sub.subscription.unsubscribe()
@@ -400,17 +478,19 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
 
   useEffect(() => {
     return subscribeHeaderUser(({ user: nextUser }) => {
+      const previousUserId = user?.id ?? null
+      const nextUserId = nextUser?.id ?? null
       setUser((prev) => (sameHeaderUser(prev, nextUser) ? prev : nextUser))
       setUserResolved(Boolean(nextUser) || getAuthResolutionState() === 'unauthenticated')
 
-      if (nextUser) {
-        void loadThreads()
-      } else {
+      if (!nextUser) {
         setThreads([])
         setMsgUnread(0)
+      } else if (nextUserId !== previousUserId) {
+        void loadThreads()
       }
     })
-  }, [loadThreads])
+  }, [loadThreads, user?.id])
 
   useEffect(() => {
     return subscribeAuthResolutionState((state) => {
@@ -530,25 +610,20 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
     // We intentionally re-subscribe when the visible thread list changes.
   }, [user?.id, loadThreads])
 
-  function requireAuthOrGoWrite(target: 'prika' | 'stories' | 'magazine') {
-    if (!user) {
-      alert('כדי לכתוב צריך להתחבר 🙂')
-      router.push('/auth/login')
-      return
-    }
+  async function requireAuthOrGoWrite(target: 'prika' | 'stories' | 'magazine') {
+    const targetPath = `/write?channel=${target}`
+    const isAuthenticated = await ensureAuthenticatedNavigation(targetPath)
+    if (!isAuthenticated) return
     if (getModerationStatus() === 'suspended') {
-      router.push('/restricted?from=%2Fwrite')
+      router.push(`/restricted?from=${encodeURIComponent(targetPath)}`)
       return
     }
-    router.push(`/write?channel=${target}`)
+    router.push(targetPath)
   }
 
-  function requireAuthOrGo(path: string) {
-    if (!user) {
-      alert('כדי להיכנס למחברת צריך להתחבר 🙂')
-      router.push('/auth/login')
-      return
-    }
+  async function requireAuthOrGo(path: string) {
+    const isAuthenticated = await ensureAuthenticatedNavigation(path)
+    if (!isAuthenticated) return
     router.push(path)
   }
 
@@ -714,6 +789,10 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
                     </div>
                     <span className="group-hover:translate-x-[-1px] transition-all duration-300">פתקים</span>
                   </Link>
+                ) : showPendingAuthShell ? (
+                  <div className="hidden lg:flex items-center gap-2 text-sm font-semibold" aria-hidden="true">
+                    <HeaderPendingIcon wide />
+                  </div>
                 ) : null}
               </div>
 
@@ -856,6 +935,14 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
                   </>
                 )}
 
+                {showPendingAuthShell && (
+                  <div className="hidden lg:flex items-center gap-2" aria-hidden="true">
+                    <HeaderPendingIcon />
+                    <HeaderPendingIcon />
+                    <HeaderPendingIcon />
+                  </div>
+                )}
+
                 {/* פרופיל או התחברות - רק בדסקטופ */}
                 {user ? (
                   <div className="hidden lg:block relative" ref={profileRef}>
@@ -934,9 +1021,15 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
                     </Link>
                   </div>
                 ) : (
-                  <div className="hidden lg:flex items-center gap-2 opacity-0 pointer-events-none select-none" aria-hidden="true">
+                  <div className="hidden lg:flex w-0 overflow-hidden items-center gap-2 [&>*]:hidden" aria-hidden="true">
                     <div className="rounded-full border border-neutral-300 px-4 py-1.5 text-sm font-semibold">התחבר</div>
                     <div className="rounded-full px-4 py-1.5 text-sm font-semibold">הירשם</div>
+                  </div>
+                )}
+                {showPendingAuthShell && (
+                  <div className="flex lg:hidden items-center gap-2" aria-hidden="true">
+                    <HeaderPendingIcon />
+                    <HeaderPendingIcon />
                   </div>
                 )}
               </div>
@@ -949,7 +1042,7 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
       <div className="h-14" aria-hidden="true" />
 
       {/* שורה 2: BRAND + CHANNELS + SEARCH - Desktop Only (hidden on inbox) */}
-      {!pathname.startsWith('/inbox') && !isAuthPage && (
+      {!hideSecondaryRow && !isAuthPage && (
       <div
         className="hidden lg:block border-b border-black/[.06] dark:border-white/[.08] w-full bg-[#FBF7EF]/50 dark:bg-background/80 backdrop-blur shadow-[0_6px_20px_-8px_rgba(0,0,0,0.10)] dark:shadow-none"
         style={{ willChange: 'transform' }}
@@ -1204,7 +1297,7 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
                     </div>
                   )}
                 </div>
-              ) : (
+              ) : userResolved ? (
                 <div className="border-t pt-4 space-y-2">
                   <Link
                     href="/auth/login"
@@ -1221,11 +1314,27 @@ export default function SiteHeader({ initialUser = null }: SiteHeaderProps) {
                     הירשם
                   </Link>
                 </div>
+              ) : (
+                <div className="border-t pt-4 space-y-2" aria-hidden="true">
+                  <div className="h-12 rounded-full bg-neutral-200/80 dark:bg-muted/80 animate-pulse" />
+                  <div className="h-12 rounded-full bg-neutral-200/60 dark:bg-muted/60 animate-pulse" />
+                </div>
               )}
             </div>
           </div>
         </>
       )}
     </header>
+  )
+})
+
+export default function SiteHeader() {
+  const pathname = usePathname() || '/'
+
+  return (
+    <SiteHeaderChrome
+      hideSecondaryRow={pathname.startsWith('/inbox')}
+      isAuthPage={isHeaderAuthPath(pathname)}
+    />
   )
 }
