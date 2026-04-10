@@ -213,6 +213,12 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
   const messagesRef = useRef<HTMLDivElement | null>(null)
   const mobileMenuRef = useRef<HTMLDivElement | null>(null)
   const loadUserSeqRef = useRef(0)
+  // Tracks current user without adding it to subscribeHeaderUser deps,
+  // preventing re-subscription (and the resulting flicker) on user-id changes.
+  const currentUserRef = useRef<HeaderUser | null>(null)
+  // Keep the ref in sync after every render so the subscribeHeaderUser
+  // callback can read the latest user without needing it as a dep.
+  useHeaderLayoutEffect(() => { currentUserRef.current = user }, [user])
 
   const [threads, setThreads] = useState<ThreadRow[]>([])
   const [msgUnread, setMsgUnread] = useState(0)
@@ -283,6 +289,15 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
       document.removeEventListener('touchstart', handleClickOutside)
     }
   }, [mobileMenuOpen, closeAll])
+
+  // Lock body scroll while mobile menu is open so the page doesn't show
+  // through at the bottom when rubber-band overscrolling.
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [mobileMenuOpen])
 
   useEffect(() => {
     if (!anyOpen && !mobileMenuOpen) return
@@ -478,7 +493,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
 
   useEffect(() => {
     return subscribeHeaderUser(({ user: nextUser }) => {
-      const previousUserId = user?.id ?? null
+      const previousUserId = currentUserRef.current?.id ?? null
       const nextUserId = nextUser?.id ?? null
       setUser((prev) => (sameHeaderUser(prev, nextUser) ? prev : nextUser))
       setUserResolved(Boolean(nextUser) || getAuthResolutionState() === 'unauthenticated')
@@ -490,7 +505,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
         void loadThreads()
       }
     })
-  }, [loadThreads, user?.id])
+  }, [loadThreads])
 
   useEffect(() => {
     // Debounce the clear by 300ms so rapid 'unauthenticated' → 'authenticated'
@@ -1103,14 +1118,18 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
 
           <style>{`
             @keyframes menuSlideIn {
-              from { opacity: 0; transform: translateY(-10px) scale(0.99); filter: blur(4px); }
-              to   { opacity: 1; transform: translateY(0)     scale(1);    filter: blur(0); }
+              from { opacity: 0; transform: translateY(-6px); }
+              to   { opacity: 1; transform: translateY(0); }
             }
           `}</style>
           <div
             ref={mobileMenuRef}
             className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-50 bg-white dark:bg-background shadow-2xl overflow-y-auto"
-            style={{ animation: 'menuSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both' }}
+            style={{
+              animation: 'menuSlideIn 0.18s cubic-bezier(0.25, 1, 0.5, 1) both',
+              willChange: 'transform, opacity',
+              overscrollBehavior: 'contain',
+            }}
             dir="rtl"
           >
             <div className="mx-auto max-w-6xl px-4 py-4 space-y-4 ">

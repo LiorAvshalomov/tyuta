@@ -50,7 +50,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local Claude context
 .claude/
+CLAUDE.md
+PROJECT_MAP.md
+SERIAL_STORY_MAP.md
+USER_PROFILE_RENDERING_MAP.md
 /.claude/logs/
 /.claude/agent-memory-local/
 /.claude/settings.local.json

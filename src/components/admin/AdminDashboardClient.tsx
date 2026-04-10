@@ -48,6 +48,7 @@ const P = {
   emerald: "#10b981",
   amber: "#f59e0b",
   red: "#ef4444",
+  blue: "#3b82f6",
   grid: "#e4e4e7",
 } as const;
 
@@ -58,6 +59,7 @@ const darkP = {
   emerald: "#34d399",
   amber: "#fbbf24",
   red: "#f87171",
+  blue: "#60a5fa",
   grid: "#3f3f46",
 } as const;
 
@@ -481,7 +483,7 @@ export default function AdminDashboardClient({
     { label: "מחוברים", color: CP.ink },
     { label: "אורחים", color: CP.emerald },
   ];
-  const activeUsersChips = [{ label: "פעילים", color: CP.ink }];
+  const activeUsersChips = [{ label: "משתמשים פעילים מחוברים", color: CP.blue }];
   const signupsChips = [{ label: "הרשמות", color: CP.ink }];
   const postsChips = [
     { label: "נוצרו", color: CP.ink },
@@ -762,6 +764,32 @@ export default function AdminDashboardClient({
                     <Bar dataKey="signedInVisits" name="ביקורי מחוברים" fill={CP.ink} radius={[10, 10, 4, 4]} maxBarSize={24} />
                     <Bar dataKey="guestVisits" name="ביקורי אורחים" fill={CP.emerald} radius={[10, 10, 4, 4]} maxBarSize={24} />
                   </BarChart>
+                </ResponsiveContainer>
+              )}
+            </DashChartCard>
+
+            <DashChartCard
+              title="משתמשים פעילים מחוברים"
+              subtitle="מספר המשתמשים הייחודיים המזוהים שביצעו לפחות צפייה אחת בכל bucket. מבוסס על session_id + user_id."
+              chips={activeUsersChips}
+            >
+              {isActiveEmpty ? (
+                <EmptyChart />
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={activeData} margin={chartMargin}>
+                    <defs>
+                      <linearGradient id="gActiveUsers" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={CP.blue} stopOpacity={0.14} />
+                        <stop offset="100%" stopColor={CP.blue} stopOpacity={0.01} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid {...localGridProps} />
+                    <XAxis {...localXAxisBase} />
+                    <YAxis {...localYAxisBase} />
+                    <Tooltip content={<StyledTooltip />} />
+                    <Area type="monotone" dataKey="activeUsers" name="פעילים" stroke={CP.blue} fill="url(#gActiveUsers)" strokeWidth={2.4} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                  </AreaChart>
                 </ResponsiveContainer>
               )}
             </DashChartCard>

@@ -258,7 +258,13 @@ export default function AuthSync({ children }: Props) {
           if (!body.access_token) return 'error'
 
           await hydrateSession(body.access_token)
-          publishHeaderUser(body.header_user ?? null, body.expires_at)
+          // Only publish when the server returned a real header_user.
+          // Publishing null resets userResolved → false in SiteHeader causing
+          // the skeleton flash. The cached user stays valid; if the profile
+          // was genuinely missing, the next TOKEN_REFRESHED event will sync.
+          if (body.header_user) {
+            publishHeaderUser(body.header_user, body.expires_at)
+          }
           markAuthenticated({ expiresAt: body.expires_at, accessToken: body.access_token })
           return 'ok'
         } catch {
@@ -325,7 +331,9 @@ export default function AuthSync({ children }: Props) {
           }
 
           await hydrateSession(body.access_token)
-          publishHeaderUser(body.header_user ?? null, body.expires_at)
+          if (body.header_user) {
+            publishHeaderUser(body.header_user, body.expires_at)
+          }
           markAuthenticated({ expiresAt: body.expires_at, accessToken: body.access_token })
           return true
         } catch {

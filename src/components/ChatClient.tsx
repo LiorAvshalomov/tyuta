@@ -1588,7 +1588,7 @@ export default function ChatClient({
           {/* Back arrow — mobile only, RTL (points right = back) */}
           <button
             type="button"
-            onClick={() => router.push('/inbox')}
+            onClick={() => router.push(isAdminMode ? '/admin/inbox' : '/inbox')}
             aria-label="חזרה להודעות"
             className="md:hidden shrink-0 flex h-11 w-11 items-center justify-center rounded-full -mr-1 hover:bg-black/5 dark:hover:bg-white/10 transition"
           >

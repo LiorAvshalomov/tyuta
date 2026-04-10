@@ -222,7 +222,7 @@ export default function SecurityPage() {
       />
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3">
         <FilterTabs
           options={[...EVENT_OPTIONS, PROFILE_IDENTITY_EVENT_OPTION]}
           value={eventFilter}
@@ -239,11 +239,11 @@ export default function SecurityPage() {
             value={ipInput}
             onChange={e => setIpInput(e.target.value)}
             placeholder="חפש IP…"
-            className="h-8 rounded-lg border border-neutral-200 bg-white px-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
           />
           <button
             type="submit"
-            className="h-8 rounded-lg bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-700"
+            className="h-9 shrink-0 rounded-lg bg-neutral-900 px-4 text-xs font-semibold text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
           >
             חפש
           </button>
@@ -251,62 +251,62 @@ export default function SecurityPage() {
             <button
               type="button"
               onClick={() => { setIpInput(''); setIpSearch(''); setPage(1) }}
-              className="h-8 rounded-lg border border-neutral-200 px-3 text-xs text-neutral-600 hover:bg-neutral-100 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
+              className="h-9 shrink-0 rounded-lg border border-neutral-200 px-3 text-xs text-neutral-600 hover:bg-neutral-100 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
             >
               נקה
             </button>
           )}
         </form>
-      </div>
 
-      {/* Date filter */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1">
-          {(['today', 'yesterday', '7d', '30d'] as const).map(p => {
-            const label = p === 'today' ? 'היום' : p === 'yesterday' ? 'אתמול' : p === '7d' ? '7 ימים' : '30 ימים'
-            const isActive =
-              p === 'today' ? dateFrom === todayStr() && dateTo === todayStr() :
-              p === 'yesterday' ? dateFrom === yesterdayStr() && dateTo === yesterdayStr() :
-              p === '7d' ? dateFrom === daysAgoStr(6) && dateTo === todayStr() :
-              dateFrom === daysAgoStr(29) && dateTo === todayStr()
-            return (
+        {/* Date filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1">
+            {(['today', 'yesterday', '7d', '30d'] as const).map(p => {
+              const label = p === 'today' ? 'היום' : p === 'yesterday' ? 'אתמול' : p === '7d' ? '7 ימים' : '30 ימים'
+              const isActive =
+                p === 'today' ? dateFrom === todayStr() && dateTo === todayStr() :
+                p === 'yesterday' ? dateFrom === yesterdayStr() && dateTo === yesterdayStr() :
+                p === '7d' ? dateFrom === daysAgoStr(6) && dateTo === todayStr() :
+                dateFrom === daysAgoStr(29) && dateTo === todayStr()
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => applyQuickDate(p)}
+                  className={`h-8 rounded-lg px-3 text-xs font-medium transition-colors ${isActive ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-400 dark:hover:bg-muted/50'}`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => { setDateFrom(e.target.value); setPage(1) }}
+              className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
+              dir="ltr"
+            />
+            <span className="text-xs text-neutral-400 dark:text-neutral-600">—</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => { setDateTo(e.target.value); setPage(1) }}
+              className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
+              dir="ltr"
+            />
+            {(dateFrom || dateTo) && (
               <button
-                key={p}
                 type="button"
-                onClick={() => applyQuickDate(p)}
-                className={`h-7 rounded-lg px-3 text-xs font-medium transition-colors ${isActive ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-400 dark:hover:bg-muted/50'}`}
+                onClick={clearDates}
+                className="h-8 rounded-lg border border-neutral-200 px-2.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
               >
-                {label}
+                נקה תאריך
               </button>
-            )
-          })}
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-            className="h-7 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
-            dir="ltr"
-          />
-          <span className="text-xs text-neutral-400 dark:text-neutral-600">—</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={e => { setDateTo(e.target.value); setPage(1) }}
-            className="h-7 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
-            dir="ltr"
-          />
-          {(dateFrom || dateTo) && (
-            <button
-              type="button"
-              onClick={clearDates}
-              className="h-7 rounded-lg border border-neutral-200 px-2.5 text-xs text-neutral-500 hover:bg-neutral-100 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
-            >
-              נקה תאריך
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -319,57 +319,59 @@ export default function SecurityPage() {
       ) : (
         <>
           <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
-            <table className="w-full text-sm">
-              <thead className="border-b border-neutral-100 bg-neutral-50 text-xs text-neutral-500 dark:border-border dark:bg-muted/30 dark:text-neutral-400">
-                <tr>
-                  <th className="px-4 py-3 text-right font-medium">אירוע</th>
-                  <th className="px-4 py-3 text-right font-medium">משתמש</th>
-                  <th className="px-4 py-3 text-right font-medium hidden md:table-cell">IP</th>
-                  <th className="px-4 py-3 text-right font-medium hidden lg:table-cell">פרטים</th>
-                  <th className="px-4 py-3 text-right font-medium">זמן</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-border">
-                {rows.map(row => (
-                  <tr key={row.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <EventBadge event={row.event} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {row.profiles ? (
-                        <Link
-                          href={`/admin/users/${row.user_id}`}
-                          className="font-medium text-neutral-900 hover:underline dark:text-foreground"
-                        >
-                          {row.profiles.display_name ?? row.profiles.username}
-                          <span className="ms-1 text-xs text-neutral-400 dark:text-neutral-500">@{row.profiles.username}</span>
-                        </Link>
-                      ) : row.user_id ? (
-                        <span className="font-mono text-xs text-neutral-400 dark:text-neutral-500">{row.user_id.slice(0, 8)}…</span>
-                      ) : (
-                        <span className="text-neutral-400 dark:text-neutral-600">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell" dir="ltr">
-                      <button
-                        type="button"
-                        onClick={() => { setIpInput(row.ip ?? ''); setIpSearch(row.ip ?? ''); setPage(1) }}
-                        className="font-mono text-xs text-neutral-500 hover:text-neutral-900 hover:underline dark:text-neutral-400 dark:hover:text-foreground"
-                        title="סנן לפי IP זה"
-                      >
-                        {row.ip ?? '—'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      <MetadataPreview row={row} />
-                    </td>
-                    <td className="px-4 py-3 text-xs text-neutral-500 whitespace-nowrap dark:text-neutral-400">
-                      {formatDate(row.created_at)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-neutral-100 bg-neutral-50 text-xs text-neutral-500 dark:border-border dark:bg-muted/30 dark:text-neutral-400">
+                  <tr>
+                    <th className="px-4 py-3 text-right font-medium">אירוע</th>
+                    <th className="px-4 py-3 text-right font-medium">משתמש</th>
+                    <th className="px-4 py-3 text-right font-medium hidden md:table-cell">IP</th>
+                    <th className="px-4 py-3 text-right font-medium hidden lg:table-cell">פרטים</th>
+                    <th className="px-3 py-3 text-right font-medium whitespace-nowrap">זמן</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-border">
+                  {rows.map(row => (
+                    <tr key={row.id} className="transition-colors hover:bg-neutral-50 dark:hover:bg-muted/30">
+                      <td className="px-4 py-3 align-top">
+                        <EventBadge event={row.event} />
+                      </td>
+                      <td className="px-4 py-3 align-top max-w-[9rem] sm:max-w-none">
+                        {row.profiles ? (
+                          <Link
+                            href={`/admin/users/${row.user_id}`}
+                            className="block font-medium text-neutral-900 hover:underline dark:text-foreground leading-snug"
+                          >
+                            <span className="block truncate">{row.profiles.display_name ?? row.profiles.username}</span>
+                            <span className="block text-xs text-neutral-400 dark:text-neutral-500 truncate">@{row.profiles.username}</span>
+                          </Link>
+                        ) : row.user_id ? (
+                          <span className="font-mono text-xs text-neutral-400 dark:text-neutral-500">{row.user_id.slice(0, 8)}…</span>
+                        ) : (
+                          <span className="text-neutral-400 dark:text-neutral-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 hidden md:table-cell align-top" dir="ltr">
+                        <button
+                          type="button"
+                          onClick={() => { setIpInput(row.ip ?? ''); setIpSearch(row.ip ?? ''); setPage(1) }}
+                          className="font-mono text-xs text-neutral-500 hover:text-neutral-900 hover:underline dark:text-neutral-400 dark:hover:text-foreground"
+                          title="סנן לפי IP זה"
+                        >
+                          {row.ip ?? '—'}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell align-top">
+                        <MetadataPreview row={row} />
+                      </td>
+                      <td className="px-3 py-3 align-top text-xs text-neutral-500 whitespace-nowrap dark:text-neutral-400">
+                        {formatDate(row.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Pagination */}

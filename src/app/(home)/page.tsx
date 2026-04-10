@@ -1,4 +1,4 @@
-// src/app/page.tsx
+// src/app/(home)/page.tsx
 export const revalidate = 60
 
 import Link from 'next/link'
