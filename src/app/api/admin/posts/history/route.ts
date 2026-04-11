@@ -136,14 +136,46 @@ export async function GET(req: NextRequest) {
     if (typeof pr.id === 'string') profileMap.set(pr.id, pr)
   }
 
+  // For soft_delete events, check whether the same post was later permanently
+  // deleted so the UI can show a "later_purged" indicator instead of leaving
+  // the row looking like the post is still just soft-deleted.
+  const softDeletePostIds = events
+    .filter((ev) => ev.action === 'soft_delete')
+    .map((ev) => ev.target_post_id)
+    .filter((id): id is string => typeof id === 'string')
+
+  const laterPurgedIds = new Set<string>()
+  if (softDeletePostIds.length > 0) {
+    const { data: purgeRows } = await sb
+      .from('deletion_events')
+      .select('target_post_id')
+      .in('action', ['hard_delete', 'user_hard_delete', 'admin_hard_delete'])
+      .in('target_post_id', softDeletePostIds)
+    for (const row of (Array.isArray(purgeRows) ? purgeRows : []) as Record<string, unknown>[]) {
+      if (typeof row.target_post_id === 'string') laterPurgedIds.add(row.target_post_id)
+    }
+    // Also check post_purge_events (may capture system/cron purges)
+    const { data: ppeRows } = await sb
+      .from('post_purge_events')
+      .select('post_id')
+      .in('post_id', softDeletePostIds)
+    for (const row of (Array.isArray(ppeRows) ? ppeRows : []) as Record<string, unknown>[]) {
+      if (typeof row.post_id === 'string') laterPurgedIds.add(row.post_id)
+    }
+  }
+
   const enriched = events.map((ev) => {
     const actorId  = typeof ev.actor_user_id === 'string' ? ev.actor_user_id : null
     const snap     = isRecord(ev.post_snapshot) ? ev.post_snapshot : {}
     const authorId = typeof snap.author_id === 'string' ? snap.author_id : null
+    const laterPurged = ev.action === 'soft_delete' &&
+      typeof ev.target_post_id === 'string' &&
+      laterPurgedIds.has(ev.target_post_id)
     return {
       ...ev,
       actor_profile:  actorId  ? (profileMap.get(actorId)  ?? null) : null,
       author_profile: authorId ? (profileMap.get(authorId) ?? null) : null,
+      later_purged: laterPurged,
     }
   })
 

@@ -17,6 +17,7 @@ import GifCoverCard from '@/components/GifCoverCard'
 import { getFeedVersionForPath, type FeedPath } from '@/lib/freshness/serverVersions'
 import { CHANNEL_PAGE_CONFIGS } from '@/lib/home/channelPageConfig'
 import { createPublicServerClient } from '@/lib/supabase/createPublicServerClient'
+import ClampedText from '@/components/ClampedText'
 
 const MEDAL_EMOJIS = {
   gold: '🥇',
@@ -133,6 +134,7 @@ function CoverImg({
   )
 }
 
+
 function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
   const out: CardPost[] = []
   for (const p of arr) {
@@ -144,29 +146,6 @@ function takeUnique(arr: CardPost[], n: number, used: Set<string>) {
   return out
 }
 
-function MedalsInline({
-  medals,
-  size = 'sm',
-}: {
-  medals: { gold: number; silver: number; bronze: number } | null
-  size?: 'sm' | 'xs'
-}) {
-  if (!medals) return null
-  const gold = medals.gold ?? 0
-  const silver = medals.silver ?? 0
-  const bronze = medals.bronze ?? 0
-  if (gold <= 0 && silver <= 0 && bronze <= 0) return null
-
-  const cls = size === 'xs' ? 'text-[11px] gap-2' : 'text-xs gap-3'
-
-  return (
-    <div dir="ltr" className={`flex items-center ${cls} text-muted-foreground`}>
-      {gold > 0 ? <span className="inline-flex items-center gap-1">{gold} {MEDAL_EMOJIS.gold}</span> : null}
-      {silver > 0 ? <span className="inline-flex items-center gap-1">{silver} {MEDAL_EMOJIS.silver}</span> : null}
-      {bronze > 0 ? <span className="inline-flex items-center gap-1">{bronze} {MEDAL_EMOJIS.bronze}</span> : null}
-    </div>
-  )
-}
 
 function channelBadgeColor(slug: string | null) {
   if (slug === 'stories') return 'tyuta-badge-stories'
@@ -198,9 +177,26 @@ function FeaturedPost({ post }: { post: CardPost }) {
     : { name: 'text-foreground', meta: 'text-muted-foreground', tags: 'text-muted-foreground/60', title: 'text-foreground', excerpt: 'text-muted-foreground' }
   return (
     <article className="group relative font-sans">
-      {/* ג”€ג”€ Mobile: restored old-style card (image on top, content right, stacked on small screens) ג”€ג”€ */}
+      {/* ג"€ג"€ Mobile: restored old-style card (image on top, content right, stacked on small screens) ג"€ג"€ */}
       <div className="lg:hidden relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl overflow-hidden tyuta-featured-border tyuta-card-hover">
         <Link href={`/post/${post.slug}`} className="absolute inset-0 z-10 rounded-2xl" aria-label={postAriaLabel(post.title)}><span className="sr-only">{READ_POST_SR_LABEL}</span></Link>
+        {/* Medals: top-left of mobile card */}
+        {post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0) ? (
+          <div
+            dir="ltr"
+            className="absolute top-0 left-0 z-30 pointer-events-none flex items-center gap-1 text-[13px] leading-none px-2 py-1.5"
+            style={{
+              backdropFilter: 'blur(5px)',
+              WebkitBackdropFilter: 'blur(5px)',
+              background: 'rgba(0,0,0,0.28)',
+              borderBottomRightRadius: '10px',
+            }}
+          >
+            {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
+            {post.allTimeMedals.silver > 0 ? <span>{post.allTimeMedals.silver}&nbsp;{MEDAL_EMOJIS.silver}</span> : null}
+            {post.allTimeMedals.bronze > 0 ? <span>{post.allTimeMedals.bronze}&nbsp;{MEDAL_EMOJIS.bronze}</span> : null}
+          </div>
+        ) : null}
         <div className="relative z-20 pointer-events-none grid grid-cols-1 sm:grid-cols-2 sm:min-h-[320px]">
           {/* Image */}
           <div className="sm:order-2">
@@ -221,7 +217,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
           </div>
           {/* Content */}
           <div className="sm:order-1 p-5 sm:p-6 flex flex-col justify-center">
-            <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-start gap-3 mb-3">
               <div className="flex items-center gap-3 min-w-0">
                 {post.author_username ? (
                   <AuthorHover username={post.author_username}>
@@ -248,19 +244,16 @@ function FeaturedPost({ post }: { post: CardPost }) {
                       <><span className="mx-2">{SEPARATOR}</span><span className="font-semibold">{post.subcategory.name_he}</span></>
                     ) : null}
                     {post.tags.length > 0 ? (
-                      
                       <span className={`${!post.subcategory ? 'ms-2' : 'ms-1'} text-muted-foreground/70`}>
                         <span className="mx-2">{SEPARATOR}</span>
                         {post.tags.slice(0, 2).map((t, i) => (
                           <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
                         ))}
                       </span>
-                      
                     ) : null}
                   </div>
                 </div>
               </div>
-              <div className="shrink-0 pt-1"><MedalsInline medals={post.allTimeMedals} /></div>
             </div>
             {post.channel_name && post.channel_slug ? (
               <div className="mb-2">
@@ -281,13 +274,13 @@ function FeaturedPost({ post }: { post: CardPost }) {
         </div>
       </div>
 
-      {/* ג”€ג”€ Desktop: cinematic full-bleed image with right-side readability veil ג”€ג”€ */}
+      {/* ג"€ג"€ Desktop: cinematic full-bleed image with right-side readability veil ג"€ג"€ */}
       <div className={`hidden lg:block tyuta-featured-desktop${hasCover ? ' has-cover' : ''}`}>
 
-        {/* Full-card click target ג€” below frame and panel, handles empty-area clicks */}
+        {/* Full-card click target ג€" below frame and panel, handles empty-area clicks */}
         <Link href={`/post/${post.slug}`} className="absolute inset-0 z-[1]" aria-label={postAriaLabel(post.title)} tabIndex={-1}><span className="sr-only">{READ_POST_SR_LABEL}</span></Link>
 
-        {/* Image layer ג€” fills the full desktop block, clips at rounded boundary */}
+        {/* Image layer ג€" fills the full desktop block, clips at rounded boundary */}
         <div className="tyuta-featured-img-frame z-[2]">
           <Link href={`/post/${post.slug}`} className="absolute inset-0 block" tabIndex={-1} aria-hidden="true">
             {post.cover_image_url ? (
@@ -295,24 +288,42 @@ function FeaturedPost({ post }: { post: CardPost }) {
                 src={coverProxySrc(post.cover_image_url)!}
                 alt={post.title}
                 priority
-                sizes="(max-width: 1280px) 100vw, 900px"
+                sizes="(max-width: 1280px) 100vw, 784px"
                 quality={88}
-                className="object-cover object-left"
+                className="object-cover [object-position:left_55%]"
               />
             ) : null}
           </Link>
         </div>
 
-        {/* Mouse spotlight glow ג€” sibling to frame, above all frame pseudo-elements */}
+        {/* Mouse spotlight glow ג€" sibling to frame, above all frame pseudo-elements */}
         {hasCover ? <FeaturedImageGlow /> : null}
 
-        {/* Color sync ג€” samples image right-edge pixels, sets --img-edge-* CSS vars */}
+        {/* Color sync ג€" samples image right-edge pixels, sets --img-edge-* CSS vars */}
         {post.cover_image_url ? <FeaturedColorSync src={coverProxySrc(post.cover_image_url)!} /> : null}
 
-        {/* Text panel ג€” right 46%, floats over image, text in white */}
+        {/* Medals: bottom-left of block, larger overlay with blurred backdrop */}
+        {post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0) ? (
+          <div
+            dir="ltr"
+            className="absolute top-0 left-0 z-[5] pointer-events-none flex items-center gap-1.5 text-[15px] leading-none px-3 py-2"
+            style={{
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              background: 'rgba(0,0,0,0.28)',
+              borderBottomRightRadius: '12px',
+            }}
+          >
+            {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
+            {post.allTimeMedals.silver > 0 ? <span>{post.allTimeMedals.silver}&nbsp;{MEDAL_EMOJIS.silver}</span> : null}
+            {post.allTimeMedals.bronze > 0 ? <span>{post.allTimeMedals.bronze}&nbsp;{MEDAL_EMOJIS.bronze}</span> : null}
+          </div>
+        ) : null}
+
+        {/* Text panel ג€" right 46%, floats over image, text in white */}
         <div className="tyuta-featured-text-panel absolute top-0 bottom-0 right-0 w-[46%] flex flex-col justify-center px-10 py-8 z-[3] pointer-events-none">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
               {post.author_username ? (
                 <AuthorHover username={post.author_username}>
                   <Link href={`/u/${post.author_username}`} className="tyuta-avatar-ring shrink-0 pointer-events-auto">
@@ -348,7 +359,6 @@ function FeaturedPost({ post }: { post: CardPost }) {
                 </div>
               </div>
             </div>
-            <div className="shrink-0 pt-1"><MedalsInline medals={post.allTimeMedals} /></div>
           </div>
 
           {post.channel_name && post.channel_slug ? (
@@ -380,93 +390,99 @@ function FeaturedPost({ post }: { post: CardPost }) {
 
 function SimplePostCard({ post }: { post: CardPost }) {
   const showMedals = Boolean(post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0))
+  const coverSrc = post.cover_image_url ? coverProxySrc(post.cover_image_url)! : null
   return (
-    <article className="group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-xl overflow-hidden tyuta-card-hover tyuta-gold-border flex flex-col">
-      <Link href={`/post/${post.slug}`} className="absolute inset-0 z-10 rounded-xl" aria-label={postAriaLabel(post.title)}><span className="sr-only">{READ_POST_SR_LABEL}</span></Link>
+    <article className="group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl border border-border overflow-hidden tyuta-card-hover tyuta-gold-border flex flex-col">
+      <Link href={`/post/${post.slug}`} className="absolute inset-0 z-10 rounded-2xl" aria-label={postAriaLabel(post.title)}><span className="sr-only">{READ_POST_SR_LABEL}</span></Link>
+
       <div className="relative z-20 pointer-events-none flex flex-col flex-1">
-      <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
-        <div className="relative aspect-[4/3] bg-muted tyuta-img-hover">
-          {post.cover_image_url ? (
-            <CoverImg src={coverProxySrc(post.cover_image_url)!} alt={post.title} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 260px" quality={85} className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]" />
-          ) : null}
-        </div>
-      </Link>
 
-      <div className="p-4 text-right flex-1 flex flex-col">
-        <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-
-          <div className="min-w-0">
-            <RelativeTime iso={post.created_at} />
-            {post.subcategory ? (
-              <>
-                <span className="mx-2">{SEPARATOR}</span>
-                <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
-              </>
-            ) : null}
-            {post.subcategory && post.tags.length > 0 ? (
-              <span className={`mx-2 text-muted-foreground/50${showMedals ? ' md:inline hidden' : ''}`}>{SEPARATOR}</span>
-            ) : null}
-            {post.tags.length > 0 ? (
-              <>
-                {/* desktop ≥md: 2 tags + +N */}
-                <span className={`hidden md:inline ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
-                  {post.tags.slice(0, 2).map((t, i) => (
-                    <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
-                  ))}
-                  {post.tags.length > 2 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{post.tags.length - 2}</span>}
-                </span>
-                {/* mobile <md: 1 tag when medals present (to avoid crowding), up to 3 otherwise */}
-                {showMedals ? null : (
-                  <span className={`md:hidden ${!post.subcategory ? 'mx-2 ' : ''}text-muted-foreground/70`}>
-                    {post.tags.slice(0, 3).map((t, i) => (
-                      <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
-                    ))}
-                  </span>
-                )}
-              </>
+        {/* IMAGE — top, full width */}
+        <Link href={`/post/${post.slug}`} className="block pointer-events-auto relative">
+          <div className="relative aspect-[4/3] bg-muted tyuta-img-hover">
+            {coverSrc ? (
+              <CoverImg
+                src={coverSrc}
+                alt={post.title}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 48vw, 360px"
+                quality={85}
+                className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+              />
             ) : null}
           </div>
-          <div className="shrink-0">
-            <MedalsInline medals={post.allTimeMedals} />
-          </div>
-        </div>
-
-        <h3 className="text-base font-black leading-snug tracking-tight line-clamp-2">
-          <Link href={`/post/${post.slug}`} className="tyuta-hover pointer-events-auto">
-            {post.title}
-          </Link>
-        </h3>
-
-        {post.excerpt ? (
-          <p className="mt-2 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-2">
-            {post.excerpt}
-          </p>
-        ) : (
-          <div className="mt-2 h-[28px]" aria-hidden="true" />
-        )}
-        <div className="mt-auto pt-3 flex items-center justify-start gap-2 text-xs text-foreground min-w-0">
-          {post.author_username ? (
-            <AuthorHover username={post.author_username}>
-              <Link href={`/u/${post.author_username}`} className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-muted/80 dark:hover:bg-muted transition-colors duration-200 cursor-pointer min-w-0 max-w-full overflow-hidden pointer-events-auto">
-                <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-                <span className="font-semibold tyuta-hover truncate min-w-0 flex-1">{post.author_name}</span>
-              </Link>
-            </AuthorHover>
-          ) : (
-            <div className="inline-flex items-center gap-2 min-w-0 max-w-full overflow-hidden">
-              <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-              <span className="font-semibold truncate min-w-0 flex-1">{post.author_name}</span>
+          {/* Medals: top-left of image, blurred backdrop */}
+          {showMedals ? (
+            <div
+              dir="ltr"
+              className="absolute top-0 left-0 z-10 pointer-events-none flex items-center gap-1 text-[13px] leading-none px-2 py-1.5"
+              style={{
+                backdropFilter: 'blur(5px)',
+                WebkitBackdropFilter: 'blur(5px)',
+                background: 'rgba(0,0,0,0.25)',
+                borderBottomRightRadius: '10px',
+              }}
+            >
+              {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
+              {post.allTimeMedals.silver > 0 ? <span>{post.allTimeMedals.silver}&nbsp;{MEDAL_EMOJIS.silver}</span> : null}
+              {post.allTimeMedals.bronze > 0 ? <span>{post.allTimeMedals.bronze}&nbsp;{MEDAL_EMOJIS.bronze}</span> : null}
             </div>
-          )}
+          ) : null}
+        </Link>
+
+        {/* Text: title + excerpt + author/meta */}
+        <div className="p-4 text-right flex-1 flex flex-col">
+          <h3 className="text-base sm:text-[17px] font-black leading-[1.3] tracking-[-0.01em]">
+            <Link href={`/post/${post.slug}`} className="tyuta-hover pointer-events-auto">
+              <ClampedText text={post.title} lines={2} as="span" className="block" />
+            </Link>
+          </h3>
+          <div className="mt-2 min-h-[2.6em] text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            {post.excerpt ? (
+              <ClampedText text={post.excerpt} lines={2} />
+            ) : null}
+          </div>
+
+          {/* Author + smart meta: avatar right (first in RTL flex), name+meta left */}
+          <div className="mt-auto pt-3 flex items-start gap-2.5 min-w-0">
+            {post.author_username ? (
+              <AuthorHover username={post.author_username}>
+                <Link href={`/u/${post.author_username}`} className="shrink-0 pointer-events-auto">
+                  <Avatar src={post.author_avatar_url} name={post.author_name} size={36} />
+                </Link>
+              </AuthorHover>
+            ) : (
+              <span className="shrink-0"><Avatar src={post.author_avatar_url} name={post.author_name} size={36} /></span>
+            )}
+            <div className="min-w-0 flex-1 flex flex-col text-right overflow-hidden pt-0.5">
+              {post.author_username ? (
+                <AuthorHover username={post.author_username}>
+                  <Link href={`/u/${post.author_username}`} className="font-bold text-[13px] leading-snug tyuta-hover pointer-events-auto truncate">
+                    {post.author_name}
+                  </Link>
+                </AuthorHover>
+              ) : (
+                <span className="font-bold text-[13px] leading-snug truncate">{post.author_name}</span>
+              )}
+              {/* Smart meta: date • subcategory • tags — flex-wrap + max-h = 1 visible line */}
+              <div className="flex flex-wrap overflow-hidden max-h-[1.4em] leading-[1.4] text-[11px] text-muted-foreground mt-0.5">
+                <span className="shrink-0 whitespace-nowrap"><RelativeTime iso={post.created_at} /></span>
+                {post.subcategory ? (
+                  <span className="shrink-0 whitespace-nowrap">
+                    <span className="mx-1.5">{SEPARATOR}</span>
+                    <span className="font-semibold">{post.subcategory.name_he}</span>
+                  </span>
+                ) : null}
+                {post.tags.map((t, i) => (
+                  <span key={t.slug} className="shrink-0 whitespace-nowrap text-muted-foreground/70">
+                    {i === 0 ? <span className="mx-1.5">{SEPARATOR}</span> : <span className="ms-1" />}
+                    # {t.name_he}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Small proof these are "hot" this week */}
-        {/* <div className="mt-2 text-[11px] text-muted-foreground">
-          ׳”׳©׳‘׳•׳¢: <span className="font-semibold">{post.weekReactionsTotal}</span> ג₪ן¸
-          <span className="mx-1">ג€¢</span>
-          <span className="font-semibold">{post.weekCommentsTotal}</span> ׳×׳’׳•׳‘׳•׳×
-        </div> */}
-      </div>
       </div>
     </article>
   )
@@ -475,122 +491,115 @@ function SimplePostCard({ post }: { post: CardPost }) {
 function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: string }) {
   const showMedals = Boolean(post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0))
   return (
-    <article className={`group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl border border-border p-4 tyuta-card-hover active:scale-[0.99] ${accentClass ?? ''}`}>
-      {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
-      <Link
-        href={`/post/${post.slug}`}
-        aria-label={postAriaLabel(post.title)}
-        className="absolute inset-0 rounded-2xl z-10"
-      >
+    <article className={`group relative bg-gradient-to-b from-card to-muted/40 dark:to-muted/10 rounded-2xl border border-border overflow-hidden tyuta-card-hover active:scale-[0.99] ${accentClass ?? ''}`}>
+      {/* Full-card click target */}
+      <Link href={`/post/${post.slug}`} aria-label={postAriaLabel(post.title)} className="absolute inset-0 rounded-2xl z-10">
         <span className="sr-only">{READ_POST_SR_LABEL}</span>
       </Link>
 
-      {/* Make the layout non-interactive so clicks fall through to the overlay link.
-          Specific interactive elements opt-in with pointer-events-auto. */}
-      <div className="relative z-20 pointer-events-none">
-        {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
-        <div className="flex flex-row-reverse items-stretch gap-4">
-          <div className="w-[136px] sm:w-[168px] shrink-0">
-            <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
-              {/*
-              Constrain cover image height to prevent oversized uploads (e.g. desktop images)
-              from expanding the card. The aspect ratio keeps a consistent thumbnail size.
-            */}
-              <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 tyuta-img-hover">
-                {post.cover_image_url ? (
-                  <CoverImg
-                    src={coverProxySrc(post.cover_image_url)!}
-                    alt={post.title}
-                    sizes="(max-width: 640px) 136px, 168px"
-                    quality={85}
-                    className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
-                  />
-                ) : null}
-              </div>
+      <div className="relative z-20 pointer-events-none flex flex-row-reverse items-stretch min-h-[118px] sm:min-h-[128px]">
+
+        {/* IMAGE — left side, full card height, rounded by card overflow-hidden */}
+        <div className="w-[108px] sm:w-[180px] shrink-0 relative self-stretch">
+          <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
+            <div className="relative h-full bg-muted tyuta-img-hover">
+              {post.cover_image_url ? (
+                <CoverImg
+                  src={coverProxySrc(post.cover_image_url)!}
+                  alt={post.title}
+                  sizes="(max-width: 640px) 108px, 180px"
+                  quality={85}
+                  className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                />
+              ) : null}
+            </div>
+          </Link>
+          {/* Medals overlay — top-left of image, blurred backdrop under the badges only */}
+          {showMedals ? (
+            <div
+              dir="ltr"
+              className="absolute top-0 left-0 z-10 pointer-events-none flex items-center gap-0.5 text-[12px] leading-none px-1.5 py-1"
+              style={{
+                backdropFilter: 'blur(5px)',
+                WebkitBackdropFilter: 'blur(5px)',
+                background: 'rgba(0,0,0,0.22)',
+                borderBottomRightRadius: '10px',
+              }}
+            >
+              {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
+              {post.allTimeMedals.silver > 0 ? <span>{post.allTimeMedals.silver}&nbsp;{MEDAL_EMOJIS.silver}</span> : null}
+              {post.allTimeMedals.bronze > 0 ? <span>{post.allTimeMedals.bronze}&nbsp;{MEDAL_EMOJIS.bronze}</span> : null}
+            </div>
+          ) : null}
+        </div>
+
+        {/* TEXT — right side */}
+        <div className="min-w-0 flex-1 text-right flex flex-col p-3 sm:p-4">
+
+          {/* Title */}
+          <h3 className="text-[15px] sm:text-base font-black leading-[1.35] tracking-[-0.01em]">
+            <Link href={`/post/${post.slug}`} className="tyuta-hover pointer-events-auto">
+              <ClampedText text={post.title} lines={1} as="span" className="block" />
             </Link>
+          </h3>
+
+          {/* Excerpt — 2 lines, word-boundary clamped */}
+          <div className="mt-1.5 min-h-[2.6em] text-xs sm:text-sm text-muted-foreground leading-relaxed">
+            {post.excerpt ? (
+              <ClampedText text={post.excerpt} lines={2} />
+            ) : null}
           </div>
 
-          <div className="min-w-0 flex-1 text-right flex flex-col">
-            <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-              <div className="text-xs text-muted-foreground">
-                <RelativeTime iso={post.created_at} />
-                {post.subcategory ? (
-                  <>
-                    <span className="mx-2">{SEPARATOR}</span>
-                    <span className="font-semibold text-muted-foreground">{post.subcategory.name_he}</span>
-                  </>
-                ) : null}
-                {post.subcategory && post.tags.length > 0 ? (
-                  <span className={`mx-2 text-muted-foreground/50${showMedals ? ' hidden md:inline' : ''}`}>{SEPARATOR}</span>
-                ) : null}
-                {post.tags.length > 0 ? (() => {
-                  const desktopCap = post.channel_slug === 'magazine' ? 3 : 6
-                  const leadCls = post.subcategory ? '' : 'mx-2'
-                  const desktopOverflow = Math.max(0, post.tags.length - desktopCap)
-                  return (
-                    <>
-                      {/* mobile: 1 tag only — hidden when medals to avoid crowding */}
-                      {!showMedals && (
-                        <span className={`md:hidden ${leadCls} text-muted-foreground/70`.trimEnd()}>
-                          #&nbsp;{post.tags[0].name_he}
-                        </span>
-                      )}
-                      {/* desktop: up to cap + overflow count — always visible */}
-                      <span className={`hidden md:inline ${leadCls} text-muted-foreground/70`.trimEnd()}>
-                        {post.tags.slice(0, desktopCap).map((t, i) => (
-                          <span key={t.slug} className={i > 0 ? 'ms-1' : ''}>#&nbsp;{t.name_he}</span>
-                        ))}
-                        {desktopOverflow > 0 && <span className="ms-1 text-[10px] text-muted-foreground/50">+{desktopOverflow}</span>}
-                      </span>
-                    </>
-                  )
-                })() : null}
-
-
-              </div>
-              <div className="shrink-0">
-                <MedalsInline medals={post.allTimeMedals} />
-              </div>
-
-
-            </div>
-
-            <div className="mt-1 text-[15px] sm:text-base font-black leading-[1.35] tracking-[-0.01em] line-clamp-2">
-              <Link href={`/post/${post.slug}`} className="tyuta-hover pointer-events-auto">
-                {post.title}
-              </Link>
-            </div>
-
-
-            {post.excerpt ? (
-              <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground leading-relaxed line-clamp-1">
-                {post.excerpt}
-              </p>
+          {/* Author + meta — bottom */}
+          <div className="mt-auto pt-3.5 flex items-center gap-2 min-w-0">
+            {/* Avatar */}
+            {post.author_username ? (
+              <AuthorHover username={post.author_username}>
+                <Link href={`/u/${post.author_username}`} className="shrink-0 pointer-events-auto">
+                  <Avatar src={post.author_avatar_url} name={post.author_name} size={30} />
+                </Link>
+              </AuthorHover>
             ) : (
-              <div className="mt-1.5 h-[24px]" aria-hidden="true" />
+              <span className="shrink-0">
+                <Avatar src={post.author_avatar_url} name={post.author_name} size={30} />
+              </span>
             )}
 
-            {/* Author row UNDER excerpt */}
-            <div className="mt-auto pt-1.5 flex items-center justify-start gap-2 text-xs text-foreground min-w-0">
+            {/* Name + meta stacked */}
+            <div className="min-w-0 flex-1 flex flex-col text-right overflow-hidden">
               {post.author_username ? (
                 <AuthorHover username={post.author_username}>
-                  <Link
-                    href={`/u/${post.author_username}`}
-                    className="group/author inline-flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 pointer-events-auto cursor-pointer min-w-0 max-w-full overflow-hidden"
-                  >
-                    <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-                    <span className="font-semibold tyuta-hover truncate min-w-0 flex-1">{post.author_name}</span>
+                  <Link href={`/u/${post.author_username}`} className="font-bold text-[13px] leading-snug tyuta-hover pointer-events-auto truncate">
+                    {post.author_name}
                   </Link>
                 </AuthorHover>
               ) : (
-                <div className="inline-flex items-center gap-2 min-w-0 max-w-full overflow-hidden">
-                  <Avatar src={post.author_avatar_url} name={post.author_name} size={24} />
-                  <span className="font-semibold truncate min-w-0 flex-1">{post.author_name}</span>
-                </div>
+                <span className="font-bold text-[13px] leading-snug truncate">{post.author_name}</span>
               )}
+              {/* Meta: date · subcategory · tags
+                  flex-wrap + max-h = one visible line.
+                  Items that don't fit wrap to line 2 → hidden entirely (no mid-word clip).
+                  • separator only between groups, not between tags. */}
+              <div className="flex flex-wrap overflow-hidden max-h-[1.4em] leading-[1.4] text-[11px] text-muted-foreground mt-0.5">
+                <span className="shrink-0 whitespace-nowrap">
+                  <RelativeTime iso={post.created_at} />
+                </span>
+                {post.subcategory ? (
+                  <span className="shrink-0 whitespace-nowrap">
+                    <span className="mx-1.5">{SEPARATOR}</span>
+                    <span className="font-semibold">{post.subcategory.name_he}</span>
+                  </span>
+                ) : null}
+                {post.tags.map((t, i) => (
+                  <span key={t.slug} className="shrink-0 whitespace-nowrap text-muted-foreground/70">
+                    {i === 0 ? <span className="mx-1.5">{SEPARATOR}</span> : <span className="ms-1" />}
+                    #&nbsp;{t.name_he}
+                  </span>
+                ))}
+              </div>
             </div>
-
           </div>
+
         </div>
       </div>
     </article>
@@ -598,86 +607,93 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
 }
 
 function RecentMiniRow({ post }: { post: CardPost }) {
+  const showMedals = Boolean(post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0))
   return (
-    <div data-gif-card="" className="group relative rounded-2xl border border-border bg-gradient-to-b from-card to-amber-50/20 dark:to-amber-900/5 p-3 tyuta-card-hover active:scale-[0.99]">
-      {/* Full-card click target to the post. Other links (author/profile) stay clickable above it. */}
-      <Link
-        href={`/post/${post.slug}`}
-        aria-label={postAriaLabel(post.title)}
-        className="absolute inset-0 rounded-2xl z-10"
-      >
+    <div data-gif-card="" className="group relative rounded-2xl border border-border bg-gradient-to-b from-card to-amber-50/20 dark:to-amber-900/5 overflow-hidden tyuta-card-hover active:scale-[0.99]">
+      <Link href={`/post/${post.slug}`} aria-label={postAriaLabel(post.title)} className="absolute inset-0 rounded-2xl z-10">
         <span className="sr-only">{READ_POST_SR_LABEL}</span>
       </Link>
 
-      <div className="relative z-20 pointer-events-none">
-        {/* In RTL, flex-row-reverse keeps the image on the LEFT (as requested) */}
-        <div className="flex flex-row-reverse items-stretch gap-3">
-          <div className="w-[94px] shrink-0 relative">
-            <Link href={`/post/${post.slug}`} className="block pointer-events-auto">
-              <div className="relative aspect-square rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 tyuta-img-hover">
-                {post.cover_image_url ? (
-                  <CoverImg
-                    src={coverProxySrc(post.cover_image_url)!}
-                    alt={post.title}
-                    sizes="(max-width: 640px) 120px, 140px"
-                    quality={90}
-                    className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
-                  />
-                ) : null}
-              </div>
+      <div className="relative z-20 pointer-events-none flex flex-row-reverse items-stretch min-h-[100px]">
+
+        {/* IMAGE — left side, full card height, card overflow-hidden handles rounding */}
+        <div className="w-[96px] shrink-0 relative self-stretch">
+          <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
+            <div className="relative h-full bg-muted tyuta-img-hover">
+              {post.cover_image_url ? (
+                <CoverImg
+                  src={coverProxySrc(post.cover_image_url)!}
+                  alt={post.title}
+                  sizes="192px"
+                  quality={90}
+                  className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                />
+              ) : null}
+            </div>
+          </Link>
+          {/* Medals — top-left overlay with blurred backdrop */}
+          {showMedals ? (
+            <div
+              dir="ltr"
+              className="absolute top-0 left-0 z-10 pointer-events-none flex items-center gap-0.5 text-[11px] leading-none px-1.5 py-1"
+              style={{
+                backdropFilter: 'blur(5px)',
+                WebkitBackdropFilter: 'blur(5px)',
+                background: 'rgba(0,0,0,0.22)',
+                borderBottomRightRadius: '10px',
+              }}
+            >
+              {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
+              {post.allTimeMedals.silver > 0 ? <span>{post.allTimeMedals.silver}&nbsp;{MEDAL_EMOJIS.silver}</span> : null}
+              {post.allTimeMedals.bronze > 0 ? <span>{post.allTimeMedals.bronze}&nbsp;{MEDAL_EMOJIS.bronze}</span> : null}
+            </div>
+          ) : null}
+        </div>
+
+        {/* TEXT */}
+        <div className="min-w-0 flex-1 flex flex-col p-2.5 sm:p-3 text-right">
+
+          {/* Title */}
+          <h4 className="text-sm font-black leading-snug tracking-tight">
+            <Link href={`/post/${post.slug}`} className="tyuta-hover pointer-events-auto">
+              <ClampedText text={post.title} lines={1} as="span" className="block" />
             </Link>
-            {post.allTimeMedals && (post.allTimeMedals.gold > 0 || post.allTimeMedals.silver > 0 || post.allTimeMedals.bronze > 0) ? (
-              <div dir="ltr" className="absolute top-1 left-1 z-10 pointer-events-none flex items-center gap-0.5 text-[11px] leading-none" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}>
-                {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold} {MEDAL_EMOJIS.gold}</span> : null}
-                {post.allTimeMedals.silver > 0 ? <span>{post.allTimeMedals.silver} {MEDAL_EMOJIS.silver}</span> : null}
-                {post.allTimeMedals.bronze > 0 ? <span>{post.allTimeMedals.bronze} {MEDAL_EMOJIS.bronze}</span> : null}
-              </div>
+          </h4>
+
+          {/* Excerpt — min-height reserves 2 lines, word-boundary clamped */}
+          <div className="mt-1 min-h-[2.5em] text-xs leading-[1.25] text-muted-foreground">
+            {post.excerpt ? (
+              <ClampedText text={post.excerpt} lines={2} />
             ) : null}
           </div>
 
-          <div className="min-w-0 flex-1 text-right flex flex-col justify-between">
-            {/* Top: title */}
-            <div>
-              <div className="text-sm font-black leading-snug tracking-tight">
-                <Link href={`/post/${post.slug}`} className="tyuta-hover line-clamp-2 pointer-events-auto">
-                  {post.title}
+          {/* Author + time — avatar right, name+time stacked left */}
+          <div className="mt-auto pt-1.5 flex items-center gap-2 min-w-0">
+            {post.author_username ? (
+              <AuthorHover username={post.author_username}>
+                <Link href={`/u/${post.author_username}`} className="shrink-0 pointer-events-auto">
+                  <Avatar src={post.author_avatar_url} name={post.author_name} size={26} />
                 </Link>
-              </div>
-            </div>
-
-            {/* Middle: excerpt ג€” sits between title and author via justify-between */}
-            {post.excerpt ? (
-              <p className="text-xs text-muted-foreground leading-snug line-clamp-1 py-0.5">
-                {post.excerpt}
-              </p>
-            ) : <div />}
-
-            {/* Bottom: author + time */}
-            <div className="text-[12px] text-muted-foreground flex items-center gap-2 flex-nowrap min-w-0">
-              {/* Author ג€” [&>span]:max-w-full constrains AuthorHover's inline-flex span so truncate fires via CSS */}
-              <div className="min-w-0 flex-1 overflow-hidden [&>span]:max-w-full">
-                {post.author_username ? (
-                  <AuthorHover username={post.author_username}>
-                    <Link
-                      href={`/u/${post.author_username}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 hover:bg-neutral-200/70 dark:hover:bg-muted transition-colors duration-200 pointer-events-auto overflow-hidden cursor-pointer"
-                    >
-                      <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
-                      <span className="font-semibold tyuta-hover truncate flex-1 min-w-0">{post.author_name}</span>
-                    </Link>
-                  </AuthorHover>
-                ) : (
-                  <div className="inline-flex items-center gap-1.5 max-w-full overflow-hidden">
-                    <Avatar src={post.author_avatar_url} name={post.author_name} size={22} />
-                    <span className="font-semibold truncate flex-1 min-w-0">{post.author_name}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Time ג€” always fully visible, never shrinks */}
-              <RelativeTime iso={post.created_at} className="shrink-0 whitespace-nowrap" />
+              </AuthorHover>
+            ) : (
+              <span className="shrink-0">
+                <Avatar src={post.author_avatar_url} name={post.author_name} size={26} />
+              </span>
+            )}
+            <div className="min-w-0 flex-1 flex flex-col text-right overflow-hidden">
+              {post.author_username ? (
+                <AuthorHover username={post.author_username}>
+                  <Link href={`/u/${post.author_username}`} className="font-bold text-[12px] leading-snug tyuta-hover pointer-events-auto truncate">
+                    {post.author_name}
+                  </Link>
+                </AuthorHover>
+              ) : (
+                <span className="font-bold text-[12px] leading-snug truncate">{post.author_name}</span>
+              )}
+              <RelativeTime iso={post.created_at} className="text-[11px] text-muted-foreground" />
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -758,7 +774,7 @@ export default async function HomePage(props: HomePageProps = {}) {
   
   // Kick off subcategory posts fetch as a real Promise (via .then()) so it fires the HTTP request
   // immediately and runs in parallel with Phase 2 RPCs below.
-  // Supabase builders are lazy thenables ג€” calling .then(r=>r) converts to a real Promise that starts now.
+  // Supabase builders are lazy thenables ג€" calling .then(r=>r) converts to a real Promise that starts now.
   const subcatIdsForFetch = (isChannelPage && channelId !== null && forcedSubcatIdsByName.size > 0)
     ? Array.from(new Set(Array.from(forcedSubcatIdsByName.values())))
     : []
@@ -786,7 +802,7 @@ export default async function HomePage(props: HomePageProps = {}) {
         .in('subcategory_tag_id', subcatIdsForFetch)
         .order('published_at', { ascending: false })
         .limit(250)
-        .then(r => r)  // convert to real Promise ג†’ HTTP request fires immediately
+        .then(r => r)  // convert to real Promise ג†' HTTP request fires immediately
     : null
 
   const [rankedCombinedRes, rankedStoriesRes, rankedReleaseRes, rankedMagazineRes, rankedAllRes, recentRes] =
@@ -918,7 +934,7 @@ export default async function HomePage(props: HomePageProps = {}) {
     )
   }
 
-  // Resolve subcatPostsPromise now ג€” it started before Phase 2 so it was running in parallel
+  // Resolve subcatPostsPromise now ג€" it started before Phase 2 so it was running in parallel
   if (subcatPostsPromise) {
     const { data: subcatPostRows } = await subcatPostsPromise
     ;(subcatPostRows ?? []).forEach(r => {
@@ -1014,7 +1030,7 @@ export default async function HomePage(props: HomePageProps = {}) {
     )
   )
 
-  // Batch 3: postsRows, medalsRows, writerPostRows all depend only on Phase 2 ג€” run in parallel
+  // Batch 3: postsRows, medalsRows, writerPostRows all depend only on Phase 2 ג€" run in parallel
   const rankedAllIds = rankedAll.map(r => r.post_id)
   const [
     { data: postsRows, error: postsErr },
@@ -1237,8 +1253,15 @@ export default async function HomePage(props: HomePageProps = {}) {
     }
 
     const arr = Array.from(map.values()).map(v => {
-      const medalScore = v.gold * 3 + v.silver * 2 + v.bronze
-      return { ...v, medalScore }
+      // Apply base-4 rollover: 4 bronze → 1 silver, 4 silver → 1 gold (mirrors calcMedalsReset4)
+      const silverFromBronze = Math.floor(v.bronze / 4)
+      const bronze = v.bronze % 4
+      const totalSilver = v.silver + silverFromBronze
+      const goldFromSilver = Math.floor(totalSilver / 4)
+      const silver = totalSilver % 4
+      const gold = Math.min(v.gold + goldFromSilver, 6)
+      const medalScore = gold * 3 + silver * 2 + bronze
+      return { ...v, gold, silver, bronze, medalScore }
     })
 
     arr.sort((a, b) => {
@@ -1367,7 +1390,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                     {writerScores.length ? (
                       <div className="space-y-3">
                         {writerScores.map((w, idx) => (
-                          <div key={`${w.username ?? w.name}`} className="flex items-center justify-between">
+                          <div key={w.username ?? `${w.name}-${idx}`} className="flex items-center justify-between">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <div className="w-7 h-7 shrink-0 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-black text-foreground">
                                 {idx + 1}
@@ -1498,7 +1521,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                     {writerScores.length ? (
                       <div className="space-y-3">
                         {writerScores.map((w, idx) => (
-                          <div key={`${w.username ?? w.name}`} className="flex items-center justify-between">
+                          <div key={w.username ?? `${w.name}-${idx}`} className="flex items-center justify-between">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <div className="w-7 h-7 shrink-0 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-black text-foreground">
                                 {idx + 1}
