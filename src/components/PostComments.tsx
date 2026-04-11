@@ -927,7 +927,9 @@ async function submitReport() {
         return
       }
 
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user?.id) {
+      // Reload only when the user actually changes (new sign-in).
+      // TOKEN_REFRESHED fires on tab focus and must not trigger a reload.
+      if (event === 'SIGNED_IN' && session?.user?.id && session.user.id !== userIdRef.current) {
         void load()
       }
     })

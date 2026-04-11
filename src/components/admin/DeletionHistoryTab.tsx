@@ -40,6 +40,7 @@ type DeletionEvent = {
   reason: string | null
   actor_profile: Profile | null
   author_profile: Profile | null
+  later_purged?: boolean
 }
 
 type Filters = {
@@ -445,7 +446,14 @@ export default function DeletionHistoryTab() {
                   <div className="text-xs text-neutral-500 dark:text-neutral-400">{fmtDateTime(ev.created_at)}</div>
 
                   {/* Action */}
-                  <div><ActionBadge action={ev.action} /></div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <ActionBadge action={ev.action} />
+                    {ev.later_purged && (
+                      <span className="inline-flex items-center rounded-md border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-400">
+                        ← נמחק לצמיתות לאחר מכן
+                      </span>
+                    )}
+                  </div>
 
                   {/* Post */}
                   <div className="min-w-0">

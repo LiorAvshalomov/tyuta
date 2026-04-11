@@ -611,7 +611,16 @@ export default async function ChannelFeedPage({
       prev.score += p.score
       map.set(key, prev)
     }
-    return [...map.values()].sort((a, b) => b.score - a.score).slice(0, 5)
+    // Apply base-4 rollover: 4 bronze → 1 silver, 4 silver → 1 gold (mirrors calcMedalsReset4)
+    return [...map.values()].map(v => {
+      const silverFromBronze = Math.floor(v.bronze / 4)
+      const bronze = v.bronze % 4
+      const totalSilver = v.silver + silverFromBronze
+      const goldFromSilver = Math.floor(totalSilver / 4)
+      const silver = totalSilver % 4
+      const gold = Math.min(v.gold + goldFromSilver, 6)
+      return { ...v, gold, silver, bronze }
+    }).sort((a, b) => b.score - a.score).slice(0, 5)
   })()
 
   return (
