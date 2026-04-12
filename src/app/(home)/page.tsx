@@ -190,6 +190,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
               WebkitBackdropFilter: 'blur(5px)',
               background: 'rgba(0,0,0,0.28)',
               borderBottomRightRadius: '10px',
+              color: 'white',
             }}
           >
             {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
@@ -208,8 +209,8 @@ function FeaturedPost({ post }: { post: CardPost }) {
                     alt={post.title}
                     priority
                     sizes="(max-width: 640px) 100vw, 50vw"
-                    quality={85}
-                    className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                    quality={90}
+                    className="object-cover will-change-transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                   />
                 ) : null}
               </div>
@@ -289,7 +290,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
                 alt={post.title}
                 priority
                 sizes="(max-width: 1280px) 100vw, 784px"
-                quality={88}
+                quality={92}
                 className="object-cover [object-position:left_55%]"
               />
             ) : null}
@@ -312,6 +313,7 @@ function FeaturedPost({ post }: { post: CardPost }) {
               WebkitBackdropFilter: 'blur(6px)',
               background: 'rgba(0,0,0,0.28)',
               borderBottomRightRadius: '12px',
+              color: 'white',
             }}
           >
             {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
@@ -399,14 +401,14 @@ function SimplePostCard({ post }: { post: CardPost }) {
 
         {/* IMAGE — top, full width */}
         <Link href={`/post/${post.slug}`} className="block pointer-events-auto relative">
-          <div className="relative aspect-[4/3] bg-muted tyuta-img-hover">
+          <div className="relative aspect-[4/3] bg-muted tyuta-img-hover overflow-hidden">
             {coverSrc ? (
               <CoverImg
                 src={coverSrc}
                 alt={post.title}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 48vw, 360px"
-                quality={85}
-                className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                quality={90}
+                className="object-cover will-change-transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"
               />
             ) : null}
           </div>
@@ -420,6 +422,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
                 WebkitBackdropFilter: 'blur(5px)',
                 background: 'rgba(0,0,0,0.25)',
                 borderBottomRightRadius: '10px',
+                color: 'white',
               }}
             >
               {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
@@ -502,14 +505,14 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
         {/* IMAGE — left side, full card height, rounded by card overflow-hidden */}
         <div className="w-[108px] sm:w-[180px] shrink-0 relative self-stretch">
           <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
-            <div className="relative h-full bg-muted tyuta-img-hover">
+            <div className="relative h-full bg-muted tyuta-img-hover overflow-hidden">
               {post.cover_image_url ? (
                 <CoverImg
                   src={coverProxySrc(post.cover_image_url)!}
                   alt={post.title}
                   sizes="(max-width: 640px) 108px, 180px"
                   quality={85}
-                  className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                  className="object-cover will-change-transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                 />
               ) : null}
             </div>
@@ -524,6 +527,7 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
                 WebkitBackdropFilter: 'blur(5px)',
                 background: 'rgba(0,0,0,0.22)',
                 borderBottomRightRadius: '10px',
+                color: 'white',
               }}
             >
               {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
@@ -619,14 +623,14 @@ function RecentMiniRow({ post }: { post: CardPost }) {
         {/* IMAGE — left side, full card height, card overflow-hidden handles rounding */}
         <div className="w-[96px] shrink-0 relative self-stretch">
           <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
-            <div className="relative h-full bg-muted tyuta-img-hover">
+            <div className="relative h-full bg-muted tyuta-img-hover overflow-hidden">
               {post.cover_image_url ? (
                 <CoverImg
                   src={coverProxySrc(post.cover_image_url)!}
                   alt={post.title}
                   sizes="192px"
                   quality={90}
-                  className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                  className="object-cover will-change-transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                 />
               ) : null}
             </div>
@@ -641,6 +645,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
                 WebkitBackdropFilter: 'blur(5px)',
                 background: 'rgba(0,0,0,0.22)',
                 borderBottomRightRadius: '10px',
+                color: 'white',
               }}
             >
               {post.allTimeMedals.gold > 0 ? <span>{post.allTimeMedals.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
