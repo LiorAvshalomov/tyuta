@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
     '/api/posts/\\[id\\]/share-images': ['./src/lib/share-images/fonts/**'],
   },
   images: {
+    formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 86400,
     // Constrain candidate widths so Next.js generates fewer distinct transformed variants.
     // Default deviceSizes includes 1920/2048/3840 — overkill for this layout (max 1280px wide).

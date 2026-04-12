@@ -159,33 +159,20 @@ export default function FeedAutoRefresh({ initialVersion = null }: { initialVers
       }
     }
 
-    const onPageShow = () => {
-      const currentPath = window.location.pathname
-      if (!isFeedPathname(currentPath)) return
-      void syncFromServer(currentPath)
-    }
-
     const onPopState = () => {
       const currentPath = window.location.pathname
       if (!isFeedPathname(currentPath)) return
       void syncFromServer(currentPath)
     }
 
-    window.addEventListener('storage', onStorage)
-    window.addEventListener(FEED_REFRESH_EVENT, onWindowEvent as EventListener)
-    window.addEventListener('focus', onFocus)
-    window.addEventListener('pageshow', onPageShow)
-    window.addEventListener('popstate', onPopState)
-    document.addEventListener('visibilitychange', onVisibilityChange)
-
     let channel: BroadcastChannel | null = null
 
-    if ('BroadcastChannel' in window) {
+    const openChannel = () => {
+      if (!('BroadcastChannel' in window)) return
       try {
         channel = new BroadcastChannel(FEED_REFRESH_CHANNEL)
-        channel.onmessage = event => {
+        channel.onmessage = (event: MessageEvent) => {
           if (document.visibilityState !== 'visible') return
-
           const data = event.data as FeedRefreshMessage | null
           applyVersionIfNeeded(pathname, data?.version ?? null)
         }
@@ -194,11 +181,40 @@ export default function FeedAutoRefresh({ initialVersion = null }: { initialVers
       }
     }
 
+    // Close BroadcastChannel before the page enters bfcache so the browser
+    // can freeze and restore it instantly on back/forward navigation.
+    const onPageHide = () => {
+      channel?.close()
+      channel = null
+    }
+
+    // On bfcache restoration (event.persisted === true) reopen the channel
+    // and sync in case content changed while the page was frozen.
+    const onPageShow = (event: PageTransitionEvent) => {
+      const currentPath = window.location.pathname
+      if (!isFeedPathname(currentPath)) return
+      if (event.persisted) {
+        openChannel()
+      }
+      void syncFromServer(currentPath)
+    }
+
+    openChannel()
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener(FEED_REFRESH_EVENT, onWindowEvent as EventListener)
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('pagehide', onPageHide)
+    window.addEventListener('pageshow', onPageShow as EventListener)
+    window.addEventListener('popstate', onPopState)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
     return () => {
       window.removeEventListener('storage', onStorage)
       window.removeEventListener(FEED_REFRESH_EVENT, onWindowEvent as EventListener)
       window.removeEventListener('focus', onFocus)
-      window.removeEventListener('pageshow', onPageShow)
+      window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener('pageshow', onPageShow as EventListener)
       window.removeEventListener('popstate', onPopState)
       document.removeEventListener('visibilitychange', onVisibilityChange)
       channel?.close()

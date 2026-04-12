@@ -145,6 +145,7 @@ html {
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
 }
 
 /* Make backdrop-blur actually look good (and avoid weird flattening on some setups) */

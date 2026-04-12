@@ -111,6 +111,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="he" dir="rtl" className={heebo.variable} suppressHydrationWarning>
       <head>
+        {/* Preconnect to external image hosts used for fallback avatars */}
+        <link rel="preconnect" href="https://api.dicebear.com" />
+        <link rel="dns-prefetch" href="https://api.dicebear.com" />
         {/* Theme init — runs synchronously before first paint to prevent flash of wrong theme.
             Reads 'tyuta:theme' from localStorage ('light'|'dark'|'system').
             Falls back to prefers-color-scheme, then light. No external deps. */}

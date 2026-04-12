@@ -18,6 +18,7 @@ import { getFeedVersionForPath, type FeedPath } from '@/lib/freshness/serverVers
 import { CHANNEL_PAGE_CONFIGS } from '@/lib/home/channelPageConfig'
 import { createPublicServerClient } from '@/lib/supabase/createPublicServerClient'
 import ClampedText from '@/components/ClampedText'
+import CoverImgResilient from '@/components/CoverImgResilient'
 
 const MEDAL_EMOJIS = {
   gold: '🥇',
@@ -120,16 +121,32 @@ function CoverImg({
   if (isGifUrl(src)) {
     return <GifCoverCard src={src} alt={alt} />
   }
+  // Proxy URLs are already unoptimized (served from /api/media/cover).
+  // Direct Supabase CDN URLs go through Next.js optimizer — use resilient
+  // wrapper so onError retries with the unoptimized URL if Vercel's
+  // on-demand image generation fails (e.g. new DPR variant not yet cached).
+  if (isProxySrc(src)) {
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        priority={priority}
+        sizes={sizes}
+        quality={quality}
+        className={className}
+        unoptimized
+      />
+    )
+  }
   return (
-    <Image
+    <CoverImgResilient
       src={src}
       alt={alt}
-      fill
       priority={priority}
       sizes={sizes}
       quality={quality}
       className={className}
-      unoptimized={isProxySrc(src)}
     />
   )
 }
@@ -157,9 +174,9 @@ function channelBadgeColor(slug: string | null) {
 function SectionHeader({ title, href, accent }: { title: string; href: string; accent?: string }) {
   return (
     <div className={`flex items-center justify-between mb-5 ${accent ?? ''}`}>
-      <FeedIntentLink href={href} className="tyuta-section-rule tyuta-hover text-[1.375rem] font-black tracking-tight leading-tight">
-        {title}
-      </FeedIntentLink>
+      <h2 className="tyuta-section-rule text-[1.375rem] font-black tracking-tight leading-tight m-0">
+        <FeedIntentLink href={href} className="tyuta-hover">{title}</FeedIntentLink>
+      </h2>
       <FeedIntentLink href={href} className="text-xs font-semibold text-muted-foreground tyuta-hover">
         {VIEW_ALL_LABEL}
       </FeedIntentLink>
@@ -401,14 +418,14 @@ function SimplePostCard({ post }: { post: CardPost }) {
 
         {/* IMAGE — top, full width */}
         <Link href={`/post/${post.slug}`} className="block pointer-events-auto relative">
-          <div className="relative aspect-[4/3] bg-muted tyuta-img-hover overflow-hidden">
+          <div className="relative aspect-[4/3] bg-muted tyuta-img-hover">
             {coverSrc ? (
               <CoverImg
                 src={coverSrc}
                 alt={post.title}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 48vw, 360px"
                 quality={90}
-                className="object-cover will-change-transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
               />
             ) : null}
           </div>
@@ -434,11 +451,11 @@ function SimplePostCard({ post }: { post: CardPost }) {
 
         {/* Text: title + excerpt + author/meta */}
         <div className="p-4 text-right flex-1 flex flex-col">
-          <h3 className="text-base sm:text-[17px] font-black leading-[1.3] tracking-[-0.01em]">
+          <h2 className="text-base sm:text-[17px] font-black leading-[1.3] tracking-[-0.01em] m-0">
             <Link href={`/post/${post.slug}`} className="tyuta-hover pointer-events-auto">
               <ClampedText text={post.title} lines={2} as="span" className="block" />
             </Link>
-          </h3>
+          </h2>
           <div className="mt-2 min-h-[2.6em] text-xs sm:text-sm text-muted-foreground leading-relaxed">
             {post.excerpt ? (
               <ClampedText text={post.excerpt} lines={2} />
@@ -505,14 +522,14 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
         {/* IMAGE — left side, full card height, rounded by card overflow-hidden */}
         <div className="w-[108px] sm:w-[180px] shrink-0 relative self-stretch">
           <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
-            <div className="relative h-full bg-muted tyuta-img-hover overflow-hidden">
+            <div className="relative h-full bg-muted tyuta-img-hover">
               {post.cover_image_url ? (
                 <CoverImg
                   src={coverProxySrc(post.cover_image_url)!}
                   alt={post.title}
                   sizes="(max-width: 640px) 108px, 180px"
                   quality={85}
-                  className="object-cover will-change-transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                  className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                 />
               ) : null}
             </div>
@@ -623,14 +640,14 @@ function RecentMiniRow({ post }: { post: CardPost }) {
         {/* IMAGE — left side, full card height, card overflow-hidden handles rounding */}
         <div className="w-[96px] shrink-0 relative self-stretch">
           <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
-            <div className="relative h-full bg-muted tyuta-img-hover overflow-hidden">
+            <div className="relative h-full bg-muted tyuta-img-hover">
               {post.cover_image_url ? (
                 <CoverImg
                   src={coverProxySrc(post.cover_image_url)!}
                   alt={post.title}
                   sizes="192px"
                   quality={90}
-                  className="object-cover will-change-transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                  className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
                 />
               ) : null}
             </div>
@@ -1346,7 +1363,7 @@ export default async function HomePage(props: HomePageProps = {}) {
                   return (
                     <div key={sc.name_he}>
                       <div className="flex items-center justify-between mb-4">
-                        <div className="tyuta-section-rule text-lg font-black tracking-tight">{sc.name_he}</div>
+                        <h2 className="tyuta-section-rule text-lg font-black tracking-tight m-0">{sc.name_he}</h2>
                       </div>
                       <div className="space-y-3">
                         {rows.length > 0 ? rows.map(p => (
