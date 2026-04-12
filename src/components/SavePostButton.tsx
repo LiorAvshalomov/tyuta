@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 
 export default function SavePostButton({ postId }: { postId: string }) {
   const [myId, setMyId] = useState<string | null>(null)
@@ -49,7 +50,12 @@ export default function SavePostButton({ postId }: { postId: string }) {
       setLoading(false)
     }
 
-    void supabase.auth.getSession().then(({ data }) => syncBookmarkState(data?.session?.user?.id ?? null))
+    const loadInitialState = async () => {
+      const resolution = await waitForClientSession(5000)
+      await syncBookmarkState(resolution.status === 'authenticated' ? resolution.user.id : null)
+    }
+
+    void loadInitialState()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {

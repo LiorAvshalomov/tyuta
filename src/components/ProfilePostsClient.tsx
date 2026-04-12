@@ -7,6 +7,7 @@ import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import { coverProxySrc, isGifUrl } from '@/lib/coverUrl'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import GifCoverImage from '@/components/GifCoverImage'
 
 type SortKey = 'recent' | 'reactions' | 'comments'
@@ -402,9 +403,35 @@ export default function ProfilePostsClient({
   }, [channelsMap.size])
 
   useEffect(() => {
-    supabase.auth.getSession()
-      .then(({ data }) => setViewerId(data.session?.user?.id ?? null))
-      .catch(() => setViewerId(null))
+    let mounted = true
+
+    const syncViewerId = (nextViewerId: string | null) => {
+      if (!mounted) return
+      setViewerId(nextViewerId)
+    }
+
+    const loadViewer = async () => {
+      const resolution = await waitForClientSession(5000)
+      syncViewerId(resolution.status === 'authenticated' ? resolution.user.id : null)
+    }
+
+    void loadViewer()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        syncViewerId(null)
+        return
+      }
+
+      if (session?.user?.id) {
+        syncViewerId(session.user.id)
+      }
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / perPage)), [total, perPage])

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
 
 type Reaction = {
@@ -193,10 +194,15 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
       setLoading(true)
       setErrorMsg(null)
 
-      const { data: auth } = await supabase.auth.getSession()
+      // Wait for AuthSync to finish session recovery before deciding user identity.
+      // In a fresh tab (e.g. arriving from Google), _mem is empty; getSession()
+      // would return null immediately even for a logged-in user. waitForClientSession
+      // polls until the httpOnly-cookie-based token exchange completes (~200–500 ms
+      // typical) or times out (5 s), preventing a false guest-state flash.
+      const resolution = await waitForClientSession(5000)
       if (cancelled) return
-      const u = auth.session?.user
-      await syncViewerVotes(u?.id ?? null)
+      const uid = resolution.status === 'authenticated' ? resolution.user.id : null
+      await syncViewerVotes(uid)
       if (cancelled) return
 
       const { data: rx, error: rxErr } = await supabase

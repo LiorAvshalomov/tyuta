@@ -1,6 +1,7 @@
 'use client'
 
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -12,17 +13,27 @@ export default function ProfileNonOwnerActions({ profileId }: { profileId: strin
   useEffect(() => {
     let mounted = true
 
-    async function loadMe() {
-      const { data } = await supabase.auth.getSession()
+    const syncMeId = (nextUserId: string | null) => {
       if (!mounted) return
-      if (!data.session?.user?.id) setMeId(null)
-      else setMeId(data.session.user.id)
+      setMeId(nextUserId)
     }
 
-    loadMe()
+    const loadMe = async () => {
+      const resolution = await waitForClientSession(5000)
+      syncMeId(resolution.status === 'authenticated' ? resolution.user.id : null)
+    }
 
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      loadMe()
+    void loadMe()
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        syncMeId(null)
+        return
+      }
+
+      if (session?.user?.id) {
+        syncMeId(session.user.id)
+      }
     })
 
     return () => {

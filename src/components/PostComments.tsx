@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import { adminFetch } from '@/lib/admin/adminFetch'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import { event as gaEvent } from '@/lib/gtag'
@@ -693,8 +694,10 @@ async function submitReport() {
     setLoading(true)
     setNewCommentBanner(false)
 
-    const { data: auth } = await supabase.auth.getSession()
-    const u = auth.session?.user
+    // Wait for AuthSync session recovery before deciding user identity.
+    // Fresh tabs (_mem empty) would otherwise immediately see null from getSession().
+    const resolution = await waitForClientSession(5000)
+    const u = resolution.status === 'authenticated' ? resolution.user : null
     setUserId(u?.id ?? null)
     userIdRef.current = u?.id ?? null
 

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 
 type AuthState = 'loading' | 'guest' | 'authed'
 
@@ -12,17 +13,23 @@ export default function HomeWriteCTA() {
   useEffect(() => {
     let mounted = true
 
-    supabase.auth.getSession().then(({ data, error }) => {
+    const loadInitialState = async () => {
+      const resolution = await waitForClientSession(5000)
       if (!mounted) return
-      if (error) {
+      setState(resolution.status === 'authenticated' ? 'authed' : 'guest')
+    }
+
+    void loadInitialState()
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
         setState('guest')
         return
       }
-      setState(data.session ? 'authed' : 'guest')
-    })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setState(session ? 'authed' : 'guest')
+      if (session) {
+        setState('authed')
+      }
     })
 
     return () => {

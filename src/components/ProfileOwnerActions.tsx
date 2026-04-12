@@ -3,22 +3,39 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 
 export default function ProfileOwnerActions({ profileId }: { profileId: string }) {
   const [isOwner, setIsOwner] = useState(false)
 
   useEffect(() => {
     let mounted = true
-
-    ;(async () => {
-      const { data } = await supabase.auth.getSession()
-      const uid = data.session?.user?.id
+    const syncOwnerState = (nextUserId: string | null) => {
       if (!mounted) return
-      setIsOwner(Boolean(uid && uid === profileId))
-    })()
+      setIsOwner(Boolean(nextUserId && nextUserId === profileId))
+    }
+
+    const loadOwner = async () => {
+      const resolution = await waitForClientSession(5000)
+      syncOwnerState(resolution.status === 'authenticated' ? resolution.user.id : null)
+    }
+
+    void loadOwner()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        syncOwnerState(null)
+        return
+      }
+
+      if (session?.user?.id) {
+        syncOwnerState(session.user.id)
+      }
+    })
 
     return () => {
       mounted = false
+      subscription.unsubscribe()
     }
   }, [profileId])
 

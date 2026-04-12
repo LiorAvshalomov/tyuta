@@ -225,7 +225,6 @@ function FeaturedPost({ post }: { post: CardPost }) {
                   <CoverImg
                     src={coverProxySrc(post.cover_image_url)!}
                     alt={post.title}
-                    priority
                     sizes="(max-width: 640px) 100vw, 50vw"
                     quality={90}
                     className="object-cover will-change-transform transition-transform duration-300 ease-out group-hover:scale-[1.03]"

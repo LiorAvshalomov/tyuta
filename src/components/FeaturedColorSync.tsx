@@ -158,10 +158,14 @@ export function FeaturedColorSync({ src }: { src: string }) {
 
     let active = true
 
+    // Fetch a tiny optimized variant via the Next.js image endpoint (same-origin,
+    // no CORS needed, reuses the preloaded cache) instead of the full-res raw URL.
+    // 32 px is enough for the 18×18 canvas sample; avoids a redundant full-res fetch.
+    const optimizedSrc = `/_next/image?url=${encodeURIComponent(src)}&w=32&q=75`
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
     img.decoding = 'async'
-    img.src = src
+    img.src = optimizedSrc
 
     img.onload = () => {
       if (!active) return

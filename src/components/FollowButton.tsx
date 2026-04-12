@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 
 // Shared checkmark icon
 function CheckIcon({ className }: { className?: string }) {
@@ -61,7 +62,12 @@ export default function FollowButton({
       setLoading(false)
     }
 
-    void supabase.auth.getSession().then(({ data }) => syncFollowState(data?.session?.user?.id ?? null))
+    const loadInitialState = async () => {
+      const resolution = await waitForClientSession(5000)
+      await syncFollowState(resolution.status === 'authenticated' ? resolution.user.id : null)
+    }
+
+    void loadInitialState()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {

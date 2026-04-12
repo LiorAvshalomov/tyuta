@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import FollowButton from '@/components/FollowButton'
 import ProfileNonOwnerActions from '@/components/ProfileNonOwnerActions'
 
@@ -52,21 +53,27 @@ export default function ProfileFollowBar({
   useEffect(() => {
     let mounted = true
 
-    async function loadMe() {
-      const { data } = await supabase.auth.getSession()
+    const syncMeId = (nextUserId: string | null) => {
       if (!mounted) return
-
-      if (!data.session?.user?.id) {
-        setMeId(null)
-        return
-      }
-      setMeId(data.session.user.id)
+      setMeId(nextUserId)
     }
 
-    loadMe()
+    const loadMe = async () => {
+      const resolution = await waitForClientSession(5000)
+      syncMeId(resolution.status === 'authenticated' ? resolution.user.id : null)
+    }
 
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      loadMe()
+    void loadMe()
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        syncMeId(null)
+        return
+      }
+
+      if (session?.user?.id) {
+        syncMeId(session.user.id)
+      }
     })
 
     return () => {
