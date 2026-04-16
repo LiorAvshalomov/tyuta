@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import {
+  enforceActorRouteRateLimit,
+  enforceIpRateLimit,
+  resolveAuthedRoutePolicy,
+  resolveProtectedGatePolicy,
+} from '@/lib/requestRateLimit'
 
 type RequireUserOk = {
   ok: true
@@ -17,6 +23,11 @@ type RequireUserFail = {
 }
 
 export async function requireUserFromRequest(req: Request): Promise<RequireUserOk | RequireUserFail> {
+  const gateLimit = await enforceIpRateLimit(req, resolveProtectedGatePolicy('authed', req.method))
+  if (gateLimit) {
+    return { ok: false, response: gateLimit }
+  }
+
   const auth = req.headers.get('authorization') || ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
 
@@ -45,6 +56,11 @@ export async function requireUserFromRequest(req: Request): Promise<RequireUserO
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data?.user) {
     return { ok: false, response: NextResponse.json({ error: { code: 'invalid_token', message: 'invalid token' } }, { status: 401 }) }
+  }
+
+  const routeLimit = await enforceActorRouteRateLimit(req, data.user.id, resolveAuthedRoutePolicy)
+  if (routeLimit) {
+    return { ok: false, response: routeLimit }
   }
 
   return { ok: true, user: { id: data.user.id, email: data.user.email }, supabase }

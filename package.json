@@ -7,6 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "video:dev": "remotion studio",
+    "video:render": "remotion render",
+    "video:render:launch": "remotion render tyuta-launch-vertical out/tyuta-launch-vertical.mp4 --props=./video/props/launch-vertical.json",
+    "video:render:note": "remotion render tyuta-note-closeup-vertical out/tyuta-note-closeup-vertical.mp4",
+    "video:render:site": "remotion render tyuta-site-promo-vertical out/tyuta-site-promo-vertical.mp4",
+    "video:still": "remotion still",
     "qa": "npx tsx qa/orchestrator.ts",
     "qa:auth": "npx playwright test qa/tests/agents/auth --config=qa/playwright.config.ts",
     "qa:functional": "npx playwright test qa/tests/agents/functional --config=qa/playwright.config.ts",
@@ -29,6 +35,11 @@
     "qa:admin": "npx playwright test qa/tests/agents/admin --config=qa/playwright.config.ts"
   },
   "dependencies": {
+    "@remotion/captions": "4.0.448",
+    "@remotion/cli": "4.0.448",
+    "@remotion/google-fonts": "4.0.448",
+    "@remotion/player": "4.0.448",
+    "@remotion/transitions": "4.0.448",
     "@resvg/resvg-js": "^2.6.2",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.93.3",
@@ -51,6 +62,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.7.0",
+    "remotion": "4.0.448",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.4.0"
   },

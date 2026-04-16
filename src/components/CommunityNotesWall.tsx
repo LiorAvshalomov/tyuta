@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { buildLoginRedirect, shouldRunLoginRedirect } from '@/lib/auth/protectedRoutes'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 
 type NoteRow = {
   id: string
@@ -408,6 +409,16 @@ export default function CommunityNotesWall() {
     const { data, error } = await supabase.rpc('upsert_community_note', { body: trimmed })
     setPosting(false)
 
+    const throttleMessage = error ? mapSupabaseError(error) : null
+    if (error && throttleMessage) {
+      const msg = (error.message || '').toLowerCase()
+      const remaining = Number(error.details)
+      if (!msg.includes('cooldown') || !Number.isFinite(remaining)) {
+        setValidationError(throttleMessage)
+        return
+      }
+    }
+
     if (error) {
       const msg = (error.message || '').toLowerCase()
       const remaining = Number(error.details)
@@ -456,6 +467,11 @@ export default function CommunityNotesWall() {
     const { data, error } = await supabase.rpc('start_conversation', {
       other_user_id: note.user_id,
     })
+    const conversationError = error ? mapSupabaseError(error) : null
+    if (conversationError) {
+      alert(conversationError)
+      return
+    }
     if (error || !data) {
       alert('שגיאה בפתיחת שיחה')
       return

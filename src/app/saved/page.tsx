@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from '@/components/Avatar'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 
 type SavedPostRow = {
   created_at: string
@@ -54,10 +55,16 @@ function asCleanString(v: unknown): string {
 function formatErr(e: unknown): string {
   if (e && typeof e === 'object') {
     const se = e as SupabaseLikeError
-    const msg = asCleanString(se.message)
-    const details = asCleanString(se.details)
-    const hint = asCleanString(se.hint)
-    const code = asCleanString(se.code)
+    const normalized = {
+      message: asCleanString(se.message) || null,
+      details: asCleanString(se.details) || null,
+      hint: asCleanString(se.hint) || null,
+      code: asCleanString(se.code) || null,
+    }
+    const friendly = mapSupabaseError(normalized)
+    if (friendly) return friendly
+
+    const { message: msg, details, hint, code } = normalized
 
     // Sometimes Supabase/PostgREST errors have an empty message but include details/code.
     const parts = [msg, details, hint].filter(Boolean)

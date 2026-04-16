@@ -499,7 +499,10 @@ async function submitReport() {
       message_excerpt: String(reportedComment.content).slice(0, 280),
     })
 
-    if (error) throw error
+    if (error) {
+      setReportErr(mapSupabaseError(error) ?? error.message)
+      return
+    }
     setReportOk('תודה על הדיווח ועל התרומה לקהילה 🙏\nנבדוק את זה בהקדם.')
     setReportDetails('')
     // נסגור את המודאל אוטומטית אחרי רגע (כדי שלא ייתקע על "לא ניתן לדווח על עצמך")
@@ -1056,7 +1059,7 @@ async function submitReport() {
         rb.add(commentId)
         setMyLiked(rb)
         setLikeCounts(prev => ({ ...prev, [commentId]: Number(prev[commentId] ?? 0) + 1 }))
-        setErrFor(error.message)
+        setErrFor(mapSupabaseError(error) ?? error.message)
         return
       }
       notifyCommentLikeSync(commentId)
@@ -1075,7 +1078,7 @@ async function submitReport() {
       rb.delete(commentId)
       setMyLiked(rb)
       setLikeCounts(prev => ({ ...prev, [commentId]: Math.max(0, Number(prev[commentId] ?? 0) - 1) }))
-      setErrFor(error.message)
+      setErrFor(mapSupabaseError(error) ?? error.message)
       return
     }
     notifyCommentLikeSync(commentId)
@@ -1175,7 +1178,7 @@ async function submitReport() {
     const { error } = await supabase.from('comments').delete().eq('id', commentId)
 
     if (error) {
-      setErrFor(error.message)
+      setErrFor(mapSupabaseError(error) ?? error.message)
       setItems(snapshot) // rollback
     }
   }

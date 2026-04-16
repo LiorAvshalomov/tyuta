@@ -10,6 +10,7 @@ import AvatarUpload from '@/components/AvatarUpload'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { buildLoginRedirect, shouldRunLoginRedirect } from '@/lib/auth/protectedRoutes'
 import { notifyProfileUpdated } from '@/lib/profileFreshness'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 
 type ProfileRow = {
   id: string
@@ -153,6 +154,11 @@ export default function ProfileSettingsPage() {
 
     if (upErr) {
       setSaving(false)
+      const friendly = mapSupabaseError(upErr)
+      if (friendly) {
+        setErr(friendly)
+        return
+      }
       if (upErr.message.includes('profiles_username_unique')) {
         setErr('שם המשתמש כבר תפוס. נסה משהו אחר.')
       } else {
@@ -223,7 +229,7 @@ export default function ProfileSettingsPage() {
         .from('avatars')
         .upload(path, file, { upsert: true, cacheControl: '31536000', contentType: 'image/jpeg' })
 
-      if (upErr) throw upErr
+      if (upErr) throw new Error(mapSupabaseError(upErr) ?? upErr.message)
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(path)
       const baseUrl = data.publicUrl
@@ -234,7 +240,7 @@ export default function ProfileSettingsPage() {
         .update({ avatar_url: versionedUrl })
         .eq('id', uid)
 
-      if (pErr) throw pErr
+      if (pErr) throw new Error(mapSupabaseError(pErr) ?? pErr.message)
 
       setProfile((prev) => (prev ? { ...prev, avatar_url: versionedUrl } : prev))
       return versionedUrl

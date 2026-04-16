@@ -6,6 +6,13 @@ import { createPortal } from "react-dom"
 import { Bell, X } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 import Avatar from "@/components/Avatar"
+import { useToast } from "@/components/Toast"
+import { mapSupabaseError } from "@/lib/mapSupabaseError"
+import {
+  POST_REFRESH_CHANNEL,
+  POST_REFRESH_EVENT,
+  POST_REFRESH_STORAGE_KEY,
+} from "@/lib/postFreshness"
 
 type ProfileLite = {
   id: string
@@ -185,21 +192,24 @@ function groupKey(n: NotifNormalized): string {
     const p = n.payload
     const action = str(p.action)
     const isReply = action === 'comment_reply' || typeof p.parent_comment_id === 'string' || typeof p['parentCommentId'] === 'string'
-    const postId = str(p.post_id) || ''
+    const postId = str(p.post_id) || (n.entity_type === 'post' ? (n.entity_id ?? '') : '')
     const slug = postSlugFromPayload(p) || ''
-    const title = titleFromPayload(p) || ''
     // Separate buckets so replies don't merge with new top-level comments.
     const kind = isReply ? 'comment_reply' : 'comment'
-    return [kind, postId, slug, title].join('|')
+    return [kind, postId, slug].join('|')
   }
 
   const p = n.payload
   const entityType = n.entity_type || str(p.entity_type) || ""
 
-  const entityId = n.entity_id || str(p.entity_id) || str(p.post_id) || ""
+  const entityId =
+    n.entity_id ||
+    str(p.entity_id) ||
+    (entityType === 'post' ? str(p.post_id) : null) ||
+    str(p.post_id) ||
+    ""
   const slug = postSlugFromPayload(p) || ""
-  const title = titleFromPayload(p) || ""
-  return [n.type, entityType, entityId, slug, title].join("|")
+  return [n.type, entityType, entityId, slug].join("|")
 }
 
 function uniqueActorNames(names: string[]): string[] {
@@ -233,14 +243,17 @@ function formatDateTime(iso: string): string {
 }
 
 export default function NotificationsBell() {
+  const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [unread, setUnread] = useState(0)
   const [groups, setGroups] = useState<NotifGroup[]>([])
   const [desktopPanelPos, setDesktopPanelPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const loadStampRef = useRef(0)
+  const loadSeqRef = useRef(0)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -251,12 +264,15 @@ export default function NotificationsBell() {
   }, [])
 
   const load = useCallback(async () => {
+    const loadSeq = ++loadSeqRef.current
     setLoading(true)
     try {
       const uid = await getUid()
+      if (loadSeq !== loadSeqRef.current) return
       if (!uid) {
         setGroups([])
         setUnread(0)
+        setHasLoadedOnce(true)
         return
       }
 
@@ -302,6 +318,7 @@ export default function NotificationsBell() {
           if (cId) commentIds.add(cId)
         }
         const rawType = String(r.type ?? '')
+        if (r.entity_type === 'post' && r.entity_id) postIds.add(String(r.entity_id))
         if ((r.entity_type === 'comment' || rawType === 'comment') && r.entity_id) commentIds.add(String(r.entity_id))
       }
 
@@ -316,6 +333,21 @@ export default function NotificationsBell() {
         for (const pr of list) profilesById.set(pr.id, pr)
       }
 
+      type CommentLite = { id: string; content: string; parent_comment_id: string | null; post_id: string }
+      const commentsById = new Map<string, CommentLite>()
+      if (commentIds.size > 0) {
+        const { data: cs } = await supabase
+          .from('comments')
+          .select('id, content, parent_comment_id, post_id')
+          .in('id', Array.from(commentIds))
+          .limit(500)
+        const list = (cs ?? []) as unknown as CommentLite[]
+        for (const c of list) {
+          commentsById.set(c.id, c)
+          if (c.post_id) postIds.add(c.post_id)
+        }
+      }
+
       type PostLite = { id: string; slug: string; title: string | null }
       const postsById = new Map<string, PostLite>()
       if (postIds.size > 0) {
@@ -326,18 +358,6 @@ export default function NotificationsBell() {
           .limit(500)
         const list = (posts ?? []) as unknown as PostLite[]
         for (const p of list) postsById.set(p.id, p)
-      }
-
-      type CommentLite = { id: string; content: string; parent_comment_id: string | null; post_id: string }
-      const commentsById = new Map<string, CommentLite>()
-      if (commentIds.size > 0) {
-        const { data: cs } = await supabase
-          .from('comments')
-          .select('id, content, parent_comment_id, post_id')
-          .in('id', Array.from(commentIds))
-          .limit(500)
-        const list = (cs ?? []) as unknown as CommentLite[]
-        for (const c of list) commentsById.set(c.id, c)
       }
 
       const hydrated: NotifRowDb[] = rows.map((r) => {
@@ -354,17 +374,17 @@ export default function NotificationsBell() {
             : str(p0.comment_id)
         if (commentId && commentsById.has(commentId)) {
           const c = commentsById.get(commentId)!
-          if (!('comment_id' in p0)) p0.comment_id = commentId
-          if (!('comment_text' in p0)) p0.comment_text = c.content
-          if (!('parent_comment_id' in p0)) p0.parent_comment_id = c.parent_comment_id
-          if (!('post_id' in p0)) p0.post_id = c.post_id
+          p0.comment_id = commentId
+          p0.comment_text = c.content
+          p0.parent_comment_id = c.parent_comment_id
+          p0.post_id = c.post_id
         }
 
         const postId = str(p0.post_id)
         if (postId && postsById.has(postId)) {
           const post = postsById.get(postId)!
-          if (!('post_slug' in p0)) p0.post_slug = post.slug
-          if (!('post_title' in p0) && post.title) p0.post_title = post.title
+          p0.post_slug = post.slug
+          p0.post_title = post.title
         }
 
         return {
@@ -404,10 +424,17 @@ export default function NotificationsBell() {
       }
 
       const arr = Array.from(map.values()).sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      if (loadSeq !== loadSeqRef.current) return
       setGroups(arr)
       loadStampRef.current = Date.now()
+      setHasLoadedOnce(true)
+    } catch {
+      if (loadSeq !== loadSeqRef.current) return
+      setHasLoadedOnce(true)
     } finally {
-      setLoading(false)
+      if (loadSeq === loadSeqRef.current) {
+        setLoading(false)
+      }
     }
   }, [getUid])
 
@@ -416,6 +443,8 @@ export default function NotificationsBell() {
     if (!uid) return
 
     const now = new Date().toISOString()
+    const previousGroups = groups
+    const previousUnread = unread
     setUnread(0)
     setGroups(prev =>
       prev.map(g => ({
@@ -425,8 +454,19 @@ export default function NotificationsBell() {
       }))
     )
 
-    await supabase.from("notifications").update({ is_read: true, read_at: now }).eq("user_id", uid).eq("is_read", false)
-  }, [getUid])
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true, read_at: now })
+      .eq("user_id", uid)
+      .eq("is_read", false)
+
+    if (error) {
+      setGroups(previousGroups)
+      setUnread(previousUnread)
+      toast(mapSupabaseError(error) ?? "לא הצלחנו לסמן את כל ההתראות כנקראו", "error")
+      void load()
+    }
+  }, [getUid, groups, load, toast, unread])
 
   const markGroupRead = useCallback(
     async (ids: string[]) => {
@@ -435,6 +475,12 @@ export default function NotificationsBell() {
       if (!uid) return
 
       const now = new Date().toISOString()
+      const previousGroups = groups
+      const previousUnread = unread
+      const unreadInGroup = previousGroups.reduce(
+        (count, group) => count + group.rows.filter(r => ids.includes(r.id) && !(r.is_read || r.read_at)).length,
+        0,
+      )
       setGroups(prev =>
         prev.map(g => {
           const has = g.rows.some(r => ids.includes(r.id))
@@ -446,25 +492,41 @@ export default function NotificationsBell() {
           }
         })
       )
-      setUnread(u => Math.max(0, u - ids.length))
+      setUnread(u => Math.max(0, u - unreadInGroup))
 
-      await supabase.from("notifications").update({ is_read: true, read_at: now }).eq("user_id", uid).in("id", ids)
+      const { error } = await supabase
+        .from("notifications")
+        .update({ is_read: true, read_at: now })
+        .eq("user_id", uid)
+        .in("id", ids)
+
+      if (error) {
+        setGroups(previousGroups)
+        setUnread(previousUnread)
+        toast(mapSupabaseError(error) ?? "לא הצלחנו לסמן את ההתראות כנקראו", "error")
+        void load()
+      }
     },
-    [getUid]
+    [getUid, groups, load, toast, unread]
   )
 
   const clearAll = useCallback(async () => {
     const uid = await getUid()
     if (!uid) return
 
+    const previousGroups = groups
+    const previousUnread = unread
     const { error } = await supabase.from("notifications").delete().eq("user_id", uid)
     if (!error) {
       setGroups([])
       setUnread(0)
     } else {
-      alert(error.message)
+      setGroups(previousGroups)
+      setUnread(previousUnread)
+      toast(mapSupabaseError(error) ?? error.message, "error")
+      void load()
     }
-  }, [getUid])
+  }, [getUid, groups, load, toast, unread])
 
   // close on click outside (desktop)
   useEffect(() => {
@@ -551,12 +613,51 @@ export default function NotificationsBell() {
     }
   }, [load])
 
+  useEffect(() => {
+    const refreshBell = () => {
+      if (!open && !hasLoadedOnce) return
+      void load()
+    }
+
+    const onWindowEvent = () => {
+      refreshBell()
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== POST_REFRESH_STORAGE_KEY || !event.newValue) return
+      refreshBell()
+    }
+
+    window.addEventListener(POST_REFRESH_EVENT, onWindowEvent as EventListener)
+    window.addEventListener('storage', onStorage)
+
+    let channel: BroadcastChannel | null = null
+    if ('BroadcastChannel' in window) {
+      try {
+        channel = new BroadcastChannel(POST_REFRESH_CHANNEL)
+        channel.onmessage = () => {
+          refreshBell()
+        }
+      } catch {
+        channel = null
+      }
+    }
+
+    return () => {
+      window.removeEventListener(POST_REFRESH_EVENT, onWindowEvent as EventListener)
+      window.removeEventListener('storage', onStorage)
+      channel?.close()
+    }
+  }, [hasLoadedOnce, load, open])
+
   // opening panel = mark all read + drop badge immediately
   useEffect(() => {
     if (!open) return
+    if (loading || !hasLoadedOnce || unread === 0) return
     void markAllRead()
-  }, [open, markAllRead])
+  }, [hasLoadedOnce, loading, markAllRead, open, unread])
   const items = useMemo(() => groups, [groups])
+  const showLoadingState = !hasLoadedOnce || (loading && items.length === 0)
 
   const makeShortToken = useCallback(() => {
     const raw =
@@ -828,7 +929,7 @@ const token = storeHighlightToken(ids)
           className={isMobile ? "min-h-0 flex-1 overflow-y-auto overscroll-contain touch-pan-y" : "max-h-[440px] overflow-auto overscroll-contain"}
           style={isMobile ? { WebkitOverflowScrolling: 'touch' } : undefined}
         >
-          {loading ? (
+          {showLoadingState ? (
             <div className="py-10 text-center text-sm text-neutral-600 dark:text-muted-foreground">טוען...</div>
           ) : items.length === 0 ? (
             emptyState

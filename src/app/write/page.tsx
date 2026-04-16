@@ -21,6 +21,15 @@ import { notifyFeedContentUpdated } from '@/lib/feedFreshness'
 import { notifyPostUpdated } from '@/lib/postFreshness'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { buildLoginRedirect, shouldRunLoginRedirect } from '@/lib/auth/protectedRoutes'
+import {
+  applyRelatedPostsData,
+  extractRelatedPostsData,
+  getPostSeriesConfig,
+  hasRelatedPosts,
+  sameRelatedPostsData,
+  stripRelatedPosts,
+  type RelatedPostsData,
+} from '@/lib/postSeries'
 
 type Channel = { id: number; name_he: string }
 type Tag = { id: number; type: 'emotion' | 'theme' | 'genre' | 'topic'; name_he: string; channel_id: number | null }
@@ -33,6 +42,8 @@ const MAX_TAGS = 3
 const ALLOWED_COVER_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const CONTENT_MAX = 15_000
 const PRIVATE_DRAFT_MEDIA_URL_TTL_SECONDS = 60 * 60 * 24
+const DRAFT_AUTOSAVE_DEBOUNCE_MS = 2500
+const SERIES_DRAFT_CACHE_STORAGE_PREFIX = 'tyuta:write:series:'
 
 type DraftRow = {
   id: string
@@ -54,6 +65,14 @@ const EMPTY_DOC: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] }
 const TITLE_MAX = 72
 const EXCERPT_MAX = 160
 
+function isEmptyDoc(json: JSONContent): boolean {
+  return JSON.stringify(json) === JSON.stringify(EMPTY_DOC)
+}
+
+function getSortedTagSignature(tagIds: number[]): string {
+  return [...tagIds].sort((a, b) => a - b).join(',')
+}
+
 function extractTextFromDoc(node: JSONContent): string {
   if (node.type === 'text') return node.text ?? ''
   if (!node.content) return ''
@@ -63,6 +82,31 @@ function extractTextFromDoc(node: JSONContent): string {
 function clampExcerpt(s: string) {
   const trimmed = s.replace(/\s+/g, ' ').trimStart()
   return trimmed.length > EXCERPT_MAX ? trimmed.slice(0, EXCERPT_MAX) : trimmed
+}
+
+function buildSeriesDraftCacheStorageKey(postId: string): string {
+  return `${SERIES_DRAFT_CACHE_STORAGE_PREFIX}${postId}`
+}
+
+function isRelatedPostsData(value: unknown): value is RelatedPostsData {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<RelatedPostsData>
+  return Array.isArray(candidate.postIds) &&
+    candidate.postIds.every(item => typeof item === 'string') &&
+    typeof candidate.hasIntro === 'boolean'
+}
+
+function parseSeriesDraftCache(raw: string | null): Record<string, RelatedPostsData> {
+  if (!raw) return {}
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) => isRelatedPostsData(value)),
+    ) as Record<string, RelatedPostsData>
+  } catch {
+    return {}
+  }
 }
 
 function snapshotOf(opts: {
@@ -168,6 +212,7 @@ export default function WritePage() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
   const [savePending, setSavePending] = useState(false) // debounce pending
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -175,54 +220,186 @@ export default function WritePage() {
   // ✅ Lock settings (channel/subcategory/tags) when editing an already published post.
   const settingsLocked = useMemo(() => isEditMode && loadedStatus === 'published', [isEditMode, loadedStatus])
   const autosaveEnabled = useMemo(() => !settingsLocked, [settingsLocked])
+  const uiLocked = isPublishing
 
-  // Chapters feature: enabled only for סיפורים > סיפור בהמשכים
-  const chaptersEnabled = useMemo(() => {
-    const ch = channels.find(c => c.id === channelId)
-    const sub = subcategoryOptions.find(s => s.id === subcategoryTagId)
-    return ch?.name_he === 'סיפורים' && sub?.name_he === 'סיפור בהמשכים'
-  }, [channels, channelId, subcategoryOptions, subcategoryTagId])
+  const currentChannelName = useMemo(
+    () => channels.find(c => c.id === channelId)?.name_he ?? null,
+    [channels, channelId],
+  )
+  const currentSubcategoryName = useMemo(
+    () => subcategoryOptions.find(s => s.id === subcategoryTagId)?.name_he ?? null,
+    [subcategoryOptions, subcategoryTagId],
+  )
+  const currentSeriesConfig = useMemo(
+    () => getPostSeriesConfig(currentChannelName, currentSubcategoryName),
+    [currentChannelName, currentSubcategoryName],
+  )
+  const seriesEnabled = Boolean(currentSeriesConfig)
+  const seriesContextReady = useMemo(() => {
+    if (!channelId) return false
+    if (subcategoryTagId == null) return true
+    return currentSubcategoryName != null
+  }, [channelId, subcategoryTagId, currentSubcategoryName])
+  const currentSeriesContextKey = useMemo(() => {
+    if (!currentSeriesConfig || channelId == null || subcategoryTagId == null) return null
+    return `${channelId}:${subcategoryTagId}`
+  }, [currentSeriesConfig, channelId, subcategoryTagId])
 
   const [chapterUserPosts, setChapterUserPosts] = useState<Array<{ id: string; slug: string; title: string }>>([])
+  const [chapterUserPostsLoading, setChapterUserPostsLoading] = useState(false)
+  const [seriesDraftCache, setSeriesDraftCache] = useState<Record<string, RelatedPostsData>>({})
+  const [seriesDraftCacheLoaded, setSeriesDraftCacheLoaded] = useState(false)
 
-  // הפרק הנוכחי שנמצא בעריכה (רק כאשר כבר נוצרה טיוטה עם ID)
-  const currentDraftForChapters = useMemo(() => {
+  // הפוסט הנוכחי שנמצא בעריכה (רק כאשר כבר נוצרה טיוטה עם ID)
+  const currentDraftForSeries = useMemo(() => {
     if (!effectivePostId || !draftSlug) return null
-    return { id: effectivePostId, slug: draftSlug, title: title || 'הפרק הנוכחי' }
+    return { id: effectivePostId, slug: draftSlug, title: title || 'הפוסט הזה' }
   }, [effectivePostId, draftSlug, title])
 
-  // כשהמשתמש עוזב מצב "סיפור בהמשכים" – נקה relatedPosts מיד (מניעת שמירת נתונים ישנים)
-  const prevChaptersEnabledRef = useRef<boolean | null>(null)
-  useEffect(() => {
-    const prev = prevChaptersEnabledRef.current
-    prevChaptersEnabledRef.current = chaptersEnabled
-    // רק כשיש מעבר מפעיל→כבוי (לא בטעינה ראשונית כשהערך כבר false)
-    if (prev !== true || chaptersEnabled) return
-    setContentJson(c => ({
-      ...c,
-      content: (c?.content ?? []).filter((n: JSONContent) => n.type !== 'relatedPosts'),
-    }))
-  }, [chaptersEnabled])
+  const prevSeriesContextKeyRef = useRef<string | null | undefined>(undefined)
+  const prevSeriesCachePostIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!chaptersEnabled || !userId) {
-      setChapterUserPosts([])
+    if (typeof window === 'undefined') return
+
+    setSeriesDraftCacheLoaded(false)
+    const previousPostId = prevSeriesCachePostIdRef.current
+    prevSeriesCachePostIdRef.current = effectivePostId
+    prevSeriesContextKeyRef.current = undefined
+
+    if (!effectivePostId) {
+      if (previousPostId) setSeriesDraftCache({})
+      setSeriesDraftCacheLoaded(true)
       return
     }
-    let cancelled = false
-    supabase
-      .from('posts')
-      .select('id, slug, title')
-      .eq('author_id', userId)
-      .eq('status', 'published')
-      .order('published_at', { ascending: false, nullsFirst: false })
-      .limit(50)
-      .then(({ data }) => {
-        if (cancelled) return
-        setChapterUserPosts((data ?? []) as Array<{ id: string; slug: string; title: string }>)
+
+    const stored = parseSeriesDraftCache(window.localStorage.getItem(buildSeriesDraftCacheStorageKey(effectivePostId)))
+
+    if (Object.keys(stored).length > 0) {
+      setSeriesDraftCache(stored)
+      setSeriesDraftCacheLoaded(true)
+      return
+    }
+
+    if (!previousPostId) {
+      setSeriesDraftCacheLoaded(true)
+      return
+    }
+
+    setSeriesDraftCache({})
+    setSeriesDraftCacheLoaded(true)
+  }, [effectivePostId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!effectivePostId || !seriesDraftCacheLoaded) return
+
+    const storageKey = buildSeriesDraftCacheStorageKey(effectivePostId)
+    if (Object.keys(seriesDraftCache).length === 0) {
+      window.localStorage.removeItem(storageKey)
+      return
+    }
+
+    window.localStorage.setItem(storageKey, JSON.stringify(seriesDraftCache))
+  }, [effectivePostId, seriesDraftCache, seriesDraftCacheLoaded])
+
+  useEffect(() => {
+    if (!seriesContextReady || !seriesDraftCacheLoaded) return
+
+    const currentData = extractRelatedPostsData(contentJson)
+    const prevKey = prevSeriesContextKeyRef.current
+
+    if (prevKey === undefined) {
+      if (currentSeriesContextKey) {
+        const cached = seriesDraftCache[currentSeriesContextKey]
+        if (!hasRelatedPosts(currentData) && cached && hasRelatedPosts(cached)) {
+          prevSeriesContextKeyRef.current = currentSeriesContextKey
+          setContentJson(prev => applyRelatedPostsData(prev, cached))
+          return
+        }
+      }
+
+      prevSeriesContextKeyRef.current = currentSeriesContextKey
+      return
+    }
+
+    if (prevKey === currentSeriesContextKey) return
+
+    if (prevKey) {
+      setSeriesDraftCache(prev => {
+        const existing = prev[prevKey]
+        if (hasRelatedPosts(currentData)) {
+          if (existing && sameRelatedPostsData(existing, currentData)) return prev
+          return { ...prev, [prevKey]: currentData }
+        }
+        if (!existing) return prev
+        const next = { ...prev }
+        delete next[prevKey]
+        return next
       })
+    }
+
+    const nextData = currentSeriesContextKey ? (seriesDraftCache[currentSeriesContextKey] ?? { postIds: [], hasIntro: false }) : { postIds: [], hasIntro: false }
+
+    prevSeriesContextKeyRef.current = currentSeriesContextKey
+
+    if (!sameRelatedPostsData(currentData, nextData)) {
+      setContentJson(prev => applyRelatedPostsData(prev, nextData))
+    }
+  }, [seriesContextReady, seriesDraftCacheLoaded, currentSeriesContextKey, seriesDraftCache, contentJson])
+
+  useEffect(() => {
+    if (!currentSeriesContextKey || !seriesContextReady || !seriesDraftCacheLoaded) return
+
+    const currentData = extractRelatedPostsData(contentJson)
+    setSeriesDraftCache(prev => {
+      const existing = prev[currentSeriesContextKey]
+      if (hasRelatedPosts(currentData)) {
+        if (existing && sameRelatedPostsData(existing, currentData)) return prev
+        return { ...prev, [currentSeriesContextKey]: currentData }
+      }
+      if (!existing) return prev
+      const next = { ...prev }
+      delete next[currentSeriesContextKey]
+      return next
+    })
+  }, [contentJson, currentSeriesContextKey, seriesContextReady, seriesDraftCacheLoaded])
+
+  useEffect(() => {
+    if (!seriesEnabled || !userId || channelId == null || subcategoryTagId == null) {
+      setChapterUserPosts([])
+      setChapterUserPostsLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setChapterUserPostsLoading(true)
+
+    const loadSeriesPosts = async () => {
+      const { data } = await supabase
+        .from('posts')
+        .select('id, slug, title')
+        .eq('author_id', userId)
+        .eq('status', 'published')
+        .eq('channel_id', channelId)
+        .eq('subcategory_tag_id', subcategoryTagId)
+        .order('published_at', { ascending: false, nullsFirst: false })
+        .limit(50)
+
+      if (cancelled) return
+      setChapterUserPosts((data ?? []) as Array<{ id: string; slug: string; title: string }>)
+      setChapterUserPostsLoading(false)
+    }
+
+    loadSeriesPosts()
+      .catch(() => {
+        if (cancelled) return
+        setChapterUserPosts([])
+        setChapterUserPostsLoading(false)
+      })
+
     return () => { cancelled = true }
-  }, [chaptersEnabled, userId])
+  }, [seriesEnabled, userId, channelId, subcategoryTagId])
 
   // Track "dirty" state for edit-mode (published) so Cancel can truly discard changes
   const [initialSnapshot, setInitialSnapshot] = useState<string | null>(null)
@@ -283,7 +460,20 @@ export default function WritePage() {
   }, [shouldWarnNavigation])
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSyncedTagsRef = useRef<{ postId: string | null; signature: string }>({ postId: null, signature: '' })
   const hasLoadedDraftOnce = useRef(false)
+  const localDraftHydrationRef = useRef<string | null>(null)
+  const latestDraftStateRef = useRef({
+    title: '',
+    excerpt: '',
+    contentJson: EMPTY_DOC as JSONContent,
+    channelId: null as number | null,
+    subcategoryTagId: null as number | null,
+    selectedTagIds: [] as number[],
+    coverUrl: null as string | null,
+    coverStoragePath: null as string | null,
+    coverSource: null as string | null,
+  })
   /**
    * Monotonically-increasing save counter.
    * Every autosave request captures `mySeq = ++saveSeqRef.current` at start.
@@ -309,6 +499,20 @@ export default function WritePage() {
   const [highlightChannel, setHighlightChannel] = useState(false)
   const [highlightSubcategory, setHighlightSubcategory] = useState(false)
   const [highlightTags, setHighlightTags] = useState(false)
+
+  useEffect(() => {
+    latestDraftStateRef.current = {
+      title,
+      excerpt,
+      contentJson,
+      channelId,
+      subcategoryTagId,
+      selectedTagIds,
+      coverUrl,
+      coverStoragePath,
+      coverSource,
+    }
+  }, [title, excerpt, contentJson, channelId, subcategoryTagId, selectedTagIds, coverUrl, coverStoragePath, coverSource])
   // --- Auth guard
   useEffect(() => {
     const run = async () => {
@@ -355,7 +559,7 @@ export default function WritePage() {
 
   // Apply URL presets (channel/subcategory) deterministically on navigation.
 // We intentionally do NOT auto-select a subcategory unless it was explicitly provided in the URL.
-const presetKey = `${channelParam ?? ''}|${subcategoryParam ?? ''}|${activeIdFromUrl ?? ''}`
+const presetKey = `${channelParam ?? ''}|${subcategoryParam ?? ''}`
 
 useEffect(() => {
   if (!channels.length) return
@@ -363,10 +567,10 @@ useEffect(() => {
   if (nextChannel != null) setChannelId(nextChannel)
 
   // If we have a channel preset but no explicit subcategory, keep it unselected ("בחר תת־קטגוריה")
-  if (channelParam && !subcategoryParam) {
+  if (channelParam && !subcategoryParam && !effectivePostId) {
     setSubcategoryTagId(null)
   }
-}, [presetKey, channels, channelParam, subcategoryParam, activeIdFromUrl])
+}, [presetKey, channels, channelParam, subcategoryParam, effectivePostId])
 
 
 
@@ -494,42 +698,58 @@ useEffect(() => {
       }
 
       const d = post as DraftRow
+      const latestDraftState = latestDraftStateRef.current
+      const isLocallyCreatedDraft = localDraftHydrationRef.current === d.id
+      const resolvedChannelId = resolveChannelIdFromParam(channelParam, channels) ?? d.channel_id
       setLoadedStatus(d.status)
 
       setDraftSlug(d.slug)
-      // Keep placeholder visible when DB stores a "safe" title like a single space.
-      const loadedTitle = (d.title ?? '').toString()
-      setTitle(loadedTitle.trim() ? loadedTitle : '')
-      setExcerpt((d.excerpt ?? '').toString())
-      setContentJson((d.content_json as JSONContent) ?? EMPTY_DOC)
-      // Prefer URL preset over stored draft values (important for flows like /write?channel=magazine&...)
-      const urlChannelId = resolveChannelIdFromParam(channelParam, channels)
-      setChannelId(urlChannelId ?? d.channel_id)
-      // If we came with a channel preset (dropdown/home) but no explicit subcategory, keep subcategory unselected.
-      if (channelParam && !subcategoryParam) {
-        setSubcategoryTagId(null)
-      } else {
+      if (!isLocallyCreatedDraft || !latestDraftState.title.trim()) {
+        // Keep placeholder visible when DB stores a "safe" title like a single space.
+        const loadedTitle = (d.title ?? '').toString()
+        setTitle(loadedTitle.trim() ? loadedTitle : '')
+      }
+      if (!isLocallyCreatedDraft || !latestDraftState.excerpt.trim()) {
+        setExcerpt((d.excerpt ?? '').toString())
+      }
+      if (!isLocallyCreatedDraft || isEmptyDoc(latestDraftState.contentJson)) {
+        setContentJson((d.content_json as JSONContent) ?? EMPTY_DOC)
+      }
+      if (!isLocallyCreatedDraft || latestDraftState.channelId == null) {
+        setChannelId(resolvedChannelId)
+      }
+      if (!isLocallyCreatedDraft || latestDraftState.subcategoryTagId == null) {
         setSubcategoryTagId(d.subcategory_tag_id)
       }
       // Private cover paths can appear on drafts and on moderated/quarantined posts.
-      if (d.cover_image_url && !String(d.cover_image_url).startsWith('http')) {
+      if ((!isLocallyCreatedDraft || (!latestDraftState.coverStoragePath && !latestDraftState.coverUrl)) && d.cover_image_url && !String(d.cover_image_url).startsWith('http')) {
         const path = String(d.cover_image_url)
         setCoverStoragePath(path)
         const { data: signed } = await supabase.storage
           .from('post-assets')
           .createSignedUrl(path, PRIVATE_DRAFT_MEDIA_URL_TTL_SECONDS)
         setCoverUrl(signed?.signedUrl ?? null)
-      } else {
+      } else if (!isLocallyCreatedDraft || (!latestDraftState.coverStoragePath && !latestDraftState.coverUrl)) {
         setCoverStoragePath(null)
         setCoverUrl(d.cover_image_url)
       }
-      setCoverSource(d.cover_source)
+      if (!isLocallyCreatedDraft || !latestDraftState.coverSource) {
+        setCoverSource(d.cover_source)
+      }
       setLastSavedAt(d.updated_at)
-      setAutoCoverUsed(d.cover_source === 'pixabay')
+      if (!isLocallyCreatedDraft || !latestDraftState.coverSource) {
+        setAutoCoverUsed(d.cover_source === 'pixabay')
+      }
 
       const { data: tagRows } = await supabase.from('post_tags').select('tag_id').eq('post_id', d.id)
       const loadedTagIds = (tagRows ?? []).map(r => r.tag_id)
-      setSelectedTagIds(loadedTagIds)
+      if (!isLocallyCreatedDraft || latestDraftState.selectedTagIds.length === 0) {
+        setSelectedTagIds(loadedTagIds)
+      }
+      lastSyncedTagsRef.current = {
+        postId: d.id,
+        signature: getSortedTagSignature(loadedTagIds),
+      }
 
       setInitialSnapshot(
         snapshotOf({
@@ -539,20 +759,29 @@ useEffect(() => {
           // Snapshot compares what we store in DB; drafts store path, published stores public URL.
           coverUrl: d.status === 'draft' ? d.cover_image_url : d.cover_image_url,
           coverSource: d.cover_source,
-          channelId: d.channel_id,
+          channelId: resolvedChannelId,
           subcategoryTagId: d.subcategory_tag_id,
           selectedTagIds: loadedTagIds,
         })
       )
 
+      if (isLocallyCreatedDraft) localDraftHydrationRef.current = null
       hasLoadedDraftOnce.current = true
     }
 
     void loadDraft()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- draft load on mount/id change only
   }, [effectivePostId, userId, channels, channelParam])
 
-  const ensureDraft = useCallback(async (): Promise<{ id: string; slug: string } | null> => {
+  const ensureDraft = useCallback(async (overrides?: {
+    title?: string
+    excerpt?: string
+    contentJson?: JSONContent
+    channelId?: number | null
+    subcategoryTagId?: number | null
+    coverUrl?: string | null
+    coverStoragePath?: string | null
+    coverSource?: string | null
+  }): Promise<{ id: string; slug: string } | null> => {
     if (!userId) return null
     const { data: { session: _s } } = await supabase.auth.getSession()
     if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return null }
@@ -565,7 +794,7 @@ useEffect(() => {
 
 
     // ✅ channel_id is NOT NULL — make sure we always have one before insert
-let effectiveChannelId = channelId
+    let effectiveChannelId = overrides?.channelId ?? channelId
 
 // Prefer URL preset if provided
 const urlPresetChannelId = resolveChannelIdFromParam(channelParam, channels)
@@ -606,9 +835,16 @@ if (!effectiveChannelId) {
         : `${Date.now()}-${Math.random().toString(16).slice(2)}`
     // posts.title is NOT NULL. We allow an "empty" UI title while keeping DB valid by storing a single space.
     // On publish we still enforce a real title.
-    const dbTitle = title.trim() ? title.trim() : ' '
+    const draftTitle = overrides?.title ?? title
+    const draftExcerpt = overrides?.excerpt ?? excerpt
+    const draftContentJson = overrides?.contentJson ?? contentJson
+    const draftCoverUrl = overrides?.coverUrl ?? coverUrl
+    const draftCoverStoragePath = overrides?.coverStoragePath ?? coverStoragePath
+    const draftCoverSource = overrides?.coverSource ?? coverSource
+    const dbTitle = draftTitle.trim() ? draftTitle.trim() : ' '
 
     const effectiveSubcategoryTagId: number | null = (() => {
+      if (overrides?.subcategoryTagId != null) return overrides.subcategoryTagId
       if (subcategoryTagId != null) return subcategoryTagId
       const urlSub = resolveSubcategoryIdFromParam(subcategoryParam, subcategoryOptions)
       return urlSub
@@ -620,15 +856,15 @@ if (!effectiveChannelId) {
 
         slug,
         title: dbTitle,
-        excerpt: excerpt.trim() || null,
-        content_json: contentJson,
+        excerpt: draftExcerpt.trim() || null,
+        content_json: draftContentJson,
         channel_id: effectiveChannelId,
                 subcategory_tag_id: effectiveSubcategoryTagId,
 
         author_id: userId,
         status: 'draft',
-        cover_image_url: coverUrl,
-        cover_source: coverSource,
+        cover_image_url: draftCoverStoragePath ?? draftCoverUrl,
+        cover_source: draftCoverSource,
       })
       .select('id, slug')
       .single()
@@ -640,6 +876,7 @@ if (!effectiveChannelId) {
 
     setCreatedDraftId(created.id)
     setDraftSlug(created.slug)
+    localDraftHydrationRef.current = created.id
     const params = new URLSearchParams(searchParams.toString())
     params.set('draft', created.id)
     router.replace(`/write?${params.toString()}`)
@@ -661,26 +898,51 @@ if (!effectiveChannelId) {
     subcategoryParam,
     searchParams,
     coverUrl,
+    coverStoragePath,
     coverSource,
     router,
   ])
 
   const syncTags = useCallback(
-    async (postId: string) => {
-      if (settingsLocked) return
-      await supabase.from('post_tags').delete().eq('post_id', postId)
-      if (selectedTagIds.length === 0) return
-      await supabase.from('post_tags').insert(selectedTagIds.map(tag_id => ({ post_id: postId, tag_id })))
+    async (postId: string, tagIdsOverride?: number[]) => {
+      if (settingsLocked) return true
+
+      const nextTagIds = tagIdsOverride ?? selectedTagIds
+      const nextTagSignature = getSortedTagSignature(nextTagIds)
+      const previousSync = lastSyncedTagsRef.current
+      if (previousSync.postId === postId && previousSync.signature === nextTagSignature) {
+        return true
+      }
+
+      const { error: deleteError } = await supabase.from('post_tags').delete().eq('post_id', postId)
+      if (deleteError) {
+        setErrorMsg(mapSupabaseError(deleteError) ?? deleteError.message)
+        return false
+      }
+
+      if (nextTagIds.length > 0) {
+        const { error: insertError } = await supabase
+          .from('post_tags')
+          .insert(nextTagIds.map(tag_id => ({ post_id: postId, tag_id })))
+        if (insertError) {
+          setErrorMsg(mapSupabaseError(insertError) ?? insertError.message)
+          return false
+        }
+      }
+
+      lastSyncedTagsRef.current = { postId, signature: nextTagSignature }
+      return true
     },
     [selectedTagIds, settingsLocked]
   )
 
   const upsertDraftSilently = useCallback(async () => {
     if (!userId) return
+    if (isPublishing) return
     const { data: { session: _s } } = await supabase.auth.getSession()
     if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
 
-    const isEmpty = !title.trim() && !excerpt.trim() && JSON.stringify(contentJson) === JSON.stringify(EMPTY_DOC)
+    const isEmpty = !title.trim() && !excerpt.trim() && isEmptyDoc(contentJson)
     if (isEmpty && !effectivePostId && !isEditMode) return
 
     // Capture a seq token. Any response-side setState below is gated on this
@@ -717,7 +979,7 @@ if (!effectiveChannelId) {
           return
         }
 
-        if (!settingsLocked) await syncTags(effectivePostId)
+        if (!settingsLocked && !(await syncTags(effectivePostId))) return
         // Only update lastSavedAt if no newer save has started since ours
         if (mySeq === saveSeqRef.current) setLastSavedAt(new Date().toISOString())
         return
@@ -748,7 +1010,7 @@ if (!effectiveChannelId) {
         return
       }
 
-      await syncTags(id)
+      if (!(await syncTags(id))) return
       // Only update meta if this is still the latest save response
       if (mySeq === saveSeqRef.current) setLastSavedAt(new Date().toISOString())
     } finally {
@@ -772,6 +1034,7 @@ if (!effectiveChannelId) {
     coverSource,
     syncTags,
     isEditMode,
+    isPublishing,
     settingsLocked,
   ])
 
@@ -789,7 +1052,7 @@ if (!effectiveChannelId) {
 
     autosaveTimer.current = setTimeout(() => {
       void upsertDraftSilently()
-    }, 900)
+    }, DRAFT_AUTOSAVE_DEBOUNCE_MS)
 
     return () => {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
@@ -902,7 +1165,7 @@ if (!effectiveChannelId) {
 
     if (uploadErr) {
       setIsCoverLoading(false)
-      setErrorMsg(uploadErr.message)
+      setErrorMsg(mapSupabaseError(uploadErr) ?? uploadErr.message)
       return
     }
 
@@ -1054,16 +1317,45 @@ if (!effectiveChannelId) {
   }
 
   const publish = async () => {
-    if (saving || publishingRef.current) return
+    if (saving || publishingRef.current || isPublishing) return
     if (!userId) return
     const { data: { session: _pubSession } } = await supabase.auth.getSession()
     if (!_pubSession) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
     publishingRef.current = true
+    setIsPublishing(true)
     try {
+      const publishChannelId = (() => {
+        const domValue = channelSelectRef.current?.value
+        if (domValue) return Number(domValue)
+        return channelId
+      })()
+      const publishSubcategoryTagId = (() => {
+        const domValue = subcategorySelectRef.current?.value
+        if (domValue) return Number(domValue)
+        return subcategoryTagId
+      })()
+      const publishSelectedTagIds = [...selectedTagIds]
+      const publishTitle = title.trim()
+      const publishExcerpt = excerpt.trim()
+      const publishContentJson: JSONContent = seriesEnabled
+        ? contentJson
+        : stripRelatedPosts(contentJson)
+      const publishVisibleTextLen = extractTextFromDoc(contentJson).replace(/\s/g, '').length
+      const publishSnapshot = {
+        title: publishTitle,
+        excerpt: publishExcerpt,
+        contentJson: publishContentJson,
+        channelId: publishChannelId,
+        subcategoryTagId: publishSubcategoryTagId,
+        selectedTagIds: publishSelectedTagIds,
+        coverUrl,
+        coverStoragePath,
+        coverSource,
+      }
 
     // === Common validations (both edit and publish modes) ===
 
-    if (title.trim().length > TITLE_MAX) {
+    if (publishSnapshot.title.length > TITLE_MAX) {
       toast(`הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`, 'error')
       titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       titleInputRef.current?.focus({ preventScroll: true })
@@ -1083,12 +1375,12 @@ if (!effectiveChannelId) {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     setSavePending(false)
 
-    let activeCoverStoragePath = coverStoragePath
-    let activeCoverSource = coverSource
+    let activeCoverStoragePath = publishSnapshot.coverStoragePath
+    let activeCoverSource = publishSnapshot.coverSource
 
     const promoteCoverIfNeeded = async (opts: { postId: string; postSlug: string }) => {
       // Promote any cover stored in private post-assets (upload or pixabay).
-      if (!activeCoverStoragePath) return { publicUrl: coverUrl, source: activeCoverSource }
+      if (!activeCoverStoragePath) return { publicUrl: publishSnapshot.coverUrl, source: activeCoverSource }
 
       // Promote through the server route so oversized covers can be compressed safely.
       const { data: { session } } = await supabase.auth.getSession()
@@ -1113,7 +1405,7 @@ if (!effectiveChannelId) {
         throw new Error(json.error ?? 'לא הצלחתי להעביר את הקאבר')
       }
 
-      const publicUrl = json.publicUrl ?? coverUrl
+      const publicUrl = json.publicUrl ?? publishSnapshot.coverUrl
       return { publicUrl, source: activeCoverSource }
     }
 
@@ -1123,7 +1415,7 @@ if (!effectiveChannelId) {
       setErrorMsg(null)
 
       try {
-        if (!coverUrl && !coverStoragePath) {
+        if (!publishSnapshot.coverUrl && !publishSnapshot.coverStoragePath) {
           toast('לפוסט מפורסם חייב להיות קאבר. בחר/י תמונה לפני השמירה.', 'error')
           coverAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
           setHighlightCover(true)
@@ -1133,7 +1425,7 @@ if (!effectiveChannelId) {
         }
 
         const promoted = await promoteCoverIfNeeded({ postId: effectivePostId, postSlug: draftSlug ?? '' })
-        if (promoted.publicUrl && promoted.publicUrl !== coverUrl) {
+        if (promoted.publicUrl && promoted.publicUrl !== publishSnapshot.coverUrl) {
           setCoverUrl(promoted.publicUrl)
           setCoverStoragePath(null)
           setCoverSource(promoted.source)
@@ -1142,9 +1434,9 @@ if (!effectiveChannelId) {
         const { error } = await supabase
           .from('posts')
           .update({
-            title: title.trim() ? title.trim() : ' ',
-            excerpt: excerpt.trim() || null,
-            content_json: contentJson,
+            title: publishSnapshot.title ? publishSnapshot.title : ' ',
+            excerpt: publishSnapshot.excerpt || null,
+            content_json: publishSnapshot.contentJson,
             cover_image_url: promoted.publicUrl,
             cover_source: promoted.source,
             updated_at: new Date().toISOString(),
@@ -1191,7 +1483,7 @@ if (!effectiveChannelId) {
     // === Publish-mode validations ===
 
     // Title required
-    if (!title.trim()) {
+    if (!publishSnapshot.title) {
       toast('כותרת היא חובה', 'error')
       titleInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       titleInputRef.current?.focus({ preventScroll: true })
@@ -1201,8 +1493,7 @@ if (!effectiveChannelId) {
     }
 
     // Content minimum: at least 5 non-whitespace characters
-    const visibleTextLen = extractTextFromDoc(contentJson).replace(/\s/g, '').length
-    if (visibleTextLen < 5) {
+    if (publishVisibleTextLen < 5) {
       toast('הטקסט קצר מדי – כתוב/י לפחות כמה מילים לפני שמפרסמים', 'error')
       contentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       setHighlightContent(true)
@@ -1213,23 +1504,22 @@ if (!effectiveChannelId) {
     // Channel / subcategory / tags — open settings and highlight missing fields
     {
       let hasSettingsError = false
-      if (!channelId) {
+      if (!publishSnapshot.channelId) {
         setHighlightChannel(true)
         setTimeout(() => setHighlightChannel(false), 2500)
         hasSettingsError = true
       }
-      if (!subcategoryTagId) {
+      if (!publishSnapshot.subcategoryTagId) {
         setHighlightSubcategory(true)
         setTimeout(() => setHighlightSubcategory(false), 2500)
         hasSettingsError = true
-      } else if (!subcategoryOptions.some(sc => sc.id === subcategoryTagId)) {
+      } else if (!subcategoryOptions.some(sc => sc.id === publishSnapshot.subcategoryTagId)) {
         // תת-קטגוריה לא שייכת לערוץ הנוכחי (ערך ישן מערוץ קודם)
-        setSubcategoryTagId(null)
         setHighlightSubcategory(true)
         setTimeout(() => setHighlightSubcategory(false), 2500)
         hasSettingsError = true
       }
-      if (selectedTagIds.length < 1) {
+      if (publishSnapshot.selectedTagIds.length < 1) {
         setHighlightTags(true)
         setTimeout(() => setHighlightTags(false), 2500)
         hasSettingsError = true
@@ -1247,27 +1537,60 @@ if (!effectiveChannelId) {
     setSaving(true)
     setErrorMsg(null)
 
-    const created = await ensureDraft()
+    const created = await ensureDraft({
+      title: publishSnapshot.title,
+      excerpt: publishSnapshot.excerpt,
+      contentJson: publishSnapshot.contentJson,
+      channelId: publishSnapshot.channelId,
+      subcategoryTagId: publishSnapshot.subcategoryTagId,
+      coverUrl: publishSnapshot.coverUrl,
+      coverStoragePath: publishSnapshot.coverStoragePath,
+      coverSource: publishSnapshot.coverSource,
+    })
     if (!created) {
       setSaving(false)
       return
     }
 
-    await upsertDraftSilently()
+    const { error: draftSyncError } = await supabase
+      .from('posts')
+      .update({
+        title: publishSnapshot.title,
+        excerpt: publishSnapshot.excerpt || null,
+        content_json: publishSnapshot.contentJson,
+        channel_id: publishSnapshot.channelId,
+        subcategory_tag_id: publishSnapshot.subcategoryTagId,
+        cover_image_url: publishSnapshot.coverStoragePath ?? publishSnapshot.coverUrl,
+        cover_source: publishSnapshot.coverSource,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', created.id)
+      .eq('author_id', userId)
+
+    if (draftSyncError) {
+      setErrorMsg(mapSupabaseError(draftSyncError) ?? draftSyncError.message)
+      setSaving(false)
+      return
+    }
+
+    if (!(await syncTags(created.id, publishSnapshot.selectedTagIds))) {
+      setSaving(false)
+      return
+    }
 
     // Generate a human-readable slug from the final title at publish time.
     // Drafts keep their UUID slug; only published posts get a readable one.
-    const baseSlug = generatePostSlug(title.trim())
+    const baseSlug = generatePostSlug(publishSnapshot.title)
     const finalSlug = await resolveUniquePostSlug(supabase, baseSlug, created.id)
 
-    let finalCoverUrl = coverUrl
-    let finalCoverSource = coverSource
+    let finalCoverUrl = publishSnapshot.coverUrl
+    let finalCoverSource = publishSnapshot.coverSource
 
     if (!finalCoverUrl) {
       // Scroll to cover area and show loading state while auto-importing
       coverAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       setIsCoverLoading(true)
-      const auto = await fetchAutoCoverUrl(title.trim(), created.id)
+      const auto = await fetchAutoCoverUrl(publishSnapshot.title, created.id)
       setIsCoverLoading(false)
       if (!auto) {
         setErrorMsg('לא הצלחתי לבחור תמונה אוטומטית. נסה שוב או העלה תמונה ידנית.')
@@ -1290,7 +1613,7 @@ if (!effectiveChannelId) {
       const promoted = await promoteCoverIfNeeded({ postId: created.id, postSlug: created.slug })
       finalCoverUrl = promoted.publicUrl
       finalCoverSource = promoted.source
-      if (promoted.publicUrl && promoted.publicUrl !== coverUrl) {
+      if (promoted.publicUrl && promoted.publicUrl !== publishSnapshot.coverUrl) {
         setCoverUrl(promoted.publicUrl)
         setCoverStoragePath(null)
         setCoverSource(promoted.source)
@@ -1301,20 +1624,15 @@ if (!effectiveChannelId) {
       return
     }
 
-    // Strip relatedPosts/serial attrs if we are NOT in serial-story mode (safety net for any stale state)
-    const publishContentJson: JSONContent = chaptersEnabled
-      ? contentJson
-      : { ...contentJson, content: (contentJson.content ?? []).filter(n => n.type !== 'relatedPosts') }
-
     const { data: publishedRow, error } = await supabase
       .from('posts')
       .update({
         slug: finalSlug,
-        title: title.trim(),
-        excerpt: excerpt.trim() || null,
-        content_json: publishContentJson,
-        channel_id: channelId,
-        subcategory_tag_id: subcategoryTagId,
+        title: publishSnapshot.title,
+        excerpt: publishSnapshot.excerpt || null,
+        content_json: publishSnapshot.contentJson,
+        channel_id: publishSnapshot.channelId,
+        subcategory_tag_id: publishSnapshot.subcategoryTagId,
         cover_image_url: finalCoverUrl,
         cover_source: finalCoverSource,
         status: 'published',
@@ -1358,6 +1676,7 @@ if (!effectiveChannelId) {
 
     } finally {
       publishingRef.current = false
+      setIsPublishing(false)
     }
   }
 
@@ -1396,7 +1715,11 @@ if (!effectiveChannelId) {
             </div>
           </div>
           <div className="text-left">
-            <div className="text-xs text-muted-foreground">{savingText}</div>
+            <div className="text-xs text-muted-foreground">
+              {isPublishing
+                ? (settingsLocked ? 'שומר שינויים...' : 'מפרסם...')
+                : savingText}
+            </div>
             {effectivePostId ? (
               <div className="mt-1 text-xs text-muted-foreground">
                 {loadedStatus === 'published' ? 'פוסט:' : 'טיוטה:'} {effectivePostId.slice(0, 8)}…
@@ -1437,18 +1760,20 @@ if (!effectiveChannelId) {
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
+                  disabled={uiLocked}
                   onClick={chooseAutoCover}
-                  className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
+                  className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-card dark:border-border dark:hover:bg-muted"
                 >
                   {autoCoverUsed || coverSource === 'pixabay' ? 'החלף תמונה אוטומטית' : 'בחר קאבר אוטומטית'}
                 </button>
 
-                <label className="cursor-pointer rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted">
+                <label className={`rounded-full border bg-white px-3 py-1.5 text-sm dark:bg-card dark:border-border dark:hover:bg-muted ${uiLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-neutral-50'}`}>
                   העלה תמונה
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/gif,image/webp"
                     className="hidden"
+                    disabled={uiLocked}
                     onChange={e => {
                       const file = e.target.files?.[0]
                       if (file) void handlePickCoverFile(file)
@@ -1460,8 +1785,9 @@ if (!effectiveChannelId) {
                 {coverUrl ? (
                   <button
                     type="button"
+                    disabled={uiLocked}
                     onClick={() => void removeCover()}
-                    className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
+                    className="rounded-full border bg-white px-3 py-1.5 text-sm hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-card dark:border-border dark:hover:bg-muted"
                   >
                     הסר
                   </button>
@@ -1487,6 +1813,7 @@ if (!effectiveChannelId) {
               <input
                 ref={titleInputRef}
                 value={title}
+                disabled={uiLocked}
                 onChange={e => setTitle(e.target.value.slice(0, TITLE_MAX))}
                 maxLength={TITLE_MAX}
                 placeholder="תן שם לכותרת..."
@@ -1501,13 +1828,14 @@ if (!effectiveChannelId) {
               </div>
               <textarea
                 value={excerpt}
+                disabled={uiLocked}
                 onChange={e => setExcerpt(clampExcerpt(e.target.value))}
                 placeholder="משפט או שניים שמושכים לקריאה…"
                 rows={3}
                 className="mt-2 w-full resize-none rounded-2xl border px-4 py-3 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10 bg-background text-foreground dark:border-border dark:focus:ring-white/10"
               />
 
-              <details ref={settingsDetailsRef} className="mt-4 rounded-2xl border bg-neutral-50 p-4 dark:bg-muted/50 dark:border-border" open={settingsLocked ? false : undefined}>
+              <details ref={settingsDetailsRef} className={`mt-4 rounded-2xl border bg-neutral-50 p-4 dark:bg-muted/50 dark:border-border ${uiLocked ? 'pointer-events-none opacity-70' : ''}`} open={settingsLocked ? false : undefined}>
                 <summary className="cursor-pointer text-sm font-medium">
                   הגדרות (ערוץ · תת־קטגוריה · תגיות){settingsLocked ? ' — נעול' : ''}
                 </summary>
@@ -1523,7 +1851,7 @@ if (!effectiveChannelId) {
                     <label className="block text-sm font-medium">ערוץ</label>
                     <select
                       ref={channelSelectRef}
-                      disabled={settingsLocked}
+                      disabled={settingsLocked || uiLocked}
                       value={channelId ?? ''}
                       onChange={e => {
                         const next = Number(e.target.value)
@@ -1545,7 +1873,7 @@ if (!effectiveChannelId) {
                     <label className="block text-sm font-medium">תת־קטגוריה</label>
                     <select
                       ref={subcategorySelectRef}
-                      disabled={settingsLocked}
+                      disabled={settingsLocked || uiLocked}
                       value={subcategoryTagId ?? ''}
                       onChange={e => {
                         const v = e.target.value
@@ -1593,7 +1921,7 @@ if (!effectiveChannelId) {
                         <button
                           key={t.id}
                           type="button"
-                          disabled={settingsLocked}
+                          disabled={settingsLocked || uiLocked}
                           onClick={() => toggleTag(t.id)}
                           className={
                             'rounded-full border px-3 py-1.5 text-sm transition disabled:opacity-60 ' +
@@ -1623,7 +1951,17 @@ if (!effectiveChannelId) {
               </div>
             </div>
           </div>
-          <Editor value={contentJson} onChange={setContentJson} postId={effectivePostId} userId={userId} chaptersEnabled={chaptersEnabled} userPosts={chapterUserPosts} currentDraft={currentDraftForChapters} />
+          <Editor
+            value={contentJson}
+            onChange={setContentJson}
+            postId={effectivePostId}
+            userId={userId}
+            seriesConfig={currentSeriesConfig}
+            seriesPostsLoading={chapterUserPostsLoading}
+            userPosts={chapterUserPosts}
+            currentDraft={currentDraftForSeries}
+            disabled={uiLocked}
+          />
         </section>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -1643,6 +1981,7 @@ if (!effectiveChannelId) {
             {isEditMode ? (
               <button
                 type="button"
+                disabled={uiLocked}
                 onClick={() => {
                   if (shouldWarnNavigation) {
                     const ok = confirm('לבטל ולזרוק את השינויים שלא נשמרו?')
@@ -1653,13 +1992,14 @@ if (!effectiveChannelId) {
                   if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') return router.push(`/post/${draftSlug}`)
                   router.push('/notebook')
                 }}
-                className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
+                className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-card dark:border-border dark:hover:bg-muted"
               >
                 ביטול שינויים
               </button>
             ) : (
               <button
                 type="button"
+                disabled={uiLocked}
                 onClick={() => {
                   if (shouldWarnNavigation) {
                     const ok = confirm('יש לך טקסט שלא נשמר עדיין. לצאת בכל זאת?')
@@ -1667,7 +2007,7 @@ if (!effectiveChannelId) {
                   }
                   router.push('/notebook')
                 }}
-                className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted"
+                className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-card dark:border-border dark:hover:bg-muted"
               >
                 למחברת
               </button>
@@ -1676,7 +2016,7 @@ if (!effectiveChannelId) {
             <button
               type="button"
               onClick={() => void publish()}
-              disabled={saving}
+              disabled={saving || uiLocked}
               className="rounded-full bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-800 disabled:opacity-50"
             >
               {saving ? (settingsLocked ? 'שומר…' : 'מפרסם…') : settingsLocked ? 'שמור שינויים' : 'פרסם'}

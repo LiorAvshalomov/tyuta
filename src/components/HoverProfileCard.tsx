@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from './Avatar'
 import { patchPreviewCache, type UserPreview } from '@/lib/userPreviewCache'
+import { mapModerationRpcError, mapSupabaseError } from '@/lib/mapSupabaseError'
+import { useToast } from '@/components/Toast'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,7 @@ export default function HoverProfileCard({
   onMouseEnter: () => void
   onMouseLeave: () => void
 }) {
+  const { toast } = useToast()
   // Start hidden; useLayoutEffect positions + reveals before paint
   const [style, setStyle] = useState<React.CSSProperties>({
     position: 'fixed', visibility: 'hidden', width: CARD_W, zIndex: 9999,
@@ -100,7 +103,12 @@ export default function HoverProfileCard({
   async function doFollow() {
     if (!preview.viewer_id || !preview.id) return
     setFollowLoading(true)
-    await supabase.from('user_follows').insert({ follower_id: preview.viewer_id, following_id: preview.id })
+    const { error } = await supabase.from('user_follows').insert({ follower_id: preview.viewer_id, following_id: preview.id })
+    if (error) {
+      setFollowLoading(false)
+      toast(mapSupabaseError(error) ?? 'לא הצלחנו להתחיל לעקוב', 'error')
+      return
+    }
     setIsFollowing(true)
     setFollowLoading(false)
     setFollowersDelta(d => d + 1)
@@ -111,7 +119,12 @@ export default function HoverProfileCard({
   async function doUnfollow() {
     if (!preview.viewer_id || !preview.id) return
     setFollowLoading(true)
-    await supabase.from('user_follows').delete().eq('follower_id', preview.viewer_id).eq('following_id', preview.id)
+    const { error } = await supabase.from('user_follows').delete().eq('follower_id', preview.viewer_id).eq('following_id', preview.id)
+    if (error) {
+      setFollowLoading(false)
+      toast(mapSupabaseError(error) ?? 'לא הצלחנו להסיר מעקב', 'error')
+      return
+    }
     setIsFollowing(false)
     setFollowLoading(false)
     setConfirmUnfollow(false)
@@ -124,7 +137,13 @@ export default function HoverProfileCard({
     setMsgLoading(true)
     const { data: convId, error } = await supabase.rpc('start_conversation', { other_user_id: preview.id })
     setMsgLoading(false)
-    if (error || !convId) return
+    if (error || !convId) {
+      const friendly = error
+        ? mapSupabaseError(error) ?? mapModerationRpcError(error.message ?? '')
+        : null
+      toast(friendly ?? 'לא הצלחנו לפתוח שיחה', 'error')
+      return
+    }
     onClose()
     router.push(`/inbox/${convId}`)
   }

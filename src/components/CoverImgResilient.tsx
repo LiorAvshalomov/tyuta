@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { isGifUrl } from '@/lib/coverUrl'
 
 interface CoverImgResilientProps {
   src: string
@@ -30,6 +31,7 @@ export default function CoverImgResilient({
   quality,
   className,
 }: CoverImgResilientProps) {
+  const isAnimatedGif = isGifUrl(src)
   const [unoptimized, setUnoptimized] = useState(false)
 
   return (
@@ -41,9 +43,9 @@ export default function CoverImgResilient({
       sizes={sizes}
       quality={quality}
       className={className}
-      unoptimized={unoptimized}
+      unoptimized={isAnimatedGif || unoptimized}
       onError={() => {
-        if (!unoptimized) setUnoptimized(true)
+        if (!isAnimatedGif && !unoptimized) setUnoptimized(true)
       }}
     />
   )

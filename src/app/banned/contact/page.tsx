@@ -7,7 +7,7 @@ import ChatClient from '@/components/ChatClient'
 import Avatar from '@/components/Avatar'
 import { getSupportConversationId, setSupportConversationId } from '@/lib/moderation'
 import { supabase } from '@/lib/supabaseClient'
-import { mapModerationRpcError } from '@/lib/mapSupabaseError'
+import { mapModerationRpcError, mapSupabaseError } from '@/lib/mapSupabaseError'
 import { getResolvedSession } from '@/lib/auth/getResolvedSession'
 import { SYSTEM_AVATAR, SYSTEM_DISPLAY_NAME } from '@/lib/systemIdentity'
 
@@ -76,7 +76,7 @@ export default function BannedContactPage() {
       if (cancelled) return
 
       if (rpcError) {
-        const friendly = mapModerationRpcError(rpcError.message ?? '')
+        const friendly = mapSupabaseError(rpcError) ?? mapModerationRpcError(rpcError.message ?? '')
         setError(friendly ?? 'שגיאה ביצירת שיחה עם מערכת האתר.')
         setReady(true)
         return

@@ -100,56 +100,56 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
           router.push(`/post/${post.slug}`)
         }
       }}
-      className="cursor-pointer rounded-2xl border bg-white p-4 hover:shadow-sm dark:border-border dark:bg-card"
+      className="cursor-pointer overflow-hidden rounded-2xl border bg-white p-4 hover:shadow-sm dark:border-border dark:bg-card"
     >
-      <div className="flex min-h-[108px] flex-row-reverse items-stretch gap-4">
+      <div className="flex h-[120px] flex-row-reverse items-stretch gap-4 sm:h-[124px]">
         {coverSrc ? (
-          isGifUrl(coverSrc) ? (
-            <div className="w-28 shrink-0 self-stretch overflow-hidden rounded-xl">
+          <div className="relative h-full w-28 shrink-0 overflow-hidden rounded-xl bg-muted">
+            {isGifUrl(coverSrc) ? (
               <GifCoverCard src={coverSrc} alt="" />
-            </div>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={coverSrc} alt="" className="w-28 shrink-0 self-stretch rounded-xl object-cover" />
-          )
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={coverSrc} alt="" className="h-full w-full object-cover" />
+            )}
+          </div>
         ) : (
-          <div className="w-28 shrink-0 self-stretch rounded-xl bg-muted" />
+          <div className="h-full w-28 shrink-0 rounded-xl bg-muted" />
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col justify-between gap-1 overflow-hidden">
-          <div>
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <div className="flex min-w-0 flex-1 flex-col justify-between overflow-hidden">
+          <div className="min-w-0">
+            <div className="flex flex-nowrap items-center gap-1.5 overflow-hidden text-xs">
               {post.channel ? (
                 <FeedIntentLink
                   href={`/c/${post.channel.slug}`}
                   onClick={(event) => event.stopPropagation()}
-                  className={`rounded-full border px-2 py-0.5 font-medium transition-opacity hover:opacity-80 ${channelBadgeColor(post.channel.slug)}`}
+                  className={`shrink-0 rounded-full border px-2 py-0.5 font-medium transition-opacity hover:opacity-80 ${channelBadgeColor(post.channel.slug)}`}
                 >
                   {post.channel.name_he}
                 </FeedIntentLink>
               ) : null}
 
               {post.subcategory?.name_he ? (
-                <span className="rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-muted-foreground">
+                <span className="truncate rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-muted-foreground">
                   {post.subcategory.name_he}
                 </span>
               ) : null}
             </div>
 
-            <div className="mt-2 line-clamp-2 cursor-pointer text-base font-bold leading-snug tyuta-hover">
+            <div className="mt-2 min-h-[2.6em] line-clamp-2 cursor-pointer text-base font-bold leading-snug tyuta-hover">
               {post.title}
             </div>
           </div>
 
           {post.excerpt ? (
-            <div className="mt-1 line-clamp-1 text-sm leading-relaxed text-muted-foreground">
+            <div className="min-h-[1.6em] line-clamp-1 text-sm leading-relaxed text-muted-foreground">
               {post.excerpt}
             </div>
           ) : (
-            <div />
+            <div className="min-h-[1.6em]" />
           )}
 
-          <div className="flex items-center justify-between gap-2 pt-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-2 pt-2 text-xs text-muted-foreground">
             {post.author?.username ? (
               <div className="min-w-0 flex-1 overflow-hidden [&>span]:max-w-full">
                 <AuthorHover username={post.author.username}>
@@ -333,8 +333,8 @@ export default function SearchPageClient({
         {isPending ? (
           Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="animate-pulse rounded-2xl border bg-white p-4 dark:border-border dark:bg-card">
-              <div className="flex flex-row-reverse items-start gap-4">
-                <div className="h-20 w-28 shrink-0 rounded-xl bg-neutral-200 dark:bg-muted" />
+              <div className="flex h-[120px] flex-row-reverse items-stretch gap-4 sm:h-[124px]">
+                <div className="h-full w-28 shrink-0 rounded-xl bg-neutral-200 dark:bg-muted" />
                 <div className="min-w-0 flex-1 space-y-2 pt-1">
                   <div className="h-4 w-1/3 rounded-lg bg-neutral-200 dark:bg-muted" />
                   <div className="h-5 w-3/4 rounded-lg bg-neutral-200 dark:bg-muted" />

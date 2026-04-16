@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { isGifUrl } from '@/lib/coverUrl'
 
 type Rgb = {
   r: number
@@ -161,11 +162,13 @@ export function FeaturedColorSync({ src }: { src: string }) {
     // Fetch a tiny optimized variant via the Next.js image endpoint (same-origin,
     // no CORS needed, reuses the preloaded cache) instead of the full-res raw URL.
     // 32 px is enough for the 18×18 canvas sample; avoids a redundant full-res fetch.
-    const optimizedSrc = `/_next/image?url=${encodeURIComponent(src)}&w=32&q=75`
+    const sampleSrc = isGifUrl(src)
+      ? src
+      : `/_next/image?url=${encodeURIComponent(src)}&w=32&q=75`
     const img = new window.Image()
     img.crossOrigin = 'anonymous'
     img.decoding = 'async'
-    img.src = optimizedSrc
+    img.src = sampleSrc
 
     img.onload = () => {
       if (!active) return

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { buildLoginRedirect, shouldRunLoginRedirect } from '@/lib/auth/protectedRoutes'
 
@@ -89,9 +90,6 @@ export default function NotebookPage() {
 
     setBusyId(draftId)
 
-    // Delete tags first if needed; harmless if FK cascade already handles it.
-    await supabase.from('post_tags').delete().eq('post_id', draftId).select('..., channels(name_he)')
-
     const { error } = await supabase
       .from('posts')
       .delete()
@@ -102,7 +100,7 @@ export default function NotebookPage() {
     setBusyId(null)
 
     if (error) {
-      alert(error.message)
+      alert(mapSupabaseError(error) ?? error.message)
       return
     }
 

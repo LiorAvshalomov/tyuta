@@ -16,6 +16,14 @@ import Youtube from '@tiptap/extension-youtube'
 import CharacterCount from '@tiptap/extension-character-count'
 
 import { supabase } from '@/lib/supabaseClient'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import {
+  appendRelatedPosts,
+  extractRelatedPostsData,
+  formatRelatedPostPosition,
+  stripRelatedPosts,
+  type PostSeriesConfig,
+} from '@/lib/postSeries'
 
 const ALLOWED_EDITOR_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const PRIVATE_EDITOR_IMAGE_URL_TTL_SECONDS = 60 * 60 * 24
@@ -30,10 +38,12 @@ type Props = {
   // אופציונלי (אם יש לך userId בדף write, תעביר אותו כדי לחסוך getUser)
   userId?: string | null
 
-  chaptersEnabled?: boolean
+  seriesConfig?: PostSeriesConfig | null
+  seriesPostsLoading?: boolean
   userPosts?: ChapterItem[]
-  /** הפרק/טיוטה שנמצא עכשיו בעריכה – מוצג בנפרד ברשימת הבחירה */
+  /** הפוסט/טיוטה שנמצא עכשיו בעריכה – מוצג בנפרד ברשימת הבחירה */
   currentDraft?: ChapterItem | null
+  disabled?: boolean
 }
 
 type ChapterItem = { id: string; slug: string; title: string }
@@ -164,58 +174,10 @@ function extractYoutubeId(url: string): string | null {
   return null
 }
 
-/** מחזיר את מספר הפרק (0-based אינדקס → מספר מוצג) */
-function getChapterNumber(index: number, hasIntro: boolean): number {
-  return hasIntro ? index : index + 1
-}
-
 /** Compare only by id – slug/title are no longer stored */
 function chaptersEqual(a: ChapterItem[], b: ChapterItem[]): boolean {
   if (a.length !== b.length) return false
   return a.every((item, i) => item.id === b[i].id)
-}
-
-function stripRelatedPosts(json: JSONContent): JSONContent {
-  const content = (json?.content ?? []).filter(n => n.type !== 'relatedPosts')
-  return { ...json, content }
-}
-
-/**
- * Extracts postIds from content_json.
- * Supports both:
- *   new format: attrs.postIds = string[]          (stable UUIDs only)
- *   old format: attrs.items  = [{id, slug, title}] (legacy snapshots)
- */
-function extractRelatedPostsData(json: JSONContent): { postIds: string[]; hasIntro: boolean } {
-  const rpNode = (json?.content ?? []).find(n => n.type === 'relatedPosts')
-  const attrs = rpNode?.attrs as Record<string, unknown> | undefined
-  if (!attrs) return { postIds: [], hasIntro: false }
-
-  if (Array.isArray(attrs.postIds)) {
-    return {
-      postIds: (attrs.postIds as unknown[]).filter((x): x is string => typeof x === 'string'),
-      hasIntro: !!(attrs.hasIntro),
-    }
-  }
-  // Backward-compat: old format stored full objects
-  if (Array.isArray(attrs.items)) {
-    return {
-      postIds: (attrs.items as Array<Record<string, unknown>>)
-        .map(item => item.id)
-        .filter((x): x is string => typeof x === 'string'),
-      hasIntro: !!(attrs.hasIntro),
-    }
-  }
-  return { postIds: [], hasIntro: false }
-}
-
-/** Serialize only stable UUIDs – no title/slug snapshots */
-function appendRelatedPosts(json: JSONContent, postIds: string[], hasIntro: boolean): JSONContent {
-  const content = (json?.content ?? []).filter(n => n.type !== 'relatedPosts')
-  if (postIds.length > 0) {
-    content.push({ type: 'relatedPosts', attrs: { postIds, hasIntro } })
-  }
-  return { ...json, content }
 }
 
 function ImageNodeView({ node, updateAttributes, deleteNode, editor, getPos }: NodeViewProps) {
@@ -553,7 +515,17 @@ function YoutubeNodeView({ node, deleteNode, editor, getPos }: NodeViewProps) {
   )
 }
 
-export default function Editor({ value, onChange, postId, userId, chaptersEnabled, userPosts: userPostsProp, currentDraft }: Props) {
+export default function Editor({
+  value,
+  onChange,
+  postId,
+  userId,
+  seriesConfig,
+  seriesPostsLoading,
+  userPosts: userPostsProp,
+  currentDraft,
+  disabled = false,
+}: Props) {
   const [showMedia, setShowMedia] = useState(false)
   const [showStyle, setShowStyle] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -571,7 +543,9 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
   const [hasIntro, setHasIntro] = useState(false)
   const [pendingIds, setPendingIds] = useState<string[]>([])
   const [chapterSearch, setChapterSearch] = useState('')
+  const [chaptersFeedback, setChaptersFeedback] = useState<string | null>(null)
   const userPosts = useMemo(() => userPostsProp ?? [], [userPostsProp])
+  const seriesEnabled = Boolean(seriesConfig)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -677,6 +651,11 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
       editor.commands.setContent(next, { emitUpdate: false })
     }, 0)
   }, [editor, value])
+
+  useEffect(() => {
+    if (!editor) return
+    editor.setEditable(!disabled)
+  }, [editor, disabled])
 
   // Effect 2: resolve postIds → ChapterItem[] for display whenever userPosts or currentDraft changes.
   // Runs independently so that typing in the title (changing currentDraft) never resets TipTap content.
@@ -836,7 +815,7 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
       if (error) {
         console.error(error)
         setUploading(false)
-        alert(error.message)
+        alert(mapSupabaseError(error) ?? error.message)
         return
       }
 
@@ -868,17 +847,28 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
     [editor, postId, userId]
   )
 
-  // Close chapters panel when feature is toggled off
+  // Close the series panel when the current taxonomy does not support it.
   useEffect(() => {
-    if (!chaptersEnabled) setShowChapters(false)
-  }, [chaptersEnabled])
+    if (!seriesEnabled) setShowChapters(false)
+  }, [seriesEnabled])
 
-  // Reset pending selection when panel closes
+  // Reset transient UI whenever the panel closes.
   useEffect(() => {
-    if (!showChapters) { setPendingIds([]); setChapterSearch('') }
+    if (!showChapters) {
+      setPendingIds([])
+      setChapterSearch('')
+      setChaptersFeedback(null)
+    }
   }, [showChapters])
 
-  // Close chapters panel on click outside
+  useEffect(() => {
+    if (!disabled) return
+    setShowMedia(false)
+    setShowStyle(false)
+    setShowChapters(false)
+  }, [disabled])
+
+  // Close the panel on outside click / Escape.
   useEffect(() => {
     if (!showChapters) return
     const handler = (e: MouseEvent) => {
@@ -886,8 +876,15 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
         setShowChapters(false)
       }
     }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowChapters(false)
+    }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [showChapters])
 
   // Keep toolbar in sync with cursor/selection changes
@@ -904,29 +901,58 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
 
   const updateChapters = useCallback((newItems: ChapterItem[], newHasIntro?: boolean) => {
     const newIds = newItems.map(item => item.id)
+    const effectiveHasIntro = newIds.length > 0 && (newHasIntro ?? hasIntroRef.current)
+
     chapterPostIdsRef.current = newIds
     chaptersRef.current = newItems
+    hasIntroRef.current = effectiveHasIntro
     setChaptersItems(newItems)
+    setHasIntro(effectiveHasIntro)
+    setChaptersFeedback(null)
     if (!editor || editor.isDestroyed) return
-    onChange(appendRelatedPosts(editor.getJSON(), newIds, newHasIntro ?? hasIntroRef.current))
+    onChange(appendRelatedPosts(editor.getJSON(), newIds, effectiveHasIntro))
   }, [editor, onChange])
 
   const toggleHasIntro = useCallback((v: boolean) => {
+    if (v && chapterPostIdsRef.current.length === 0) {
+      setChaptersFeedback('הוסף קודם פוסטים כדי לסמן שיש פתיח לפני החלק הראשון.')
+      return
+    }
+
+    setChaptersFeedback(null)
     hasIntroRef.current = v
     setHasIntro(v)
     if (!editor || editor.isDestroyed) return
     onChange(appendRelatedPosts(editor.getJSON(), chapterPostIdsRef.current, v))
   }, [editor, onChange])
 
-  const availablePosts = userPosts.filter(p =>
-    p.id !== postId && !chaptersItems.some(c => c.id === p.id)
+  const availablePosts = useMemo(
+    () => userPosts.filter(p => p.id !== postId && !chaptersItems.some(c => c.id === p.id)),
+    [userPosts, postId, chaptersItems],
   )
 
-  // הפרק הנוכחי זמין להוספה רק אם לא נמצא כבר ברשימה
-  const currentDraftAvailable =
+  const currentDraftAvailable = Boolean(
     currentDraft &&
     currentDraft.id &&
-    !chaptersItems.some(c => c.id === currentDraft.id)
+    !chaptersItems.some(c => c.id === currentDraft.id),
+  )
+
+  const normalizedSearch = chapterSearch.trim()
+  const filteredAvailablePosts = useMemo(
+    () => availablePosts.filter(p => !normalizedSearch || p.title.includes(normalizedSearch)),
+    [availablePosts, normalizedSearch],
+  )
+  const currentDraftMatchesSearch = Boolean(
+    currentDraftAvailable &&
+    currentDraft &&
+    (!normalizedSearch || currentDraft.title.includes(normalizedSearch)),
+  )
+
+  useEffect(() => {
+    setPendingIds(prev => prev.filter(id =>
+      filteredAvailablePosts.some(post => post.id === id) || (currentDraftAvailable && currentDraft?.id === id),
+    ))
+  }, [filteredAvailablePosts, currentDraftAvailable, currentDraft])
 
   const togglePending = useCallback((id: string) => {
     setPendingIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -951,7 +977,16 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
   const chars = editor.storage.characterCount.characters()
 
   return (
-    <div style={{ display: 'grid', gap: 10 }}>
+    <div
+      aria-busy={disabled}
+      style={{
+        display: 'grid',
+        gap: 10,
+        opacity: disabled ? 0.72 : 1,
+        pointerEvents: disabled ? 'none' : 'auto',
+        transition: 'opacity 180ms ease',
+      }}
+    >
       <div
         style={{
           display: 'flex',
@@ -1034,10 +1069,10 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
           }}
         />
 
-        {chaptersEnabled && (
+        {seriesEnabled && seriesConfig && (
           <div ref={chaptersContainerRef} style={{ position: 'relative' }}>
             <Btn
-              label="הוספת פרקים"
+              label={seriesConfig.buttonLabel}
               subtle
               active={showChapters}
               onClick={() => {
@@ -1054,292 +1089,476 @@ export default function Editor({ value, onChange, postId, userId, chaptersEnable
                     position: 'fixed',
                     inset: 0,
                     zIndex: 49,
-                    background: 'rgba(0,0,0,0.15)',
+                    background: 'rgba(15,23,42,0.28)',
+                    backdropFilter: 'blur(3px)',
                   }}
                   className="chapters-backdrop"
                   onClick={() => setShowChapters(false)}
                 />
                 <div
                   className="chapters-panel"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={seriesConfig.panelTitle}
                   style={{
                     zIndex: 50,
                     border: '1px solid var(--color-border)',
-                    borderRadius: 16,
-                    padding: 12,
+                    borderRadius: 22,
+                    padding: 0,
                     background: 'var(--color-card)',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+                    boxShadow: '0 24px 80px rgba(15,23,42,0.24)',
                     direction: 'rtl',
                     boxSizing: 'border-box',
                     overflowX: 'hidden',
+                    overflowY: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
                 >
-                  {/* Intro toggle */}
-                  <label
+                  <div
+                    style={{
+                      padding: 16,
+                      borderBottom: '1px solid var(--color-border)',
+                      background: 'linear-gradient(180deg, var(--color-card) 0%, var(--color-muted) 140%)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4 }}>
+                          {seriesConfig.panelTitle}
+                        </div>
+                        <div style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--color-muted-foreground)' }}>
+                          {seriesConfig.panelDescription}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowChapters(false)}
+                        aria-label="סגור"
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 999,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-background)',
+                          cursor: 'pointer',
+                          fontSize: 18,
+                          flexShrink: 0,
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginTop: 12,
+                        padding: '6px 10px',
+                        borderRadius: 999,
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-background)',
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {seriesConfig.contextLabel}
+                    </div>
+
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginTop: 12,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        userSelect: 'none',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={hasIntro}
+                        onChange={e => toggleHasIntro(e.target.checked)}
+                        style={{ accentColor: '#111', flexShrink: 0 }}
+                      />
+                      <span>{seriesConfig.introToggleLabel}</span>
+                    </label>
+                    {chaptersFeedback ? (
+                      <div
+                        role="alert"
+                        style={{
+                          marginTop: 10,
+                          padding: '10px 12px',
+                          borderRadius: 12,
+                          border: '1px solid rgba(217,45,32,0.22)',
+                          background: 'rgba(217,45,32,0.08)',
+                          color: '#b42318',
+                          fontSize: 12,
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {chaptersFeedback}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="series-panel-grid" style={{ padding: 16 }}>
+                    <section
+                      style={{
+                        display: 'grid',
+                        gap: 10,
+                        minWidth: 0,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800 }}>{seriesConfig.availableHeading}</div>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: 'var(--color-muted-foreground)',
+                            padding: '3px 8px',
+                            borderRadius: 999,
+                            background: 'var(--color-muted)',
+                          }}
+                        >
+                          {filteredAvailablePosts.length + (currentDraftMatchesSearch ? 1 : 0)}
+                        </span>
+                      </div>
+
+                      <input
+                        type="text"
+                        value={chapterSearch}
+                        onChange={e => setChapterSearch(e.target.value)}
+                        placeholder={seriesConfig.searchPlaceholder}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 12,
+                          border: '1px solid var(--color-border)',
+                          fontSize: 13,
+                          direction: 'rtl',
+                          background: 'var(--color-background)',
+                          color: 'var(--color-foreground)',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+
+                      <div className="series-posts-list">
+                        {currentDraftMatchesSearch && currentDraft && (
+                          <label className="series-list-row series-list-row-highlight">
+                            <input
+                              type="checkbox"
+                              checked={pendingIds.includes(currentDraft.id)}
+                              onChange={() => togglePending(currentDraft.id)}
+                              style={{ accentColor: '#111', flexShrink: 0 }}
+                            />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                              {currentDraft.title || 'ללא כותרת'}
+                            </span>
+                            <span className="series-inline-badge">{seriesConfig.currentDraftBadge}</span>
+                          </label>
+                        )}
+
+                        {seriesPostsLoading ? (
+                          <div className="series-empty-state">{seriesConfig.loadingLabel}</div>
+                        ) : filteredAvailablePosts.length > 0 ? (
+                          filteredAvailablePosts.map(post => (
+                            <label key={post.id} className="series-list-row">
+                              <input
+                                type="checkbox"
+                                checked={pendingIds.includes(post.id)}
+                                onChange={() => togglePending(post.id)}
+                                style={{ accentColor: '#111', flexShrink: 0 }}
+                              />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {post.title}
+                              </span>
+                            </label>
+                          ))
+                        ) : (
+                          <div className="series-empty-state">
+                            {normalizedSearch ? 'לא נמצאו תוצאות לחיפוש הזה' : seriesConfig.emptyAvailableLabel}
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section
+                      style={{
+                        display: 'grid',
+                        gap: 10,
+                        minWidth: 0,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800 }}>{seriesConfig.selectedHeading}</div>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: 'var(--color-muted-foreground)',
+                            padding: '3px 8px',
+                            borderRadius: 999,
+                            background: 'var(--color-muted)',
+                          }}
+                        >
+                          {chaptersItems.length}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: 12, lineHeight: 1.7, color: 'var(--color-muted-foreground)' }}>
+                        {seriesConfig.orderHint}
+                      </div>
+
+                      <div className="series-selected-list">
+                        {chaptersItems.length === 0 ? (
+                          <div className="series-empty-state">{seriesConfig.emptySelectedLabel}</div>
+                        ) : (
+                          chaptersItems.map((item, i) => {
+                            const isCurrentDraft = Boolean(currentDraft && item.id === currentDraft.id)
+                            const positionLabel = formatRelatedPostPosition(i, hasIntro, seriesConfig.introBadge)
+
+                            return (
+                              <div
+                                key={item.id}
+                                className={`series-selected-row${isCurrentDraft ? ' series-selected-row-current' : ''}`}
+                              >
+                                <span className="series-position-badge">{positionLabel}</span>
+                                <div className="series-selected-content">
+                                  <span className="series-selected-title">{item.title}</span>
+                                  {isCurrentDraft && <span className="series-inline-badge">{seriesConfig.currentDraftBadge}</span>}
+                                </div>
+                                <div className="series-selected-actions">
+                                  <button
+                                    type="button"
+                                    onClick={() => moveChapter(i, -1)}
+                                    disabled={i === 0}
+                                    className="series-icon-button"
+                                    aria-label="הזז למעלה"
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveChapter(i, 1)}
+                                    disabled={i === chaptersItems.length - 1}
+                                    className="series-icon-button"
+                                    aria-label="הזז למטה"
+                                  >
+                                    ▼
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeChapter(i)}
+                                    className="series-icon-button series-icon-button-danger"
+                                    aria-label="הסר"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    </section>
+                  </div>
+
+                  <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 8,
-                      padding: '6px 4px',
-                      marginBottom: 8,
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      userSelect: 'none',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      padding: 16,
+                      borderTop: '1px solid var(--color-border)',
+                      background: 'var(--color-card)',
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={hasIntro}
-                      onChange={e => toggleHasIntro(e.target.checked)}
-                      style={{ accentColor: '#111', flexShrink: 0 }}
-                    />
-                    <span>יש הקדמה (פרק 0)</span>
-                  </label>
-
-                  {/* Search */}
-                  <input
-                    type="text"
-                    value={chapterSearch}
-                    onChange={e => setChapterSearch(e.target.value)}
-                    placeholder="חיפוש פוסט..."
-                    style={{
-                      width: '100%',
-                      padding: '7px 10px',
-                      borderRadius: 10,
-                      border: '1px solid var(--color-border)',
-                      fontSize: 13,
-                      direction: 'rtl',
-                      background: 'var(--color-background)',
-                      color: 'var(--color-foreground)',
-                      boxSizing: 'border-box',
-                      marginBottom: 6,
-                    }}
-                  />
-
-                  {/* Available posts – checkboxes */}
-                  <div style={{ maxHeight: 150, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 10, background: 'var(--color-muted)' }}>
-                    {/* הפרק הנוכחי – תמיד ראשון ברשימה */}
-                    {currentDraftAvailable && currentDraft && (
-                      !chapterSearch.trim() || currentDraft.title.includes(chapterSearch.trim())
-                    ) && (
-                      <label
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          padding: '6px 8px',
-                          cursor: 'pointer',
-                          fontSize: 12,
-                          borderBottom: '1px solid var(--color-border)',
-                          background: 'var(--color-background)',
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={pendingIds.includes(currentDraft.id)}
-                          onChange={() => togglePending(currentDraft.id)}
-                          style={{ accentColor: '#111', flexShrink: 0 }}
-                        />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                          {currentDraft.title || 'ללא כותרת'}
-                        </span>
-                        <span style={{ fontSize: 10, color: 'var(--color-muted-foreground)', flexShrink: 0, border: '1px solid var(--color-border)', borderRadius: 4, padding: '1px 4px' }}>
-                          הפרק הנוכחי
-                        </span>
-                      </label>
-                    )}
-                    {userPosts.length === 0 && !currentDraftAvailable && (
-                      <div style={{ padding: '10px 8px', fontSize: 12, color: 'var(--color-muted-foreground)', textAlign: 'center' }}>טוען...</div>
-                    )}
-                    {availablePosts
-                      .filter(p => !chapterSearch.trim() || p.title.includes(chapterSearch.trim()))
-                      .map(p => (
-                        <label
-                          key={p.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
-                            padding: '6px 8px',
-                            cursor: 'pointer',
-                            fontSize: 12,
-                            borderBottom: '1px solid var(--color-border)',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={pendingIds.includes(p.id)}
-                            onChange={() => togglePending(p.id)}
-                            style={{ accentColor: '#111', flexShrink: 0 }}
-                          />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {p.title}
-                          </span>
-                        </label>
-                      ))}
-                    {userPosts.length > 0 && !currentDraftAvailable && availablePosts.filter(p => !chapterSearch.trim() || p.title.includes(chapterSearch.trim())).length === 0 && (
-                      <div style={{ padding: '10px 8px', fontSize: 12, color: 'var(--color-muted-foreground)', textAlign: 'center' }}>אין פוסטים זמינים</div>
-                    )}
-                  </div>
-
-                  {/* Add checked button */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (pendingIds.length === 0) return
-                      const currentDraftToAdd = currentDraft && pendingIds.includes(currentDraft.id) ? currentDraft : null
-                      const toAdd = pendingIds
-                        .map(id => id === currentDraft?.id ? currentDraftToAdd : availablePosts.find(p => p.id === id))
-                        .filter((p): p is ChapterItem => p != null)
-                      if (toAdd.length === 0) return
-                      updateChapters([...chaptersItems, ...toAdd])
-                      setPendingIds([])
-                    }}
-                    disabled={pendingIds.length === 0}
-                    style={{
-                      width: '100%',
-                      marginTop: 6,
-                      padding: '7px 0',
-                      borderRadius: 10,
-                      border: '1px solid var(--color-border)',
-                      background: pendingIds.length > 0 ? 'var(--color-foreground)' : 'var(--color-muted)',
-                      color: pendingIds.length > 0 ? 'var(--color-background)' : 'var(--color-muted-foreground)',
-                      cursor: pendingIds.length > 0 ? 'pointer' : 'not-allowed',
-                      fontSize: 13,
-                      fontWeight: 700,
-                    }}
-                  >
-                    הוסף נבחרים{pendingIds.length > 0 ? ` (${pendingIds.length})` : ''}
-                  </button>
-
-                  {/* Selected chapters list */}
-                  {chaptersItems.length > 0 && (
-                    <div style={{ fontSize: 12, fontWeight: 700, marginTop: 10, marginBottom: 6, color: 'var(--color-muted-foreground)' }}>
-                      פרקים שנבחרו:
+                    <div style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+                      {pendingIds.length > 0 ? `${pendingIds.length} פוסטים מוכנים להוספה` : 'בחרי פוסטים כדי לצרף אותם לסדרה'}
                     </div>
-                  )}
-                  <div style={{ display: 'grid', gap: 4 }}>
-                    {chaptersItems.map((item, i) => {
-                      const isCurrentDraft = !!(currentDraft && item.id === currentDraft.id)
-                      return (
-                      <div
-                        key={item.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '4px 8px',
-                          borderRadius: 8,
-                          border: isCurrentDraft ? '1px solid var(--color-foreground)' : '1px solid var(--color-border)',
-                          background: isCurrentDraft ? 'var(--color-background)' : 'var(--color-muted)',
-                          fontSize: 12,
-                        }}
-                      >
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                          {getChapterNumber(i, hasIntro)}. {item.title}
-                          {isCurrentDraft && (
-                            <span style={{ marginRight: 6, fontSize: 10, color: 'var(--color-muted-foreground)', border: '1px solid var(--color-border)', borderRadius: 4, padding: '1px 4px' }}>
-                              אתה נמצא פה
-                            </span>
-                          )}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => moveChapter(i, -1)}
-                          disabled={i === 0}
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 6,
-                            border: '1px solid var(--color-border)',
-                            background: 'var(--color-background)',
-                            color: 'var(--color-foreground)',
-                            cursor: i === 0 ? 'not-allowed' : 'pointer',
-                            opacity: i === 0 ? 0.3 : 1,
-                            fontSize: 13,
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                          aria-label="הזז למעלה"
-                        >
-                          ▲
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveChapter(i, 1)}
-                          disabled={i === chaptersItems.length - 1}
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 6,
-                            border: '1px solid var(--color-border)',
-                            background: 'var(--color-background)',
-                            color: 'var(--color-foreground)',
-                            cursor: i === chaptersItems.length - 1 ? 'not-allowed' : 'pointer',
-                            opacity: i === chaptersItems.length - 1 ? 0.3 : 1,
-                            fontSize: 13,
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                          aria-label="הזז למטה"
-                        >
-                          ▼
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeChapter(i)}
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 6,
-                            border: '1px solid var(--color-border)',
-                            background: 'var(--color-background)',
-                            cursor: 'pointer',
-                            fontSize: 15,
-                            color: '#D92D20',
-                            flexShrink: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontWeight: 700,
-                          }}
-                          aria-label="הסר"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    )
-                    })}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (pendingIds.length === 0) return
+                        const currentDraftToAdd = currentDraft && pendingIds.includes(currentDraft.id) ? currentDraft : null
+                        const toAdd = pendingIds
+                          .map(id => id === currentDraft?.id ? currentDraftToAdd : availablePosts.find(post => post.id === id))
+                          .filter((post): post is ChapterItem => post != null)
+                        if (toAdd.length === 0) return
+                        updateChapters([...chaptersItems, ...toAdd])
+                        setPendingIds([])
+                      }}
+                      disabled={pendingIds.length === 0}
+                      style={{
+                        minWidth: 152,
+                        padding: '10px 14px',
+                        borderRadius: 12,
+                        border: '1px solid var(--color-border)',
+                        background: pendingIds.length > 0 ? 'var(--color-foreground)' : 'var(--color-muted)',
+                        color: pendingIds.length > 0 ? 'var(--color-background)' : 'var(--color-muted-foreground)',
+                        cursor: pendingIds.length > 0 ? 'pointer' : 'not-allowed',
+                        fontSize: 13,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {seriesConfig.addSelectedLabel}{pendingIds.length > 0 ? ` (${pendingIds.length})` : ''}
+                    </button>
                   </div>
                 </div>
                 <style>{`
                   .chapters-panel {
                     position: fixed;
-                    bottom: 12px;
+                    bottom: 10px;
                     left: 12px;
                     right: 12px;
                     width: auto;
-                    max-width: 480px;
-                    max-height: 70vh;
-                    overflow-y: auto;
+                    max-width: 720px;
+                    max-height: min(82vh, 760px);
                     margin: 0 auto;
                   }
                   .chapters-backdrop { display: block; }
-                  @media (min-width: 641px) {
+                  .series-panel-grid {
+                    display: grid;
+                    gap: 14px;
+                    overflow-y: auto;
+                  }
+                  .series-posts-list,
+                  .series-selected-list {
+                    display: grid;
+                    gap: 6px;
+                    max-height: 240px;
+                    overflow-y: auto;
+                    padding: 6px;
+                    border: 1px solid var(--color-border);
+                    border-radius: 14px;
+                    background: color-mix(in oklab, var(--color-muted) 75%, transparent);
+                  }
+                  .series-list-row,
+                  .series-selected-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    min-width: 0;
+                    padding: 10px 12px;
+                    border-radius: 12px;
+                    border: 1px solid var(--color-border);
+                    background: var(--color-background);
+                    font-size: 12px;
+                    cursor: pointer;
+                  }
+                  .series-selected-row {
+                    display: grid;
+                    grid-template-columns: auto minmax(0, 1fr) auto;
+                    align-items: center;
+                    gap: 10px;
+                    cursor: default;
+                  }
+                  .series-list-row-highlight,
+                  .series-selected-row-current {
+                    border-color: color-mix(in oklab, var(--color-foreground) 30%, var(--color-border));
+                    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-foreground) 15%, transparent);
+                  }
+                  .series-selected-content {
+                    min-width: 0;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    flex-wrap: wrap;
+                  }
+                  .series-selected-title {
+                    min-width: 0;
+                    flex: 1 1 220px;
+                    font-size: 13px;
+                    font-weight: 700;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                  }
+                  .series-selected-actions {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    flex-shrink: 0;
+                  }
+                  .series-inline-badge,
+                  .series-position-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 3px 8px;
+                    border-radius: 999px;
+                    border: 1px solid var(--color-border);
+                    background: var(--color-muted);
+                    color: var(--color-muted-foreground);
+                    font-size: 10px;
+                    font-weight: 800;
+                    flex-shrink: 0;
+                  }
+                  .series-position-badge {
+                    min-width: 42px;
+                    color: var(--color-foreground);
+                  }
+                  .series-icon-button {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 10px;
+                    border: 1px solid var(--color-border);
+                    background: var(--color-background);
+                    color: var(--color-foreground);
+                    cursor: pointer;
+                    flex-shrink: 0;
+                  }
+                  .series-icon-button:disabled {
+                    cursor: not-allowed;
+                    opacity: 0.35;
+                  }
+                  .series-icon-button-danger {
+                    color: #d92d20;
+                  }
+                  .series-empty-state {
+                    padding: 18px 12px;
+                    text-align: center;
+                    font-size: 12px;
+                    line-height: 1.7;
+                    color: var(--color-muted-foreground);
+                  }
+                  @media (min-width: 900px) {
                     .chapters-panel {
                       position: absolute;
                       bottom: auto;
                       top: 110%;
                       left: auto;
                       right: 0;
-                      width: min(360px, calc(100vw - 24px));
-                      max-height: 420px;
+                      width: min(760px, calc(100vw - 36px));
+                      max-height: min(78vh, 760px);
                       margin: 0;
                     }
+                    .series-panel-grid {
+                      grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.18fr);
+                      align-items: start;
+                    }
                     .chapters-backdrop { display: none; }
+                  }
+                  @media (max-width: 640px) {
+                    .series-selected-row {
+                      grid-template-columns: auto minmax(0, 1fr);
+                    }
+                    .series-selected-title {
+                      white-space: normal;
+                      display: -webkit-box;
+                      -webkit-line-clamp: 2;
+                      -webkit-box-orient: vertical;
+                    }
+                    .series-selected-actions {
+                      grid-column: 1 / -1;
+                      justify-content: flex-end;
+                    }
                   }
                 `}</style>
               </>
