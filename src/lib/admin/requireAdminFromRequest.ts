@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import {
+  enforceActorRouteRateLimit,
+  enforceIpRateLimit,
+  resolveAdminRoutePolicy,
+  resolveProtectedGatePolicy,
+} from "@/lib/requestRateLimit"
 
 type RequireAdminOk = {
   ok: true
@@ -21,6 +27,11 @@ function parseAdminIds() {
 }
 
 export async function requireAdminFromRequest(req: Request): Promise<RequireAdminOk | RequireAdminFail> {
+  const gateLimit = await enforceIpRateLimit(req, resolveProtectedGatePolicy("admin", req.method))
+  if (gateLimit) {
+    return { ok: false, response: gateLimit }
+  }
+
   const auth = req.headers.get("authorization") || ""
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : ""
 
@@ -53,6 +64,11 @@ export async function requireAdminFromRequest(req: Request): Promise<RequireAdmi
   const adminIds = parseAdminIds()
   if (!adminIds.includes(data.user.id)) {
     return { ok: false, response: NextResponse.json({ error: "not admin" }, { status: 403 }) }
+  }
+
+  const routeLimit = await enforceActorRouteRateLimit(req, data.user.id, resolveAdminRoutePolicy)
+  if (routeLimit) {
+    return { ok: false, response: routeLimit }
   }
 
   return {

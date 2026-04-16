@@ -1,12 +1,15 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { mapModerationRpcError, mapSupabaseError } from '@/lib/mapSupabaseError'
+import { useToast } from '@/components/Toast'
 
 export default function ProfileNonOwnerActions({ profileId }: { profileId: string }) {
   const router = useRouter()
+  const { toast } = useToast()
   const [meId, setMeId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -42,10 +45,7 @@ export default function ProfileNonOwnerActions({ profileId }: { profileId: strin
     }
   }, [])
 
-  // ✅ לא מציגים “שלח הודעה” על עצמי
   if (meId && meId === profileId) return null
-
-  // ✅ לא מציגים בפרופיל אם לא מחובר (יש התחברות ב-SiteHeader)
   if (!meId) return null
 
   async function handleMessage() {
@@ -56,7 +56,10 @@ export default function ProfileNonOwnerActions({ profileId }: { profileId: strin
     setLoading(false)
 
     if (error || !data) {
-      alert('שגיאה בפתיחת שיחה')
+      const friendly = error
+        ? mapSupabaseError(error) ?? mapModerationRpcError(error.message ?? '')
+        : null
+      toast(friendly ?? 'לא הצלחנו לפתוח שיחה', 'error')
       return
     }
 

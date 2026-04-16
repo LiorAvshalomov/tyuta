@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server"
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import {
+  enforceActorRouteRateLimit,
+  enforceIpRateLimit,
+  resolveAdminRoutePolicy,
+  resolveProtectedGatePolicy,
+} from "@/lib/requestRateLimit"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SC = SupabaseClient<any, any, any>
@@ -27,6 +33,14 @@ function parseIds(envKey: string): string[] {
 export async function requireAdminOrModFromRequest(
   req: Request,
 ): Promise<RequireAdminOrModOk | RequireAdminOrModFail> {
+  const gateLimit = await enforceIpRateLimit(req, resolveProtectedGatePolicy("admin", req.method))
+  if (gateLimit) {
+    return {
+      ok: false,
+      response: gateLimit,
+    }
+  }
+
   const authHeader = req.headers.get("authorization") || ""
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : ""
 
@@ -67,6 +81,14 @@ export async function requireAdminOrModFromRequest(
     return {
       ok: false,
       response: NextResponse.json({ error: "not authorized" }, { status: 403 }),
+    }
+  }
+
+  const routeLimit = await enforceActorRouteRateLimit(req, userId, resolveAdminRoutePolicy)
+  if (routeLimit) {
+    return {
+      ok: false,
+      response: routeLimit,
     }
   }
 

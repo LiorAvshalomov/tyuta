@@ -2,8 +2,15 @@
 
 import Avatar from '@/components/Avatar'
 import { supabase } from '@/lib/supabaseClient'
+import { useToast } from '@/components/Toast'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import {
+  POST_REFRESH_CHANNEL,
+  POST_REFRESH_EVENT,
+  POST_REFRESH_STORAGE_KEY,
+} from '@/lib/postFreshness'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type ProfileLite = {
   id: string
@@ -82,18 +89,108 @@ function labelForType(t: string): string {
   }
 }
 
+async function hydrateRowsWithCurrentPostData(rows: NotifRowDb[]) {
+  const postIds = new Set<string>()
+  const commentIds = new Set<string>()
+
+  for (const row of rows) {
+    const payload = isRecord(row.payload) ? row.payload : null
+    if (payload) {
+      const postId = str(payload.post_id)
+      if (postId) postIds.add(postId)
+
+      const nested = payload.payload
+      const nestedComment = payload.comment
+      const commentId =
+        str(payload.comment_id) ||
+        (isRecord(nested) ? str(nested.comment_id) : null) ||
+        (isRecord(nestedComment) ? str(nestedComment.id) : null)
+      if (commentId) commentIds.add(commentId)
+    }
+
+    if (row.entity_type === 'post' && row.entity_id) postIds.add(String(row.entity_id))
+    if ((row.entity_type === 'comment' || row.type === 'comment') && row.entity_id) {
+      commentIds.add(String(row.entity_id))
+    }
+  }
+
+  type CommentLite = { id: string; post_id: string }
+  const commentsById = new Map<string, CommentLite>()
+  if (commentIds.size > 0) {
+    const { data } = await supabase
+      .from('comments')
+      .select('id, post_id')
+      .in('id', Array.from(commentIds))
+      .limit(500)
+    const list = (data ?? []) as unknown as CommentLite[]
+    for (const comment of list) {
+      commentsById.set(comment.id, comment)
+      if (comment.post_id) postIds.add(comment.post_id)
+    }
+  }
+
+  type PostLite = { id: string; slug: string; title: string | null }
+  const postsById = new Map<string, PostLite>()
+  if (postIds.size > 0) {
+    const { data } = await supabase
+      .from('posts')
+      .select('id, slug, title')
+      .in('id', Array.from(postIds))
+      .limit(500)
+    const list = (data ?? []) as unknown as PostLite[]
+    for (const post of list) postsById.set(post.id, post)
+  }
+
+  return rows.map((row) => {
+    const payload = isRecord(row.payload) ? { ...row.payload } : {}
+    const commentId =
+      (row.entity_type === 'comment' || row.type === 'comment')
+        ? (row.entity_id ? String(row.entity_id) : str(payload.comment_id))
+        : str(payload.comment_id)
+
+    if (commentId && commentsById.has(commentId)) {
+      const comment = commentsById.get(commentId)!
+      payload.comment_id = commentId
+      payload.post_id = comment.post_id
+    }
+
+    const postId =
+      str(payload.post_id) ||
+      (row.entity_type === 'post' && row.entity_id ? String(row.entity_id) : null)
+
+    if (postId && postsById.has(postId)) {
+      const post = postsById.get(postId)!
+      payload.post_id = postId
+      payload.post_slug = post.slug
+      payload.post_title = post.title
+    }
+
+    return {
+      ...row,
+      payload,
+    }
+  })
+}
+
 export default function NotificationsPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<NotifRowDb[]>([])
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const loadSeqRef = useRef(0)
 
   const load = useCallback(async () => {
+    const loadSeq = ++loadSeqRef.current
     setLoading(true)
+    setErrorMsg(null)
     try {
       const { data: u } = await supabase.auth.getSession()
+      if (loadSeq !== loadSeqRef.current) return
       const uid = u.session?.user?.id
       if (!uid) {
         setRows([])
+        setErrorMsg(null)
         return
       }
 
@@ -111,9 +208,16 @@ export default function NotificationsPage() {
 
       if (error) throw error
 
-      setRows((data ?? []) as unknown as NotifRowDb[])
+      const hydratedRows = await hydrateRowsWithCurrentPostData((data ?? []) as unknown as NotifRowDb[])
+      if (loadSeq !== loadSeqRef.current) return
+      setRows(hydratedRows)
+    } catch (error) {
+      if (loadSeq !== loadSeqRef.current) return
+      setErrorMsg(mapSupabaseError(error as { message?: string | null; details?: string | null; hint?: string | null; code?: string | null }) ?? 'לא הצלחנו לטעון את ההתראות כרגע.')
     } finally {
-      setLoading(false)
+      if (loadSeq === loadSeqRef.current) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -121,12 +225,63 @@ export default function NotificationsPage() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    const reload = () => {
+      void load()
+    }
+
+    const onWindowEvent = () => {
+      reload()
+    }
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== POST_REFRESH_STORAGE_KEY || !event.newValue) return
+      reload()
+    }
+
+    window.addEventListener(POST_REFRESH_EVENT, onWindowEvent as EventListener)
+    window.addEventListener('storage', onStorage)
+
+    let channel: BroadcastChannel | null = null
+    if ('BroadcastChannel' in window) {
+      try {
+        channel = new BroadcastChannel(POST_REFRESH_CHANNEL)
+        channel.onmessage = () => {
+          reload()
+        }
+      } catch {
+        channel = null
+      }
+    }
+
+    return () => {
+      window.removeEventListener(POST_REFRESH_EVENT, onWindowEvent as EventListener)
+      window.removeEventListener('storage', onStorage)
+      channel?.close()
+    }
+  }, [load])
+
   const unreadCount = useMemo(() => rows.filter((r) => !r.is_read).length, [rows])
 
   const openNotif = async (r: NotifRowDb) => {
-    // Best-effort mark read
     if (!r.is_read) {
-      void supabase.from('notifications').update({ is_read: true, read_at: new Date().toISOString() }).eq('id', r.id)
+      const readAt = new Date().toISOString()
+      setRows((prev) => prev.map((row) => (
+        row.id === r.id ? { ...row, is_read: true, read_at: readAt } : row
+      )))
+      void supabase
+        .from('notifications')
+        .update({ is_read: true, read_at: readAt })
+        .eq('id', r.id)
+        .then(({ error }) => {
+          if (!error) return
+          setRows((prev) => prev.map((row) => (
+            row.id === r.id ? { ...row, is_read: r.is_read, read_at: r.read_at } : row
+          )))
+          const friendly = mapSupabaseError(error) ?? 'לא הצלחנו לעדכן את מצב ההתראה.'
+          setErrorMsg(friendly)
+          toast(friendly, 'error')
+        })
     }
 
     const payload = isRecord(r.payload) ? r.payload : {}
@@ -153,6 +308,12 @@ export default function NotificationsPage() {
           רענן
         </button>
       </div>
+
+      {errorMsg ? (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {errorMsg}
+        </div>
+      ) : null}
 
       <div className="rounded-3xl border border-black/5 bg-white shadow-sm overflow-hidden">
         {loading ? (

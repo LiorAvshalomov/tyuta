@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { setSupportConversationId } from '@/lib/moderation'
-import { mapModerationRpcError } from '@/lib/mapSupabaseError'
+import { mapModerationRpcError, mapSupabaseError } from '@/lib/mapSupabaseError'
 import { getResolvedSession } from '@/lib/auth/getResolvedSession'
 
 const SYSTEM_USER_ID = process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? ''
@@ -94,7 +94,10 @@ export default function RestrictedPage() {
         other_user_id: SYSTEM_USER_ID,
       })
 
-      if (rpcError) throw rpcError
+      if (rpcError) {
+        setError(mapSupabaseError(rpcError) ?? mapModerationRpcError(rpcError.message ?? '') ?? rpcError.message)
+        return
+      }
       if (!conversationId || typeof conversationId !== 'string') {
         throw new Error('השרת לא החזיר מזהה שיחה תקין.')
       }

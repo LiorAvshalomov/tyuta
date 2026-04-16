@@ -197,7 +197,10 @@ export default function ChatClient({
         message_created_at: reportedMessage?.created_at ?? null,
         message_excerpt: reportedMessage ? String(reportedMessage.body).slice(0, 280) : null,
       })
-      if (error) throw error
+      if (error) {
+        setReportErr(mapSupabaseError(error) ?? error.message)
+        return
+      }
       setReportOk('דיווח נשלח. תודה ששמרת על הקהילה 🙏')
       setReportDetails('')
       setReportedMessage(null)
@@ -1309,6 +1312,7 @@ export default function ChatClient({
     // One reaction per user per message (FB/WA model): find the user's current reaction
     const currentList = reactions.get(msgId) ?? []
     const myCurrentReaction = currentList.find(r => r.mine)
+    const previousReactions = reactions
 
     // Optimistic update
     setReactions(prev => {
@@ -1341,27 +1345,45 @@ export default function ChatClient({
 
     // Persist to DB
     if (isAdminMode) {
-      await adminFetch('/api/admin/inbox/reactions', {
-        method: 'POST',
-        body: JSON.stringify({ message_id: msgId, emoji }),
-      })
+      try {
+        const res = await adminFetch('/api/admin/inbox/reactions', {
+          method: 'POST',
+          body: JSON.stringify({ message_id: msgId, emoji }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({})) as Record<string, unknown>
+          setReactions(previousReactions)
+          toast(getAdminErrorMessage(body, 'לא הצלחנו לעדכן תגובה.'), 'error')
+        }
+      } catch {
+        setReactions(previousReactions)
+        toast('לא הצלחנו לעדכן תגובה.', 'error')
+      }
       return
     }
 
+    let reactionError: { message?: string | null; details?: string | null; hint?: string | null; code?: string | null } | null = null
     if (myCurrentReaction && myCurrentReaction.emoji === emoji) {
       // Toggle off: remove reaction
-      await supabase
+      const { error } = await supabase
         .from('message_reactions')
         .delete()
         .eq('message_id', msgId)
         .eq('sender_id', myId)
+      reactionError = error
     } else {
       // Add or replace (upsert on UNIQUE(message_id, sender_id))
-      await supabase
+      const { error } = await supabase
         .from('message_reactions')
         .upsert({ message_id: msgId, sender_id: myId, emoji }, { onConflict: 'message_id,sender_id' })
+      reactionError = error
     }
-  }, [isAdminMode, myId, reactions])
+
+    if (reactionError) {
+      setReactions(previousReactions)
+      toast(mapSupabaseError(reactionError) ?? 'לא הצלחנו לעדכן תגובה', 'error')
+    }
+  }, [isAdminMode, myId, reactions, toast])
 
   function handleReply(m: Msg, mine: boolean) {
     const authorName = mine ? 'אתה' : (other?.display_name ?? other?.username ?? 'צד שני')

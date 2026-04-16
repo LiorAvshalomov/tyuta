@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function SavePostButton({ postId }: { postId: string }) {
   const [myId, setMyId] = useState<string | null>(null)
@@ -12,14 +13,15 @@ export default function SavePostButton({ postId }: { postId: string }) {
   const [animating, setAnimating] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const flash = (m: string) => {
-    setMsg(m)
+  const flash = (message: string) => {
+    setMsg(message)
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => setMsg(null), 2500)
   }
 
   useEffect(() => {
     let mounted = true
+
     const syncBookmarkState = async (uid: string | null) => {
       if (!mounted) return
 
@@ -40,7 +42,6 @@ export default function SavePostButton({ postId }: { postId: string }) {
 
       if (!mounted) return
       if (error) {
-        // אם הטבלה עוד לא קיימת בסביבה – לא נשבור את העמוד
         setSaved(false)
         setLoading(false)
         return
@@ -96,7 +97,7 @@ export default function SavePostButton({ postId }: { postId: string }) {
         .eq('post_id', postId)
 
       if (error) {
-        flash('לא הצלחנו להסיר שמירה')
+        flash(mapSupabaseError(error) ?? 'לא הצלחנו להסיר שמירה')
         setLoading(false)
         return
       }
@@ -113,7 +114,7 @@ export default function SavePostButton({ postId }: { postId: string }) {
     })
 
     if (error) {
-      flash('לא הצלחנו לשמור')
+      flash(mapSupabaseError(error) ?? 'לא הצלחנו לשמור')
       setLoading(false)
       return
     }
@@ -133,7 +134,7 @@ export default function SavePostButton({ postId }: { postId: string }) {
           className="tyuta-save-dot pointer-events-none absolute inset-x-0 top-0 flex justify-center text-amber-500 text-sm leading-none select-none"
           aria-hidden="true"
         >
-          ★
+          ☆
         </span>
       ) : null}
       <button

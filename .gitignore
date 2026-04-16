@@ -30,6 +30,24 @@ lighthouse/
 
 # production
 /build
+/.remotion
+/video/renders/
+/video/tmp/
+/video/.cache/
+/video/assets/site-captures/
+/public/video/
+/output/
+/.tmp-video-capture/
+*.rendered.mp4
+*.rendered.mov
+
+# local Remotion workbench
+/remotion.config.ts
+/video/
+/docs/remotion-video-system.md
+/scripts/__pycache__/
+/scripts/capture_tyuta_home.ts
+/scripts/create_instagram_carousel.py
 
 # misc
 .DS_Store

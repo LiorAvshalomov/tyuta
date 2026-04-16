@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { postImageStoragePath } from '@/lib/postImageUrl'
+import { enforceIpRateLimit } from '@/lib/requestRateLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 
 export const runtime = 'nodejs'
@@ -18,44 +19,9 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
 const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const WINDOW_MS = 60_000
-const MAX_RPS = 120
-
-type RateEntry = { count: number; windowStart: number }
-const rateMap = new Map<string, RateEntry>()
-
 type PublishedPostRow = {
   id: string
   content_json: unknown
-}
-
-function isAllowed(ip: string): boolean {
-  const now = Date.now()
-
-  if (Math.random() < 0.01) {
-    for (const [key, entry] of rateMap) {
-      if (now - entry.windowStart > WINDOW_MS) rateMap.delete(key)
-    }
-  }
-
-  const entry = rateMap.get(ip)
-  if (!entry || now - entry.windowStart > WINDOW_MS) {
-    rateMap.set(ip, { count: 1, windowStart: now })
-    return true
-  }
-
-  entry.count++
-  return entry.count <= MAX_RPS
-}
-
-function clientIp(req: NextRequest): string {
-  const xff = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  if (xff) return xff
-
-  const xri = req.headers.get('x-real-ip')?.trim()
-  if (xri) return xri
-
-  return 'unknown'
 }
 
 function isValidPath(path: string, postId: string): boolean {
@@ -101,8 +67,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     return new NextResponse('Storage not configured', { status: 500 })
   }
-  if (!isAllowed(clientIp(req))) {
-    return new NextResponse('Too many requests', { status: 429 })
+
+  const rateLimitResponse = await enforceIpRateLimit(req, {
+    scope: 'media_post_image_read',
+    maxRequests: 120,
+    windowMs: 60_000,
+    message: 'יותר מדי טעינות תמונות פוסט בזמן קצר. נסו שוב בעוד רגע.',
+  })
+  if (rateLimitResponse) {
+    return rateLimitResponse
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -147,8 +120,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     headers: {
       'Content-Type': validated.mimeType,
       'Cache-Control': 'public, max-age=31536000, immutable',
-      // Keep browser semantics unchanged, but let shared caches absorb
-      // repeated public reads without holding removed content for too long.
       'CDN-Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
       'Vercel-CDN-Cache-Control': 'public, max-age=300, stale-while-revalidate=3600',
       'X-Content-Type-Options': 'nosniff',

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 
 import { supabase } from '@/lib/supabaseClient'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import Avatar from '@/components/Avatar'
 import RichText from '@/components/RichText'
 import PostShell from '@/components/PostShell'
@@ -66,6 +67,11 @@ type SidebarPost = {
 function pickAuthor(a: Author[] | Author | null | undefined): Author | null {
   if (!a) return null
   return Array.isArray(a) ? (a[0] ?? null) : a
+}
+
+function pickChannel(channel: Channel[] | Channel | null | undefined): Channel | null {
+  if (!channel) return null
+  return Array.isArray(channel) ? (channel[0] ?? null) : channel
 }
 
 function SidebarSection({
@@ -699,7 +705,10 @@ export default function PostPage({ initialData, initialExtras }: Props) {
         message_excerpt: messageExcerpt,
       })
 
-      if (error) throw error
+      if (error) {
+        setReportErr(mapSupabaseError(error) ?? error.message)
+        return
+      }
       setReportOk('תודה על הדיווח ועל התרומה לקהילה 🙏\nנבדוק את זה בהקדם.')
       setReportDetails('')
       window.setTimeout(() => {
@@ -1023,7 +1032,15 @@ export default function PostPage({ initialData, initialExtras }: Props) {
       >
       {/* תוכן – לב האתר */}
       <div className="mt-6 min-h-[45vh] pb-4">
-        <RichText content={post.content_json as RichNode} currentPostId={post.id} currentSlug={slug} />
+        <RichText
+          content={post.content_json as RichNode}
+          currentPostId={post.id}
+          currentSlug={slug}
+          currentChannelName={pickChannel(post.channel)?.name_he ?? null}
+          currentChannelId={post.channel_id}
+          currentSubcategoryName={subcategoryName}
+          currentSubcategoryTagId={post.subcategory_tag_id}
+        />
       </div>
 
       {(() => {

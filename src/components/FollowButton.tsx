@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { useToast } from '@/components/Toast'
 
 // Shared checkmark icon
 function CheckIcon({ className }: { className?: string }) {
@@ -29,6 +31,7 @@ export default function FollowButton({
   initialIsFollowing?: boolean
   skipInitialLoad?: boolean
 }) {
+  const { toast } = useToast()
   const [myId, setMyId] = useState<string | null>(initialViewerId ?? null)
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing)
   const [loading, setLoading] = useState(skipInitialLoad ? false : true)
@@ -110,11 +113,16 @@ export default function FollowButton({
   async function doUnfollow() {
     if (!myId) return
     setLoading(true)
-    await supabase
+    const { error } = await supabase
       .from('user_follows')
       .delete()
       .eq('follower_id', myId)
       .eq('following_id', targetUserId)
+    if (error) {
+      setLoading(false)
+      toast(mapSupabaseError(error) ?? 'לא הצלחנו להסיר מעקב', 'error')
+      return
+    }
     setIsFollowing(false)
     setLoading(false)
     setConfirmOpen(false)
@@ -124,10 +132,15 @@ export default function FollowButton({
   async function doFollow() {
     if (!myId) return
     setLoading(true)
-    await supabase.from('user_follows').insert({
+    const { error } = await supabase.from('user_follows').insert({
       follower_id: myId,
       following_id: targetUserId,
     })
+    if (error) {
+      setLoading(false)
+      toast(mapSupabaseError(error) ?? 'לא הצלחנו להתחיל לעקוב', 'error')
+      return
+    }
     setIsFollowing(true)
     setLoading(false)
     broadcast(true)

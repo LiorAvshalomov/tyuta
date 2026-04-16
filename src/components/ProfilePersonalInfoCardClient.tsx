@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { event as gaEvent } from '@/lib/gtag'
 import ProfilePersonalInfoCard from '@/components/ProfilePersonalInfoCard'
+import { mapSupabaseError } from '@/lib/mapSupabaseError'
 
 type PersonalInfo = {
   personal_is_shared: boolean
@@ -167,7 +168,7 @@ export default function ProfilePersonalInfoCardClient({
 
     if (upErr) {
       setSaving(false)
-      setError(upErr.message)
+      setError(mapSupabaseError(upErr) ?? upErr.message)
       return
     }
 

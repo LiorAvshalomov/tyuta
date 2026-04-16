@@ -1,7 +1,6 @@
 // src/app/(home)/page.tsx
 export const revalidate = 60
 
-import { preload } from 'react-dom'
 import Link from 'next/link'
 import Image from 'next/image'
 import { RelativeTime } from '@/components/RelativeTime'
@@ -120,7 +119,11 @@ function CoverImg({
   className?: string
 }) {
   if (isGifUrl(src)) {
-    return <GifCoverCard src={src} alt={alt} />
+    return (
+      <div className={`absolute inset-0 overflow-hidden ${className ?? ''}`}>
+        <GifCoverCard src={src} alt={alt} />
+      </div>
+    )
   }
   // Proxy URLs are already unoptimized (served from /api/media/cover).
   // Direct Supabase CDN URLs go through Next.js optimizer — use resilient
@@ -1182,13 +1185,6 @@ export default async function HomePage(props: HomePageProps = {}) {
 
   const featured = featuredId ? (postsById.get(featuredId) ? toCard(postsById.get(featuredId) as PostRow, featuredRank ?? undefined) : null) : null
 
-  // Preload the LCP image so the browser fetches it as early as possible,
-  // before finishing HTML parsing. React 19 hoists this to <head>.
-  if (featured?.cover_image_url) {
-    const lcpSrc = coverProxySrc(featured.cover_image_url)
-    if (lcpSrc) preload(lcpSrc, { as: 'image', fetchPriority: 'high' })
-  }
-
   const top1 = top1Rank?.post_id ? (postsById.get(top1Rank.post_id) ? toCard(postsById.get(top1Rank.post_id) as PostRow, top1Rank) : null) : null
   const top2 = top2Rank?.post_id ? (postsById.get(top2Rank.post_id) ? toCard(postsById.get(top2Rank.post_id) as PostRow, top2Rank) : null) : null
   const top3 = top3Rank?.post_id ? (postsById.get(top3Rank.post_id) ? toCard(postsById.get(top3Rank.post_id) as PostRow, top3Rank) : null) : null
@@ -1353,20 +1349,21 @@ export default async function HomePage(props: HomePageProps = {}) {
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 items-start">
               <div className="space-y-8">
                 {forcedSubcategories.map(sc => {
-                                    const rankedItems = channelRanks
+                  const rankedItems = channelRanks
                     .map(r => (postsById.get(r.post_id) ? toCard(postsById.get(r.post_id) as PostRow, r) : null))
                     .filter((x): x is CardPost => x !== null)
                   const forcedId = forcedSubcatIdsByName.get(sc.name_he)
+                  const subcategoryRowLimit = channelSlug === 'magazine' ? 3 : 5
 
                   // Subcategory sections on channel pages should be HOT (monthly ranking), not recent.
                   // We filter ranked items by subcategory_tag_id (stable), and also allow tag-name fallback.
                   const hotItems = rankedItems.filter(p => {
                     return forcedId != null
-                      ?  (p.subcategory?.name_he === sc.name_he || p.tags.some(t => t.name_he === sc.name_he))
+                      ? (p.subcategory_tag_id === forcedId || p.subcategory?.name_he === sc.name_he || p.tags.some(t => t.name_he === sc.name_he))
                       : (p.subcategory?.name_he === sc.name_he || p.tags.some(t => t.name_he === sc.name_he))
                   })
 
-                  const rows = takeUnique(hotItems, 3, used)
+                  const rows = takeUnique(hotItems, subcategoryRowLimit, used)
 
                   return (
                     <div key={sc.name_he}>
