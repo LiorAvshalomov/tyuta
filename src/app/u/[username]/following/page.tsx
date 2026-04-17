@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import FollowListClient from '@/components/FollowListClient'
 import FollowPageHeader from '@/components/FollowPageHeader'
 import { createPublicServerClient } from '@/lib/supabase/createPublicServerClient'
@@ -6,6 +7,15 @@ export const revalidate = 60
 
 type PageProps = {
   params: Promise<{ username: string }>
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { username } = await params
+  return {
+    title: `עוקבים אחרי @${username}`,
+    robots: { index: false, follow: true },
+    alternates: { canonical: `https://tyuta.net/u/${encodeURIComponent(username)}` },
+  }
 }
 
 export default async function FollowingPage({ params }: PageProps) {

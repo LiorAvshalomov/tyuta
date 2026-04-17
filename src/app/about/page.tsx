@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     canonical: "/about",
   },
   openGraph: {
-    title: "אודות",
+    title: "אודות | Tyuta",
     description:
       "טיוטה הוא מרחב כתיבה עם קהילה: תגובות, מדליות ודירוגים שנועדו לעודד הקשבה — והפוקוס נשאר על המילים.",
     url: "/about",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: "אודות",
+    title: "אודות | Tyuta",
     description:
       "מרחב כתיבה עם קהילה — מקום למילים שקטות, לטיוטות, ולגבולות ברורים.",
   },
