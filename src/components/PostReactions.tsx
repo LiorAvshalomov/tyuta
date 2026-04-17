@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
@@ -44,6 +45,16 @@ type ReactionVoterPreview = {
 }
 
 type TooltipPlacement = 'top' | 'bottom'
+type LongPressTouchState = {
+  reactionKey: string
+  startX: number
+  startY: number
+}
+
+type TooltipViewportPosition = {
+  top: number
+  left: number
+}
 
 type Props = {
   postId: string
@@ -63,6 +74,7 @@ const REACTION_EMOJI: Record<string, string> = {
   smart: '🧠',
   interesting: '👀',
 }
+const LONG_PRESS_MOVE_TOLERANCE_PX = 12
 
 export default function PostReactions({ postId, channelId, authorId, onMedalsChange }: Props) {
   const [loading, setLoading] = useState(true)
@@ -76,12 +88,16 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
   const [reactionVoters, setReactionVoters] = useState<Record<string, { items: ReactionVoterPreview[]; total: number }>>({})
   const [tooltipReactionKey, setTooltipReactionKey] = useState<string | null>(null)
   const [tooltipPlacement, setTooltipPlacement] = useState<TooltipPlacement>('top')
+  const [tooltipViewportPosition, setTooltipViewportPosition] = useState<TooltipViewportPosition | null>(null)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
 
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
   const tooltipHideTimerRef = useRef<number | null>(null)
   const longPressTimerRef = useRef<number | null>(null)
+  const longPressTouchRef = useRef<LongPressTouchState | null>(null)
   const suppressTapAfterLongPressRef = useRef(false)
   const reactionTriggerRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const tooltipPanelRef = useRef<HTMLDivElement | null>(null)
 
   const myVotesCount = myVotes.size
 
@@ -136,6 +152,23 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
       if (tooltipHideTimerRef.current) window.clearTimeout(tooltipHideTimerRef.current)
       if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current)
     }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+
+    const mediaQuery = window.matchMedia('(pointer: coarse)')
+    const updatePointerMode = () => setIsCoarsePointer(mediaQuery.matches)
+
+    updatePointerMode()
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', updatePointerMode)
+      return () => mediaQuery.removeEventListener('change', updatePointerMode)
+    }
+
+    mediaQuery.addListener(updatePointerMode)
+    return () => mediaQuery.removeListener(updatePointerMode)
   }, [])
 
   // keep latest userId without re-subscribing
@@ -233,6 +266,11 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
     }
   }, [])
 
+  const resetLongPressGesture = useCallback(() => {
+    clearLongPressTimer()
+    longPressTouchRef.current = null
+  }, [clearLongPressTimer])
+
   const computeTooltipPlacement = useCallback((reactionKey: string): TooltipPlacement => {
     if (typeof window === 'undefined') return 'top'
     const node = reactionTriggerRefs.current[reactionKey]
@@ -304,6 +342,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
 
   const closeTooltip = useCallback(() => {
     clearTooltipHideTimer()
+    setTooltipViewportPosition(null)
     setTooltipReactionKey(null)
   }, [clearTooltipHideTimer])
 
@@ -317,23 +356,70 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
     void fetchReactionVoters(reactionKey)
   }, [clearTooltipHideTimer, computeTooltipPlacement, fetchReactionVoters, summary])
 
+  const positionTooltipInViewport = useCallback((reactionKey: string) => {
+    if (typeof window === 'undefined') return
+
+    const triggerNode = reactionTriggerRefs.current[reactionKey]
+    if (!triggerNode) return
+
+    const rect = triggerNode.getBoundingClientRect()
+    const tooltipNode = tooltipPanelRef.current
+    const viewportPadding = 12
+    const spacing = 10
+    const tooltipWidth = tooltipNode?.offsetWidth ?? 220
+    const tooltipHeight = tooltipNode?.offsetHeight ?? 110
+    const placement = computeTooltipPlacement(reactionKey)
+    const centeredLeft = rect.left + rect.width / 2 - tooltipWidth / 2
+    const maxLeft = Math.max(viewportPadding, window.innerWidth - viewportPadding - tooltipWidth)
+    const left = Math.min(Math.max(centeredLeft, viewportPadding), maxLeft)
+    const preferredTop = placement === 'top' ? rect.top - tooltipHeight - spacing : rect.bottom + spacing
+    const maxTop = Math.max(viewportPadding, window.innerHeight - viewportPadding - tooltipHeight)
+    const top = Math.min(Math.max(preferredTop, viewportPadding), maxTop)
+
+    setTooltipPlacement(placement)
+    setTooltipViewportPosition({ top, left })
+  }, [computeTooltipPlacement])
+
   const scheduleTooltipHide = useCallback(() => {
     clearTooltipHideTimer()
     tooltipHideTimerRef.current = window.setTimeout(() => {
+      setTooltipViewportPosition(null)
       setTooltipReactionKey(null)
     }, 160)
   }, [clearTooltipHideTimer])
 
-  const beginLongPress = useCallback((reactionKey: string) => {
+  const beginLongPress = useCallback((reactionKey: string, event: ReactTouchEvent<HTMLButtonElement>) => {
     if (Number(summary[reactionKey]?.votes ?? 0) === 0) return
 
     clearLongPressTimer()
+    const touch = event.touches[0]
+    longPressTouchRef.current = touch
+      ? {
+          reactionKey,
+          startX: touch.clientX,
+          startY: touch.clientY,
+        }
+      : null
     suppressTapAfterLongPressRef.current = false
     longPressTimerRef.current = window.setTimeout(() => {
       suppressTapAfterLongPressRef.current = true
       openTooltip(reactionKey)
     }, 420)
   }, [clearLongPressTimer, openTooltip, summary])
+
+  const handleLongPressMove = useCallback((event: ReactTouchEvent<HTMLButtonElement>) => {
+    const gesture = longPressTouchRef.current
+    const touch = event.touches[0]
+    if (!gesture || !touch) return
+
+    const deltaX = touch.clientX - gesture.startX
+    const deltaY = touch.clientY - gesture.startY
+    const distance = Math.hypot(deltaX, deltaY)
+
+    if (distance > LONG_PRESS_MOVE_TOLERANCE_PX) {
+      resetLongPressGesture()
+    }
+  }, [resetLongPressGesture])
 
   // --------
   // Initial load (full)
@@ -424,14 +510,32 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
 
     const onPointerDown = (event: PointerEvent) => {
       const activeTrigger = reactionTriggerRefs.current[activeTooltipReactionKey]
+      const tooltipNode = tooltipPanelRef.current
       const target = event.target as Node | null
       if (activeTrigger && target && activeTrigger.contains(target)) return
+      if (tooltipNode && target && tooltipNode.contains(target)) return
       closeTooltip()
     }
 
     window.addEventListener('pointerdown', onPointerDown)
     return () => window.removeEventListener('pointerdown', onPointerDown)
   }, [activeTooltipReactionKey, closeTooltip])
+
+  useEffect(() => {
+    if (!activeTooltipReactionKey || !isCoarsePointer) return
+
+    const reposition = () => positionTooltipInViewport(activeTooltipReactionKey)
+    const rafId = window.requestAnimationFrame(reposition)
+
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
+
+    return () => {
+      window.cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
+    }
+  }, [activeTooltipReactionKey, isCoarsePointer, positionTooltipInViewport, reactionVoters])
 
   // Re-fetch voters live when vote count changes while tooltip is open
   useEffect(() => {
@@ -546,6 +650,43 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
     void fetchSummaryOnly()
   }
 
+  const renderTooltipContent = (reactionKey: string) => {
+    const tooltipData = reactionVoters[reactionKey]
+
+    return (
+      <>
+        <div className="space-y-0.5">
+          {tooltipData ? (
+            tooltipData.items.length > 0 ? (
+              tooltipData.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="w-max max-w-full whitespace-nowrap rounded-md px-1 py-0.5 text-[13px] leading-5 text-neutral-800 dark:text-neutral-100"
+                >
+                  {item.name}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl px-1 py-1.5 text-[12px] text-neutral-500 dark:text-neutral-400">
+                עדיין אין פרטים זמינים על המדרגים.
+              </div>
+            )
+          ) : (
+            <div className="rounded-xl px-1 py-1.5 text-[12px] text-neutral-500 dark:text-neutral-400">
+              טוען...
+            </div>
+          )}
+        </div>
+
+        {tooltipData && tooltipData.total > tooltipData.items.length ? (
+          <div className="mt-2 border-t border-black/8 px-1 pt-2 text-[12px] font-medium text-neutral-500 dark:border-white/10 dark:text-neutral-400">
+            ועוד {tooltipData.total - tooltipData.items.length} נוספים
+          </div>
+        ) : null}
+      </>
+    )
+  }
+
   if (loading) {
     return (
       <section className="text-right" dir="rtl">
@@ -622,10 +763,11 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                     closeTooltip()
                     void toggle(r.key)
                   }}
-                  onTouchStart={() => beginLongPress(r.key)}
-                  onTouchEnd={clearLongPressTimer}
-                  onTouchCancel={clearLongPressTimer}
-                  onTouchMove={clearLongPressTimer}
+                  onTouchStart={(event) => beginLongPress(r.key, event)}
+                  onTouchEnd={resetLongPressGesture}
+                  onTouchCancel={resetLongPressGesture}
+                  onTouchMove={handleLongPressMove}
+                  onContextMenu={(event) => event.preventDefault()}
                   onFocus={() => openTooltip(r.key)}
                   onBlur={scheduleTooltipHide}
                   className={[
@@ -657,7 +799,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                   </div>
                 </button>
 
-                {isTooltipOpen ? (
+                {isTooltipOpen && !isCoarsePointer ? (
                   <div
                     className={[
                       'absolute left-1/2 z-20 w-fit max-w-[min(22rem,calc(100vw-1.5rem))] -translate-x-1/2 rounded-[18px] border border-black/12 bg-[rgba(248,248,248,0.8)] px-3 py-2 text-right shadow-[0_14px_34px_-20px_rgba(15,23,42,0.28)] backdrop-blur-md dark:border-white/10 dark:bg-[rgba(28,28,30,0.76)] dark:shadow-[0_16px_36px_-22px_rgba(0,0,0,0.55)]',
@@ -702,6 +844,25 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
             )
           })}
         </div>
+
+        {isCoarsePointer && activeTooltipReactionKey && typeof document !== 'undefined'
+          ? createPortal(
+              <div
+                ref={tooltipPanelRef}
+                className="fixed z-[70] w-fit max-w-[min(22rem,calc(100vw-1rem))] rounded-[18px] border border-black/12 bg-[rgba(248,248,248,0.78)] px-3 py-2 text-right shadow-[0_18px_40px_-22px_rgba(15,23,42,0.34)] backdrop-blur-md dark:border-white/10 dark:bg-[rgba(24,24,27,0.72)] dark:shadow-[0_18px_44px_-24px_rgba(0,0,0,0.6)]"
+                style={
+                  tooltipViewportPosition
+                    ? { top: tooltipViewportPosition.top, left: tooltipViewportPosition.left }
+                    : { top: -9999, left: 0, visibility: 'hidden' }
+                }
+                role="tooltip"
+                dir="rtl"
+              >
+                {renderTooltipContent(activeTooltipReactionKey)}
+              </div>,
+              document.body
+            )
+          : null}
 
         <div className="mt-3 text-center text-[12px] leading-5 text-neutral-600 dark:text-muted-foreground">
           בחר עד 3 דירוגים לפוסט, אפשר לבטל בלחיצה נוספת.

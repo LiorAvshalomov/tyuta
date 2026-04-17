@@ -1,6 +1,6 @@
 "use client"
 
-import Link from 'next/link'
+import Link from '@/components/ContentLink'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
@@ -124,8 +124,8 @@ function DesktopPostCard({
       className="group relative hidden sm:block rounded-xl border border-neutral-100 bg-neutral-50 p-4 transition-colors hover:bg-neutral-100 dark:border-border dark:bg-muted/50 dark:hover:bg-muted cursor-pointer"
       role="link"
       tabIndex={0}
-      onClick={() => router.push(`/post/${post.slug}`)}
-      onKeyDown={e => { if (e.key === 'Enter') router.push(`/post/${post.slug}`) }}
+      onClick={() => router.push(`/post/${post.slug}`, { scroll: true })}
+      onKeyDown={e => { if (e.key === 'Enter') router.push(`/post/${post.slug}`, { scroll: true }) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -246,8 +246,8 @@ function MobilePostCard({
       className="group relative sm:hidden rounded-xl border border-neutral-100 bg-neutral-50 overflow-hidden dark:border-border dark:bg-muted/50 cursor-pointer"
       role="link"
       tabIndex={0}
-      onClick={() => router.push(`/post/${post.slug}`)}
-      onKeyDown={e => { if (e.key === 'Enter') router.push(`/post/${post.slug}`) }}
+      onClick={() => router.push(`/post/${post.slug}`, { scroll: true })}
+      onKeyDown={e => { if (e.key === 'Enter') router.push(`/post/${post.slug}`, { scroll: true }) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >

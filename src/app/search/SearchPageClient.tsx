@@ -222,7 +222,7 @@ export default function SearchPageClient({
     }
 
     startTransition(() => {
-      router.push(href, { scroll: options?.scroll ?? false })
+      router.push(href, { scroll: options?.scroll ?? !options?.smoothToTop })
     })
   }
 

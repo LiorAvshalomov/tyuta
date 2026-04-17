@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/ContentLink'
 import dynamic from 'next/dynamic'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -113,7 +113,7 @@ function SidebarPostItem({
   const authorUsername = pAuthor?.username ?? null
   const date = post.published_at ?? post.created_at
 
-  const goPost = () => router.push(`/post/${post.slug}`)
+  const goPost = () => router.push(`/post/${post.slug}`, { scroll: true })
 
   return (
     <div

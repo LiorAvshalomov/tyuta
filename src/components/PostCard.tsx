@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import Link from 'next/link'
+import Link from '@/components/ContentLink'
 import Badge from '@/components/Badge'
 import { coverProxySrc } from '@/lib/coverUrl'
 import { formatDateTimeHe, formatRelativeHe, isNewPost } from '@/lib/time'
