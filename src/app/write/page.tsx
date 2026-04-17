@@ -772,6 +772,13 @@ useEffect(() => {
     void loadDraft()
   }, [effectivePostId, userId, channels, channelParam])
 
+  const getActiveSession = useCallback(async () => {
+    const resolution = await waitForClientSession(4000)
+    if (resolution.status === 'authenticated') return resolution.session
+    setErrorMsg('הסשן פג תוקף — רענן את הדף')
+    return null
+  }, [])
+
   const ensureDraft = useCallback(async (overrides?: {
     title?: string
     excerpt?: string
@@ -783,7 +790,8 @@ useEffect(() => {
     coverSource?: string | null
   }): Promise<{ id: string; slug: string } | null> => {
     if (!userId) return null
-    const { data: { session: _s } } = await supabase.auth.getSession()
+    const session = await getActiveSession()
+    const _s = session
     if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return null }
     // In edit mode we never create a new draft silently.
     if (isEditMode) return null
@@ -901,6 +909,7 @@ if (!effectiveChannelId) {
     coverStoragePath,
     coverSource,
     router,
+    getActiveSession,
   ])
 
   const syncTags = useCallback(
@@ -939,7 +948,8 @@ if (!effectiveChannelId) {
   const upsertDraftSilently = useCallback(async () => {
     if (!userId) return
     if (isPublishing) return
-    const { data: { session: _s } } = await supabase.auth.getSession()
+    const session = await getActiveSession()
+    const _s = session
     if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
 
     const isEmpty = !title.trim() && !excerpt.trim() && isEmptyDoc(contentJson)
@@ -1036,6 +1046,7 @@ if (!effectiveChannelId) {
     isEditMode,
     isPublishing,
     settingsLocked,
+    getActiveSession,
   ])
 
   // autosave debounce (drafts + edit-drafts)
@@ -1143,7 +1154,8 @@ if (!effectiveChannelId) {
       setErrorMsg('סוג קובץ לא נתמך. מותרות תמונות JPEG, PNG, GIF ו-WebP בלבד.')
       return
     }
-    const { data: { session: _coverSession } } = await supabase.auth.getSession()
+    const session = await getActiveSession()
+    const _coverSession = session
     if (!_coverSession) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
     const postId = isEditMode ? effectivePostId : (await ensureDraft())?.id
     if (!postId) return
@@ -1189,7 +1201,7 @@ if (!effectiveChannelId) {
     setIsCoverLoading(true)
     setErrorMsg(null)
     const seed = Date.now()
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getActiveSession()
     const headers: Record<string, string> = {}
     if (session?.access_token) {
       headers['Authorization'] = `Bearer ${session.access_token}`
@@ -1230,7 +1242,7 @@ if (!effectiveChannelId) {
 
   const fetchAutoCoverUrl = async (q: string, postId: string): Promise<{ storagePath: string | null; displayUrl: string } | null> => {
     const seed = Date.now()
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getActiveSession()
     const headers: Record<string, string> = {}
     if (session?.access_token) {
       headers['Authorization'] = `Bearer ${session.access_token}`
@@ -1251,7 +1263,7 @@ if (!effectiveChannelId) {
   }
 
   const revalidatePostSurfaces = async (slug: string) => {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getActiveSession()
     if (!session?.access_token) return
 
     const headers = {
@@ -1287,7 +1299,7 @@ if (!effectiveChannelId) {
   }
 
   const cleanupPostAssets = async (postId: string) => {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await getActiveSession()
     if (!session?.access_token) return
 
     const headers = {
@@ -1319,7 +1331,8 @@ if (!effectiveChannelId) {
   const publish = async () => {
     if (saving || publishingRef.current || isPublishing) return
     if (!userId) return
-    const { data: { session: _pubSession } } = await supabase.auth.getSession()
+    const session = await getActiveSession()
+    const _pubSession = session
     if (!_pubSession) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
     publishingRef.current = true
     setIsPublishing(true)
@@ -1383,7 +1396,7 @@ if (!effectiveChannelId) {
       if (!activeCoverStoragePath) return { publicUrl: publishSnapshot.coverUrl, source: activeCoverSource }
 
       // Promote through the server route so oversized covers can be compressed safely.
-      const { data: { session } } = await supabase.auth.getSession()
+      const session = await getActiveSession()
       if (!session?.access_token) {
         throw new Error('פג תוקף ההתחברות. רענני את הדף ונסי שוב.')
       }

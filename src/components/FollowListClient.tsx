@@ -5,6 +5,7 @@ import Link from 'next/link'
 import FollowButton from '@/components/FollowButton'
 import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 
 type UserCard = {
   id: string
@@ -119,17 +120,31 @@ export default function FollowListClient({
     let mounted = true
 
     async function loadViewer() {
-      const { data } = await supabase.auth.getSession()
-      if (!mounted) return
+      const resolution = await waitForClientSession(5000)
+      if (!mounted || resolution.status === 'timeout') return
 
-      if (!data.session?.user?.id) setViewerId(null)
-      else setViewerId(data.session.user.id)
+      if (resolution.status !== 'authenticated') setViewerId(null)
+      else setViewerId(resolution.user.id)
       setViewerResolved(true)
     }
 
     void loadViewer()
 
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return
+
+      if (event === 'SIGNED_OUT') {
+        setViewerId(null)
+        setViewerResolved(true)
+        return
+      }
+
+      if (session?.user?.id) {
+        setViewerId(session.user.id)
+        setViewerResolved(true)
+        return
+      }
+
       void loadViewer()
     })
 

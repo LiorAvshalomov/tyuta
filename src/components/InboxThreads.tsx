@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import Avatar from '@/components/Avatar'
 import { resolveUserIdentity, SYSTEM_USER_ID } from '@/lib/systemIdentity'
 import { getModerationStatus } from '@/lib/moderation'
@@ -67,9 +68,15 @@ export default function InboxThreads() {
   const load = useCallback(async () => {
     setLoading(true)
 
-    const { data: me } = await supabase.auth.getSession()
-    const meUser = me.session?.user
+    const resolution = await waitForClientSession(5000)
+    if (resolution.status === 'timeout') {
+      setLoading(false)
+      return
+    }
+
+    const meUser = resolution.status === 'authenticated' ? resolution.user : null
     if (!meUser?.id) {
+      meIdRef.current = null
       setRows([])
       setLoading(false)
       return
@@ -97,6 +104,25 @@ export default function InboxThreads() {
     setRows(withMessages)
     setLoading(false)
   }, [])
+
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        meIdRef.current = null
+        setRows([])
+        setLoading(false)
+        return
+      }
+
+      window.setTimeout(() => {
+        void load()
+      }, 0)
+    })
+
+    return () => {
+      sub.subscription.unsubscribe()
+    }
+  }, [load])
 
   // Subscribe / unsubscribe typing channels as conversation list changes
   useEffect(() => {

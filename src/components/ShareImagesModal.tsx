@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
+import { waitForClientSession } from "@/lib/auth/clientSession"
 
 type Theme = "light" | "dark"
 type Format = "square" | "portrait" | "story"
@@ -34,8 +34,8 @@ const ALIGN_LABELS: Record<Align, string> = {
 }
 
 async function getToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession()
-  return data.session?.access_token ?? null
+  const resolution = await waitForClientSession(5000)
+  return resolution.status === "authenticated" ? resolution.session.access_token : null
 }
 
 export default function ShareImagesModal({ postId, onClose }: Props) {

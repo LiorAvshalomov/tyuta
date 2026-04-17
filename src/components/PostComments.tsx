@@ -951,8 +951,8 @@ async function submitReport() {
       return
     }
 
-    const { data: auth } = await supabase.auth.getSession()
-    const u = auth.session?.user
+    const resolution = await waitForClientSession(4000)
+    const u = resolution.status === 'authenticated' ? resolution.user : null
     if (!u) {
       setErrFor('צריך להתחבר כדי להגיב')
       return

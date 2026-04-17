@@ -41,9 +41,11 @@ export default function ClampedText({
     if (!el) return
 
     let cancelled = false
+    let measuring = false
 
     function measure() {
-      if (cancelled || !el) return
+      if (cancelled || !el || measuring) return
+      measuring = true
 
       // Use block display so scrollHeight is the real content height.
       // (webkit-box + line-clamp returns only the clamped height in Chrome)
@@ -53,13 +55,14 @@ export default function ClampedText({
       // Measure actual one-line height — reliable regardless of font/line-height
       el.textContent = '\u00A0'
       const oneLineH = el.scrollHeight
-      if (oneLineH === 0) return // element not visible yet; ResizeObserver will retry
+      if (oneLineH === 0) { measuring = false; return } // element not visible yet; ResizeObserver will retry
       const maxHeight = oneLineH * lines + 1 // +1px sub-pixel tolerance
 
       // Check if full text already fits
       el.textContent = text
       if (el.scrollHeight <= maxHeight) {
         if (!cancelled) setDisplay(text)
+        measuring = false
         return
       }
 
@@ -80,6 +83,7 @@ export default function ClampedText({
       const result = lo === 0 ? suffix : words.slice(0, lo).join(' ') + suffix
       el.textContent = result
       if (!cancelled) setDisplay(result)
+      measuring = false
     }
 
     measure()

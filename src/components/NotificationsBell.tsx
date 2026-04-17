@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient"
 import Avatar from "@/components/Avatar"
 import { useToast } from "@/components/Toast"
 import { mapSupabaseError } from "@/lib/mapSupabaseError"
+import { waitForClientSession } from "@/lib/auth/clientSession"
 import {
   POST_REFRESH_CHANNEL,
   POST_REFRESH_EVENT,
@@ -259,8 +260,8 @@ export default function NotificationsBell() {
   const searchParams = useSearchParams()
 
   const getUid = useCallback(async () => {
-    const { data } = await supabase.auth.getSession()
-    return data.session?.user?.id ?? null
+    const resolution = await waitForClientSession(5000)
+    return resolution.status === "authenticated" ? resolution.user.id : null
   }, [])
 
   const load = useCallback(async () => {

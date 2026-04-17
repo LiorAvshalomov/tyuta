@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import Avatar from '@/components/Avatar'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 
 type ThreadRow = {
   conversation_id: string
@@ -64,8 +65,9 @@ export default function MessagesMenu() {
   }, [])
 
   const load = useCallback(async () => {
-    const { data: me } = await supabase.auth.getSession()
-    if (!me.session?.user?.id) {
+    const resolution = await waitForClientSession(4000)
+    const uid = resolution.status === 'authenticated' ? resolution.user.id : null
+    if (!uid) {
       setRows([])
       setTotalUnread(0)
       return

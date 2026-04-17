@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 
 const STORAGE_PREFIX = 'tyuta:beta_notice:dismissed:'
 
@@ -21,8 +22,10 @@ export default function BetaWelcomeModal() {
     let cancelled = false
 
     const init = async () => {
-      const { data } = await supabase.auth.getSession()
-      const uid = data.session?.user?.id ?? null
+      const resolution = await waitForClientSession(4000)
+      if (resolution.status === 'timeout') return
+
+      const uid = resolution.status === 'authenticated' ? resolution.user.id : null
       if (cancelled) return
 
       setUserId(uid)
@@ -37,8 +40,29 @@ export default function BetaWelcomeModal() {
     }
 
     void init()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUserId(null)
+        setOpen(false)
+        return
+      }
+
+      if (session?.user?.id) {
+        const uid = session.user.id
+        setUserId(uid)
+        const key = storageKeyForUser(uid)
+        const dismissed = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null
+        setOpen(!dismissed)
+        return
+      }
+
+      void init()
+    })
+
     return () => {
       cancelled = true
+      subscription.unsubscribe()
     }
   }, [])
 

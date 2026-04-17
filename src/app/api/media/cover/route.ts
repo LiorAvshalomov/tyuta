@@ -30,7 +30,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!path.startsWith('post-covers/')) {
     return new NextResponse('Invalid path', { status: 400 })
   }
-  if (path.includes('..') || path.includes('//')) {
+  if (path.includes('..') || path.includes('//') || /[?#\s]/.test(path)) {
     return new NextResponse('Invalid path', { status: 400 })
   }
   if (!SUPABASE_URL) {
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': contentType,
+    'Content-Type': byteCheck.mimeType,
     'Cache-Control': 'public, max-age=31536000, immutable',
     'CDN-Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
     'Vercel-CDN-Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',

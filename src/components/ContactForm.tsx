@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 
 const MAX_FILES = 5
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -10,6 +11,7 @@ const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/web
 
 export default function ContactForm() {
   const [loading, setLoading] = useState(false)
+  const [authResolved, setAuthResolved] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [email, setEmail] = useState('')
@@ -23,14 +25,44 @@ export default function ContactForm() {
 
   useEffect(() => {
     let mounted = true
-    supabase.auth.getSession().then(({ data }) => {
+
+    const syncSession = (session: {
+      access_token?: string | null
+      user?: { id?: string | null; email?: string | null } | null
+    } | null) => {
       if (!mounted) return
-      const session = data.session
       setUserId(session?.user?.id ?? null)
       setToken(session?.access_token ?? null)
       setEmail(session?.user?.email ?? '')
+      setAuthResolved(true)
+    }
+
+    const loadAuth = async () => {
+      const resolution = await waitForClientSession(5000)
+      if (!mounted || resolution.status === 'timeout') return
+      syncSession(resolution.status === 'authenticated' ? resolution.session : null)
+    }
+
+    void loadAuth()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        syncSession(null)
+        return
+      }
+
+      if (session?.user?.id) {
+        syncSession(session)
+        return
+      }
+
+      void loadAuth()
     })
-    return () => { mounted = false }
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   function handleFiles(selected: FileList | null) {
@@ -97,6 +129,14 @@ export default function ContactForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (!authResolved) {
+    return (
+      <div className="rounded-2xl border bg-white/60 p-4 text-sm text-neutral-600 dark:bg-muted/60 dark:text-muted-foreground">
+        טוען את ההתחברות...
+      </div>
+    )
   }
 
   if (!userId) {

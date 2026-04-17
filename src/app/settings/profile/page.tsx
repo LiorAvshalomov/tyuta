@@ -254,8 +254,8 @@ export default function ProfileSettingsPage() {
   }
 
   const revalidateProfileSurfaces = async (previousUsername: string | null, nextUsername: string) => {
-    const { data } = await supabase.auth.getSession()
-    const accessToken = data.session?.access_token
+    const resolution = await waitForClientSession(4000)
+    const accessToken = resolution.status === 'authenticated' ? resolution.session.access_token : null
     if (!accessToken) return
 
     const requestBody = JSON.stringify({
@@ -288,8 +288,8 @@ export default function ProfileSettingsPage() {
     previousDisplayName: string | null
     nextDisplayName: string
   }) => {
-    const { data } = await supabase.auth.getSession()
-    const accessToken = data.session?.access_token
+    const resolution = await waitForClientSession(4000)
+    const accessToken = resolution.status === 'authenticated' ? resolution.session.access_token : null
     if (!accessToken) return
 
     await fetch('/api/profile/audit-identity', {
@@ -304,8 +304,8 @@ export default function ProfileSettingsPage() {
   }
 
   const removeStoredAvatar = async () => {
-    const { data } = await supabase.auth.getSession()
-    const accessToken = data.session?.access_token
+    const resolution = await waitForClientSession(4000)
+    const accessToken = resolution.status === 'authenticated' ? resolution.session.access_token : null
     if (!accessToken) return
 
     await fetch('/api/profile/avatar/remove', {

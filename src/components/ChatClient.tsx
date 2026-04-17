@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapSupabaseError, mapModerationRpcError } from '@/lib/mapSupabaseError'
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
 import { useToast } from '@/components/Toast'
@@ -576,8 +577,8 @@ export default function ChatClient({
         body: JSON.stringify({ conversation_id: conversationId }),
       })
     } else {
-      const { data } = await supabase.auth.getSession()
-      if (!data.session?.user?.id) return
+      const resolution = await waitForClientSession(4000)
+      if (resolution.status !== 'authenticated') return
       await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
     }
 
@@ -632,9 +633,9 @@ export default function ChatClient({
     let mounted = true
 
     async function loadMe() {
-      const { data } = await supabase.auth.getSession()
-      if (!mounted) return
-      setMyId(data.session?.user?.id ?? null)
+      const resolution = await waitForClientSession(5000)
+      if (!mounted || resolution.status === 'timeout') return
+      setMyId(resolution.status === 'authenticated' ? resolution.user.id : null)
     }
 
     void loadMe()
@@ -719,8 +720,8 @@ export default function ChatClient({
         }
       }
 
-      const { data: me } = await supabase.auth.getSession()
-      if (!me.session?.user?.id) return
+      const resolution = await waitForClientSession(5000)
+      if (resolution.status !== 'authenticated') return
 
       const { data, error } = await supabase
         .from('inbox_threads')
@@ -831,11 +832,15 @@ export default function ChatClient({
     let mounted = true
 
     void (async () => {
-      const uid = isAdminMode
+      const sessionResolution = isAdminMode ? null : await waitForClientSession(5000)
+      const effectiveUid = isAdminMode
         ? (systemId ?? null)
-        : ((await supabase.auth.getSession()).data.session?.user?.id ?? null)
+        : sessionResolution?.status === 'authenticated'
+          ? sessionResolution.user.id
+          : null
       if (!mounted) return
-      if (uid && uid !== myId) setMyId(uid)
+      if (!isAdminMode && sessionResolution?.status === 'timeout') return
+      if (effectiveUid && effectiveUid !== myId) setMyId(effectiveUid)
 
       const list = await fetchMessages()
       if (!mounted) return
@@ -844,14 +849,14 @@ export default function ChatClient({
       // Load reply metadata and reactions for initial messages
       const replyIds = list.map(m => m.reply_to_id).filter((id): id is string => id != null)
       void doLoadReplyMeta(replyIds)
-      void loadReactions(list, uid)
+      void loadReactions(list, effectiveUid)
 
       setLoading(false)
       enterStickUntilRef.current = Date.now() + 2000
 
       // Show unread divider UI after DOM settles; markRead only after user interaction
       setTimeout(() => {
-        const unreadOnEntry = computeUnreadCount(list, uid)
+        const unreadOnEntry = computeUnreadCount(list, effectiveUid)
         if (unreadOnEntry > 0) setUnreadUiVisible(true)
       }, 200)
     })()
@@ -1488,7 +1493,12 @@ export default function ChatClient({
     const capturedReply = replyTo
     setReplyTo(null)
 
-    const uid = isAdminMode ? myId : (await supabase.auth.getSession()).data.session?.user?.id
+    const resolution = isAdminMode ? null : await waitForClientSession(4000)
+    const uid = isAdminMode
+      ? myId
+      : resolution?.status === 'authenticated'
+        ? resolution.user.id
+        : null
     if (!uid) {
       sendingRef.current = false
       toast('כדי לשלוח הודעה צריך להתחבר', 'info')

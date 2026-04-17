@@ -390,8 +390,8 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
   }, [])
 
   const loadThreads = useCallback(async (): Promise<ThreadRow[]> => {
-    const { data } = await supabase.auth.getSession()
-    const uid = data.session?.user?.id
+    const resolution = await waitForClientSession(4000)
+    const uid = resolution.status === 'authenticated' ? resolution.user.id : null
     if (!uid) {
       setThreads([])
       setMsgUnread(0)

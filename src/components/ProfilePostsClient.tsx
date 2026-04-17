@@ -86,8 +86,8 @@ function getChannelSlug(channelName: string | null): string | null {
 }
 
 async function authedFetch(input: string, init: RequestInit = {}) {
-  const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
+  const resolution = await waitForClientSession(4000)
+  const token = resolution.status === 'authenticated' ? resolution.session.access_token : null
   if (!token) throw new Error('Not authenticated')
 
   const headers: Record<string, string> = {

@@ -4,6 +4,7 @@ import Avatar from '@/components/Avatar'
 import { supabase } from '@/lib/supabaseClient'
 import { useToast } from '@/components/Toast'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import {
   POST_REFRESH_CHANNEL,
   POST_REFRESH_EVENT,
@@ -185,9 +186,9 @@ export default function NotificationsPage() {
     setLoading(true)
     setErrorMsg(null)
     try {
-      const { data: u } = await supabase.auth.getSession()
+      const resolution = await waitForClientSession(5000)
       if (loadSeq !== loadSeqRef.current) return
-      const uid = u.session?.user?.id
+      const uid = resolution.status === 'authenticated' ? resolution.user.id : null
       if (!uid) {
         setRows([])
         setErrorMsg(null)

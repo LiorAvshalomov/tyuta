@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import { event as gaEvent } from '@/lib/gtag'
 import ProfilePersonalInfoCard from '@/components/ProfilePersonalInfoCard'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
@@ -64,6 +65,7 @@ export default function ProfilePersonalInfoCardClient({
   onHeightChange?: (height: number) => void
 }) {
   const [isOwner, setIsOwner] = useState(false)
+  const [ownerResolved, setOwnerResolved] = useState(false)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -91,14 +93,39 @@ export default function ProfilePersonalInfoCardClient({
 
   useEffect(() => {
     let mounted = true
-    const run = async () => {
-      const { data } = await supabase.auth.getSession()
-      const uid = data?.session?.user?.id
+
+    const syncOwner = (uid: string | null) => {
       if (!mounted) return
       setIsOwner(Boolean(uid && uid === profileId))
+      setOwnerResolved(true)
     }
-    run()
-    return () => { mounted = false }
+
+    const run = async () => {
+      const resolution = await waitForClientSession(5000)
+      if (!mounted || resolution.status === 'timeout') return
+      syncOwner(resolution.status === 'authenticated' ? resolution.user.id : null)
+    }
+
+    void run()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        syncOwner(null)
+        return
+      }
+
+      if (session?.user?.id) {
+        syncOwner(session.user.id)
+        return
+      }
+
+      void run()
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [profileId])
 
   // Report height changes
@@ -115,6 +142,8 @@ export default function ProfilePersonalInfoCardClient({
   }, [onHeightChange])
 
   const cardRight = useMemo(() => {
+    if (!ownerResolved) return null
+
     if (isOwner) {
       return (
         <button
@@ -139,7 +168,7 @@ export default function ProfilePersonalInfoCardClient({
     return !info.personal_is_shared ? (
       <span className="text-xs text-neutral-400">פרטי</span>
     ) : null
-  }, [info, isOwner])
+  }, [info, isOwner, ownerResolved])
 
   const save = async () => {
     setSaving(true)

@@ -84,8 +84,8 @@ export default function RestrictedPage() {
     setBusy(true)
 
     try {
-      const { data } = await supabase.auth.getSession()
-      if (!data.session?.user?.id) {
+      const session = await getResolvedSession(4000)
+      if (!session?.user?.id) {
         router.replace('/auth/login')
         return
       }

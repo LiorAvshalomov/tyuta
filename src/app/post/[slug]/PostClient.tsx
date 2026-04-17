@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentProps } from 'react'
 
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import Avatar from '@/components/Avatar'
 import RichText from '@/components/RichText'
@@ -303,9 +304,9 @@ export default function PostPage({ initialData, initialExtras }: Props) {
 
   useEffect(() => {
     let alive = true
-    supabase.auth.getSession().then(({ data }) => {
-      if (!alive) return
-      setMyUserId(data.session?.user?.id ?? null)
+    waitForClientSession(5000).then((resolution) => {
+      if (!alive || resolution.status === 'timeout') return
+      setMyUserId(resolution.status === 'authenticated' ? resolution.user.id : null)
     })
     return () => {
       alive = false

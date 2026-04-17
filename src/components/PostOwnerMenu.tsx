@@ -4,6 +4,7 @@ import Link from "next/link"
 import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import { waitForClientSession } from "@/lib/auth/clientSession"
 
 const ShareImagesModal = dynamic(() => import("./ShareImagesModal"))
 
@@ -21,8 +22,8 @@ function getErrorMessage(e: unknown) {
 }
 
 async function authedFetch(input: string, init: RequestInit = {}) {
-  const { data } = await supabase.auth.getSession()
-  const token = data.session?.access_token
+  const resolution = await waitForClientSession(4000)
+  const token = resolution.status === "authenticated" ? resolution.session.access_token : null
   if (!token) throw new Error("Not authenticated")
 
   const headers: Record<string, string> = {
@@ -60,10 +61,20 @@ export default function PostOwnerMenu({
 }, [open])
 
   useEffect(() => {
-    supabase.auth
-      .getUser()
-      .then(({ data }) => setViewerId(data.user?.id ?? null))
-      .catch(() => setViewerId(null))
+    let mounted = true
+
+    waitForClientSession(5000)
+      .then((resolution) => {
+        if (!mounted || resolution.status === 'timeout') return
+        setViewerId(resolution.status === 'authenticated' ? resolution.user.id : null)
+      })
+      .catch(() => {
+        if (mounted) setViewerId(null)
+      })
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   useEffect(() => {

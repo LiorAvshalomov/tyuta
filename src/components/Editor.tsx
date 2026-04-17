@@ -16,6 +16,7 @@ import Youtube from '@tiptap/extension-youtube'
 import CharacterCount from '@tiptap/extension-character-count'
 
 import { supabase } from '@/lib/supabaseClient'
+import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import {
   appendRelatedPosts,
@@ -785,8 +786,8 @@ export default function Editor({
 
       let uid = userId ?? null
       if (!uid) {
-        const { data } = await supabase.auth.getSession()
-        uid = data.session?.user?.id ?? null
+        const resolution = await waitForClientSession(4000)
+        uid = resolution.status === 'authenticated' ? resolution.user.id : null
       }
 
       if (!uid) {
