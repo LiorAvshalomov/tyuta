@@ -1,7 +1,29 @@
 // src/app/(home)/page.tsx
 export const revalidate = 60
 
+import type { Metadata } from 'next'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'Tyuta - המקום לכל הגרסאות שלך',
+  description: 'Tyuta (טיוטה): קהילת הכותבים הישראלית. פריקה, סיפורים, כתבות — מהמחשבה הראשונה ועד ליצירה הסופית.',
+  alternates: { canonical: 'https://tyuta.net' },
+  openGraph: {
+    type: 'website',
+    url: 'https://tyuta.net',
+    title: 'Tyuta - המקום לכל הגרסאות שלך',
+    description: 'Tyuta (טיוטה): קהילת הכותבים הישראלית. פריקה, סיפורים, כתבות — מהמחשבה הראשונה ועד ליצירה הסופית.',
+    siteName: 'Tyuta',
+    locale: 'he_IL',
+    images: [{ url: '/web-app-manifest-512x512.png', width: 512, height: 512, alt: 'Tyuta' }],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Tyuta - המקום לכל הגרסאות שלך',
+    description: 'Tyuta (טיוטה): קהילת הכותבים הישראלית. פריקה, סיפורים, כתבות — מהמחשבה הראשונה ועד ליצירה הסופית.',
+    images: ['/web-app-manifest-512x512.png'],
+  },
+}
 import Image from 'next/image'
 import { RelativeTime } from '@/components/RelativeTime'
 import HomeWriteCTA from '@/components/HomeWriteCTA'

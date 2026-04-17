@@ -461,8 +461,11 @@ export default function WritePage() {
 
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSyncedTagsRef = useRef<{ postId: string | null; signature: string }>({ postId: null, signature: '' })
+  const lastPersistedDraftSnapshotRef = useRef<string | null>(null)
   const hasLoadedDraftOnce = useRef(false)
   const localDraftHydrationRef = useRef<string | null>(null)
+  const draftCreationPromiseRef = useRef<Promise<{ id: string; slug: string } | null> | null>(null)
+  const draftLoadSeqRef = useRef(0)
   const latestDraftStateRef = useRef({
     title: '',
     excerpt: '',
@@ -677,11 +680,26 @@ useEffect(() => {
     hasLoadedDraftOnce.current = false
   }, [activeIdFromUrl])
 
+  useEffect(() => {
+    if (!activeIdFromUrl) return
+    if (localDraftHydrationRef.current !== activeIdFromUrl) return
+
+    // We already have the local state that created this draft, so we can skip
+    // the immediate round-trip fetch and avoid first-save flicker/jumps.
+    hasLoadedDraftOnce.current = true
+    setLoadedStatus(prev => prev ?? 'draft')
+    localDraftHydrationRef.current = null
+  }, [activeIdFromUrl])
+
   // --- Load draft/post (once) if ?draft=... or ?edit=...
   useEffect(() => {
+    let cancelled = false
+
     const loadDraft = async () => {
       if (!effectivePostId || !userId) return
       if (hasLoadedDraftOnce.current) return
+
+      const loadSeq = ++draftLoadSeqRef.current
 
       const { data: post, error } = await supabase
         .from('posts')
@@ -691,6 +709,8 @@ useEffect(() => {
         .eq('id', effectivePostId)
         .eq('author_id', userId)
         .single()
+
+      if (cancelled || draftLoadSeqRef.current !== loadSeq) return
 
       if (error || !post) {
         setErrorMsg(error?.message ?? 'לא הצלחתי לטעון טיוטה')
@@ -728,6 +748,7 @@ useEffect(() => {
         const { data: signed } = await supabase.storage
           .from('post-assets')
           .createSignedUrl(path, PRIVATE_DRAFT_MEDIA_URL_TTL_SECONDS)
+        if (cancelled || draftLoadSeqRef.current !== loadSeq) return
         setCoverUrl(signed?.signedUrl ?? null)
       } else if (!isLocallyCreatedDraft || (!latestDraftState.coverStoragePath && !latestDraftState.coverUrl)) {
         setCoverStoragePath(null)
@@ -742,6 +763,7 @@ useEffect(() => {
       }
 
       const { data: tagRows } = await supabase.from('post_tags').select('tag_id').eq('post_id', d.id)
+      if (cancelled || draftLoadSeqRef.current !== loadSeq) return
       const loadedTagIds = (tagRows ?? []).map(r => r.tag_id)
       if (!isLocallyCreatedDraft || latestDraftState.selectedTagIds.length === 0) {
         setSelectedTagIds(loadedTagIds)
@@ -751,25 +773,29 @@ useEffect(() => {
         signature: getSortedTagSignature(loadedTagIds),
       }
 
-      setInitialSnapshot(
-        snapshotOf({
-          title: (d.title ?? '').toString(),
-          excerpt: (d.excerpt ?? '').toString(),
-          contentJson: ((d.content_json as JSONContent) ?? EMPTY_DOC) as JSONContent,
-          // Snapshot compares what we store in DB; drafts store path, published stores public URL.
-          coverUrl: d.status === 'draft' ? d.cover_image_url : d.cover_image_url,
-          coverSource: d.cover_source,
-          channelId: resolvedChannelId,
-          subcategoryTagId: d.subcategory_tag_id,
-          selectedTagIds: loadedTagIds,
-        })
-      )
+      const loadedSnapshot = snapshotOf({
+        title: (d.title ?? '').toString(),
+        excerpt: (d.excerpt ?? '').toString(),
+        contentJson: ((d.content_json as JSONContent) ?? EMPTY_DOC) as JSONContent,
+        // Snapshot compares what we store in DB; drafts store path, published stores public URL.
+        coverUrl: d.status === 'draft' ? d.cover_image_url : d.cover_image_url,
+        coverSource: d.cover_source,
+        channelId: resolvedChannelId,
+        subcategoryTagId: d.subcategory_tag_id,
+        selectedTagIds: loadedTagIds,
+      })
+      setInitialSnapshot(loadedSnapshot)
+      lastPersistedDraftSnapshotRef.current = loadedSnapshot
 
       if (isLocallyCreatedDraft) localDraftHydrationRef.current = null
       hasLoadedDraftOnce.current = true
     }
 
     void loadDraft()
+
+    return () => {
+      cancelled = true
+    }
   }, [effectivePostId, userId, channels, channelParam])
 
   const getActiveSession = useCallback(async () => {
@@ -788,50 +814,58 @@ useEffect(() => {
     coverUrl?: string | null
     coverStoragePath?: string | null
     coverSource?: string | null
-  }): Promise<{ id: string; slug: string } | null> => {
+  }): Promise<{ id: string; slug: string; createdNow: boolean } | null> => {
     if (!userId) return null
     const session = await getActiveSession()
-    const _s = session
-    if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return null }
+    if (!session) {
+      setErrorMsg('הסשן פג תוקף – רענן את הדף')
+      return null
+    }
     // In edit mode we never create a new draft silently.
     if (isEditMode) return null
-    if (effectivePostId && draftSlug) return { id: effectivePostId, slug: draftSlug }
+    if (effectivePostId && draftSlug) return { id: effectivePostId, slug: draftSlug, createdNow: false }
 
-    if (createdDraftId && draftSlug) return { id: createdDraftId, slug: draftSlug }
-    if (createdDraftId) return { id: createdDraftId, slug: draftSlug ?? '' }
+    if (createdDraftId && draftSlug) return { id: createdDraftId, slug: draftSlug, createdNow: false }
+    if (createdDraftId) return { id: createdDraftId, slug: draftSlug ?? '', createdNow: false }
 
 
-    // ✅ channel_id is NOT NULL — make sure we always have one before insert
+    // channel_id is NOT NULL, so make sure we always have one before insert.
     let effectiveChannelId = overrides?.channelId ?? channelId
 
-// Prefer URL preset if provided
-const urlPresetChannelId = resolveChannelIdFromParam(channelParam, channels)
-if (urlPresetChannelId != null) effectiveChannelId = urlPresetChannelId
+    // Prefer URL preset if provided.
+    const urlPresetChannelId = resolveChannelIdFromParam(channelParam, channels)
+    if (urlPresetChannelId != null) effectiveChannelId = urlPresetChannelId
 
-if (!effectiveChannelId) {
-  // try from loaded channels state
-  const first = channels?.[0]?.id ?? null
-  effectiveChannelId = first
+    if (!effectiveChannelId) {
+      // Try from loaded channels state first.
+      const first = channels?.[0]?.id ?? null
+      effectiveChannelId = first
 
-  // if still null, fetch once from DB (covers first load race)
-  if (!effectiveChannelId) {
-    const { data: ch } = await supabase
-      .from('channels')
-      .select('id')
-      .order('sort_order')
-      .limit(1)
+      // If still null, fetch once from DB to cover the first-load race.
+      if (!effectiveChannelId) {
+        const { data: ch } = await supabase
+          .from('channels')
+          .select('id')
+          .order('sort_order')
+          .limit(1)
 
-    effectiveChannelId = ch?.[0]?.id ?? null
-  }
+        effectiveChannelId = ch?.[0]?.id ?? null
+      }
 
-  if (!effectiveChannelId) {
-    setErrorMsg('לא נמצאו ערוצים (channels). חייב להיות לפחות ערוץ אחד כדי ליצור טיוטה.')
-    return null
-  }
+      if (!effectiveChannelId) {
+        setErrorMsg('לא נמצאו ערוצים (channels). חייב להיות לפחות ערוץ אחד כדי ליצור טיוטה.')
+        return null
+      }
 
-  // sync state so next saves use it
-  setChannelId(effectiveChannelId)
-}
+      // Sync state so the next save/publish uses the resolved channel too.
+      setChannelId(effectiveChannelId)
+    }
+
+    if (draftCreationPromiseRef.current) {
+      const existing = await draftCreationPromiseRef.current
+      if (!existing) return null
+      return { ...existing, createdNow: false }
+    }
 
     // crypto.randomUUID is not available in all environments (and can be missing on non-HTTPS origins).
     // Use a safe fallback.
@@ -858,37 +892,53 @@ if (!effectiveChannelId) {
       return urlSub
     })()
 
-    const { data: created, error } = await supabase
-      .from('posts')
-      .insert({
+    const createDraftPromise = (async (): Promise<{ id: string; slug: string } | null> => {
+      const { data: created, error } = await supabase
+        .from('posts')
+        .insert({
+          slug,
+          title: dbTitle,
+          excerpt: draftExcerpt.trim() || null,
+          content_json: draftContentJson,
+          channel_id: effectiveChannelId,
+          subcategory_tag_id: effectiveSubcategoryTagId,
+          author_id: userId,
+          status: 'draft',
+          cover_image_url: draftCoverStoragePath ?? draftCoverUrl,
+          cover_source: draftCoverSource,
+        })
+        .select('id, slug')
+        .single()
 
-        slug,
-        title: dbTitle,
-        excerpt: draftExcerpt.trim() || null,
-        content_json: draftContentJson,
-        channel_id: effectiveChannelId,
-                subcategory_tag_id: effectiveSubcategoryTagId,
+      if (error || !created) {
+        setErrorMsg(mapSupabaseError(error ?? null) ?? error?.message ?? 'שגיאה ביצירת טיוטה')
+        return null
+      }
 
-        author_id: userId,
-        status: 'draft',
-        cover_image_url: draftCoverStoragePath ?? draftCoverUrl,
-        cover_source: draftCoverSource,
-      })
-      .select('id, slug')
-      .single()
+      // We already have the local state that created this draft, so keep that as
+      // the source of truth and skip the immediate round-trip rehydration.
+      hasLoadedDraftOnce.current = true
+      localDraftHydrationRef.current = created.id
+      setCreatedDraftId(created.id)
+      setDraftSlug(created.slug)
+      setLoadedStatus('draft')
+      const params = new URLSearchParams(searchParams.toString())
+      params.set('draft', created.id)
+      router.replace(`/write?${params.toString()}`, { scroll: false })
+      return { id: created.id, slug: created.slug }
+    })()
 
-    if (error || !created) {
-      setErrorMsg(mapSupabaseError(error ?? null) ?? error?.message ?? 'שגיאה ביצירת טיוטה')
-      return null
+    draftCreationPromiseRef.current = createDraftPromise
+
+    try {
+      const created = await createDraftPromise
+      if (!created) return null
+      return { ...created, createdNow: true }
+    } finally {
+      if (draftCreationPromiseRef.current === createDraftPromise) {
+        draftCreationPromiseRef.current = null
+      }
     }
-
-    setCreatedDraftId(created.id)
-    setDraftSlug(created.slug)
-    localDraftHydrationRef.current = created.id
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('draft', created.id)
-    router.replace(`/write?${params.toString()}`)
-    return { id: created.id, slug: created.slug }
   }, [
     userId,
     isEditMode,
@@ -952,7 +1002,11 @@ if (!effectiveChannelId) {
     const _s = session
     if (!_s) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
 
-    const isEmpty = !title.trim() && !excerpt.trim() && isEmptyDoc(contentJson)
+    const hasMeaningfulDraftSettings =
+      subcategoryTagId != null ||
+      selectedTagIds.length > 0 ||
+      Boolean(coverUrl || coverStoragePath || coverSource)
+    const isEmpty = !title.trim() && !excerpt.trim() && isEmptyDoc(contentJson) && !hasMeaningfulDraftSettings
     if (isEmpty && !effectivePostId && !isEditMode) return
 
     // Capture a seq token. Any response-side setState below is gated on this
@@ -991,14 +1045,31 @@ if (!effectiveChannelId) {
 
         if (!settingsLocked && !(await syncTags(effectivePostId))) return
         // Only update lastSavedAt if no newer save has started since ours
+        lastPersistedDraftSnapshotRef.current = currentSnapshot
         if (mySeq === saveSeqRef.current) setLastSavedAt(new Date().toISOString())
         return
       }
 
-      const existing = await ensureDraft()
+      const existing = await ensureDraft({
+        title,
+        excerpt,
+        contentJson,
+        channelId,
+        subcategoryTagId,
+        coverUrl,
+        coverStoragePath,
+        coverSource,
+      })
       if (!existing) return
 
       const { id } = existing
+      if (existing.createdNow) {
+        if (!(await syncTags(id))) return
+        lastPersistedDraftSnapshotRef.current = currentSnapshot
+        if (mySeq === saveSeqRef.current) setLastSavedAt(new Date().toISOString())
+        return
+      }
+
       const coverDbValue = coverStoragePath ?? coverUrl
       const { error } = await supabase
         .from('posts')
@@ -1022,6 +1093,7 @@ if (!effectiveChannelId) {
 
       if (!(await syncTags(id))) return
       // Only update meta if this is still the latest save response
+      lastPersistedDraftSnapshotRef.current = currentSnapshot
       if (mySeq === saveSeqRef.current) setLastSavedAt(new Date().toISOString())
     } finally {
       // Only clear the saving/pending indicators when no newer save is in flight
@@ -1035,6 +1107,7 @@ if (!effectiveChannelId) {
     title,
     excerpt,
     contentJson,
+    currentSnapshot,
     effectivePostId,
     ensureDraft,
     channelId,
@@ -1042,6 +1115,7 @@ if (!effectiveChannelId) {
     coverUrl,
     coverStoragePath,
     coverSource,
+    selectedTagIds,
     syncTags,
     isEditMode,
     isPublishing,
@@ -1053,10 +1127,30 @@ if (!effectiveChannelId) {
   useEffect(() => {
     if (!userId) return
     if (!autosaveEnabled) return
+    if (saving || isPublishing) return
+
+    const isBlankComposer =
+      !title.trim() &&
+      !excerpt.trim() &&
+      isEmptyDoc(contentJson) &&
+      subcategoryTagId == null &&
+      selectedTagIds.length === 0 &&
+      !coverUrl &&
+      !coverStoragePath &&
+      !coverSource
+    if (isBlankComposer && !effectivePostId && !createdDraftId && !isEditMode) {
+      setSavePending(false)
+      return
+    }
 
     // Prevent one transient render from old state being saved into a new draft.
     const isTransientCarryover = !activeIdFromUrl && !createdDraftId && loadedStatus !== null
     if (isTransientCarryover) return
+
+    if (lastPersistedDraftSnapshotRef.current === currentSnapshot) {
+      setSavePending(false)
+      return
+    }
 
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current)
     setSavePending(true)
@@ -1071,18 +1165,24 @@ if (!effectiveChannelId) {
   }, [
     userId,
     autosaveEnabled,
+    currentSnapshot,
     title,
     excerpt,
     contentJson,
     channelId,
     subcategoryTagId,
     coverUrl,
+    coverStoragePath,
     coverSource,
     selectedTagIds,
     upsertDraftSilently,
     activeIdFromUrl,
     createdDraftId,
     loadedStatus,
+    effectivePostId,
+    isEditMode,
+    saving,
+    isPublishing,
   ])
 
   // Warn on closing tab / refreshing

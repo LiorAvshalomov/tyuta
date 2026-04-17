@@ -392,7 +392,7 @@ export default function SavedPostsPage() {
                   const channelLabel = post.channel?.name_he ?? null
                   const channelSlug = post.channel?.slug ?? null
                   const tone = getChannelTone(channelLabel, channelSlug)
-                  const savedDate = formatDate(row.created_at)
+
                   const publishedDate = formatDate(post.published_at)
                   const excerpt = clampText(post.excerpt, 180)
 
@@ -419,12 +419,10 @@ export default function SavedPostsPage() {
                               )
                             ) : null}
 
-                            {savedDate ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-black/8 bg-white/70 px-3 py-1 text-neutral-600 dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground">
-                                <Clock3 className="h-3 w-3" />
-                                נשמר ב־{savedDate}
-                              </span>
-                            ) : null}
+                            <span className="inline-flex items-center gap-1 rounded-full border border-black/8 bg-white/70 px-3 py-1 text-neutral-600 dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground">
+                              <Clock3 className="h-3 w-3" />
+                              נשמר
+                            </span>
                           </div>
 
                           <Link

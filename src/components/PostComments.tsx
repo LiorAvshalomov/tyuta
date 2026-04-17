@@ -47,6 +47,7 @@ type CommentLikeSyncPayload = {
 const COMMENT_LIKE_SYNC_STORAGE_KEY = 'tyuta:comment-like-sync'
 const COMMENT_LIKE_SYNC_EVENT = 'tyuta:comment-like-sync'
 const COMMENT_LIKE_SYNC_CHANNEL = 'tyuta-comment-like-sync'
+const NOTIFICATION_HIGHLIGHT_CLASS = "border-amber-300/80 ring-1 ring-amber-200/70 bg-[linear-gradient(180deg,rgba(255,252,244,0.96),rgba(255,247,228,0.82))] shadow-[0_18px_45px_-32px_rgba(217,119,6,0.28)] before:pointer-events-none before:absolute before:right-[1px] before:top-2 before:bottom-2 before:w-[4px] before:content-[''] before:rounded-full before:bg-[linear-gradient(180deg,rgba(245,158,11,0.98),rgba(251,191,36,0.56))] dark:border-amber-400/25 dark:ring-amber-300/15 dark:bg-[linear-gradient(180deg,rgba(120,87,29,0.18),rgba(43,32,11,0.10))] dark:shadow-[0_18px_45px_-34px_rgba(245,158,11,0.22)] dark:before:bg-[linear-gradient(180deg,rgba(251,191,36,0.84),rgba(245,158,11,0.26))] animate-[tyutaGlow_1100ms_ease-out] motion-reduce:animate-none"
 
 type RealtimePayload<T> = {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE'
@@ -1221,14 +1222,14 @@ async function submitReport() {
 <>
   <style>{`
     @keyframes tyutaGlow {
-      0%  { transform: scale(1);     box-shadow: 0 0 0 0     rgba(251,191,36,0.35); }
-      35% { transform: scale(1.005); box-shadow: 0 0 24px -2px rgba(251,191,36,0.28); }
-      100%{ transform: scale(1);     box-shadow: 0 0 12px -3px rgba(251,191,36,0.10); }
+      0%   { transform: translateY(0);    box-shadow: 0 0 0 0 rgba(245,158,11,0.14); }
+      45%  { transform: translateY(-1px); box-shadow: 0 22px 56px -34px rgba(245,158,11,0.30); }
+      100% { transform: translateY(0);    box-shadow: 0 18px 38px -34px rgba(245,158,11,0.18); }
     }
     @keyframes tyutaNewComment {
-      0%   { box-shadow: 0 0 0 3px rgba(59,130,246,0.5); }
-      60%  { box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
-      100% { box-shadow: 0 0 0 0   rgba(59,130,246,0); }
+      0%   { box-shadow: 0 0 0 3px rgba(59,130,246,0.28), 0 18px 48px -34px rgba(59,130,246,0.18); }
+      60%  { box-shadow: 0 0 0 2px rgba(59,130,246,0.10), 0 14px 38px -34px rgba(59,130,246,0.12); }
+      100% { box-shadow: 0 0 0 0 rgba(59,130,246,0), 0 0 0 0 rgba(59,130,246,0); }
     }
   `}</style>
   {/* Report modal */}
@@ -1585,7 +1586,7 @@ async function submitReport() {
                 id={`comment-${c.id}`}
                 className={
                   `relative rounded-2xl border p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
-                  (highlightIds.has(`comment-${c.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[tyutaGlow_900ms_ease-out] motion-reduce:animate-none' : '')
+                  (highlightIds.has(`comment-${c.id}`) ? NOTIFICATION_HIGHLIGHT_CLASS : '')
                 }
                 style={realtimeHighlightIds.has(c.id) ? { animation: 'tyutaNewComment 2.5s ease-out forwards' } : undefined}
               >
@@ -1701,7 +1702,7 @@ async function submitReport() {
                           id={`comment-${r.id}`}
                           className={
                             `relative rounded-2xl border bg-white dark:bg-card dark:border-border p-3 scroll-mt-24 transition-all duration-500 ease-out ` +
-                            (highlightIds.has(`comment-${r.id}`) ? 'ring-1 ring-amber-200/50 bg-amber-50/50 shadow-[0_0_12px_-3px_rgba(251,191,36,0.10)] animate-[tyutaGlow_900ms_ease-out] motion-reduce:animate-none' : '')
+                            (highlightIds.has(`comment-${r.id}`) ? NOTIFICATION_HIGHLIGHT_CLASS : '')
                           }
                           style={realtimeHighlightIds.has(r.id) ? { animation: 'tyutaNewComment 2.5s ease-out forwards' } : undefined}
                         >

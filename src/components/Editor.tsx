@@ -863,6 +863,16 @@ export default function Editor({
   }, [showChapters])
 
   useEffect(() => {
+    if (!chaptersFeedback) return
+
+    const timer = window.setTimeout(() => {
+      setChaptersFeedback(null)
+    }, 3200)
+
+    return () => window.clearTimeout(timer)
+  }, [chaptersFeedback])
+
+  useEffect(() => {
     if (!disabled) return
     setShowMedia(false)
     setShowStyle(false)

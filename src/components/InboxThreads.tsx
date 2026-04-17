@@ -40,9 +40,15 @@ function formatLastTime(iso: string | null) {
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
+const THREADS_PAGE_SIZE = 25
+
+const THREADS_SELECT = 'conversation_id, other_user_id, other_username, other_display_name, other_avatar_url, last_body, last_created_at, unread_count'
+
 export default function InboxThreads() {
   const pathname = usePathname()
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [rows, setRows] = useState<ConvRow[]>([])
   const modStatus = getModerationStatus()
   const isBanned = modStatus === 'banned'
@@ -60,6 +66,11 @@ export default function InboxThreads() {
   // Debounce refresh bursts (INSERT + UPDATE can arrive together)
   const refreshTimerRef = useRef<number | null>(null)
 
+  const cursorRef = useRef<string | null>(null)
+  const loadingMoreRef = useRef(false)
+  const genRef = useRef(0)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
   const selectedConversationId = useMemo(() => {
     const m = pathname.match(/^\/inbox\/([^/]+)$/)
     return m?.[1] ?? null
@@ -67,6 +78,8 @@ export default function InboxThreads() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    cursorRef.current = null
+    const gen = ++genRef.current
 
     const resolution = await waitForClientSession(5000)
     if (resolution.status === 'timeout') {
@@ -78,31 +91,67 @@ export default function InboxThreads() {
     if (!meUser?.id) {
       meIdRef.current = null
       setRows([])
+      setHasMore(false)
       setLoading(false)
       return
     }
-    // Cache meId for typing filter
     meIdRef.current = meUser.id
 
     const { data, error } = await supabase
       .from('inbox_threads')
-      .select(
-        'conversation_id, other_user_id, other_username, other_display_name, other_avatar_url, last_body, last_created_at, unread_count'
-      )
+      .select(THREADS_SELECT)
+      .not('last_created_at', 'is', null)
       .order('last_created_at', { ascending: false, nullsFirst: false })
-      .limit(100)
+      .limit(THREADS_PAGE_SIZE + 1)
+
+    if (gen !== genRef.current) return
 
     if (error) {
       console.error('InboxThreads load error:', error)
       setRows([])
+      setHasMore(false)
       setLoading(false)
       return
     }
 
-    // Exclude conversations with no messages (last_created_at is NULL)
-    const withMessages = ((data ?? []) as ConvRow[]).filter(r => r.last_created_at != null)
-    setRows(withMessages)
+    const page = ((data ?? []) as ConvRow[]).slice(0, THREADS_PAGE_SIZE)
+    const more = (data?.length ?? 0) > THREADS_PAGE_SIZE
+    cursorRef.current = page[page.length - 1]?.last_created_at ?? null
+    setRows(page)
+    setHasMore(more)
     setLoading(false)
+  }, [])
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !cursorRef.current) return
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    const gen = genRef.current
+    try {
+      const resolution = await waitForClientSession(5000)
+      if (gen !== genRef.current) return
+      const meUser = resolution.status === 'authenticated' ? resolution.user : null
+      if (!meUser?.id) return
+
+      const { data, error } = await supabase
+        .from('inbox_threads')
+        .select(THREADS_SELECT)
+        .not('last_created_at', 'is', null)
+        .order('last_created_at', { ascending: false, nullsFirst: false })
+        .lt('last_created_at', cursorRef.current)
+        .limit(THREADS_PAGE_SIZE + 1)
+
+      if (gen !== genRef.current || error) return
+
+      const page = ((data ?? []) as ConvRow[]).slice(0, THREADS_PAGE_SIZE)
+      const more = (data?.length ?? 0) > THREADS_PAGE_SIZE
+      cursorRef.current = page[page.length - 1]?.last_created_at ?? null
+      setRows((prev) => [...prev, ...page])
+      setHasMore(more)
+    } finally {
+      loadingMoreRef.current = false
+      setLoadingMore(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -173,7 +222,19 @@ export default function InboxThreads() {
   }, [])
 
   useEffect(() => {
-    void load() // eslint-disable-line react-hooks/set-state-in-effect -- async data fetch
+    if (!hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) void loadMore() },
+      { rootMargin: '120px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, loadMore])
+
+  useEffect(() => {
+    void load()
 
     const scheduleRefresh = () => {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current)
@@ -347,6 +408,10 @@ export default function InboxThreads() {
                 </Link>
               )
             })}
+            {hasMore ? <div ref={sentinelRef} className="h-1" /> : null}
+            {loadingMore ? (
+              <div className="py-2 text-center text-xs text-muted-foreground">טוען עוד…</div>
+            ) : null}
           </div>
         )}
       </div>

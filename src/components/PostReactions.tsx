@@ -27,6 +27,24 @@ type ReactionVoteRow = {
   voter_id: string
 }
 
+type ReactionVotePreviewRow = {
+  voter_id: string
+  created_at: string | null
+}
+
+type ProfileRow = {
+  id: string
+  display_name: string | null
+  username: string | null
+}
+
+type ReactionVoterPreview = {
+  id: string
+  name: string
+}
+
+type TooltipPlacement = 'top' | 'bottom'
+
 type Props = {
   postId: string
   channelId: number
@@ -55,8 +73,15 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
   const [myVotes, setMyVotes] = useState<Set<string>>(new Set())
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const errTimerRef = useRef<number | null>(null)
+  const [reactionVoters, setReactionVoters] = useState<Record<string, { items: ReactionVoterPreview[]; total: number }>>({})
+  const [tooltipReactionKey, setTooltipReactionKey] = useState<string | null>(null)
+  const [tooltipPlacement, setTooltipPlacement] = useState<TooltipPlacement>('top')
 
   const [animatingKey, setAnimatingKey] = useState<string | null>(null)
+  const tooltipHideTimerRef = useRef<number | null>(null)
+  const longPressTimerRef = useRef<number | null>(null)
+  const suppressTapAfterLongPressRef = useRef(false)
+  const reactionTriggerRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const myVotesCount = myVotes.size
 
@@ -64,6 +89,10 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
     () => [...reactions].sort((a, b) => a.sort_order - b.sort_order),
     [reactions]
   )
+  const activeTooltipReactionKey = useMemo(() => {
+    if (!tooltipReactionKey) return null
+    return Number(summary[tooltipReactionKey]?.votes ?? 0) > 0 ? tooltipReactionKey : null
+  }, [summary, tooltipReactionKey])
 
   // IMPORTANT: medals must be computed from the TOTAL votes across all reaction keys,
   // using the project's base-4 reset rules.
@@ -101,6 +130,13 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
       if (errTimerRef.current) window.clearTimeout(errTimerRef.current)
     }
   }, [errorMsg])
+
+  useEffect(() => {
+    return () => {
+      if (tooltipHideTimerRef.current) window.clearTimeout(tooltipHideTimerRef.current)
+      if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current)
+    }
+  }, [])
 
   // keep latest userId without re-subscribing
   const userIdRef = useRef<string | null>(null)
@@ -182,6 +218,122 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
       fetchSummaryOnly()
     }, 120)
   }, [fetchSummaryOnly])
+
+  const clearTooltipHideTimer = useCallback(() => {
+    if (tooltipHideTimerRef.current) {
+      window.clearTimeout(tooltipHideTimerRef.current)
+      tooltipHideTimerRef.current = null
+    }
+  }, [])
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  const computeTooltipPlacement = useCallback((reactionKey: string): TooltipPlacement => {
+    if (typeof window === 'undefined') return 'top'
+    const node = reactionTriggerRefs.current[reactionKey]
+    if (!node) return 'top'
+
+    const rect = node.getBoundingClientRect()
+    const spaceAbove = rect.top
+    const spaceBelow = window.innerHeight - rect.bottom
+    const estimatedHeight = 280
+
+    if (spaceBelow < estimatedHeight && spaceAbove > spaceBelow) return 'top'
+    return 'bottom'
+  }, [])
+
+  const fetchReactionVoters = useCallback(async (reactionKey: string, force = false) => {
+    const currentCount = Number(summary[reactionKey]?.votes ?? 0)
+    if (currentCount === 0) return
+
+    const cached = reactionVoters[reactionKey]
+    if (!force && cached && cached.total === currentCount) return
+
+    const { data: votesData, error: votesError } = await supabase
+      .from('post_reaction_votes')
+      .select('voter_id, created_at')
+      .eq('post_id', postId)
+      .eq('reaction_key', reactionKey)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (votesError) return
+
+    const orderedIds = Array.from(
+      new Set(
+        ((votesData ?? []) as ReactionVotePreviewRow[])
+          .map((row) => row.voter_id)
+          .filter((value): value is string => Boolean(value))
+      )
+    )
+
+    if (orderedIds.length === 0) {
+      setReactionVoters((prev) => ({ ...prev, [reactionKey]: { items: [], total: currentCount } }))
+      return
+    }
+
+    const { data: profileRows, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, display_name, username')
+      .in('id', orderedIds)
+
+    if (profilesError) return
+
+    const profileMap = new Map(
+      ((profileRows ?? []) as ProfileRow[]).map((profile) => [profile.id, profile])
+    )
+
+    const items = orderedIds.map((id) => {
+      const profile = profileMap.get(id)
+      const displayName = profile?.display_name?.trim()
+      const username = profile?.username?.trim() || null
+
+      return {
+        id,
+        name: displayName || username || 'משתמש',
+      }
+    })
+
+    setReactionVoters((prev) => ({ ...prev, [reactionKey]: { items, total: currentCount } }))
+  }, [postId, reactionVoters, summary])
+
+  const closeTooltip = useCallback(() => {
+    clearTooltipHideTimer()
+    setTooltipReactionKey(null)
+  }, [clearTooltipHideTimer])
+
+  const openTooltip = useCallback((reactionKey: string) => {
+    const votes = Number(summary[reactionKey]?.votes ?? 0)
+    if (votes === 0) return
+
+    clearTooltipHideTimer()
+    setTooltipPlacement(computeTooltipPlacement(reactionKey))
+    setTooltipReactionKey(reactionKey)
+    void fetchReactionVoters(reactionKey)
+  }, [clearTooltipHideTimer, computeTooltipPlacement, fetchReactionVoters, summary])
+
+  const scheduleTooltipHide = useCallback(() => {
+    clearTooltipHideTimer()
+    tooltipHideTimerRef.current = window.setTimeout(() => {
+      setTooltipReactionKey(null)
+    }, 160)
+  }, [clearTooltipHideTimer])
+
+  const beginLongPress = useCallback((reactionKey: string) => {
+    if (Number(summary[reactionKey]?.votes ?? 0) === 0) return
+
+    clearLongPressTimer()
+    suppressTapAfterLongPressRef.current = false
+    longPressTimerRef.current = window.setTimeout(() => {
+      suppressTapAfterLongPressRef.current = true
+      openTooltip(reactionKey)
+    }, 420)
+  }, [clearLongPressTimer, openTooltip, summary])
 
   // --------
   // Initial load (full)
@@ -266,6 +418,30 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
       supabase.removeChannel(ch)
     }
   }, [postId, scheduleSync])
+
+  useEffect(() => {
+    if (!activeTooltipReactionKey) return
+
+    const onPointerDown = (event: PointerEvent) => {
+      const activeTrigger = reactionTriggerRefs.current[activeTooltipReactionKey]
+      const target = event.target as Node | null
+      if (activeTrigger && target && activeTrigger.contains(target)) return
+      closeTooltip()
+    }
+
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => window.removeEventListener('pointerdown', onPointerDown)
+  }, [activeTooltipReactionKey, closeTooltip])
+
+  // Re-fetch voters live when vote count changes while tooltip is open
+  useEffect(() => {
+    if (!activeTooltipReactionKey) return
+    const currentCount = Number(summary[activeTooltipReactionKey]?.votes ?? 0)
+    const cached = reactionVoters[activeTooltipReactionKey]
+    if (cached && cached.total === currentCount) return
+    void fetchReactionVoters(activeTooltipReactionKey, true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTooltipReactionKey, summary])
 
   // --------
   // Optimistic helper (this client only)
@@ -420,40 +596,109 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
             const votes = summary[r.key]?.votes ?? 0
             const mine = myVotes.has(r.key)
             const isAnimating = animatingKey === r.key
+            const tooltipData = reactionVoters[r.key]
+            const isTooltipOpen = activeTooltipReactionKey === r.key && votes > 0
 
             return (
-              <button
+              <div
                 key={r.key}
-                type="button"
-                onClick={() => toggle(r.key)}
-                className={[
-                  'group inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border px-2 py-1 text-center transition-all duration-150 ease-out md:min-w-[74px] md:px-3 md:py-2',
-                  mine
-                    ? 'border-neutral-900 bg-neutral-900 text-white'
-                    : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted',
-                ].join(' ')}
-                style={{
-                  transform: isAnimating ? 'scale(1.12)' : 'scale(1)',
+                ref={(node) => {
+                  reactionTriggerRefs.current[r.key] = node
                 }}
+                className="relative"
+                onMouseEnter={() => openTooltip(r.key)}
+                onMouseLeave={scheduleTooltipHide}
               >
-                <div className="flex items-center justify-center gap-1.5 text-[15px] leading-none md:text-[18px]">
-                  <span className="drop-shadow-sm">{REACTION_EMOJI[r.key] ?? '⭐'}</span>
-                  {votes > 0 ? (
-                    <span className={mine ? 'text-[11px] text-white/80 md:text-[12px]' : 'text-[11px] text-neutral-600 dark:text-muted-foreground md:text-[12px]'}>
-                      {votes}
-                    </span>
-                  ) : null}
-                </div>
-                <div
-                  className={
+                <button
+                  type="button"
+                  aria-expanded={isTooltipOpen}
+                  aria-haspopup="dialog"
+                  onClick={() => {
+                    if (suppressTapAfterLongPressRef.current) {
+                      suppressTapAfterLongPressRef.current = false
+                      return
+                    }
+
+                    closeTooltip()
+                    void toggle(r.key)
+                  }}
+                  onTouchStart={() => beginLongPress(r.key)}
+                  onTouchEnd={clearLongPressTimer}
+                  onTouchCancel={clearLongPressTimer}
+                  onTouchMove={clearLongPressTimer}
+                  onFocus={() => openTooltip(r.key)}
+                  onBlur={scheduleTooltipHide}
+                  className={[
+                    'group inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border px-2 py-1 text-center transition-all duration-150 ease-out md:min-w-[74px] md:px-3 md:py-2',
                     mine
-                      ? 'mt-1 text-[10px] font-semibold text-white md:text-[12px]'
-                      : 'mt-1 text-[10px] font-semibold text-neutral-800 dark:text-foreground md:text-[12px]'
-                  }
+                      ? 'border-neutral-900 bg-neutral-900 text-white'
+                      : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted',
+                  ].join(' ')}
+                  style={{
+                    transform: isAnimating ? 'scale(1.12)' : 'scale(1)',
+                  }}
                 >
-                  {r.label_he}
-                </div>
-              </button>
+                  <div className="flex items-center justify-center gap-1.5 text-[15px] leading-none md:text-[18px]">
+                    <span className="drop-shadow-sm">{REACTION_EMOJI[r.key] ?? '⭐'}</span>
+                    {votes > 0 ? (
+                      <span className={mine ? 'text-[11px] text-white/80 md:text-[12px]' : 'text-[11px] text-neutral-600 dark:text-muted-foreground md:text-[12px]'}>
+                        {votes}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div
+                    className={
+                      mine
+                        ? 'mt-1 text-[10px] font-semibold text-white md:text-[12px]'
+                        : 'mt-1 text-[10px] font-semibold text-neutral-800 dark:text-foreground md:text-[12px]'
+                    }
+                  >
+                    {r.label_he}
+                  </div>
+                </button>
+
+                {isTooltipOpen ? (
+                  <div
+                    className={[
+                      'absolute left-1/2 z-20 w-fit max-w-[min(22rem,calc(100vw-1.5rem))] -translate-x-1/2 rounded-[18px] border border-black/12 bg-[rgba(248,248,248,0.8)] px-3 py-2 text-right shadow-[0_14px_34px_-20px_rgba(15,23,42,0.28)] backdrop-blur-md dark:border-white/10 dark:bg-[rgba(28,28,30,0.76)] dark:shadow-[0_16px_36px_-22px_rgba(0,0,0,0.55)]',
+                      tooltipPlacement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
+                    ].join(' ')}
+                    onMouseEnter={() => openTooltip(r.key)}
+                    onMouseLeave={scheduleTooltipHide}
+                    role="tooltip"
+                    dir="rtl"
+                  >
+                    <div className="space-y-0.5">
+                      {tooltipData ? (
+                        tooltipData.items.length > 0 ? (
+                          tooltipData.items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="w-max max-w-full whitespace-nowrap rounded-md px-1 py-0.5 text-[13px] leading-5 text-neutral-800 dark:text-neutral-100"
+                            >
+                              {item.name}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-xl px-1 py-1.5 text-[12px] text-neutral-500 dark:text-neutral-400">
+                            עדיין אין פרטים זמינים על המדרגים.
+                          </div>
+                        )
+                      ) : (
+                        <div className="rounded-xl px-1 py-1.5 text-[12px] text-neutral-500 dark:text-neutral-400">
+                          טוען...
+                        </div>
+                      )}
+                    </div>
+
+                    {tooltipData && tooltipData.total > tooltipData.items.length ? (
+                      <div className="border-t border-black/8 px-1 pt-2 mt-2 text-[12px] font-medium text-neutral-500 dark:border-white/10 dark:text-neutral-400">
+                        ועוד {tooltipData.total - tooltipData.items.length} נוספים
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             )
           })}
         </div>

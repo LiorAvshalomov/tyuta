@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     canonical: "/privacy",
   },
   openGraph: {
-    title: "מדיניות פרטיות",
+    title: "מדיניות פרטיות | Tyuta",
     description:
       "טיוטה מתייחס לפרטיות בכבוד. כאן תמצאו הסבר ברור ושקוף על מידע, עוגיות, שיתוף נתונים וזכויותיכם.",
     url: "/privacy",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: "מדיניות פרטיות",
+    title: "מדיניות פרטיות | Tyuta",
     description:
       "איזה מידע טיוטה אוסף, למה, איך נשמר, ומה הזכויות שלך כמשתמש/ת.",
   },

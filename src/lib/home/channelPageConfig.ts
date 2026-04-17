@@ -74,11 +74,13 @@ export function getChannelPageMetadata(slug: ChannelPageSlug): Metadata {
       siteName: 'Tyuta',
       locale: 'he_IL',
       type: 'website',
+      images: [{ url: '/web-app-manifest-512x512.png', width: 512, height: 512, alt: 'Tyuta' }],
     },
     twitter: {
       card: 'summary',
       title: ogTitle,
       description: channel.description,
+      images: ['/web-app-manifest-512x512.png'],
     },
   }
 }

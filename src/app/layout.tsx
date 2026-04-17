@@ -51,9 +51,9 @@ export const metadata: Metadata = {
     locale: "he_IL",
     images: [
       {
-        url: "/apple-touch-icon.png",
-        width: 180,
-        height: 180,
+        url: "/web-app-manifest-512x512.png",
+        width: 512,
+        height: 512,
         alt: "Tyuta",
       },
     ],
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Tyuta - המקום לכל הגרסאות שלך",
     description: "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
-    images: ["/apple-touch-icon.png"],
+    images: ["/web-app-manifest-512x512.png"],
   },
   icons: {
     icon: [

@@ -20,17 +20,23 @@ type PageProps = {
   params: Promise<{ username: string }>
 }
 
-// React cache deduplicates: generateMetadata + page body share one DB round-trip
-const fetchProfileSeo = cache(async (username: string) => {
+// React cache deduplicates across generateMetadata + page body — one DB round-trip for both
+const fetchProfile = cache(async (username: string) => {
   const supabase = createPublicServerClient()
   if (!supabase) return null
   const { data } = await supabase
     .from('profiles')
-    .select('username, display_name, bio, avatar_url')
+    .select(
+      'id, username, display_name, bio, avatar_url, created_at, updated_at, personal_is_shared, personal_about, personal_age, personal_occupation, personal_writing_about, personal_books, personal_favorite_category'
+    )
     .eq('username', username)
     .maybeSingle()
-  return data as { username: string; display_name: string | null; bio: string | null; avatar_url: string | null } | null
+  return data as Profile | null
 })
+
+function safeJsonLdStringify(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, '\\u003c')
+}
 
 function absUrl(pathOrUrl: string): string {
   if (pathOrUrl.startsWith('http')) return pathOrUrl
@@ -41,7 +47,7 @@ function absUrl(pathOrUrl: string): string {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { username } = await params
   const canonical = `${SITE_URL}/u/${encodeURIComponent(username)}`
-  const data = await fetchProfileSeo(username)
+  const data = await fetchProfile(username)
 
   if (!data) {
     return {
@@ -160,15 +166,11 @@ export default async function PublicProfilePage({ params }: PageProps) {
       </div>
     )
   }
-  const { data: profile, error: pErr } = await supabase
-    .from('profiles')
-    .select(
-      'id, username, display_name, avatar_url, bio, created_at, updated_at, personal_is_shared, personal_about, personal_age, personal_occupation, personal_writing_about, personal_books, personal_favorite_category'
-    )
-    .eq('username', username)
-    .single()
 
-  if (pErr || !profile) {
+  // fetchProfile is cache()-wrapped — deduplicates with generateMetadata's call, no extra DB round-trip
+  const prof = await fetchProfile(username)
+
+  if (!prof) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10" dir="rtl">
         <h1 className="text-2xl font-bold">לא נמצא פרופיל</h1>
@@ -176,8 +178,6 @@ export default async function PublicProfilePage({ params }: PageProps) {
       </div>
     )
   }
-
-  const prof = profile as Profile
 
   const displayName = safeText(prof.display_name) || 'אנונימי'
   const bio = safeText(prof.bio)
@@ -293,8 +293,21 @@ export default async function PublicProfilePage({ params }: PageProps) {
     })),
   }
 
+  const personJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: displayName,
+    url: `${SITE_URL}/u/${encodeURIComponent(prof.username)}`,
+    ...(prof.avatar_url ? { image: absUrl(prof.avatar_url) } : {}),
+    ...(bio ? { description: bio } : {}),
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 lg:py-8" dir="rtl">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(personJsonLd) }}
+      />
       <ProfileVersionSeed pathname={`/u/${prof.username}`} version={initialProfileVersion} />
       {/* ════════════════════════════════════════════════════════════
           PROFILE HEADER CARD

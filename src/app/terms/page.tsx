@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     canonical: "/terms",
   },
   openGraph: {
-    title: "תנאי שימוש",
+    title: "תנאי שימוש | Tyuta",
     description:
       "תנאי השימוש של טיוטה: כללי שימוש, אחריות, זכויות יוצרים, הסרה, שיפוי וסמכות שיפוט.",
     url: "/terms",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: "תנאי שימוש",
+    title: "תנאי שימוש | Tyuta",
     description:
       "תנאי השימוש של טיוטה: כללי שימוש, אחריות, זכויות יוצרים, הסרה, שיפוי וסמכות שיפוט.",
   },

@@ -313,7 +313,8 @@ export default async function PostPage({ params }: PageProps) {
   const canonical = `${SITE_URL}/post/${encodeURIComponent(data.slug)}`
   const headline = (data.title ?? "").trim() || "Tyuta"
   const description = ((data.excerpt ?? "").trim() || "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.").slice(0, 200)
-  const image = data.cover_image_url ? absUrl(data.cover_image_url) : absUrl("/apple-touch-icon.png")
+  const rawCoverUrl = data.cover_image_url ? data.cover_image_url.split('?')[0] : null
+  const imageUrl = rawCoverUrl ? absUrl(rawCoverUrl) : absUrl("/web-app-manifest-512x512.png")
   const datePublished = data.published_at ? new Date(data.published_at).toISOString() : undefined
   const dateModified = (data.updated_at ?? data.published_at)
     ? new Date((data.updated_at ?? data.published_at)!).toISOString()
@@ -331,46 +332,25 @@ export default async function PostPage({ params }: PageProps) {
   authorUsername = joinedAuthor?.username ?? null
   authorUpdatedAt = joinedAuthor?.updated_at ?? null
 
-  if (!authorName) {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("username,display_name,updated_at")
-      .eq("id", data.author_id)
-      .maybeSingle<ProfileRow>()
-
-    authorName = (prof?.display_name ?? "").trim()
-    authorUsername = prof?.username ?? authorUsername
-    authorUpdatedAt = prof?.updated_at ?? authorUpdatedAt
-  }
-
-  if (!authorName) {
-    authorName = (authorUsername ?? "").trim() || "Tyuta"
-  }
-
-  const authorUrl = authorUsername ? `${SITE_URL}/u/${encodeURIComponent(authorUsername)}` : undefined
-
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
-    headline,
-    description,
-    image: [image],
-    datePublished,
-    dateModified,
-    author: authorUrl
-      ? { "@type": "Person", name: authorName, url: authorUrl }
-      : { "@type": "Person", name: authorName },
-    publisher: {
-      "@type": "Organization",
-      name: "Tyuta",
-      url: SITE_URL,
-      logo: { "@type": "ImageObject", url: absUrl("/apple-touch-icon.png") },
-    },
-  }
-
-  const initialExtras = await loadPostSsrExtras(supabase, data)
-  const [latestAuthorPostRes, latestChannelPostRes, latestGlobalProfileRes] = await Promise.all([
+  // Run all remaining queries in a single parallel batch:
+  // - optional author profile fallback (when joined author has no display_name)
+  // - post extras (related posts, comments, etc.)
+  // - version-seed queries (latest author/channel/global timestamps)
+  const [
+    profFallback,
+    initialExtras,
+    latestAuthorPostRes,
+    latestChannelPostRes,
+    latestGlobalProfileRes,
+  ] = await Promise.all([
+    !authorName
+      ? supabase
+          .from("profiles")
+          .select("username,display_name,updated_at")
+          .eq("id", data.author_id)
+          .maybeSingle<ProfileRow>()
+      : Promise.resolve({ data: null }),
+    loadPostSsrExtras(supabase, data),
     supabase
       .from('posts')
       .select('updated_at, published_at, created_at')
@@ -403,6 +383,41 @@ export default async function PostPage({ params }: PageProps) {
       .maybeSingle<{ updated_at: string | null }>(),
   ])
 
+  if (profFallback.data) {
+    const prof = profFallback.data
+    authorName = (prof.display_name ?? "").trim()
+    authorUsername = prof.username ?? authorUsername
+    authorUpdatedAt = prof.updated_at ?? authorUpdatedAt
+  }
+
+  if (!authorName) {
+    authorName = (authorUsername ?? "").trim() || "Tyuta"
+  }
+
+  const authorUrl = authorUsername ? `${SITE_URL}/u/${encodeURIComponent(authorUsername)}` : undefined
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
+    headline,
+    description,
+    image: rawCoverUrl
+      ? [{ "@type": "ImageObject", url: imageUrl, width: 1200, height: 630 }]
+      : [{ "@type": "ImageObject", url: imageUrl, width: 512, height: 512 }],
+    datePublished,
+    dateModified,
+    author: authorUrl
+      ? { "@type": "Person", name: authorName, url: authorUrl }
+      : { "@type": "Person", name: authorName },
+    publisher: {
+      "@type": "Organization",
+      name: "Tyuta",
+      url: SITE_URL,
+      logo: { "@type": "ImageObject", url: absUrl("/apple-touch-icon.png") },
+    },
+  }
+
   const initialPostVersion = pickLatestVersion(
     data.updated_at,
     data.published_at,
@@ -419,6 +434,9 @@ export default async function PostPage({ params }: PageProps) {
 
   return (
     <>
+      {rawCoverUrl && (
+        <link rel="preload" as="image" href={imageUrl} />
+      )}
       <PostVersionSeed pathname={`/post/${data.slug}`} version={initialPostVersion} />
       <script
         type="application/ld+json"

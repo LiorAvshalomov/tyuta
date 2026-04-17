@@ -173,45 +173,59 @@ async function hydrateRowsWithCurrentPostData(rows: NotifRowDb[]) {
   })
 }
 
+const PAGE_SIZE = 40
+
+const NOTIF_SELECT = `
+  id, user_id, actor_id, type, entity_type, entity_id, payload, is_read, read_at, created_at,
+  actor:profiles!notifications_actor_id_fkey (id, username, display_name, avatar_url)
+`
+
 export default function NotificationsPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [rows, setRows] = useState<NotifRowDb[]>([])
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const loadSeqRef = useRef(0)
+  const cursorRef = useRef<string | null>(null)
+  const loadingMoreRef = useRef(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     const loadSeq = ++loadSeqRef.current
     setLoading(true)
     setErrorMsg(null)
+    cursorRef.current = null
     try {
       const resolution = await waitForClientSession(5000)
       if (loadSeq !== loadSeqRef.current) return
       const uid = resolution.status === 'authenticated' ? resolution.user.id : null
       if (!uid) {
         setRows([])
+        setHasMore(false)
         setErrorMsg(null)
         return
       }
 
       const { data, error } = await supabase
         .from('notifications')
-        .select(
-          `
-          id, user_id, actor_id, type, entity_type, entity_id, payload, is_read, read_at, created_at,
-          actor:profiles!notifications_actor_id_fkey (id, username, display_name, avatar_url)
-        `
-        )
+        .select(NOTIF_SELECT)
         .eq('user_id', uid)
         .order('created_at', { ascending: false })
-        .limit(200)
+        .limit(PAGE_SIZE + 1)
 
       if (error) throw error
 
-      const hydratedRows = await hydrateRowsWithCurrentPostData((data ?? []) as unknown as NotifRowDb[])
+      const page = ((data ?? []) as unknown as NotifRowDb[]).slice(0, PAGE_SIZE)
+      const more = (data?.length ?? 0) > PAGE_SIZE
+      cursorRef.current = page[page.length - 1]?.created_at ?? null
+
+      const hydratedRows = await hydrateRowsWithCurrentPostData(page)
       if (loadSeq !== loadSeqRef.current) return
       setRows(hydratedRows)
+      setHasMore(more)
     } catch (error) {
       if (loadSeq !== loadSeqRef.current) return
       setErrorMsg(mapSupabaseError(error as { message?: string | null; details?: string | null; hint?: string | null; code?: string | null }) ?? 'לא הצלחנו לטעון את ההתראות כרגע.')
@@ -219,6 +233,41 @@ export default function NotificationsPage() {
       if (loadSeq === loadSeqRef.current) {
         setLoading(false)
       }
+    }
+  }, [])
+
+  const loadMore = useCallback(async () => {
+    if (loadingMoreRef.current || !cursorRef.current) return
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    const seq = loadSeqRef.current
+    try {
+      const resolution = await waitForClientSession(5000)
+      if (seq !== loadSeqRef.current) return
+      const uid = resolution.status === 'authenticated' ? resolution.user.id : null
+      if (!uid) return
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .select(NOTIF_SELECT)
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+        .lt('created_at', cursorRef.current)
+        .limit(PAGE_SIZE + 1)
+
+      if (error || seq !== loadSeqRef.current) return
+
+      const page = ((data ?? []) as unknown as NotifRowDb[]).slice(0, PAGE_SIZE)
+      const more = (data?.length ?? 0) > PAGE_SIZE
+      cursorRef.current = page[page.length - 1]?.created_at ?? null
+
+      const hydrated = await hydrateRowsWithCurrentPostData(page)
+      if (seq !== loadSeqRef.current) return
+      setRows((prev) => [...prev, ...hydrated])
+      setHasMore(more)
+    } finally {
+      loadingMoreRef.current = false
+      setLoadingMore(false)
     }
   }, [])
 
@@ -261,6 +310,18 @@ export default function NotificationsPage() {
       channel?.close()
     }
   }, [load])
+
+  useEffect(() => {
+    if (!hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) void loadMore() },
+      { rootMargin: '200px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore, loadMore])
 
   const unreadCount = useMemo(() => rows.filter((r) => !r.is_read).length, [rows])
 
@@ -322,6 +383,7 @@ export default function NotificationsPage() {
         ) : rows.length === 0 ? (
           <div className="p-6 text-sm text-neutral-600">אין התראות עדיין.</div>
         ) : (
+          <>
           <ul className="divide-y divide-neutral-100">
             {rows.map((r) => {
               const payload = isRecord(r.payload) ? r.payload : {}
@@ -362,6 +424,11 @@ export default function NotificationsPage() {
               )
             })}
           </ul>
+          {hasMore ? <div ref={sentinelRef} className="h-1" /> : null}
+          {loadingMore ? (
+            <div className="py-3 text-center text-xs text-neutral-400">טוען עוד…</div>
+          ) : null}
+          </>
         )}
       </div>
     </div>

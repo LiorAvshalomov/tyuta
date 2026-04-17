@@ -788,9 +788,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
                 {/* לוגו מוקטן - רק במובייל */}
                 <Link
   href="/"
-  prefetch={false}
   className="lg:hidden inline-flex w-fit items-center gap-3 text-right select-none active:scale-[0.99] active:opacity-90"
-
   onClick={closeAll}
 >
   <span className="text-lg font-bold tracking-tight text-[#1E2A44] dark:text-foreground">
@@ -1159,7 +1157,6 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
               <div className="space-y-2">
                 <Link
                   href="/"
-                  prefetch={false}
                   onClick={closeAll}
                   className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-muted text-sm font-semibold"
                 >
