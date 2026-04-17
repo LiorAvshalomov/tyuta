@@ -96,6 +96,7 @@ export default function FeedIntentLink({
     <Link
       {...props}
       href={href}
+      scroll={props.scroll ?? true}
       prefetch={allowViewportPrefetch ? undefined : false}
       onMouseEnter={handleMouseEnter}
       onFocus={handleFocus}

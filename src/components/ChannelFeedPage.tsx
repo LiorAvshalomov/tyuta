@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/ContentLink'
 import Image from 'next/image'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { supabase } from '@/lib/supabaseClient'

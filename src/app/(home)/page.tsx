@@ -2,7 +2,7 @@
 export const revalidate = 60
 
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import Link from '@/components/ContentLink'
 
 export const metadata: Metadata = {
   title: 'Tyuta - המקום לכל הגרסאות שלך',
