@@ -16,6 +16,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { rateLimit } from '@/lib/rateLimit'
+import { getRetryAfterSeconds } from '@/lib/requestRateLimit'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -43,7 +44,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── rate limit ───────────────────────────────────────────────────────────
   const rl = await rateLimit(`suggest:${clientIp(req)}`, { maxRequests: 40, windowMs: 60_000 })
   if (!rl.allowed) {
-    return NextResponse.json({ suggestions: [] }, { status: 429 })
+    return NextResponse.json(
+      { suggestions: [] },
+      { status: 429, headers: { 'Retry-After': getRetryAfterSeconds(rl.retryAfterMs) } },
+    )
   }
 
   // ── validate + normalize query ───────────────────────────────────────────

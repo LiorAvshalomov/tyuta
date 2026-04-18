@@ -1,7 +1,11 @@
 import type { NextConfig } from 'next'
+import { API_SECURITY_HEADERS, BASE_SECURITY_HEADERS } from './src/lib/securityHeaders'
 
-// CSP is managed dynamically in middleware.ts (nonce-based, per-request).
-// next.config.ts only sets the remaining static security headers.
+// Document responses receive the full CSP (via applyDocumentSecurityHeaders in middleware.ts).
+// API responses and any other routes not touched by middleware get the base (non-CSP) headers
+// below. CSP is static — Next.js App Router 16 RSC streaming injects executable inline scripts
+// ($RC/$RV/self.__next_f.push), so 'unsafe-inline' is required in script-src and nonces would
+// force every page to be dynamic (breaking ISR/static optimization).
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -82,13 +86,13 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/api/:path*',
+        headers: API_SECURITY_HEADERS,
+      },
+      {
         source: '/(.*)',
         headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
-          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          ...BASE_SECURITY_HEADERS,
         ],
       },
     ]

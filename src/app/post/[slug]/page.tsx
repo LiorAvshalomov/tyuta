@@ -434,9 +434,6 @@ export default async function PostPage({ params }: PageProps) {
 
   return (
     <>
-      {rawCoverUrl && (
-        <link rel="preload" as="image" href={imageUrl} />
-      )}
       <PostVersionSeed pathname={`/post/${data.slug}`} version={initialPostVersion} />
       <script
         type="application/ld+json"

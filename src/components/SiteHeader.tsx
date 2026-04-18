@@ -910,7 +910,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
                 {user && (
                   <>
                     {/* התראות */}
-                    <Suspense><NotificationsBell /></Suspense>
+                    <Suspense fallback={<div className="h-9 w-9 rounded-lg" aria-hidden />}><NotificationsBell /></Suspense>
 
                     {/* הודעות */}
                     <div className="relative" ref={messagesRef}>
@@ -1102,7 +1102,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
 
             {/* Left: search */}
             <div className="flex justify-self-end">
-              <Suspense><SearchPostsBar /></Suspense>
+              <Suspense fallback={<div className="h-9 w-[200px] rounded-xl bg-neutral-200/60 dark:bg-muted/60" aria-hidden />}><SearchPostsBar /></Suspense>
             </div>
           </div>
         </div>

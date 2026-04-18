@@ -114,14 +114,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Preconnect to external image hosts used for fallback avatars */}
         <link rel="preconnect" href="https://api.dicebear.com" />
         <link rel="dns-prefetch" href="https://api.dicebear.com" />
-        {/* Theme init — runs synchronously before first paint to prevent flash of wrong theme.
-            Reads 'tyuta:theme' from localStorage ('light'|'dark'|'system').
-            Falls back to prefers-color-scheme, then light. No external deps. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var s=localStorage.getItem('tyuta:theme');var d=s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`,
-          }}
-        />
+        {/* Theme init — render-blocking to prevent flash of wrong theme before first paint.
+            External file (cached by CDN) keeps our first-party inline-script footprint at zero.
+            Note: Next.js App Router RSC streaming still injects its own inline scripts,
+            so 'unsafe-inline' remains in CSP regardless. */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script src="/js/theme-init.js" />
         {process.env.NODE_ENV === "production" && (
           <>
             {/* GA ID stored in a meta tag so the external ga.js can read it without inline JS */}

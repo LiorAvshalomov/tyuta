@@ -771,13 +771,14 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                   onFocus={() => openTooltip(r.key)}
                   onBlur={scheduleTooltipHide}
                   className={[
-                    'group inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border px-2 py-1 text-center transition-all duration-150 ease-out md:min-w-[74px] md:px-3 md:py-2',
+                    'group inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border px-2 py-1 text-center transition-all duration-150 ease-out select-none touch-manipulation md:min-w-[74px] md:px-3 md:py-2',
                     mine
                       ? 'border-neutral-900 bg-neutral-900 text-white'
                       : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted',
                   ].join(' ')}
                   style={{
                     transform: isAnimating ? 'scale(1.12)' : 'scale(1)',
+                    WebkitTouchCallout: 'none',
                   }}
                 >
                   <div className="flex items-center justify-center gap-1.5 text-[15px] leading-none md:text-[18px]">
