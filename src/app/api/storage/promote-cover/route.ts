@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
-import { promotePrivateCoverToPublic } from '@/lib/storage/postCoverLifecycle'
 import { rateLimit } from '@/lib/rateLimit'
+import { buildRateLimitResponse } from '@/lib/requestRateLimit'
+import { promotePrivateCoverToPublic } from '@/lib/storage/postCoverLifecycle'
 
 export const runtime = 'nodejs'
 
@@ -13,10 +14,9 @@ export async function POST(req: Request) {
     const auth = await requireUserFromRequest(req)
     if (!auth.ok) return auth.response
 
-    // Rate limit: 10 cover promotions per minute per user (storage download + upload)
     const rl = await rateLimit(`promote-cover:${auth.user.id}`, { maxRequests: 10, windowMs: 60_000 })
     if (!rl.allowed) {
-      return NextResponse.json({ error: 'יותר מדי בקשות' }, { status: 429 })
+      return buildRateLimitResponse('יותר מדי בקשות. נסו שוב בעוד רגע.', rl.retryAfterMs)
     }
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>

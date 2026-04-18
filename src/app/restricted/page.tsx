@@ -11,7 +11,9 @@ const SYSTEM_USER_ID = process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? ''
 
 function safePath(value: string | null): string | null {
   if (!value) return null
-  return value.startsWith('/') ? value : null
+  // Reject non-relative, protocol-relative (//), backslash-bypass (/\ → // in browsers)
+  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return null
+  return value
 }
 
 export default function RestrictedPage() {

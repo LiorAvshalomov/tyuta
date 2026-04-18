@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { randomUUID } from "crypto"
 import { rateLimit } from "@/lib/rateLimit"
+import { buildRateLimitResponse } from "@/lib/requestRateLimit"
 import { PRESENCE_COOKIE, verifyPresence } from "@/lib/auth/presenceCookie"
 import {
   ANALYTICS_AUTH_BACKFILL_WINDOW_MS,
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
   const ip = getClientIp(req) ?? "unknown"
   const rl = await rateLimit(`pv:${ip}`, { maxRequests: 60, windowMs: 60_000 })
   if (!rl.allowed) {
-    return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 })
+    return buildRateLimitResponse("יותר מדי בקשות אנליטיקה. נסו שוב בעוד רגע.", rl.retryAfterMs)
   }
 
   const userAgent = req.headers.get("user-agent")

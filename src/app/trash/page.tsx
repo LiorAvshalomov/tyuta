@@ -30,6 +30,7 @@ type TrashCachePayload = {
 
 const TRASH_CACHE_PREFIX = 'tyuta:trash-cache:'
 const TRASH_REFRESH_AFTER_MS = 60 * 1000
+const TRASH_PAGE_SIZE = 6
 
 function cacheKeyForUser(userId: string) {
   return `${TRASH_CACHE_PREFIX}${userId}`
@@ -255,10 +256,14 @@ export default function TrashPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<TrashPostRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(0)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [lastLoadedAt, setLastLoadedAt] = useState<string | null>(null)
   const [previewRow, setPreviewRow] = useState<TrashPostRow | null>(null)
+
+  const totalPages = Math.max(1, Math.ceil(total / TRASH_PAGE_SIZE))
 
   useEffect(() => {
     const run = async () => {
@@ -275,18 +280,22 @@ export default function TrashPage() {
     void run()
   }, [router])
 
-  const load = useCallback(async (uid: string, opts?: { silent?: boolean }) => {
+  const load = useCallback(async (uid: string, opts?: { silent?: boolean; page?: number }) => {
     const silent = opts?.silent === true
+    const currentPage = opts?.page ?? 0
+    const from = currentPage * TRASH_PAGE_SIZE
+    const to = from + TRASH_PAGE_SIZE - 1
 
     if (!silent) setLoading(true)
     setErrorMsg(null)
 
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from('posts')
-      .select('id, slug, title, excerpt, deleted_at, updated_at, created_at, status, content_json')
+      .select('id, slug, title, excerpt, deleted_at, updated_at, created_at, status, content_json', { count: 'exact' })
       .eq('author_id', uid)
       .not('deleted_at', 'is', null)
       .order('deleted_at', { ascending: false })
+      .range(from, to)
 
     if (error) {
       setErrorMsg(error.message)
@@ -297,8 +306,9 @@ export default function TrashPage() {
 
     const nextRows = (data ?? []) as TrashPostRow[]
     setRows(nextRows)
+    if (typeof count === 'number') setTotal(count)
     setLastLoadedAt(new Date().toISOString())
-    writeTrashCache(uid, nextRows)
+    if (currentPage === 0) writeTrashCache(uid, nextRows)
 
     if (!silent) setLoading(false)
   }, [])
@@ -306,15 +316,18 @@ export default function TrashPage() {
   useEffect(() => {
     if (!userId) return
 
-    const cached = readTrashCache(userId)
-    if (cached) {
-      setRows(cached.rows)
-      setLastLoadedAt(cached.savedAt)
-      setLoading(false)
+    if (page === 0) {
+      const cached = readTrashCache(userId)
+      if (cached) {
+        setRows(cached.rows)
+        setLastLoadedAt(cached.savedAt)
+        setLoading(false)
+      }
+      void load(userId, { silent: Boolean(cached), page: 0 })
+    } else {
+      void load(userId, { page })
     }
-
-    void load(userId, { silent: Boolean(cached) })
-  }, [userId, load])
+  }, [userId, load, page])
 
   useEffect(() => {
     if (!userId) return
@@ -331,7 +344,7 @@ export default function TrashPage() {
   }, [lastLoadedAt, load, userId])
 
   const emptyState = useMemo(() => !loading && rows.length === 0, [loading, rows.length])
-  const deletedCountLabel = rows.length > 0 ? `${rows.length.toLocaleString('he-IL')} פוסטים כרגע` : 'סל המחזור שלך'
+  const deletedCountLabel = total > 0 ? `${total.toLocaleString('he-IL')} פוסטים כרגע` : 'סל המחזור שלך'
 
   const restore = useCallback(
     async (postId: string) => {
@@ -348,10 +361,10 @@ export default function TrashPage() {
         return
       }
 
-      await load(userId, { silent: true })
+      await load(userId, { silent: true, page })
       setBusyId(null)
     },
-    [userId, load]
+    [userId, load, page]
   )
 
   const restoreAll = useCallback(async () => {
@@ -373,7 +386,8 @@ export default function TrashPage() {
       return
     }
 
-    await load(userId, { silent: true })
+    setPage(0)
+    await load(userId, { silent: true, page: 0 })
     setBusyId(null)
   }, [userId, rows, load])
 
@@ -395,16 +409,16 @@ export default function TrashPage() {
         return
       }
 
-      await load(userId, { silent: true })
+      await load(userId, { silent: true, page })
       setBusyId(null)
     },
-    [userId, load]
+    [userId, load, page]
   )
 
   return (
-    <main className="min-h-screen bg-[#f4f0e8] dark:bg-[#111111]" dir="rtl">
+    <main className="min-h-screen bg-background" dir="rtl">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
-        <section className="overflow-hidden rounded-[32px] border border-black/5 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.98),_rgba(246,239,228,0.96)_50%,_rgba(236,231,223,0.94)_100%)] p-5 shadow-[0_30px_80px_-55px_rgba(0,0,0,0.35)] ring-1 ring-black/5 dark:border-white/8 dark:bg-[radial-gradient(circle_at_top_right,_rgba(42,42,42,0.98),_rgba(27,27,27,0.98)_52%,_rgba(18,18,18,1)_100%)] dark:ring-white/5 sm:p-7">
+        <section className="space-y-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1 text-xs font-bold text-neutral-700 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200">
@@ -482,7 +496,7 @@ export default function TrashPage() {
               </div>
               <h2 className="mt-4 text-lg font-black text-neutral-950 dark:text-foreground">אין כאן פוסטים כרגע</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-neutral-600 dark:text-muted-foreground">
-                כשתמחקי פוסט זמנית, הוא יופיע כאן עם אפשרות שחזור ותצוגה מקדימה.
+                כשמוחקים פוסט זמנית, הוא יופיע כאן עם אפשרות שחזור ותצוגה מקדימה.
               </p>
             </div>
           ) : (
@@ -560,6 +574,32 @@ export default function TrashPage() {
               })}
             </div>
           )}
+
+          {totalPages > 1 ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs font-medium text-neutral-500 dark:text-muted-foreground">
+                עמוד {page + 1} מתוך {totalPages}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="rounded-full border border-black/10 bg-white/85 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:-translate-y-[1px] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-foreground dark:hover:bg-white/10"
+                >
+                  הקודם
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="rounded-full border border-black/10 bg-white/85 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:-translate-y-[1px] hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5 dark:text-foreground dark:hover:bg-white/10"
+                >
+                  הבא
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
       </div>
 

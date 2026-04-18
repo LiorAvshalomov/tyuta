@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { buildRateLimitResponse } from '@/lib/requestRateLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 
 const MAX_DOWNLOAD_BYTES = 15 * 1024 * 1024 // 15 MB
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
   // Rate limit: 20 requests per 60 seconds per user
   const rl = await rateLimit(`cover-auto:${authResult.user.id}`, { maxRequests: 20, windowMs: 60_000 })
   if (!rl.allowed) {
-    return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+    return buildRateLimitResponse('יותר מדי בקשות. נסו שוב בעוד רגע.', rl.retryAfterMs)
   }
 
   const pixabayKey = process.env.PIXABAY_API_KEY

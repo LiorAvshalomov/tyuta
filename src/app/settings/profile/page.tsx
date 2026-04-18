@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { slugifyUsername } from '@/lib/auth'
 import { USERNAME_MAX, DISPLAY_NAME_MAX } from '@/lib/validation'
@@ -317,6 +318,9 @@ export default function ProfileSettingsPage() {
     }).catch(() => null)
   }
 
+  const inputClass =
+    'mt-1 w-full rounded-xl border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground transition focus:outline-none focus:ring-2 focus:ring-neutral-400/30 dark:border-border dark:focus:ring-white/10'
+
   if (loading) {
     return (
       <div className="mx-auto max-w-xl px-4 py-8" dir="rtl">
@@ -340,7 +344,7 @@ export default function ProfileSettingsPage() {
     <div className="mx-auto max-w-xl px-4 py-8" dir="rtl">
       <h1 className="text-2xl font-bold">עריכת פרופיל</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        כאן אתה יכול לשנות שם תצוגה, שם משתמש, תמונת פרופיל וביו קצר.
+        שם תצוגה, שם משתמש, תמונת פרופיל וביו קצר.
       </p>
 
       <div className="mt-6 rounded-2xl border bg-white p-4 dark:bg-card dark:border-border">
@@ -374,79 +378,85 @@ export default function ProfileSettingsPage() {
         </div>
 
         <div className="mt-5 space-y-3">
+
           <div>
             <label className="block text-sm font-medium">שם תצוגה</label>
             <input
-              className="mt-1 w-full rounded-xl border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
+              className={inputClass}
               placeholder="למשל: יוסי, אנונימי"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={DISPLAY_NAME_MAX}
             />
-            <div className={`mt-1 text-xs ${displayName.length >= DISPLAY_NAME_MAX ? 'text-red-600' : 'text-muted-foreground'}`}>
-              עד {DISPLAY_NAME_MAX} תווים. כרגע: <b>{displayName.length}</b>
+            <div className={`mt-1 text-xs ${displayName.length >= DISPLAY_NAME_MAX ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+              {displayName.length}/{DISPLAY_NAME_MAX} תווים
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium">שם משתמש (באנגלית)</label>
             <input
-              className="mt-1 w-full rounded-xl border px-3 py-2 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
+              className={inputClass}
               placeholder="למשל: pen_writer_12"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               maxLength={USERNAME_MAX}
+              dir="ltr"
             />
-            <div className="mt-1 text-xs text-muted-foreground">
-              מותר: a-z, 0-9, underscore. נשמר כך: <b>{slugifyUsername(username) || '—'}</b>
-            </div>
-            <div className={`mt-1 text-xs ${slugifyUsername(username).length >= USERNAME_MAX ? 'text-red-600' : 'text-muted-foreground'}`}>
-              עד {USERNAME_MAX} תווים. כרגע: <b>{slugifyUsername(username).length}</b>
+            <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>מותר: a-z, 0-9, underscore. נשמר כך: <b>{slugifyUsername(username) || '—'}</b></span>
+              <span className={slugifyUsername(username).length >= USERNAME_MAX ? 'text-red-600 dark:text-red-400' : ''}>
+                {slugifyUsername(username).length}/{USERNAME_MAX}
+              </span>
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium">ביו קצר (אופציונלי)</label>
+            <label className="block text-sm font-medium">ביו קצר <span className="font-normal text-muted-foreground">(אופציונלי)</span></label>
             <textarea
-              className="mt-1 w-full rounded-xl border px-3 py-2 leading-6 resize-none overflow-y-auto max-h-32 bg-background text-foreground placeholder:text-muted-foreground dark:border-border"
+              className={`resize-none ${inputClass}`}
               rows={3}
-              placeholder="משפט-שניים עליך... (עד 120 תווים)"
+              placeholder="משפט-שניים עליך..."
               value={bio}
               onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX))}
               maxLength={BIO_MAX}
             />
-            <div className="mt-1 text-xs text-muted-foreground">
-              עד {BIO_MAX} תווים. כרגע: <b>{bio.length}</b>
+            <div className={`mt-1 text-xs ${bio.length >= BIO_MAX ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+              {bio.length}/{BIO_MAX} תווים
+            </div>
+              </div>
+
+              {err ? (
+                <div className="rounded-xl border bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50">
+                  {err}
+                </div>
+              ) : null}
+
+              {msg ? (
+                <div className="rounded-xl border bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-400 dark:border-green-900/50">
+                  {msg}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving || avatarUploading}
+                className="w-full rounded-xl bg-black py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-neutral-100"
+              >
+                {avatarUploading ? 'מעלה תמונה...' : saving ? 'שומר...' : 'שמירה'}
+              </button>
             </div>
           </div>
 
-          {err ? (
-            <div className="rounded-xl border bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/50">
-              {err}
-            </div>
+          {profile?.username ? (
+            <Link
+              href={`/u/${profile.username}`}
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-white/80 px-4 py-2.5 text-sm font-semibold text-neutral-800 transition hover:-translate-y-[1px] hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-foreground dark:hover:bg-white/10"
+            >
+              ← צפייה בפרופיל שלי
+            </Link>
           ) : null}
-
-          {msg ? (
-            <div className="rounded-xl border bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-400 dark:border-green-900/50">
-              {msg}
-            </div>
-          ) : null}
-
-          <button
-            onClick={save}
-            disabled={saving || avatarUploading}
-            className="w-full rounded-xl bg-black py-2 font-semibold text-white disabled:opacity-50"
-          >
-            {saving || avatarUploading ? (avatarUploading ? 'מעלה תמונה...' : 'שומר...') : 'שמירה'}
-          </button>
         </div>
-      </div>
-
-      {profile?.username ? (
-        <div className="mt-4 text-sm text-muted-foreground">
-          צפייה בפרופיל: <a className="hover:underline" href={`/u/${profile.username}`}>/u/{profile.username}</a>
-        </div>
-      ) : null}
-    </div>
   )
 }

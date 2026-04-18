@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Bookmark, BookOpenText, Clock3, ExternalLink, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import Avatar from '@/components/Avatar'
+import AuthorHover from '@/components/AuthorHover'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
 
@@ -18,6 +19,7 @@ type SavedPostRow = {
     title: string | null
     excerpt: string | null
     published_at: string | null
+    deleted_at: string | null
     author: {
       username: string | null
       display_name: string | null
@@ -51,6 +53,59 @@ type ChannelTone = {
   cta: string
 }
 
+type SavedCachePayload = {
+  rows: SavedPostRow[]
+  total: number
+  page: number
+  savedAt: string
+}
+
+const PAGE_SIZE = 6
+const SAVED_CACHE_PREFIX = 'tyuta:saved-cache:'
+const VISIBILITY_STALE_MS = 15 * 1000
+
+function cacheKey(userId: string, page: number) {
+  return `${SAVED_CACHE_PREFIX}${userId}:${page}`
+}
+
+function readSavedCache(userId: string, page: number): SavedCachePayload | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(cacheKey(userId, page))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as SavedCachePayload
+    if (!Array.isArray(parsed.rows) || typeof parsed.savedAt !== 'string') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeSavedCache(userId: string, page: number, rows: SavedPostRow[], total: number) {
+  if (typeof window === 'undefined') return
+  try {
+    const payload: SavedCachePayload = { rows, total, page, savedAt: new Date().toISOString() }
+    window.sessionStorage.setItem(cacheKey(userId, page), JSON.stringify(payload))
+  } catch {
+    // best-effort
+  }
+}
+
+function clearSavedCache(userId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    const prefix = `${SAVED_CACHE_PREFIX}${userId}:`
+    const toDelete: string[] = []
+    for (let i = 0; i < window.sessionStorage.length; i++) {
+      const k = window.sessionStorage.key(i)
+      if (k?.startsWith(prefix)) toDelete.push(k)
+    }
+    for (const k of toDelete) window.sessionStorage.removeItem(k)
+  } catch {
+    // best-effort
+  }
+}
+
 const DEFAULT_TONE: ChannelTone = {
   badge: 'border-neutral-200 bg-white/80 text-neutral-700 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200',
   panel: 'from-white via-neutral-50 to-neutral-100 dark:from-[#1f1f1f] dark:via-[#1b1b1b] dark:to-[#171717]',
@@ -61,7 +116,6 @@ const DEFAULT_TONE: ChannelTone = {
 
 function getChannelTone(channelName: string | null, channelSlug: string | null): ChannelTone {
   const normalizedSlug = (channelSlug ?? '').trim()
-  const normalizedName = (channelName ?? '').trim()
 
   if (normalizedSlug === 'release') {
     return {
@@ -93,6 +147,7 @@ function getChannelTone(channelName: string | null, channelSlug: string | null):
     }
   }
 
+  void channelName
   return DEFAULT_TONE
 }
 
@@ -100,11 +155,7 @@ function asCleanString(v: unknown): string {
   if (v == null) return ''
   if (typeof v === 'string') return v.trim()
   if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') return String(v).trim()
-  try {
-    return JSON.stringify(v).trim()
-  } catch {
-    return String(v).trim()
-  }
+  try { return JSON.stringify(v).trim() } catch { return String(v).trim() }
 }
 
 function formatErr(e: unknown): string {
@@ -118,10 +169,8 @@ function formatErr(e: unknown): string {
     }
     const friendly = mapSupabaseError(normalized)
     if (friendly) return friendly
-
     const { message: msg, details, hint, code } = normalized
-    const parts = [msg, details, hint].filter(Boolean)
-    const combined = parts.join(' — ')
+    const combined = [msg, details, hint].filter(Boolean).join(' — ')
     if (combined) return code ? `${combined} (${code})` : combined
     if (code) return `שגיאה (${code})`
   }
@@ -141,23 +190,46 @@ function formatDate(iso: string | null) {
   return date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+const SELECT_BOOKMARKS =
+  'created_at, post_id, post:posts!post_bookmarks_post_id_fkey(id, slug, title, excerpt, published_at, deleted_at, author:profiles!posts_author_id_fkey(username, display_name, avatar_url), channel:channels!posts_channel_id_fkey(slug, name_he))'
+
+async function fetchPage(
+  uid: string,
+  page: number,
+  pageSize: number,
+): Promise<{ rows: SavedPostRow[]; total: number } | null> {
+  const from = page * pageSize
+  const to = from + pageSize - 1
+  const { data, error, count } = await supabase
+    .from('post_bookmarks')
+    .select(SELECT_BOOKMARKS, { count: 'exact' })
+    .eq('user_id', uid)
+    .order('created_at', { ascending: false })
+    .range(from, to)
+  if (error) return null
+  const visible = ((data ?? []) as unknown as SavedPostRow[]).filter((r) => !r.post?.deleted_at)
+  return { rows: visible, total: typeof count === 'number' ? count : 0 }
+}
+
 function SavedSkeletonCard() {
   return (
     <div className="overflow-hidden rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-sm ring-1 ring-black/5 dark:border-white/10 dark:bg-[#1b1b1a] dark:ring-white/5">
       <div className="animate-pulse space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="h-9 w-32 rounded-full bg-neutral-200 dark:bg-white/10" />
-          <div className="h-9 w-28 rounded-full bg-neutral-200 dark:bg-white/10" />
+          <div className="h-6 w-24 rounded-full bg-neutral-200 dark:bg-white/10" />
+          <div className="h-7 w-28 rounded-full bg-neutral-200 dark:bg-white/10" />
         </div>
         <div className="h-6 w-3/4 rounded-2xl bg-neutral-200 dark:bg-white/10" />
         <div className="space-y-2">
           <div className="h-4 w-full rounded-xl bg-neutral-100 dark:bg-white/5" />
           <div className="h-4 w-11/12 rounded-xl bg-neutral-100 dark:bg-white/5" />
-          <div className="h-4 w-8/12 rounded-xl bg-neutral-100 dark:bg-white/5" />
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-10 flex-1 rounded-2xl bg-neutral-200 dark:bg-white/10" />
-          <div className="h-10 w-28 rounded-2xl bg-neutral-200 dark:bg-white/10" />
+        <div className="flex items-center justify-between">
+          <div className="h-4 w-24 rounded-xl bg-neutral-100 dark:bg-white/5" />
+          <div className="flex gap-2">
+            <div className="h-9 w-16 rounded-2xl bg-neutral-200 dark:bg-white/10" />
+            <div className="h-9 w-20 rounded-2xl bg-neutral-200 dark:bg-white/10" />
+          </div>
         </div>
       </div>
     </div>
@@ -168,90 +240,105 @@ export default function SavedPostsPage() {
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<SavedPostRow[]>([])
   const [err, setErr] = useState<string | null>(null)
-  const [pg, setPg] = useState<PaginationState>({ page: 0, pageSize: 8, total: 0 })
+  const [pg, setPg] = useState<PaginationState>({ page: 0, pageSize: PAGE_SIZE, total: 0 })
   const [userId, setUserId] = useState<string | null>(null)
   const [removingPostIds, setRemovingPostIds] = useState<Record<string, true>>({})
-  const [authRefreshKey, setAuthRefreshKey] = useState(0)
+  const lastLoadedAtRef = useRef<number>(0)
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'TOKEN_REFRESHED') return
-      setAuthRefreshKey((prev) => prev + 1)
-    })
-
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
-
+  // Resolve user once
   useEffect(() => {
     let alive = true
     ;(async () => {
-      let keepLoading = false
-      try {
-        setLoading(true)
-        setErr(null)
-
-        const resolution = await waitForClientSession(5000)
-        if (resolution.status === 'timeout') {
-          keepLoading = true
-          return
-        }
-        if (resolution.status !== 'authenticated') {
-          if (alive) {
-            setUserId(null)
-            setRows([])
-            setErr('כדי לצפות בפוסטים השמורים יש להתחבר.')
-            setLoading(false)
-          }
-          return
-        }
-
-        if (alive) setUserId(resolution.user.id)
-
-        const from = pg.page * pg.pageSize
-        const to = from + pg.pageSize - 1
-
-        const { data, error, count } = await supabase
-          .from('post_bookmarks')
-          .select(
-            'created_at, post_id, post:posts!post_bookmarks_post_id_fkey(id, slug, title, excerpt, published_at, author:profiles!posts_author_id_fkey(username, display_name, avatar_url), channel:channels!posts_channel_id_fkey(slug, name_he))',
-            { count: 'exact' }
-          )
-          .eq('user_id', resolution.user.id)
-          .order('created_at', { ascending: false })
-          .range(from, to)
-
-        if (error) throw error
-        if (alive) {
-          setRows((data ?? []) as unknown as SavedPostRow[])
-          setPg((prev) => ({ ...prev, total: typeof count === 'number' ? count : prev.total }))
-        }
-      } catch (e: unknown) {
-        if (alive) setErr(formatErr(e))
-      } finally {
-        if (alive && !keepLoading) setLoading(false)
+      const resolution = await waitForClientSession(5000)
+      if (!alive) return
+      if (resolution.status === 'authenticated') {
+        setUserId(resolution.user.id)
+      } else if (resolution.status !== 'timeout') {
+        setErr('כדי לצפות בפוסטים השמורים יש להתחבר.')
+        setLoading(false)
       }
     })()
-    return () => {
-      alive = false
+    return () => { alive = false }
+  }, [])
+
+  // Fetch on userId / page change — always hits the server.
+  // Cache is only used to avoid the loading spinner (show stale data instantly).
+  useEffect(() => {
+    if (!userId) return
+    let alive = true
+
+    const cached = readSavedCache(userId, pg.page)
+    if (cached) {
+      setRows(cached.rows)
+      setPg((prev) => ({ ...prev, total: cached.total }))
+      setLoading(false)
+    } else {
+      setLoading(true)
     }
-  }, [authRefreshKey, pg.page, pg.pageSize])
+
+    setErr(null)
+    fetchPage(userId, pg.page, pg.pageSize).then((fresh) => {
+      if (!alive || !fresh) return
+      setRows(fresh.rows)
+      setPg((prev) => ({ ...prev, total: fresh.total }))
+      writeSavedCache(userId, pg.page, fresh.rows, fresh.total)
+      lastLoadedAtRef.current = Date.now()
+      setLoading(false)
+    }).catch(() => {
+      if (alive) setLoading(false)
+    })
+
+    return () => { alive = false }
+  }, [userId, pg.page, pg.pageSize])
+
+  // Silently refresh without showing a loading spinner
+  const silentRefresh = useCallback(async (uid: string, page: number, pageSize: number) => {
+    const fresh = await fetchPage(uid, page, pageSize)
+    if (!fresh) return
+    setRows(fresh.rows)
+    setPg((prev) => ({ ...prev, total: fresh.total }))
+    clearSavedCache(uid)
+    writeSavedCache(uid, page, fresh.rows, fresh.total)
+    lastLoadedAtRef.current = Date.now()
+  }, [])
+
+  // Realtime: refresh immediately on any bookmark INSERT/DELETE for this user
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel(`saved_bookmarks:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'post_bookmarks', filter: `user_id=eq.${userId}` },
+        () => { void silentRefresh(userId, pg.page, pg.pageSize) },
+      )
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [userId, pg.page, pg.pageSize, silentRefresh])
+
+  // Tab focus: refresh if data is stale (tab was inactive for >15s)
+  useEffect(() => {
+    if (!userId) return
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      if (Date.now() - lastLoadedAtRef.current < VISIBILITY_STALE_MS) return
+      void silentRefresh(userId, pg.page, pg.pageSize)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [userId, pg.page, pg.pageSize, silentRefresh])
 
   const totalPages = Math.max(1, Math.ceil(pg.total / pg.pageSize))
   const canPrev = pg.page > 0
   const canNext = pg.page < totalPages - 1
-  const savedCountLabel = rows.length > 0 ? `${pg.total.toLocaleString('he-IL')} שמורים` : 'רשימת הקריאה שלך'
+  const savedCountLabel = pg.total > 0 ? `${pg.total.toLocaleString('he-IL')} שמורים` : 'רשימת הקריאה שלך'
 
   const removeBookmark = async (postId: string) => {
-    if (!userId) {
-      setErr('כדי להסיר פוסט מהרשימה יש להתחבר.')
-      return
-    }
+    if (!userId) { setErr('כדי להסיר פוסט מהרשימה יש להתחבר.'); return }
 
     setRemovingPostIds((prev) => ({ ...prev, [postId]: true }))
-
     const prevRows = rows
+    const prevTotal = pg.total
     setRows((current) => current.filter((row) => row.post_id !== postId))
     setPg((prev) => ({ ...prev, total: Math.max(0, prev.total - 1) }))
 
@@ -264,33 +351,34 @@ export default function SavedPostsPage() {
 
       if (error) throw error
 
-      setPg((prev) => {
-        const newTotalPages = Math.max(1, Math.ceil(prev.total / prev.pageSize))
-        const safePage = Math.min(prev.page, newTotalPages - 1)
-        return safePage === prev.page ? prev : { ...prev, page: safePage }
-      })
+      clearSavedCache(userId)
+      const fresh = await fetchPage(userId, pg.page, pg.pageSize)
+      if (fresh) {
+        setRows(fresh.rows)
+        setPg((prev) => {
+          const newTotal = fresh.total
+          const newTotalPages = Math.max(1, Math.ceil(newTotal / prev.pageSize))
+          const safePage = Math.min(prev.page, newTotalPages - 1)
+          writeSavedCache(userId, safePage, fresh.rows, newTotal)
+          return { ...prev, page: safePage, total: newTotal }
+        })
+      }
     } catch (e: unknown) {
       setRows(prevRows)
-      setPg((prev) => ({ ...prev, total: prev.total + 1 }))
+      setPg((prev) => ({ ...prev, total: prevTotal }))
       setErr(formatErr(e))
     } finally {
-      setRemovingPostIds((prev) => {
-        const next = { ...prev }
-        delete next[postId]
-        return next
-      })
+      setRemovingPostIds((prev) => { const next = { ...prev }; delete next[postId]; return next })
     }
   }
 
   const PaginationBar = ({ className = '' }: { className?: string }) => {
     if (pg.total <= pg.pageSize) return null
-
     return (
       <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${className}`}>
         <div className="text-xs font-medium text-neutral-500 dark:text-muted-foreground">
           עמוד {pg.page + 1} מתוך {totalPages}
         </div>
-
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -314,9 +402,9 @@ export default function SavedPostsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f1ea] dark:bg-[#111111]" dir="rtl">
+    <main className="min-h-screen bg-background" dir="rtl">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
-        <section className="overflow-hidden rounded-[32px] border border-black/5 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.98),_rgba(246,240,229,0.96)_48%,_rgba(236,231,223,0.94)_100%)] p-5 shadow-[0_30px_80px_-55px_rgba(0,0,0,0.35)] ring-1 ring-black/5 dark:border-white/8 dark:bg-[radial-gradient(circle_at_top_right,_rgba(42,42,42,0.98),_rgba(27,27,27,0.98)_52%,_rgba(18,18,18,1)_100%)] dark:ring-white/5 sm:p-7">
+        <section className="space-y-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1 text-xs font-bold text-neutral-700 dark:border-white/10 dark:bg-white/5 dark:text-neutral-200">
@@ -341,31 +429,31 @@ export default function SavedPostsPage() {
           </div>
 
           {err ? (
-            <div className="mt-5 rounded-3xl border border-red-200/80 bg-red-50/95 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+            <div className="rounded-3xl border border-red-200/80 bg-red-50/95 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
               {err}
             </div>
           ) : null}
 
           {loading ? (
-            <div className="mt-6 grid gap-4 lg:grid-cols-2">
-              <SavedSkeletonCard />
-              <SavedSkeletonCard />
+            <div className="lg:columns-2 [column-gap:1rem]">
+              <div className="mb-4 break-inside-avoid"><SavedSkeletonCard /></div>
+              <div className="mb-4 break-inside-avoid"><SavedSkeletonCard /></div>
             </div>
           ) : rows.length === 0 ? (
-            <div className="mt-6 rounded-[28px] border border-dashed border-black/10 bg-white/70 px-5 py-12 text-center dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="rounded-[28px] border border-dashed border-black/10 bg-white/70 px-5 py-12 text-center dark:border-white/10 dark:bg-white/[0.03]">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-white dark:text-black">
                 <BookOpenText className="h-6 w-6" />
               </div>
               <h2 className="mt-4 text-lg font-black text-neutral-950 dark:text-foreground">אין פוסטים שמורים עדיין</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-neutral-600 dark:text-muted-foreground">
-                כשתשמרי פוסטים, הם יחכו לך כאן לקריאה רגועה ומאורגנת.
+                כשתשמרו פוסטים, הם יחכו כאן לקריאה רגועה ומאורגנת.
               </p>
             </div>
           ) : (
-            <div className="mt-6">
-              <PaginationBar className="mb-4" />
+            <>
+              <PaginationBar />
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="lg:columns-2 [column-gap:1rem]">
                 {rows.map((row) => {
                   const post = row.post
 
@@ -373,7 +461,7 @@ export default function SavedPostsPage() {
                     return (
                       <div
                         key={`${row.post_id}-${row.created_at}`}
-                        className="overflow-hidden rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-sm ring-1 ring-black/5 dark:border-white/10 dark:bg-[#1b1b1a] dark:ring-white/5"
+                        className="mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/5 bg-white/80 p-5 shadow-sm ring-1 ring-black/5 dark:border-white/10 dark:bg-[#1b1b1a] dark:ring-white/5"
                       >
                         <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white/85 px-3 py-1 text-xs font-semibold text-neutral-600 dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground">
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -392,96 +480,94 @@ export default function SavedPostsPage() {
                   const channelLabel = post.channel?.name_he ?? null
                   const channelSlug = post.channel?.slug ?? null
                   const tone = getChannelTone(channelLabel, channelSlug)
-
                   const publishedDate = formatDate(post.published_at)
                   const excerpt = clampText(post.excerpt, 180)
 
                   return (
                     <article
                       key={`${row.post_id}-${row.created_at}`}
-                      className={`group overflow-hidden rounded-[28px] border border-black/5 bg-gradient-to-br ${tone.panel} p-5 shadow-[0_20px_50px_-45px_rgba(0,0,0,0.45)] ring-1 ${tone.panelRing} transition duration-200 hover:-translate-y-[2px] dark:border-white/10`}
+                      className={`group mb-4 break-inside-avoid overflow-hidden rounded-[28px] border border-black/5 bg-gradient-to-br ${tone.panel} p-5 shadow-[0_20px_50px_-45px_rgba(0,0,0,0.45)] ring-1 ${tone.panelRing} transition duration-200 hover:-translate-y-[2px] dark:border-white/10`}
                     >
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                            {channelLabel ? (
-                              channelSlug ? (
-                                <FeedIntentLink
-                                  href={`/c/${channelSlug}`}
-                                  className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 ${tone.badge}`}
-                                >
-                                  <span>{channelLabel}</span>
-                                </FeedIntentLink>
-                              ) : (
-                                <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 ${tone.badge}`}>
-                                  {channelLabel}
-                                </span>
-                              )
-                            ) : null}
-
-                            <span className="inline-flex items-center gap-1 rounded-full border border-black/8 bg-white/70 px-3 py-1 text-neutral-600 dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground">
-                              <Clock3 className="h-3 w-3" />
-                              נשמר
-                            </span>
-                          </div>
-
-                          <Link
-                            href={`/post/${post.slug}`}
-                            className="mt-4 block text-lg font-black leading-8 tracking-tight text-neutral-950 transition hover:opacity-80 dark:text-foreground"
-                          >
-                            {clampText(post.title ?? 'ללא כותרת', 96)}
-                          </Link>
-
-                          <div className="mt-3 min-h-[88px] text-sm leading-7 text-neutral-600 dark:text-muted-foreground">
-                            {excerpt || 'פוסט ללא תקציר. שמור כאן לקריאה חוזרת כשתרצי לחזור אליו.'}
-                          </div>
+                      {/* Header: badges + author pill */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                          {channelLabel ? (
+                            channelSlug ? (
+                              <FeedIntentLink
+                                href={`/c/${channelSlug}`}
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 ${tone.badge}`}
+                              >
+                                {channelLabel}
+                              </FeedIntentLink>
+                            ) : (
+                              <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 ${tone.badge}`}>
+                                {channelLabel}
+                              </span>
+                            )
+                          ) : null}
+                          <span className="inline-flex items-center gap-1 rounded-full border border-black/8 bg-white/70 px-2.5 py-1 text-neutral-600 dark:border-white/10 dark:bg-white/5 dark:text-muted-foreground">
+                            <Clock3 className="h-3 w-3" />
+                            נשמר
+                          </span>
                         </div>
 
-                        <div className="shrink-0 sm:self-start">
-                          {authorUsername ? (
+                        {authorUsername ? (
+                          <AuthorHover username={authorUsername}>
                             <Link
                               href={`/u/${authorUsername}`}
-                              className="inline-flex max-w-[152px] items-center gap-2 rounded-full border border-black/8 bg-white/75 px-2.5 py-1.5 text-xs font-semibold text-neutral-800 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-foreground dark:hover:bg-white/10"
+                              className="inline-flex shrink-0 max-w-[130px] items-center gap-1.5 rounded-full border border-black/8 bg-white/75 px-2 py-1 text-xs font-semibold text-neutral-800 shadow-sm transition hover:-translate-y-[1px] hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:text-foreground dark:hover:bg-white/10"
                             >
-                              <Avatar src={post.author?.avatar_url} name={authorDisplay} size={34} />
+                              <Avatar src={post.author?.avatar_url} name={authorDisplay} size={26} />
                               <span className="truncate">{authorDisplay}</span>
                             </Link>
-                          ) : (
-                            <div className="inline-flex max-w-[152px] items-center gap-2 rounded-full border border-black/8 bg-white/75 px-2.5 py-1.5 text-xs font-semibold text-neutral-800 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-foreground">
-                              <Avatar src={post.author?.avatar_url} name={authorDisplay} size={34} />
-                              <span className="truncate">{authorDisplay}</span>
-                            </div>
-                          )}
-                        </div>
+                          </AuthorHover>
+                        ) : (
+                          <div className="inline-flex shrink-0 max-w-[130px] items-center gap-1.5 rounded-full border border-black/8 bg-white/75 px-2 py-1 text-xs font-semibold text-neutral-800 dark:border-white/10 dark:bg-white/5 dark:text-foreground">
+                            <Avatar src={post.author?.avatar_url} name={authorDisplay} size={26} />
+                            <span className="truncate">{authorDisplay}</span>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-black/8 pt-4 text-xs text-neutral-500 dark:border-white/10 dark:text-muted-foreground">
-                        <div className="space-y-1">
-                          <div className="font-semibold text-neutral-700 dark:text-neutral-200">מוכן לחזרה מהירה</div>
-                          <div>{publishedDate ? `פורסם ב־${publishedDate}` : 'טיוטה שפורסמה בהמשך תופיע כאן עם הפרטים המעודכנים'}</div>
+                      {/* Title — full width */}
+                      <Link
+                        href={`/post/${post.slug}`}
+                        className="mt-3 block text-lg font-black leading-8 tracking-tight text-neutral-950 transition hover:opacity-80 dark:text-foreground"
+                      >
+                        {clampText(post.title ?? 'ללא כותרת', 96)}
+                      </Link>
+
+                      {/* Excerpt — dynamic height */}
+                      {excerpt ? (
+                        <p className="mt-2 text-sm leading-7 text-neutral-600 dark:text-muted-foreground">
+                          {excerpt}
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-neutral-400 dark:text-neutral-500">פוסט ללא תקציר</p>
+                      )}
+
+                      {/* Footer */}
+                      <div className="mt-4 flex items-center justify-between gap-3 border-t border-black/8 pt-3 dark:border-white/10">
+                        <div className="text-xs text-neutral-500 dark:text-muted-foreground">
+                          {publishedDate ? `פורסם ב־${publishedDate}` : null}
                         </div>
-
-                        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                          <Link
-                            href={`/post/${post.slug}`}
-                            className={`inline-flex min-w-[124px] items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition ${tone.cta}`}
-                          >
-                            <BookOpenText className="h-4 w-4" />
-                            לקריאה
-                          </Link>
-
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.preventDefault()
-                              void removeBookmark(row.post_id)
-                            }}
+                            onClick={(event) => { event.preventDefault(); void removeBookmark(row.post_id) }}
                             disabled={!!removingPostIds[row.post_id]}
-                            className="inline-flex min-w-[110px] items-center justify-center gap-2 rounded-2xl border border-black/10 bg-white/80 px-4 py-3 text-sm font-bold text-neutral-900 transition hover:-translate-y-[1px] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-foreground dark:hover:bg-white/10"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-2xl border border-black/10 bg-white/80 px-3 py-2 text-sm font-bold text-neutral-900 transition hover:-translate-y-[1px] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-foreground dark:hover:bg-white/10"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                             {removingPostIds[row.post_id] ? 'מסיר...' : 'הסר'}
                           </button>
+                          <Link
+                            href={`/post/${post.slug}`}
+                            className={`inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2 text-sm font-black transition ${tone.cta}`}
+                          >
+                            <BookOpenText className="h-3.5 w-3.5" />
+                            לקריאה
+                          </Link>
                         </div>
                       </div>
                     </article>
@@ -489,8 +575,8 @@ export default function SavedPostsPage() {
                 })}
               </div>
 
-              <PaginationBar className="mt-6" />
-            </div>
+              <PaginationBar />
+            </>
           )}
         </section>
       </div>

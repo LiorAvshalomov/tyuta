@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { rateLimit } from '@/lib/rateLimit'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { rateLimit } from '@/lib/rateLimit'
+import { buildRateLimitResponse } from '@/lib/requestRateLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -17,10 +18,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const rl = await rateLimit(`contact:${ip}`, { maxRequests: 3, windowMs: 5 * 60_000 })
   if (!rl.allowed) {
-    return NextResponse.json(
-      { error: 'יותר מדי בקשות. נסה/י שוב בעוד כמה דקות.' },
-      { status: 429 },
-    )
+    return buildRateLimitResponse('יותר מדי בקשות. נסו שוב בעוד כמה דקות.', rl.retryAfterMs)
   }
 
   const gate = await requireUserFromRequest(req)
@@ -32,19 +30,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     formData = await req.formData()
   } catch {
-    return NextResponse.json({ error: 'invalid form data' }, { status: 400 })
+    return NextResponse.json({ error: 'טופס לא תקין.' }, { status: 400 })
   }
 
   const subject = ((formData.get('subject') as string | null) ?? '').trim()
   const message = ((formData.get('message') as string | null) ?? '').trim()
   const email = ((formData.get('email') as string | null) ?? '').trim() || null
-  const files = (formData.getAll('files') as File[]).filter((f) => f.size > 0)
+  const files = (formData.getAll('files') as File[]).filter((file) => file.size > 0)
 
   if (subject.length < 2 || subject.length > 120) {
-    return NextResponse.json({ error: 'נושא חייב להכיל 2–120 תווים.' }, { status: 400 })
+    return NextResponse.json({ error: 'נושא חייב להכיל בין 2 ל-120 תווים.' }, { status: 400 })
   }
   if (message.length < 10 || message.length > 5000) {
-    return NextResponse.json({ error: 'הודעה חייבת להכיל 10–5000 תווים.' }, { status: 400 })
+    return NextResponse.json({ error: 'הודעה חייבת להכיל בין 10 ל-5000 תווים.' }, { status: 400 })
   }
   if (files.length > MAX_FILES) {
     return NextResponse.json({ error: `ניתן לצרף עד ${MAX_FILES} תמונות.` }, { status: 400 })
@@ -59,7 +57,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     if (!ALLOWED_MIME.has(file.type)) {
       return NextResponse.json(
-        { error: `סוג קובץ לא נתמך: "${file.name}". מותרות תמונות בלבד (JPEG, PNG, GIF, WebP).` },
+        { error: `סוג קובץ לא נתמך עבור "${file.name}".` },
         { status: 400 },
       )
     }
@@ -68,7 +66,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!supabaseUrl || !serviceRole) {
-    return NextResponse.json({ error: 'server misconfigured' }, { status: 500 })
+    return NextResponse.json({ error: 'השרת אינו מוגדר כראוי.' }, { status: 500 })
   }
 
   const service = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } })
@@ -80,7 +78,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const storagePath = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
     const bytes = await file.arrayBuffer()
 
-    // Magic bytes validation — file.type is client-controlled and cannot be trusted
+    // file.type is client-controlled, so validate the actual bytes.
     const imageCheck = validateImageBuffer(Buffer.from(bytes))
     if (!imageCheck.ok) {
       if (uploadedPaths.length) void service.storage.from(BUCKET).remove(uploadedPaths)
@@ -92,7 +90,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .upload(storagePath, bytes, { contentType: file.type, upsert: false })
 
     if (uploadErr) {
-      // Roll back already-uploaded files
       if (uploadedPaths.length) {
         void service.storage.from(BUCKET).remove(uploadedPaths)
       }
