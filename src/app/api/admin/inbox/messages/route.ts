@@ -57,10 +57,10 @@ export async function GET(req: Request) {
 
   let query = auth.admin
     .from('messages')
-    .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id')
+    .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id, deleted_at')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
-    .limit(200)
+    .limit(75)
 
   if (before) {
     query = query.lt('created_at', before)
@@ -70,14 +70,25 @@ export async function GET(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Mark user->system messages as read (admin opened the thread)
+  // On initial load (no cursor): mark unread as read + log admin access with has_report flag
   if (!before) {
-    await auth.admin
-      .from('messages')
-      .update({ read_at: new Date().toISOString() } as never)
+    const { count } = await auth.admin
+      .from('user_reports')
+      .select('id', { count: 'exact', head: true })
       .eq('conversation_id', conversationId)
-      .is('read_at', null)
-      .neq('sender_id', systemUserId)
+      .eq('status', 'open')
+
+    await Promise.all([
+      auth.admin
+        .from('messages')
+        .update({ read_at: new Date().toISOString() } as never)
+        .eq('conversation_id', conversationId)
+        .is('read_at', null)
+        .neq('sender_id', systemUserId),
+      auth.admin
+        .from('admin_inbox_reads')
+        .insert({ admin_id: auth.user.id, conversation_id: conversationId, has_report: (count ?? 0) > 0 }),
+    ])
   }
 
   const messages = Array.isArray(data) ? [...data].reverse() : []

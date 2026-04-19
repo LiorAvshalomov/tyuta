@@ -104,7 +104,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           .eq("conversation_id", convId)
           .lt("created_at", anchor.created_at)
           .order("created_at", { ascending: false })
-          .limit(5)
+          .limit(10)
 
         const afterRes = await admin
           .from<MsgRow[]>("messages")
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         .eq("conversation_id", convId)
         .lte("created_at", report.message_created_at)
         .order("created_at", { ascending: false })
-        .limit(6)
+        .limit(11)
 
       const afterRes = await admin
         .from<MsgRow[]>("messages")

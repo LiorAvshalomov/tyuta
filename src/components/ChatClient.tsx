@@ -26,6 +26,7 @@ type Msg = {
   created_at: string
   read_at: string | null
   reply_to_id: string | null
+  deleted_at: string | null
 }
 
 type MiniProfile = {
@@ -182,6 +183,11 @@ export default function ChatClient({
 
   const canReport = !isAdminMode && !!myId && !!other?.id && other.id !== myId && !isSystemUser(other.id)
 
+  const handleUnsend = useCallback(async (msgId: string) => {
+    const { error } = await supabase.rpc('delete_my_message', { p_message_id: msgId })
+    if (error) toast(mapSupabaseError(error) ?? 'לא הצלחנו לבטל את ההודעה', 'error')
+  }, [toast])
+
   const submitReport = useCallback(async () => {
     if (!canReport || !other?.id || !myId) return
     setReportOk(null)
@@ -219,6 +225,7 @@ export default function ChatClient({
   const [isOtherTyping, setIsOtherTyping] = useState(false)
   const typingTimeoutRef = useRef<number | null>(null)
   const typingSentAtRef = useRef<number>(0)
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   // scroll
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -378,10 +385,10 @@ export default function ChatClient({
 
     const { data, error } = await supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id')
+      .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id, deleted_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
-      .limit(200)
+      .limit(75)
 
     if (error) {
       console.error('fetchMessages error:', error)
@@ -427,11 +434,11 @@ export default function ChatClient({
       } else {
         const { data, error } = await supabase
           .from('messages')
-          .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id')
+          .select('id, conversation_id, sender_id, body, created_at, read_at, reply_to_id, deleted_at')
           .eq('conversation_id', conversationId)
           .lt('created_at', oldest)
           .order('created_at', { ascending: false })
-          .limit(200)
+          .limit(75)
 
         if (error) {
           console.error('fetchOlderMessages error:', error)
@@ -446,7 +453,7 @@ export default function ChatClient({
         return
       }
 
-      if (list.length < 200) {
+      if (list.length < 75) {
         setHasOlderMessages(false)
       }
 
@@ -1214,7 +1221,11 @@ export default function ChatClient({
 
           if (payload.eventType === 'UPDATE') {
             const next = payload.new as Msg
-            setMessages(prev => prev.map(m => (m.id === next.id ? { ...m, read_at: next.read_at } : m)))
+            setMessages(prev => prev.map(m =>
+              m.id === next.id
+                ? { ...m, read_at: next.read_at, deleted_at: next.deleted_at, body: next.body }
+                : m
+            ))
           }
         }
       )
@@ -1263,8 +1274,11 @@ export default function ChatClient({
       })
       .subscribe()
 
+    typingChannelRef.current = typingChannel
+
     return () => {
       if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current)
+      typingChannelRef.current = null
       supabase.removeChannel(typingChannel)
     }
   }, [conversationId, myId])
@@ -1291,7 +1305,7 @@ export default function ChatClient({
 
     // Notify same-tab InboxThreads immediately via BroadcastChannel (no Supabase round-trip)
     inboxBCRef.current?.postMessage({ type: 'typing', conversationId, userId: myId })
-    await supabase.channel(`typing-${conversationId}`).send({ type: 'broadcast', event: 'typing', payload: { user_id: myId } })
+    await typingChannelRef.current?.send({ type: 'broadcast', event: 'typing', payload: { user_id: myId } })
   }, [conversationId, myId])
 
   // --- Patch 3 helpers ---
@@ -1803,6 +1817,7 @@ export default function ChatClient({
               otherName: other?.display_name ?? other?.username ?? 'צד שני',
               onReply: handleReply,
               onReact: toggleReaction,
+              onUnsend: handleUnsend,
               reactingMsgId,
               setReactingMsgId,
               reactionPopoverRef,
@@ -2003,6 +2018,7 @@ type GroupedRenderExtras = {
   otherName: string
   onReply: (m: Msg, mine: boolean) => void
   onReact: (msgId: string, emoji: string) => void
+  onUnsend: (msgId: string) => void
   reactingMsgId: string | null
   setReactingMsgId: (id: string | null) => void
   reactionPopoverRef: React.MutableRefObject<HTMLDivElement | null>
@@ -2031,9 +2047,12 @@ function _groupedRender(
   const indexById = new Map<string, number>()
   for (let i = 0; i < rawMessages.length; i++) indexById.set(rawMessages[i].id, i)
 
+  const now = Date.now()
   // Shared action bar (reply + react icons) — rendered as absolute child inside bubble wrapper
   function ActionBar({ m, mine }: { m: Msg; mine: boolean }) {
     const isReacting = extras.reactingMsgId === m.id
+    const canUnsend = mine && !m.deleted_at && (now - new Date(m.created_at).getTime()) < 5 * 60 * 1000
+    if (m.deleted_at) return null
     return (
       <div className="flex items-center gap-0.5 opacity-30 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
         <button
@@ -2059,6 +2078,18 @@ function _groupedRender(
             <line x1="15" y1="9" x2="15.01" y2="9" />
           </svg>
         </button>
+        {canUnsend && (
+          <button
+            type="button"
+            title="מחק הודעה"
+            onClick={() => void extras.onUnsend(m.id)}
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-neutral-400 transition hover:bg-black/5 hover:text-red-500 dark:text-muted-foreground dark:hover:bg-white/10 dark:hover:text-red-400"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+            </svg>
+          </button>
+        )}
       </div>
     )
   }
@@ -2183,11 +2214,11 @@ function _groupedRender(
                     </button>
                   )}
 
-                  {/* Message body — relative (above bg layer), NEVER overflow-hidden.
-                      dir="auto": browser picks RTL/LTR per message.
-                      unicode-bidi: isolate — stable for mixed BiDi with pre-wrap (no last-glyph line-box anomalies).
-                      letter-spacing: 0 + padding-inline-end: 1px — micro anti-subpixel buffer, no layout change.
-                      padding-bottom: 0.12em safety for descender font raster clipping. */}
+                  {m.deleted_at ? (
+                    <div className="relative px-4 py-2 text-sm opacity-50 italic">
+                      הודעה זו נמחקה
+                    </div>
+                  ) : (
                   <div
                     dir="auto"
                     className="relative px-4 py-2 text-sm"
@@ -2205,10 +2236,11 @@ function _groupedRender(
                   >
                     {renderMessageBody(m.body)}
                   </div>
+                  )}
                 </div>
 
                 {/* Reactions — WhatsApp/FB style: overlaps bubble bottom edge, sits above meta row */}
-                {msgReactions.length > 0 && (
+                {!m.deleted_at && msgReactions.length > 0 && (
                   <div className={[
                     'relative z-10 -mt-2.5 mb-0.5 flex flex-wrap gap-0.5',
                     mine ? 'justify-end pr-2' : 'justify-start pl-2',
@@ -2238,7 +2270,7 @@ function _groupedRender(
                 <div className={['mt-1 flex items-center gap-2 text-[11px] text-neutral-500 dark:text-muted-foreground', mine ? 'justify-end' : 'justify-start'].join(' ')}>
                   <span>{formatTime(m.created_at)}</span>
                   {status && <span>· {status}</span>}
-                  {!mine && canReportMessage && (
+                  {!mine && canReportMessage && !m.deleted_at && (
                     <button
                       type="button"
                       onClick={() => onReportMessage(m)}

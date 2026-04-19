@@ -27,6 +27,8 @@ const THROTTLE_MAP: Record<string, string> = {
   comment_edit_rate_limit: '⏳ ערכת יותר מדי תגובות בזמן קצר. נסו שוב בעוד רגע.',
   comment_delete_rate_limit: '⏳ מחקת יותר מדי תגובות בזמן קצר. נסו שוב בעוד רגע.',
   conversation_rate_limit: '⏳ פתחת יותר מדי שיחות בזמן קצר. נסו שוב בעוד רגע.',
+  unsend_window_expired: 'לא ניתן לבטל הודעה לאחר 5 דקות משליחתה.',
+  not_sender: 'לא ניתן למחוק הודעה שאינה שלך.',
   community_note_rate_limit: '⏳ פרסמת יותר מדי פתקים בזמן קצר. נסו שוב בעוד רגע.',
   notification_mutation_rate_limit: '⏳ בוצעו יותר מדי פעולות התראות בזמן קצר. נסו שוב בעוד רגע.',
   message_reaction_rate_limit: '⏳ בוצעו יותר מדי ריאקציות להודעות בזמן קצר. נסו שוב בעוד רגע.',
