@@ -100,25 +100,28 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
           router.push(`/post/${post.slug}`)
         }
       }}
-      className="cursor-pointer overflow-hidden rounded-2xl border bg-white p-4 hover:shadow-sm dark:border-border dark:bg-card"
+      className="cursor-pointer rounded-2xl border bg-white p-4 hover:shadow-sm dark:border-border dark:bg-card"
     >
-      <div className="flex h-[120px] flex-row-reverse items-stretch gap-4 sm:h-[124px]">
-        {coverSrc ? (
-          <div className="relative h-full w-28 shrink-0 overflow-hidden rounded-xl bg-muted">
-            {isGifUrl(coverSrc) ? (
-              <GifCoverCard src={coverSrc} alt="" />
+      <div className="flex flex-row-reverse items-stretch gap-3 sm:gap-4">
+        {/* Image column — full card height, wider on desktop */}
+        <div className="relative w-28 sm:w-40 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border/30 min-h-[110px] sm:min-h-[128px]">
+          {coverSrc ? (
+            isGifUrl(coverSrc) ? (
+              <div className="absolute inset-0">
+                <GifCoverCard src={coverSrc} alt="" />
+              </div>
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={coverSrc} alt="" className="h-full w-full object-cover" />
-            )}
-          </div>
-        ) : (
-          <div className="h-full w-28 shrink-0 rounded-xl bg-muted" />
-        )}
+              <img src={coverSrc} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            )
+          ) : null}
+        </div>
 
-        <div className="flex min-w-0 flex-1 flex-col justify-between overflow-hidden">
-          <div className="min-w-0">
-            <div className="flex flex-nowrap items-center gap-1.5 overflow-hidden text-xs">
+        {/* Content column */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Category + subcategory badges — above the title */}
+          {(post.channel || post.subcategory?.name_he) ? (
+            <div className="mb-1.5 flex flex-nowrap items-center gap-1 overflow-hidden text-xs">
               {post.channel ? (
                 <FeedIntentLink
                   href={`/c/${post.channel.slug}`}
@@ -128,28 +131,27 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
                   {post.channel.name_he}
                 </FeedIntentLink>
               ) : null}
-
               {post.subcategory?.name_he ? (
                 <span className="truncate rounded-full border border-border/60 bg-muted/60 px-2 py-0.5 text-muted-foreground">
                   {post.subcategory.name_he}
                 </span>
               ) : null}
             </div>
+          ) : null}
 
-            <div className="mt-2 min-h-[2.6em] line-clamp-2 cursor-pointer text-base font-bold leading-snug tyuta-hover">
-              {post.title}
-            </div>
+          <div className="line-clamp-2 cursor-pointer text-base font-bold leading-snug tyuta-hover">
+            {post.title}
           </div>
 
           {post.excerpt ? (
-            <div className="min-h-[1.6em] line-clamp-1 text-sm leading-relaxed text-muted-foreground">
+            <div className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
               {post.excerpt}
             </div>
-          ) : (
-            <div className="min-h-[1.6em]" />
-          )}
+          ) : null}
 
-          <div className="flex items-center justify-between gap-2 pt-2 text-xs text-muted-foreground">
+          <div className="flex-1" />
+
+          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
             {post.author?.username ? (
               <div className="min-w-0 flex-1 overflow-hidden [&>span]:max-w-full">
                 <AuthorHover username={post.author.username}>
@@ -333,10 +335,9 @@ export default function SearchPageClient({
         {isPending ? (
           Array.from({ length: 5 }).map((_, index) => (
             <div key={index} className="animate-pulse rounded-2xl border bg-white p-4 dark:border-border dark:bg-card">
-              <div className="flex h-[120px] flex-row-reverse items-stretch gap-4 sm:h-[124px]">
-                <div className="h-full w-28 shrink-0 rounded-xl bg-neutral-200 dark:bg-muted" />
+              <div className="flex flex-row-reverse items-stretch gap-3 sm:gap-4">
+                <div className="w-28 sm:w-40 shrink-0 rounded-xl bg-neutral-200 min-h-[110px] sm:min-h-[128px] dark:bg-muted" />
                 <div className="min-w-0 flex-1 space-y-2 pt-1">
-                  <div className="h-4 w-1/3 rounded-lg bg-neutral-200 dark:bg-muted" />
                   <div className="h-5 w-3/4 rounded-lg bg-neutral-200 dark:bg-muted" />
                   <div className="h-4 w-full rounded-lg bg-neutral-100 dark:bg-muted/60" />
                   <div className="h-3 w-1/4 rounded-lg bg-neutral-100 dark:bg-muted/60" />

@@ -504,6 +504,22 @@ async function submitReport() {
       setReportErr(mapSupabaseError(error) ?? error.message)
       return
     }
+    // Fire-and-forget Telegram notification (server resolves reporter from JWT)
+    void supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token ?? ''
+      void fetch('/api/internal/notify-report', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          type: 'comment',
+          reported_user_id: reportedComment.author_id,
+          category,
+          reason_code: reportReason,
+          details: details || null,
+          message_excerpt: String(reportedComment.content).slice(0, 280),
+        }),
+      })
+    })
     setReportOk('תודה על הדיווח ועל התרומה לקהילה 🙏\nנבדוק את זה בהקדם.')
     setReportDetails('')
     // נסגור את המודאל אוטומטית אחרי רגע (כדי שלא ייתקע על "לא ניתן לדווח על עצמך")

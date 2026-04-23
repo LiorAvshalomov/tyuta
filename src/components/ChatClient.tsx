@@ -237,6 +237,23 @@ export default function ChatClient({
         setReportErr(mapSupabaseError(error) ?? error.message)
         return
       }
+      // Fire-and-forget Telegram notification (server resolves reporter from JWT)
+      void supabase.auth.getSession().then(({ data }) => {
+        const token = data.session?.access_token ?? ''
+        void fetch('/api/internal/notify-report', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: 'inbox_message',
+            reported_user_id: other.id,
+            category: reportCategory,
+            reason_code: null,
+            details: reportDetails.trim() || null,
+            message_excerpt: reportedMessage ? String(reportedMessage.body).slice(0, 280) : null,
+            conversation_id: conversationId,
+          }),
+        })
+      })
       setReportOk('דיווח נשלח. תודה ששמרת על הקהילה 🙏')
       setReportDetails('')
       setReportedMessage(null)

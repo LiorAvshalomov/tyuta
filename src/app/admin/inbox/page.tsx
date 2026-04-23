@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import Avatar from '@/components/Avatar'
 import ChatClient from '@/components/ChatClient'
@@ -61,6 +62,7 @@ function formatLastTime(iso: string | null) {
 }
 
 export default function AdminInboxPage() {
+  const searchParams = useSearchParams()
   const [q, setQ] = useState('')
   const [userHits, setUserHits] = useState<UserHit[]>([])
   const [searching, setSearching] = useState(false)
@@ -73,12 +75,17 @@ export default function AdminInboxPage() {
 
   const [threads, setThreads] = useState<Thread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(true)
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null)
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
+    () => searchParams.get('c') ?? null
+  )
   const [error, setError] = useState<string | null>(null)
   const [typingMap, setTypingMap] = useState<Record<string, TypingEntry>>({})
 
   const typingChannelsRef = useRef<Map<string, RealtimeChannel>>(new Map())
   const typingTimersRef = useRef<Map<string, number>>(new Map())
+  // Ref so loadThreads can check the current selection without it being a dependency
+  const selectedConversationIdRef = useRef(selectedConversationId)
+  selectedConversationIdRef.current = selectedConversationId
 
   const loadThreads = useCallback(async (quiet = false) => {
     if (!quiet) setThreadsLoading(true)
@@ -94,7 +101,9 @@ export default function AdminInboxPage() {
       const nextThreads = Array.isArray(json?.threads) ? (json.threads as Thread[]) : []
       setThreads(nextThreads)
 
-      if (selectedConversationId && !nextThreads.some((thread) => thread.conversation_id === selectedConversationId)) {
+      // Use ref so this doesn't need selectedConversationId as a dependency
+      const cur = selectedConversationIdRef.current
+      if (cur && !nextThreads.some((thread) => thread.conversation_id === cur)) {
         setSelectedConversationId(null)
       }
     } catch (caught: unknown) {
@@ -103,11 +112,16 @@ export default function AdminInboxPage() {
     } finally {
       if (!quiet) setThreadsLoading(false)
     }
-  }, [selectedConversationId])
+  }, []) // stable — no deps that change
 
   useEffect(() => {
     void loadThreads()
   }, [loadThreads])
+
+  useEffect(() => {
+    const c = searchParams.get('c')
+    if (c) setSelectedConversationId(c)
+  }, [searchParams])
 
   useEffect(() => {
     const refreshVisible = () => {
@@ -128,7 +142,7 @@ export default function AdminInboxPage() {
       window.removeEventListener('tyuta:thread-read', refreshVisible)
       window.removeEventListener('tyuta:inbox-refresh', refreshVisible)
     }
-  }, [loadThreads])
+  }, [loadThreads]) // now stable — interval created once
 
   useEffect(() => {
     const bc = new BroadcastChannel('tyuta-inbox')

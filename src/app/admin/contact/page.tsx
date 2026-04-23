@@ -100,7 +100,8 @@ export default function AdminContactPage() {
       })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(getAdminErrorMessage(j, 'שגיאה בפתיחת שיחה'))
-      router.push('/admin/inbox')
+      const conversationId = String(j.conversation_id ?? '')
+      router.push(`/admin/inbox${conversationId ? `?c=${encodeURIComponent(conversationId)}` : ''}`)
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : 'שגיאה')
     } finally {

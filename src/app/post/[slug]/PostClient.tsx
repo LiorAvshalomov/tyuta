@@ -710,6 +710,22 @@ export default function PostPage({ initialData, initialExtras }: Props) {
         setReportErr(mapSupabaseError(error) ?? error.message)
         return
       }
+      // Fire-and-forget Telegram notification (server resolves reporter from JWT)
+      void supabase.auth.getSession().then(({ data }) => {
+        const token = data.session?.access_token ?? ''
+        void fetch('/api/internal/notify-report', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: 'post',
+            reported_user_id: post.author_id,
+            category,
+            reason_code: reportReason,
+            details: details || null,
+            message_excerpt: messageExcerpt,
+          }),
+        })
+      })
       setReportOk('תודה על הדיווח ועל התרומה לקהילה 🙏\nנבדוק את זה בהקדם.')
       setReportDetails('')
       window.setTimeout(() => {
