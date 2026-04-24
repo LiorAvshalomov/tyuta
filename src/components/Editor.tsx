@@ -18,6 +18,7 @@ import CharacterCount from '@tiptap/extension-character-count'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { sanitizeRichTextHref, toYouTubeNoCookieEmbed } from '@/lib/richTextSecurity'
 import {
   appendRelatedPosts,
   extractRelatedPostsData,
@@ -108,7 +109,6 @@ function Chip({ label, onClick }: { label: string; onClick: () => void }) {
 }
 
 const COLOR_SWATCHES = [
-  { name: 'שחור', value: '#111111' },
   { name: 'אדום', value: '#D92D20' },
   { name: 'כתום', value: '#F97316' },
   { name: 'ירוק', value: '#16A34A' },
@@ -165,14 +165,9 @@ function replaceImageSrcByPath(json: JSONContent, pathToSrc: Record<string, stri
 }
 
 function extractYoutubeId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
-  ]
-  for (const p of patterns) {
-    const m = url.match(p)
-    if (m) return m[1]
-  }
-  return null
+  const embed = toYouTubeNoCookieEmbed(url)
+  const match = embed?.match(/\/embed\/([a-zA-Z0-9_-]{11})(?:[/?#]|$)/)
+  return match?.[1] ?? null
 }
 
 /** Compare only by id – slug/title are no longer stored */
@@ -374,7 +369,7 @@ function ImageNodeView({ node, updateAttributes, deleteNode, editor, getPos }: N
 }
 
 function YoutubeNodeView({ node, deleteNode, editor, getPos }: NodeViewProps) {
-  const src = (node.attrs.src as string) || ''
+  const src = toYouTubeNoCookieEmbed(node.attrs.src)
 
   const moveByOne = (direction: -1 | 1) => {
     if (!editor || typeof getPos !== 'function') return
@@ -416,13 +411,15 @@ function YoutubeNodeView({ node, deleteNode, editor, getPos }: NodeViewProps) {
   return (
     <NodeViewWrapper className="relative" draggable data-drag-handle style={{ maxWidth: '100%', margin: '10px 0', cursor: 'grab' }}>
       <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 14 }}>
-        <iframe
-          src={src}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }}
-          referrerPolicy="strict-origin-when-cross-origin"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-        />
+        {src ? (
+          <iframe
+            src={src}
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }}
+            referrerPolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        ) : null}
       </div>
 
       {/* Remove */}
@@ -551,13 +548,18 @@ export default function Editor({
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
         HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
+        isAllowedUri: (url) => sanitizeRichTextHref(url) !== null,
+        shouldAutoLink: (url) => sanitizeRichTextHref(url) !== null,
       }),
       TextStyle,
       Color,
@@ -647,10 +649,12 @@ export default function Editor({
       // ignore
     }
 
-    setTimeout(() => {
+    const syncTimer = window.setTimeout(() => {
       if (editor.isDestroyed) return
       editor.commands.setContent(next, { emitUpdate: false })
     }, 0)
+
+    return () => window.clearTimeout(syncTimer)
   }, [editor, value])
 
   useEffect(() => {
@@ -732,6 +736,12 @@ export default function Editor({
       return
     }
 
+    const href = sanitizeRichTextHref(url)
+    if (!href) {
+      alert('הקישור לא תקין. אפשר להדביק קישור https/http, קישור פנימי שמתחיל ב-/ או עוגן שמתחיל ב-#.')
+      return
+    }
+
     const { from, to } = editor.state.selection
     if (from === to) {
       editor
@@ -739,12 +749,12 @@ export default function Editor({
         .focus()
         .insertContent({
           type: 'text',
-          text: url.trim(),
-          marks: [{ type: 'link', attrs: { href: url.trim() } }],
+          text: href,
+          marks: [{ type: 'link', attrs: { href } }],
         })
         .run()
     } else {
-      editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run()
+      editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
     }
   }, [editor])
 
@@ -1655,15 +1665,23 @@ export default function Editor({
           }}
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-            <div style={{ fontSize: 12, fontWeight: 900, opacity: 0.75, marginInlineEnd: 6, color: 'var(--color-foreground)' }}>
-              צבע טקסט:
-            </div>
-
             {COLOR_SWATCHES.map(c => (
               <button
                 key={c.value}
                 type="button"
-                onClick={() => editor.chain().focus().setColor(c.value).run()}
+                onClick={() => {
+                  const activeHighlight = editor.getAttributes('highlight').color
+                  const nextColor = c.value.toLowerCase()
+                  const highlightColor = typeof activeHighlight === 'string' ? activeHighlight.toLowerCase() : null
+                  const chain = editor.chain().focus()
+
+                  if (highlightColor === nextColor) {
+                    chain.unsetHighlight().setColor(c.value).run()
+                    return
+                  }
+
+                  chain.setColor(c.value).run()
+                }}
                 style={{
                   padding: '6px 10px',
                   borderRadius: 999,
@@ -1692,7 +1710,19 @@ export default function Editor({
                 key={h.value}
                 type="button"
                 className="editor-highlight-swatch"
-                onClick={() => editor.chain().focus().toggleHighlight({ color: h.value }).run()}
+                onClick={() => {
+                  const activeTextColor = editor.getAttributes('textStyle').color
+                  const nextHighlight = h.value.toLowerCase()
+                  const textColor = typeof activeTextColor === 'string' ? activeTextColor.toLowerCase() : null
+                  const chain = editor.chain().focus()
+
+                  if (textColor === nextHighlight) {
+                    chain.unsetColor().toggleHighlight({ color: h.value }).run()
+                    return
+                  }
+
+                  chain.toggleHighlight({ color: h.value }).run()
+                }}
                 style={{
                   padding: '6px 10px',
                   borderRadius: 999,
@@ -1716,7 +1746,7 @@ export default function Editor({
         </div>
       )}
 
-      <EditorContent editor={editor} className={`${RICHTEXT_TYPOGRAPHY} whitespace-pre-wrap [&_[data-highlight]]:text-neutral-900 [&_mark[data-color]]:text-neutral-900`}/>
+      <EditorContent editor={editor} className={`${RICHTEXT_TYPOGRAPHY} whitespace-pre-wrap`}/>
     </div>
   )
 }

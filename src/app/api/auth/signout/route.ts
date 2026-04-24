@@ -4,17 +4,11 @@ import { clearRefreshCookie } from '@/lib/auth/cookieHelpers'
 import { clearPresenceCookie } from '@/lib/auth/presenceCookie'
 import { clearAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
 import { rateLimit } from '@/lib/rateLimit'
-
-function getIp(req: NextRequest): string {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  )
-}
+import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
 
 export async function POST(req: NextRequest) {
-  const rl = await rateLimit(`signout:${getIp(req)}`, { maxRequests: 30, windowMs: 60_000 })
+  const ctx = buildAuditContext(req)
+  const rl = await rateLimit(`signout:${ctx.ip}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Too many requests' },
@@ -27,7 +21,7 @@ export async function POST(req: NextRequest) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   // Always clear the httpOnly RT cookie regardless of any other outcome
-  const res = NextResponse.json({ ok: true })
+  const res = NextResponse.json({ ok: true }, { headers: { 'Cache-Control': 'no-store' } })
   clearRefreshCookie(res)
   clearPresenceCookie(res)
   clearAnalyticsSessionCookie(res)
@@ -41,6 +35,8 @@ export async function POST(req: NextRequest) {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
 
   let userId: string | null = null
+  let revocationFailed = false
+
   if (token) {
     // Token is still valid at this point: client awaits this route BEFORE calling supabase.auth.signOut()
     const anonClient = createClient(url, anonKey, { auth: { persistSession: false } })
@@ -49,14 +45,15 @@ export async function POST(req: NextRequest) {
 
     // Revoke the session server-side so the AT cannot be replayed after logout
     // scope=local revokes only this device's session
-    await fetch(`${url}/auth/v1/logout?scope=local`, {
+    const revokeRes = await fetch(`${url}/auth/v1/logout?scope=local`, {
       method: 'POST',
       headers: {
         apikey:          anonKey,
         Authorization:   `Bearer ${token}`,
         'Content-Type':  'application/json',
       },
-    }).catch(() => null) // best-effort
+    }).catch(() => null)
+    revocationFailed = !revokeRes || !revokeRes.ok
   }
 
   // best-effort — audit failure must never block the signout response
@@ -64,9 +61,12 @@ export async function POST(req: NextRequest) {
   serviceClient.from('auth_audit_log').insert({
     user_id:    userId,
     event:      'logout',
-    ip:         getIp(req),
-    user_agent: req.headers.get('user-agent') ?? null,
-    metadata:   null,
+    ip:         ctx.ip,
+    user_agent: ctx.user_agent,
+    metadata:   mergeAuditMetadata(ctx.metadata_base, {
+      ...(revocationFailed ? { revocation_failed: true } : {}),
+      ...(!token ? { no_token: true } : {}),
+    }),
   }).then(null, () => null)
 
   return res

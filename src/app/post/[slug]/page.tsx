@@ -345,7 +345,7 @@ export default async function PostPage({ params }: PageProps) {
   ] = await Promise.all([
     !authorName
       ? supabase
-          .from("profiles")
+          .from("profiles_public")
           .select("username,display_name,updated_at")
           .eq("id", data.author_id)
           .maybeSingle<ProfileRow>()
@@ -376,7 +376,7 @@ export default async function PostPage({ params }: PageProps) {
           .maybeSingle<{ updated_at: string | null; published_at: string | null; created_at: string }>()
       : Promise.resolve({ data: null }),
     supabase
-      .from('profiles')
+      .from('profiles_public')
       .select('updated_at')
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)

@@ -2,19 +2,12 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
 
 function normalizeValue(value: unknown) {
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
-}
-
-function getIp(req: Request) {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  )
 }
 
 export async function POST(req: Request) {
@@ -30,24 +23,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({})) as {
-    previousUsername?: unknown
     nextUsername?: unknown
-    previousDisplayName?: unknown
     nextDisplayName?: unknown
   }
 
-  const previousUsername = normalizeValue(body.previousUsername)
   const nextUsername = normalizeValue(body.nextUsername)
-  const previousDisplayName = normalizeValue(body.previousDisplayName)
   const nextDisplayName = normalizeValue(body.nextDisplayName)
-
-  const changedFields: string[] = []
-  if (previousUsername !== nextUsername) changedFields.push('username')
-  if (previousDisplayName !== nextDisplayName) changedFields.push('display_name')
-
-  if (changedFields.length === 0) {
-    return NextResponse.json({ ok: true, skipped: true })
-  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -60,18 +41,38 @@ export async function POST(req: Request) {
     auth: { persistSession: false },
   })
 
+  // Read current values from DB — never trust client-supplied "previous" state
+  const { data: current } = await serviceClient
+    .from('profiles')
+    .select('username, display_name')
+    .eq('id', auth.user.id)
+    .maybeSingle()
+
+  const previousUsername = current?.username ?? null
+  const previousDisplayName = current?.display_name ?? null
+
+  const changedFields: string[] = []
+  if (previousUsername !== nextUsername) changedFields.push('username')
+  if (previousDisplayName !== nextDisplayName) changedFields.push('display_name')
+
+  if (changedFields.length === 0) {
+    return NextResponse.json({ ok: true, skipped: true })
+  }
+
+  const ctx = buildAuditContext(req)
+
   await serviceClient.from('auth_audit_log').insert({
     user_id: auth.user.id,
     event: 'profile_identity_updated',
-    ip: getIp(req),
-    user_agent: req.headers.get('user-agent') ?? null,
-    metadata: {
+    ip: ctx.ip,
+    user_agent: ctx.user_agent,
+    metadata: mergeAuditMetadata(ctx.metadata_base, {
       changed_fields: changedFields,
       previous_username: previousUsername,
       next_username: nextUsername,
       previous_display_name: previousDisplayName,
       next_display_name: nextDisplayName,
-    },
+    }),
   }).then(null, () => null)
 
   return NextResponse.json({ ok: true })

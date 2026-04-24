@@ -354,7 +354,7 @@ export default function InboxThreads() {
               const unread = Number.isFinite(r.unread_count) ? r.unread_count : 0
               const hasUnread = unread > 0
               const rawBody = (r.last_body ?? '').trim()
-              const lastBody = r.last_body === '' ? 'הודעה זו נמחקה' : rawBody ? (rawBody.length > 200 ? rawBody.slice(0, 200) + '…' : rawBody) : 'אין עדיין הודעות'
+              const lastBody = r.last_body === '' ? 'הודעה זו נמחקה' : rawBody.startsWith('[img:') ? '📸 תמונה' : rawBody ? (rawBody.length > 200 ? rawBody.slice(0, 200) + '…' : rawBody) : 'אין עדיין הודעות'
               const isTypingNow = typingMap[r.conversation_id]?.isTyping === true
 
               const rowClassName = [

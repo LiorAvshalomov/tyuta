@@ -24,15 +24,46 @@ type PageProps = {
 const fetchProfile = cache(async (username: string) => {
   const supabase = createPublicServerClient()
   if (!supabase) return null
-  const { data } = await supabase
-    .from('profiles')
-    .select(
-      'id, username, display_name, bio, avatar_url, created_at, updated_at, personal_is_shared, personal_about, personal_age, personal_occupation, personal_writing_about, personal_books, personal_favorite_category'
-    )
+
+  const selectProfile =
+    'id, username, display_name, bio, avatar_url, created_at, updated_at, personal_is_shared, personal_about, personal_age, personal_occupation, personal_writing_about, personal_books, personal_favorite_category'
+
+  const { data, error } = await supabase
+    .from('profiles_public')
+    .select(selectProfile)
     .eq('username', username)
     .maybeSingle()
-  return data as Profile | null
+
+  if (!error) return data as Profile | null
+
+  // Fallback: profiles_public may not exist on older DB schema versions.
+  // Only select public columns — personal fields are revoked from anon on profiles directly.
+  const { data: fallbackData } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, bio, avatar_url, created_at, updated_at, personal_is_shared, personal_updated_at')
+    .eq('username', username)
+    .maybeSingle()
+
+  return sanitizeProfilePersonalInfo(fallbackData as Profile | null)
 })
+
+function sanitizeProfilePersonalInfo(profile: Profile | null): Profile | null {
+  if (!profile?.personal_is_shared) {
+    return profile
+      ? {
+          ...profile,
+          personal_about: null,
+          personal_age: null,
+          personal_occupation: null,
+          personal_writing_about: null,
+          personal_books: null,
+          personal_favorite_category: null,
+        }
+      : null
+  }
+
+  return profile
+}
 
 function safeJsonLdStringify(data: unknown): string {
   return JSON.stringify(data).replace(/</g, '\\u003c')

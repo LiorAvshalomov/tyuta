@@ -13,6 +13,11 @@ import {
   formatRelatedPostPosition,
   getPostSeriesConfig,
 } from '@/lib/postSeries'
+import {
+  sanitizeRichTextColor,
+  sanitizeRichTextHref,
+  toYouTubeNoCookieEmbed,
+} from '@/lib/richTextSecurity'
 import { supabase } from '@/lib/supabaseClient'
 
 type Mark = {
@@ -55,42 +60,6 @@ type SeriesContext = {
   currentSubcategoryTagId?: number | null
 }
 
-function toYouTubeNoCookieEmbed(src: string): string | null {
-  try {
-    const url = new URL(src)
-    const host = url.hostname.replace(/^www\./, '')
-
-    if (host === 'youtube-nocookie.com' && url.pathname.startsWith('/embed/')) return url.toString()
-    if (host === 'youtube.com' && url.pathname.startsWith('/embed/')) {
-      return `https://www.youtube-nocookie.com${url.pathname}${url.search}`
-    }
-
-    if (host === 'youtu.be') {
-      const id = url.pathname.split('/').filter(Boolean)[0]
-      if (!id) return null
-      return `https://www.youtube-nocookie.com/embed/${id}`
-    }
-
-    if (host.endsWith('youtube.com')) {
-      const videoId = url.searchParams.get('v')
-      if (!videoId) return null
-      return `https://www.youtube-nocookie.com/embed/${videoId}`
-    }
-
-    return null
-  } catch {
-    return null
-  }
-}
-
-function sanitizeHref(href: unknown): string | null {
-  if (typeof href !== 'string') return null
-  const trimmed = href.trim()
-  if (trimmed.startsWith('/') || trimmed.startsWith('#')) return trimmed
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  return null
-}
-
 function renderText(node: RichNode, key: string) {
   const text = node.text ?? ''
   const marks = node.marks ?? []
@@ -111,15 +80,15 @@ function renderText(node: RichNode, key: string) {
     if (mark.type === 'italic') out = <em key={`${key}-i`}>{out}</em>
     if (mark.type === 'underline') out = <u key={`${key}-u`}>{out}</u>
     if (mark.type === 'highlight') {
-      const color = typeof mark.attrs?.color === 'string' ? mark.attrs.color : undefined
+      const color = sanitizeRichTextColor(mark.attrs?.color)
       out = <mark key={`${key}-hl`} style={color ? { backgroundColor: color } : undefined}>{out}</mark>
     }
     if (mark.type === 'textStyle') {
-      const color = typeof mark.attrs?.color === 'string' ? mark.attrs.color : undefined
+      const color = sanitizeRichTextColor(mark.attrs?.color)
       if (color) out = <span key={`${key}-ts`} style={{ color }}>{out}</span>
     }
     if (mark.type === 'link') {
-      const href = sanitizeHref(mark.attrs?.href)
+      const href = sanitizeRichTextHref(mark.attrs?.href)
       if (href) {
         const isExternal = /^https?:\/\//i.test(href)
         out = (
@@ -348,11 +317,12 @@ function renderNode(
       const path = postImageStoragePath(attrs?.path, attrs?.src)
       const proxySrc = postImageProxySrc(path, currentPostId)
       const publicSrc = postImagePublicSrc(path, currentPostId)
-      const src = publicSrc ?? proxySrc ?? attrs?.src?.trim() ?? null
+      const rawSrc = typeof attrs?.src === 'string' ? attrs.src.trim() : null
+      const src = publicSrc ?? proxySrc ?? rawSrc
       if (!src) return null
       if (!proxySrc && !isPostImageProxySrc(src) && !/^https?:\/\//i.test(src)) return null
 
-      const alt = attrs?.alt ?? ''
+      const alt = typeof attrs?.alt === 'string' ? attrs.alt : ''
       const rawWidth = attrs?.widthPercent
       const widthPercent = rawWidth === 33 || rawWidth === 66 || rawWidth === 100 ? rawWidth : 100
 
@@ -377,9 +347,7 @@ function renderNode(
 
     case 'youtube':
     case 'youtubeVideo': {
-      const src = (node.attrs as Attrs | undefined)?.src
-      if (!src) return null
-      const embed = toYouTubeNoCookieEmbed(src)
+      const embed = toYouTubeNoCookieEmbed((node.attrs as Attrs | undefined)?.src)
       if (!embed) return null
 
       return (

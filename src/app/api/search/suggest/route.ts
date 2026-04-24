@@ -60,8 +60,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // Escape ILIKE metacharacters (%, _, \) so they match literally.
-  // Strip commas to prevent .or() filter-string injection.
-  const q = raw.replace(/[%_\\]/g, '\\$&').replace(/,/g, '')
+  // Strip PostgREST .or() grammar delimiters to prevent filter-string injection.
+  const q = raw.replace(/[%_\\]/g, '\\$&').replace(/[(),]/g, '')
+  if (q.trim().length < MIN_CHARS) return empty200
 
   const supabase = serviceClient()
   if (!supabase) {
@@ -92,7 +93,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── query 2: author names ─────────────────────────────────────────────
   const authorIds = [...new Set(posts.map(p => p.author_id as string).filter(Boolean))]
   const { data: profiles } = await supabase
-    .from('profiles')
+    .from('profiles_public')
     .select('id, display_name, username')
     .in('id', authorIds)
 

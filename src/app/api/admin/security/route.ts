@@ -9,8 +9,12 @@ const VALID_EVENTS = [
   'logout',
   'signup',
   'password_reset',
+  'password_changed',
   'token_refresh_failed',
+  'token_refresh_success',
+  'legacy_rt_migrated',
   'profile_identity_updated',
+  'rate_limit_exceeded',
 ] as const
 
 type AuditRow = {

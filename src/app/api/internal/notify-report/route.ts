@@ -29,6 +29,8 @@ const REASON_LABEL: Record<string, string> = {
   other: 'אחר',
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function fmtProfile(display_name: string | null, username: string | null, id: string) {
   // display_name and username come from the DB (service role), not from the request body —
   // still escape defensively in case a user set a crafted display name.
@@ -62,6 +64,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Use the authenticated user's ID as the reporter — never trust the request body for this.
+  if (!UUID_RE.test(body.reported_user_id)) {
+    return NextResponse.json({ ok: true })
+  }
+
   const reporterId = gate.user.id
 
   // Fire-and-forget — notification failure must never affect the caller.

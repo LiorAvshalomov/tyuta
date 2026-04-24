@@ -120,7 +120,37 @@ function formatDayLabel(iso: string) {
  * Long unbroken tokens ≥30 chars (URLs, hashes, etc.): wrapped in a span
  * that applies aggressive breaking so they never cause horizontal scroll.
  */
-function renderMessageBody(body: string): React.ReactNode {
+function bodySnippet(body: string, maxLength = 80): string {
+  if (body.startsWith('[img:')) return '📸 תמונה'
+  return body.length > maxLength ? `${body.slice(0, maxLength)}…` : body
+}
+
+function renderMessageBody(body: string, opts?: { senderId?: string; systemId?: string }): React.ReactNode {
+  // Render [img:URL] only when the sender is the system user (admin-sent images)
+  if (
+    opts?.senderId &&
+    opts.senderId === opts?.systemId &&
+    body.startsWith('[img:')
+  ) {
+    const end = body.indexOf(']', 5)
+    if (end !== -1) {
+      const url = body.slice(5, end)
+      const caption = body.slice(end + 1).trim()
+      return (
+        <span className="block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={url}
+            alt="תמונה"
+            className="max-w-full max-h-80 rounded-xl object-contain"
+            style={{ display: 'block' }}
+          />
+          {caption ? <span className="mt-1 block text-sm">{caption}</span> : null}
+        </span>
+      )
+    }
+  }
+
   const parts = body.split(/(\S{30,})/)
   if (parts.length === 1) return body
   return parts.map((part, i) =>
@@ -182,6 +212,8 @@ export default function ChatClient({
   const [myId, setMyId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [imageUploading, setImageUploading] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
   const [reportOpen, setReportOpen] = useState(false)
   const [reportCategory, setReportCategory] = useState<'harassment' | 'spam' | 'self-harm' | 'other'>('harassment')
   const [reportDetails, setReportDetails] = useState('')
@@ -532,7 +564,7 @@ export default function ChatClient({
           const next = new Map(prev)
           for (const row of (json?.references ?? []) as { id: string; body: string; sender_id: string }[]) {
             next.set(row.id, {
-              snippet: row.body.slice(0, 80) + (row.body.length > 80 ? '…' : ''),
+              snippet: bodySnippet(row.body),
               sender_id: row.sender_id,
             })
           }
@@ -553,7 +585,7 @@ export default function ChatClient({
       const next = new Map(prev)
       for (const row of data as { id: string; body: string; sender_id: string }[]) {
         next.set(row.id, {
-          snippet: row.body.slice(0, 80) + (row.body.length > 80 ? '…' : ''),
+          snippet: bodySnippet(row.body),
           sender_id: row.sender_id,
         })
       }
@@ -1166,7 +1198,7 @@ export default function ChatClient({
             scheduleMarkReadIfStableBottom(computeUnreadCount(list, myId))
           }
         })()
-      }, 2500)
+      }, 10_000)
 
       return () => {
         window.clearInterval(interval)
@@ -1464,7 +1496,7 @@ export default function ChatClient({
 
   function handleReply(m: Msg, mine: boolean) {
     const authorName = mine ? 'אתה' : (other?.display_name ?? other?.username ?? 'צד שני')
-    const snippet = m.body.slice(0, 80) + (m.body.length > 80 ? '…' : '')
+    const snippet = bodySnippet(m.body)
     setReplyTo({ id: m.id, authorName, snippet, side: mine ? 'outgoing' : 'incoming' })
     textareaRef.current?.focus()
   }
@@ -1630,25 +1662,45 @@ export default function ChatClient({
           return
         }
       } else {
-        const { data: messageId, error } = await supabase.rpc('send_message', {
-          p_conversation_id: conversationId,
-          p_body: bodyTrimmed,
-          p_reply_to_id: capturedReply?.id ?? null,
+        const accessToken = resolution?.status === 'authenticated' ? resolution.session.access_token : null
+        if (!accessToken) {
+          sendingRef.current = false
+          toast('כדי לשלוח הודעה צריך להתחבר', 'info')
+          router.push('/auth/login')
+          return
+        }
+
+        const sendRes = await fetch('/api/me/inbox/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            conversation_id: conversationId,
+            body: bodyTrimmed,
+            reply_to_id: capturedReply?.id ?? null,
+          }),
         })
 
-        if (error || !messageId) {
-          const friendly = mapSupabaseError(error ?? null)
-            ?? mapModerationRpcError(error?.message ?? '')
-          toast(friendly ?? `לא הצלחתי לשלוח הודעה.\n${error?.message ?? 'נסי שוב.'}`, 'error')
-          if (!friendly) console.error('send_message error:', error)
-          // Restore reply state so user can retry with the same quote
+        const sendJson = await sendRes.json().catch(() => ({}) as Record<string, unknown>) as { message_id?: string; error?: string }
+
+        if (!sendRes.ok) {
+          const errMsg = sendJson.error ?? ''
+          const friendly = mapModerationRpcError(errMsg) ?? (errMsg || 'לא הצלחתי לשלוח הודעה.')
+          toast(friendly, 'error')
+          if (!mapModerationRpcError(errMsg)) console.error('send_message error:', errMsg)
+          if (capturedReply) setReplyTo(capturedReply)
+          return
+        }
+
+        const messageId = sendJson.message_id
+        if (!messageId) {
+          toast('לא הצלחתי לשלוח הודעה.', 'error')
           if (capturedReply) setReplyTo(capturedReply)
           return
         }
 
         // Optimistic insert so the message appears immediately (realtime will dedup via seenIds)
         const optimistic: Msg = {
-          id: messageId as string,
+          id: messageId,
           conversation_id: conversationId,
           sender_id: uid,
           body: bodyTrimmed,
@@ -1894,6 +1946,7 @@ export default function ChatClient({
               replyMeta,
               reactions,
               otherName: other?.display_name ?? other?.username ?? 'צד שני',
+              systemId,
               onReply: handleReply,
               onReact: toggleReaction,
               onUnsend: handleUnsend,
@@ -1983,8 +2036,64 @@ export default function ChatClient({
           </div>
         )}
 
-        {/* Composer row: [desktop-emoji] [textarea+mobile-emoji] [send] */}
+        {/* Composer row: [desktop-emoji] [image-btn?] [textarea+mobile-emoji] [send] */}
         <div className="flex items-end gap-2">
+
+          {/* Admin image upload button */}
+          {isAdminMode ? (
+            <>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!imageInputRef.current) return
+                  imageInputRef.current.value = ''
+                  if (!file) return
+                  if (file.size > 5 * 1024 * 1024) {
+                    toast('הקובץ גדול מדי (מקסימום 5MB)', 'error')
+                    return
+                  }
+                  setImageUploading(true)
+                  try {
+                    const fd = new FormData()
+                    fd.append('file', file)
+                    const res = await adminFetch('/api/admin/inbox/upload-image', { method: 'POST', body: fd })
+                    const json = await res.json().catch(() => ({})) as { url?: string; error?: string }
+                    if (!res.ok || !json.url) {
+                      toast(json.error ?? 'שגיאה בהעלאת תמונה', 'error')
+                      return
+                    }
+                    // Send image as a special message body
+                    const imgRes = await adminFetch('/api/admin/inbox/send', {
+                      method: 'POST',
+                      body: JSON.stringify({ conversation_id: conversationId, body: `[img:${json.url}]` }),
+                    })
+                    if (!imgRes.ok) {
+                      const j = await imgRes.json().catch(() => ({})) as { error?: string }
+                      toast(j.error ?? 'שגיאה בשליחת תמונה', 'error')
+                    }
+                  } finally {
+                    setImageUploading(false)
+                  }
+                }}
+              />
+              <div className="shrink-0 mb-[7px]">
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={imageUploading || sending}
+                  title="שלח תמונה"
+                  aria-label="שלח תמונה"
+                  className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-2xl border border-black/10 bg-[#F7F6F3] text-xl transition hover:bg-black/8 disabled:opacity-50 dark:border-white/10 dark:bg-[#2a2a2a] dark:hover:bg-white/10"
+                >
+                  {imageUploading ? '⏳' : '🖼️'}
+                </button>
+              </div>
+            </>
+          ) : null}
 
           {/* Desktop emoji column — hidden on mobile */}
           <div ref={emojiAnchorRef} className="hidden sm:block shrink-0 mb-[7px]">
@@ -2095,6 +2204,7 @@ type GroupedRenderExtras = {
   replyMeta: Map<string, ReplyMeta>
   reactions: Map<string, LocalReaction[]>
   otherName: string
+  systemId: string | null
   onReply: (m: Msg, mine: boolean) => void
   onReact: (msgId: string, emoji: string) => void
   onUnsend: (msgId: string) => void
@@ -2313,7 +2423,7 @@ function _groupedRender(
                       paddingBottom: 'calc(0.5rem + 0.12em)',
                     }}
                   >
-                    {renderMessageBody(m.body)}
+                    {renderMessageBody(m.body, { senderId: m.sender_id, systemId: extras.systemId ?? undefined })}
                   </div>
                   )}
                 </div>

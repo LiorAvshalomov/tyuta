@@ -53,7 +53,7 @@ export async function fetchUserPreview(username: string): Promise<UserPreview | 
 
   const p = (async () => {
     const { data: profile } = await supabase
-      .from('profiles')
+      .from('profiles_public')
       .select('id, display_name, username, avatar_url, bio')
       .eq('username', username)
       .single()

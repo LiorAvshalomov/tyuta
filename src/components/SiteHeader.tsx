@@ -722,7 +722,8 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
             })
             const name = identity.displayName
             const avatarSrc = identity.avatarUrl
-            const snippet = (t.last_body ?? '').trim()
+            const rawSnippet = (t.last_body ?? '').trim()
+            const snippet = rawSnippet.startsWith('[img:') ? '📸 תמונה' : rawSnippet
             const unread = typeof t.unread_count === 'number' && Number.isFinite(t.unread_count) ? t.unread_count : 0
             return (
               <Link

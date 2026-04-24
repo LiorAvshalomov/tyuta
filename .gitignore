@@ -78,3 +78,10 @@ USER_PROFILE_RENDERING_MAP.md
 /.claude/logs/
 /.claude/agent-memory-local/
 /.claude/settings.local.json
+
+# local Codex context
+.codex/
+AGENTS.md
+src/**/AGENTS.md
+docs/codex-*.md
+docs/tyuta-threat-model.md

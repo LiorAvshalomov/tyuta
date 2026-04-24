@@ -70,8 +70,10 @@ export default function AdminInboxPage() {
   const [broadcastOpen, setBroadcastOpen] = useState(false)
   const [broadcastBody, setBroadcastBody] = useState('')
   const [broadcastLoading, setBroadcastLoading] = useState(false)
+  const [broadcastImageUploading, setBroadcastImageUploading] = useState(false)
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null)
   const [broadcastError, setBroadcastError] = useState<string | null>(null)
+  const broadcastImageInputRef = useRef<HTMLInputElement | null>(null)
 
   const [threads, setThreads] = useState<Thread[]>([])
   const [threadsLoading, setThreadsLoading] = useState(true)
@@ -89,7 +91,7 @@ export default function AdminInboxPage() {
 
   const loadThreads = useCallback(async (quiet = false) => {
     if (!quiet) setThreadsLoading(true)
-    setError(null)
+    if (!quiet) setError(null)
 
     try {
       const res = await adminFetch('/api/admin/inbox/threads')
@@ -99,7 +101,25 @@ export default function AdminInboxPage() {
       }
 
       const nextThreads = Array.isArray(json?.threads) ? (json.threads as Thread[]) : []
-      setThreads(nextThreads)
+
+      // Only update state if data changed — avoids noisy re-renders on quiet polls
+      setThreads((prev) => {
+        if (
+          prev.length === nextThreads.length &&
+          prev.every((t, i) => {
+            const n = nextThreads[i]
+            return (
+              t.conversation_id === n.conversation_id &&
+              t.last_body === n.last_body &&
+              t.last_created_at === n.last_created_at &&
+              t.unread_count === n.unread_count
+            )
+          })
+        ) {
+          return prev
+        }
+        return nextThreads
+      })
 
       // Use ref so this doesn't need selectedConversationId as a dependency
       const cur = selectedConversationIdRef.current
@@ -396,11 +416,56 @@ export default function AdminInboxPage() {
               className="w-full resize-none rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm outline-none transition focus:border-neutral-400 dark:border-white/10 dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-muted-foreground dark:focus:border-white/20"
             />
             <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-[11px] text-muted-foreground">{broadcastBody.length}/4000</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">{broadcastBody.length}/4000</span>
+                {/* Image upload for broadcast */}
+                <input
+                  ref={broadcastImageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (broadcastImageInputRef.current) broadcastImageInputRef.current.value = ''
+                    if (!file) return
+                    if (file.size > 5 * 1024 * 1024) {
+                      setBroadcastError('הקובץ גדול מדי (מקסימום 5MB)')
+                      return
+                    }
+                    setBroadcastImageUploading(true)
+                    setBroadcastError(null)
+                    try {
+                      const fd = new FormData()
+                      fd.append('file', file)
+                      const res = await adminFetch('/api/admin/inbox/upload-image', { method: 'POST', body: fd })
+                      const json = await res.json().catch(() => ({})) as { url?: string; error?: string }
+                      if (!res.ok || !json.url) {
+                        setBroadcastError(json.error ?? 'שגיאה בהעלאת תמונה')
+                        return
+                      }
+                      setBroadcastBody((prev) => {
+                        const trimmed = prev.trim()
+                        return trimmed ? `${trimmed}\n[img:${json.url}]` : `[img:${json.url}]`
+                      })
+                    } finally {
+                      setBroadcastImageUploading(false)
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => broadcastImageInputRef.current?.click()}
+                  disabled={broadcastImageUploading || broadcastLoading}
+                  title="צרף תמונה לתפוצה"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-base transition hover:bg-black/5 disabled:opacity-40 dark:hover:bg-white/10"
+                >
+                  {broadcastImageUploading ? '⏳' : '🖼️'}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => void sendBroadcast()}
-                disabled={broadcastLoading || !broadcastBody.trim()}
+                disabled={broadcastLoading || broadcastImageUploading || !broadcastBody.trim()}
                 className="rounded-xl bg-black px-4 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40 dark:bg-white dark:text-black"
               >
                 {broadcastLoading ? 'שולח…' : 'שלח לכולם'}
@@ -493,9 +558,11 @@ export default function AdminInboxPage() {
               const unread = Number.isFinite(thread.unread_count) ? thread.unread_count : 0
               const hasUnread = unread > 0
               const rawBody = (thread.last_body ?? '').trim()
-              const lastBody = rawBody
-                ? (rawBody.length > 200 ? `${rawBody.slice(0, 200)}…` : rawBody)
-                : 'אין עדיין הודעות'
+              const lastBody = rawBody.startsWith('[img:')
+                ? '📸 תמונה'
+                : rawBody
+                  ? (rawBody.length > 200 ? `${rawBody.slice(0, 200)}…` : rawBody)
+                  : 'אין עדיין הודעות'
               const isTyping = typingMap[thread.conversation_id]?.isTyping === true
 
               return (

@@ -8,6 +8,7 @@ import Editor from '@/components/Editor'
 import Badge from '@/components/Badge'
 import { supabase } from '@/lib/supabaseClient'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { sanitizeTipTapContent } from '@/lib/tiptapSanitizer'
 import { useToast } from '@/components/Toast'
 import { event as gaEvent } from '@/lib/gtag'
 import {
@@ -466,6 +467,7 @@ export default function WritePage() {
   const localDraftHydrationRef = useRef<string | null>(null)
   const draftCreationPromiseRef = useRef<Promise<{ id: string; slug: string } | null> | null>(null)
   const draftLoadSeqRef = useRef(0)
+  const previousActiveIdFromUrlRef = useRef<string | null>(activeIdFromUrl)
   const latestDraftStateRef = useRef({
     title: '',
     excerpt: '',
@@ -516,6 +518,52 @@ export default function WritePage() {
       coverSource,
     }
   }, [title, excerpt, contentJson, channelId, subcategoryTagId, selectedTagIds, coverUrl, coverStoragePath, coverSource])
+
+  const resetComposerForNewWrite = useCallback(() => {
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current)
+      autosaveTimer.current = null
+    }
+
+    saveSeqRef.current += 1
+    draftLoadSeqRef.current += 1
+    draftCreationPromiseRef.current = null
+    hasLoadedDraftOnce.current = false
+    localDraftHydrationRef.current = null
+    lastPersistedDraftSnapshotRef.current = null
+    lastSyncedTagsRef.current = { postId: null, signature: '' }
+
+    const nextChannelId = resolveChannelIdFromParam(channelParam, channels) ?? channels[0]?.id ?? null
+
+    setCreatedDraftId(null)
+    setDraftSlug(null)
+    setLoadedStatus(null)
+    setInitialSnapshot(null)
+    setTitle('')
+    setExcerpt('')
+    setContentJson(EMPTY_DOC)
+    setCoverUrl(null)
+    setCoverStoragePath(null)
+    setCoverSource(null)
+    setAutoCoverUsed(false)
+    setIsCoverLoading(false)
+    setChannelId(nextChannelId)
+    setSubcategoryTagId(null)
+    setSelectedTagIds([])
+    setSeriesDraftCache({})
+    setSeriesDraftCacheLoaded(true)
+    setLastSavedAt(null)
+    setSavePending(false)
+    setSaving(false)
+    setErrorMsg(null)
+    setHighlightTitle(false)
+    setHighlightContent(false)
+    setHighlightCover(false)
+    setHighlightChannel(false)
+    setHighlightSubcategory(false)
+    setHighlightTags(false)
+  }, [channelParam, channels])
+
   // --- Auth guard
   useEffect(() => {
     const run = async () => {
@@ -677,8 +725,15 @@ useEffect(() => {
 
   // reset load guard when URL changes
   useEffect(() => {
+    const previousActiveId = previousActiveIdFromUrlRef.current
     hasLoadedDraftOnce.current = false
-  }, [activeIdFromUrl])
+
+    if (previousActiveId && !activeIdFromUrl) {
+      resetComposerForNewWrite()
+    }
+
+    previousActiveIdFromUrlRef.current = activeIdFromUrl
+  }, [activeIdFromUrl, resetComposerForNewWrite])
 
   useEffect(() => {
     if (!activeIdFromUrl) return
@@ -879,7 +934,7 @@ useEffect(() => {
     // On publish we still enforce a real title.
     const draftTitle = overrides?.title ?? title
     const draftExcerpt = overrides?.excerpt ?? excerpt
-    const draftContentJson = overrides?.contentJson ?? contentJson
+    const draftContentJson = sanitizeTipTapContent(overrides?.contentJson ?? contentJson)
     const draftCoverUrl = overrides?.coverUrl ?? coverUrl
     const draftCoverStoragePath = overrides?.coverStoragePath ?? coverStoragePath
     const draftCoverSource = overrides?.coverSource ?? coverSource
@@ -1026,7 +1081,7 @@ useEffect(() => {
         const payload: Record<string, unknown> = {
           title: title.trim() ? title.trim() : ' ',
           excerpt: excerpt.trim() || null,
-          content_json: contentJson,
+          content_json: sanitizeTipTapContent(contentJson),
           cover_image_url: coverDbValue,
           cover_source: coverSource,
           updated_at: new Date().toISOString(),
@@ -1053,7 +1108,7 @@ useEffect(() => {
       const existing = await ensureDraft({
         title,
         excerpt,
-        contentJson,
+          contentJson: sanitizeTipTapContent(contentJson),
         channelId,
         subcategoryTagId,
         coverUrl,
@@ -1076,7 +1131,7 @@ useEffect(() => {
         .update({
           title: title.trim() ? title.trim() : ' ',
           excerpt: excerpt.trim() || null,
-          content_json: contentJson,
+          content_json: sanitizeTipTapContent(contentJson),
           channel_id: channelId,
           subcategory_tag_id: subcategoryTagId,
           cover_image_url: coverDbValue,
@@ -1185,6 +1240,25 @@ useEffect(() => {
     isPublishing,
   ])
 
+  const discardEditChanges = useCallback(() => {
+    allowCommittedNavigationRef.current = true
+    if (typeof window !== 'undefined' && window.__TYUTA_UNSAVED__) {
+      window.__TYUTA_UNSAVED__.enabled = false
+    }
+
+    if (safeReturnParam) {
+      router.replace(safeReturnParam)
+      return
+    }
+
+    if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') {
+      router.replace(`/post/${draftSlug}`)
+      return
+    }
+
+    router.replace('/notebook')
+  }, [draftSlug, router, safeReturnParam])
+
   // Warn on closing tab / refreshing
   useEffect(() => {
     if (!shouldWarnNavigation) return
@@ -1233,6 +1307,14 @@ useEffect(() => {
         history.pushState(null, '', window.location.href)
         return
       }
+
+      if (isEditMode) {
+        window.removeEventListener('popstate', onPopState)
+        document.removeEventListener('click', onDocumentClickCapture, true)
+        discardEditChanges()
+        return
+      }
+
       // User confirmed leaving: remove handler and go back one more step
       window.removeEventListener('popstate', onPopState)
       document.removeEventListener('click', onDocumentClickCapture, true)
@@ -1246,7 +1328,7 @@ useEffect(() => {
       document.removeEventListener('click', onDocumentClickCapture, true)
       window.removeEventListener('popstate', onPopState)
     }
-  }, [shouldWarnNavigation])
+  }, [shouldWarnNavigation, isEditMode, discardEditChanges])
 
   const handlePickCoverFile = async (file: File) => {
     if (!userId) return
@@ -1457,7 +1539,7 @@ useEffect(() => {
       const publishSnapshot = {
         title: publishTitle,
         excerpt: publishExcerpt,
-        contentJson: publishContentJson,
+        contentJson: sanitizeTipTapContent(publishContentJson),
         channelId: publishChannelId,
         subcategoryTagId: publishSubcategoryTagId,
         selectedTagIds: publishSelectedTagIds,
@@ -2065,6 +2147,7 @@ useEffect(() => {
             </div>
           </div>
           <Editor
+            key={activeIdFromUrl ?? 'new-write'}
             value={contentJson}
             onChange={setContentJson}
             postId={effectivePostId}
@@ -2100,10 +2183,7 @@ useEffect(() => {
                     const ok = confirm('לבטל ולזרוק את השינויים שלא נשמרו?')
                     if (!ok) return
                   }
-                  if (safeReturnParam) return router.push(safeReturnParam)
-                  if (typeof window !== 'undefined' && window.history.length > 1) return router.back()
-                  if (draftSlug && draftSlug !== 'undefined' && draftSlug !== 'null') return router.push(`/post/${draftSlug}`)
-                  router.push('/notebook')
+                  discardEditChanges()
                 }}
                 className="rounded-full border bg-white px-4 py-2 text-sm hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-card dark:border-border dark:hover:bg-muted"
               >

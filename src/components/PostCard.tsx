@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import Link from '@/components/ContentLink'
@@ -64,6 +65,7 @@ function CoverImage({
   cardHovered?: boolean
 }) {
   const isGif = src.toLowerCase().includes('.gif')
+  const quality = width >= 680 ? 86 : 82
 
   if (isGif) {
     return (
@@ -74,13 +76,14 @@ function CoverImage({
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
+    <Image
       src={src}
       alt={alt}
       width={width}
       height={height}
       loading="lazy"
+      sizes={`${width}px`}
+      quality={quality}
       style={{
         width: '100%',
         height: '100%',

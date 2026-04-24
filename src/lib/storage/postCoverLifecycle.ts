@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import sharp from 'sharp'
+import { optimizePublicImageBuffer } from '@/lib/storage/publicImageOptimization'
 import { validateImageBuffer } from '@/lib/validateImage'
 
 const MAX_INPUT_BYTES = 15 * 1024 * 1024
 const PUBLIC_BUCKET_MAX_BYTES = 5 * 1024 * 1024
 const COMPRESS_MAX_WIDTH = 1600
 const COMPRESS_QUALITY = 82
+const COMPRESS_MIN_INPUT_BYTES = 1200 * 1024
 
 type PromoteCoverOptions = {
   postId: string
@@ -124,21 +125,16 @@ export async function promotePrivateCoverToPublic(
     throw new Error(imageCheck.error)
   }
 
-  let outputBuffer = inputBuffer
-  let contentType = imageCheck.mimeType
-  let extension = extensionForUpload(contentType, options.sourcePath)
+  const optimized = await optimizePublicImageBuffer(inputBuffer, imageCheck.mimeType, {
+    maxWidth: COMPRESS_MAX_WIDTH,
+    quality: COMPRESS_QUALITY,
+    minInputBytes: COMPRESS_MIN_INPUT_BYTES,
+    forceWhenInputExceedsBytes: PUBLIC_BUCKET_MAX_BYTES,
+  })
 
-  if (outputBuffer.byteLength > PUBLIC_BUCKET_MAX_BYTES) {
-    const compressed = await sharp(outputBuffer)
-      .rotate()
-      .resize({ width: COMPRESS_MAX_WIDTH, withoutEnlargement: true })
-      .jpeg({ quality: COMPRESS_QUALITY })
-      .toBuffer()
-    outputBuffer = Buffer.from(compressed)
-
-    contentType = 'image/jpeg'
-    extension = 'jpg'
-  }
+  const outputBuffer = optimized.buffer
+  const contentType = optimized.mimeType
+  const extension = extensionForUpload(contentType, options.sourcePath)
 
   if (outputBuffer.byteLength > PUBLIC_BUCKET_MAX_BYTES) {
     throw new Error('Cover is still too large after optimization')

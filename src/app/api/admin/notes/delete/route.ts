@@ -2,6 +2,9 @@ import type { NextRequest } from "next/server"
 import { requireAdminOrModFromRequest } from "@/lib/admin/requireAdminOrModFromRequest"
 import { adminOk, adminError } from "@/lib/admin/adminHttp"
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const MAX_REASON_LENGTH = 500
+
 export async function POST(req: NextRequest) {
   const gate = await requireAdminOrModFromRequest(req)
   if (!gate.ok) return gate.response
@@ -24,10 +27,16 @@ export async function POST(req: NextRequest) {
   if (typeof note_id !== "string" || !note_id.trim()) {
     return adminError("note_id required", 400, "bad_request")
   }
+  if (!UUID_RE.test(note_id.trim())) {
+    return adminError("invalid note_id", 400, "bad_request")
+  }
 
   const cleanReason = typeof reason === "string" ? reason.trim() : ""
   if (cleanReason.length < 3) {
     return adminError("reason must be at least 3 characters", 400, "reason_required")
+  }
+  if (cleanReason.length > MAX_REASON_LENGTH) {
+    return adminError("reason must be 500 characters or fewer", 400, "reason_too_long")
   }
 
   // Fetch note snapshot before deletion

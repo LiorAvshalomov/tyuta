@@ -45,6 +45,7 @@ export type PostCardVM = {
   subcategory: { id: number; slug: string; name_he: string } | null
   comments_count: number
   reactions_count: number
+  medals: { gold: number; silver: number; bronze: number } | null
 }
 
 export type SearchPageData = {
@@ -60,9 +61,17 @@ export type SearchPageData = {
 }
 
 export const PAGE_SIZE = 10
+const MAX_SEARCH_QUERY_LENGTH = 120
 
 function safeText(value: unknown) {
   return typeof value === 'string' ? value : ''
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, MAX_SEARCH_QUERY_LENGTH)
 }
 
 function escapeIlike(value: string): string {
@@ -70,7 +79,9 @@ function escapeIlike(value: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/%/g, '\\%')
     .replace(/_/g, '\\_')
-    .replace(/,/g, ' ')
+    .replace(/[(),]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function getSubcatLabel(channelId: number | null): string {
@@ -94,7 +105,7 @@ export function normalizeSearchQuery(
   }
 
   return {
-    q: safeText(get('q')).trim(),
+    q: normalizeSearchText(safeText(get('q'))),
     channel: safeText(get('channel')).trim(),
     subcat: safeText(get('subcat')).trim(),
     sort: normalizeSort(safeText(get('sort')).trim()),
@@ -227,9 +238,10 @@ export async function loadSearchPageData(
     const channelIds = Array.from(new Set(rows.map((row) => row.channel_id).filter((value) => typeof value === 'number')))
     const subcatIds = Array.from(new Set(rows.map((row) => row.subcategory_tag_id).filter((value): value is number => typeof value === 'number')))
 
-    const [{ data: profiles }, { data: rowChannels }, { data: rowTags }] = await Promise.all([
+    const postIds = rows.map((row) => row.id)
+    const [{ data: profiles }, { data: rowChannels }, { data: rowTags }, { data: medalsRows }] = await Promise.all([
       authorIds.length
-        ? supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', authorIds)
+        ? supabase.from('profiles_public').select('id,username,display_name,avatar_url').in('id', authorIds)
         : Promise.resolve({ data: [] as ProfileRow[] }),
       channelIds.length
         ? supabase.from('channels').select('id,slug,name_he').in('id', channelIds)
@@ -237,11 +249,15 @@ export async function loadSearchPageData(
       subcatIds.length
         ? supabase.from('tags').select('id,slug,name_he').in('id', subcatIds)
         : Promise.resolve({ data: [] as Array<Pick<TagRow, 'id' | 'slug' | 'name_he'>> }),
+      postIds.length
+        ? supabase.from('post_medals_all_time').select('post_id,gold,silver,bronze').in('post_id', postIds)
+        : Promise.resolve({ data: [] as Array<{ post_id: string; gold: number; silver: number; bronze: number }> }),
     ])
 
     const profilesMap = new Map(((profiles ?? []) as ProfileRow[]).map((profile) => [profile.id, profile]))
     const channelsMap = new Map(((rowChannels ?? []) as ChannelRow[]).map((channel) => [channel.id, channel]))
     const tagsMap = new Map(((rowTags ?? []) as Array<{ id: number; slug: string; name_he: string }>).map((tag) => [tag.id, tag]))
+    const medalsMap = new Map(((medalsRows ?? []) as Array<{ post_id: string; gold: number; silver: number; bronze: number }>).map((m) => [m.post_id, m]))
 
     const results: PostCardVM[] = rows.map((row) => {
       const author = profilesMap.get(row.author_id)
@@ -265,6 +281,11 @@ export async function loadSearchPageData(
           : null,
         comments_count: typeof row.comments_count === 'number' ? row.comments_count : 0,
         reactions_count: typeof row.reactions_count === 'number' ? row.reactions_count : 0,
+        medals: medalsMap.has(row.id) ? {
+          gold: medalsMap.get(row.id)!.gold ?? 0,
+          silver: medalsMap.get(row.id)!.silver ?? 0,
+          bronze: medalsMap.get(row.id)!.bronze ?? 0,
+        } : null,
       }
     })
 

@@ -16,8 +16,12 @@ export async function POST(req: NextRequest) {
   if (!limited.allowed) return new NextResponse(null, { status: 204 })
 
   try {
-    const body = await req.json()
-    console.warn('[CSP violation]', JSON.stringify(body))
+    const body = await req.text()
+    if (body.length < 4096) {
+      console.warn('[CSP violation]', body)
+    } else {
+      console.warn('[CSP violation] oversized payload', body.length, 'bytes')
+    }
   } catch {
     // Malformed or empty report body — ignore silently.
   }

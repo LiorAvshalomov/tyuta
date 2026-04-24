@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { rateLimit } from '@/lib/rateLimit'
 import {
@@ -13,13 +14,11 @@ import { setPresenceCookie, clearPresenceCookie, verifyPresence, PRESENCE_COOKIE
 import { isAdminUser } from '@/lib/auth/isAdminUser'
 import { fetchModerationRoutingHint } from '@/lib/auth/fetchModerationRoutingHint'
 import { buildHeaderUserFromAuthUser, fetchHeaderUserById } from '@/lib/auth/headerUser'
+import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
 
-function getIp(req: NextRequest): string {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  )
+function deviceFingerprint(meta: Record<string, unknown>): string {
+  const parts = [meta.ua_browser ?? '', meta.ua_os ?? '', meta.accept_language ?? ''].join('|')
+  return createHash('sha256').update(parts).digest('hex').slice(0, 8)
 }
 
 /**
@@ -32,10 +31,10 @@ function getIp(req: NextRequest): string {
  * Called by AuthSync on mount, on a schedule (60s before AT expiry), and on tab focus.
  */
 export async function GET(req: NextRequest) {
-  const ip = getIp(req)
+  const ctx = buildAuditContext(req)
 
   // Rate limit: 30 refreshes per minute per IP
-  const rl = await rateLimit(`session-get:${ip}`, { maxRequests: 30, windowMs: 60_000 })
+  const rl = await rateLimit(`session-get:${ctx.ip}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Too many requests' },
@@ -106,9 +105,9 @@ export async function GET(req: NextRequest) {
         .from('auth_audit_log').insert({
           user_id: null,
           event: 'token_refresh_failed',
-          ip,
-          user_agent: req.headers.get('user-agent') ?? null,
-          metadata: error ? { reason: error.message } : null,
+          ip: ctx.ip,
+          user_agent: ctx.user_agent,
+          metadata: mergeAuditMetadata(ctx.metadata_base, error ? { reason: error.message } : null),
         }).then(null, () => null)
     }
     return errRes
@@ -142,6 +141,20 @@ export async function GET(req: NextRequest) {
     : oldPresence?.moderation ?? 'none'
 
   await setPresenceCookie(res, data.user!.id, isAdminUser(data.user!.id), rememberMe, moderation)
+
+  if (serviceClient) {
+    serviceClient.from('auth_audit_log').insert({
+      user_id:    data.user!.id,
+      event:      'token_refresh_success',
+      ip:         ctx.ip,
+      user_agent: ctx.user_agent,
+      metadata:   mergeAuditMetadata(ctx.metadata_base, {
+        device_fp:   deviceFingerprint(ctx.metadata_base),
+        remember_me: rememberMe,
+      }),
+    }).then(null, () => null)
+  }
+
   return res
 }
 
@@ -155,10 +168,10 @@ export async function GET(req: NextRequest) {
  * After migration this endpoint is no longer called; new sessions go through GET.
  */
 export async function POST(req: NextRequest) {
-  const ip = getIp(req)
+  const ctx = buildAuditContext(req)
 
   // Strict rate limit: migration runs once per user; 3 calls per 5 min is generous
-  const rl = await rateLimit(`session-migrate:${ip}`, { maxRequests: 3, windowMs: 5 * 60_000 })
+  const rl = await rateLimit(`session-migrate:${ctx.ip}`, { maxRequests: 3, windowMs: 5 * 60_000 })
   if (!rl.allowed) {
     return NextResponse.json(
       { error: 'Too many requests' },
@@ -219,5 +232,18 @@ export async function POST(req: NextRequest) {
       )
     : 'none'
   await setPresenceCookie(res, data.user!.id, isAdminUser(data.user!.id), true, moderation)
+
+  if (serviceClient) {
+    serviceClient.from('auth_audit_log').insert({
+      user_id:    data.user!.id,
+      event:      'legacy_rt_migrated',
+      ip:         ctx.ip,
+      user_agent: ctx.user_agent,
+      metadata:   mergeAuditMetadata(ctx.metadata_base, {
+        device_fp: deviceFingerprint(ctx.metadata_base),
+      }),
+    }).then(null, () => null)
+  }
+
   return res
 }

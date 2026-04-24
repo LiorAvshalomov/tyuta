@@ -14,6 +14,7 @@ const RAW_MAX = 10 * 1024 * 1024 // 10 MB — raw input before crop
 const CROP_OUTPUT = 384 // exported pixel size
 const CROP_QUALITY = 0.86
 const VIEWPORT = 280 // crop viewport CSS size
+const ACCEPTED_INPUT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 function dicebearInitialsUrl(seed: string) {
   const s = (seed || 'משתמש').trim()
@@ -248,8 +249,8 @@ export default function AvatarUpload({ currentUrl, displayName, onSelectFile, on
 
           setLocalErr(null)
 
-          if (!f.type.startsWith('image/')) {
-            setLocalErr('קובץ חייב להיות תמונה')
+          if (!ACCEPTED_INPUT_TYPES.has(f.type)) {
+            setLocalErr('אפשר להעלות JPEG, PNG, WebP או GIF בלבד')
             return
           }
           if (f.size > RAW_MAX) {

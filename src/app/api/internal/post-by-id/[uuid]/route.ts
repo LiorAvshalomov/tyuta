@@ -6,6 +6,8 @@ export const runtime = 'nodejs'
 
 type RouteParams = { params: Promise<{ uuid: string }> }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 export async function GET(req: NextRequest, { params }: RouteParams) {
   const { uuid } = await params
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
@@ -20,7 +22,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (supabaseUrl && key) {
+  if (UUID_RE.test(uuid) && supabaseUrl && key) {
     const supabase = createClient(supabaseUrl, key, { auth: { persistSession: false } })
 
     // 1) Check slug_redirects table — old UUID slugs (pre-migration) map here.

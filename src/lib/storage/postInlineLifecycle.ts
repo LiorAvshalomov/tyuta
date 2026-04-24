@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { publicPostImagePath } from '@/lib/postImageUrl'
+import { optimizePublicImageBuffer } from '@/lib/storage/publicImageOptimization'
 import {
   extractReferencedPostImagePaths,
   normalizeOwnedPrivatePostAssetPath,
@@ -10,6 +11,9 @@ const PRIVATE_BUCKET = 'post-assets'
 const PUBLIC_BUCKET = 'post-covers'
 const INLINE_PREFIX = 'inline'
 const MAX_INPUT_BYTES = 10 * 1024 * 1024
+const PUBLIC_INLINE_MAX_WIDTH = 1600
+const PUBLIC_INLINE_QUALITY = 82
+const PUBLIC_INLINE_OPTIMIZE_MIN_BYTES = 2 * 1024 * 1024
 
 type SyncPublishedInlineOptions = {
   authorId: string
@@ -93,10 +97,16 @@ async function copyPrivateInlineToPublic(
     throw new Error(validated.error)
   }
 
-  const upload = await client.storage.from(PUBLIC_BUCKET).upload(publicPath, buffer, {
+  const optimized = await optimizePublicImageBuffer(buffer, validated.mimeType, {
+    maxWidth: PUBLIC_INLINE_MAX_WIDTH,
+    quality: PUBLIC_INLINE_QUALITY,
+    minInputBytes: PUBLIC_INLINE_OPTIMIZE_MIN_BYTES,
+  })
+
+  const upload = await client.storage.from(PUBLIC_BUCKET).upload(publicPath, optimized.buffer, {
     upsert: true,
     cacheControl: '31536000',
-    contentType: validated.mimeType,
+    contentType: optimized.mimeType,
   })
 
   if (upload.error) {

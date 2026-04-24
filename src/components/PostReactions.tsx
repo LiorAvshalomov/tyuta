@@ -316,7 +316,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
     }
 
     const { data: profileRows, error: profilesError } = await supabase
-      .from('profiles')
+      .from('profiles_public')
       .select('id, display_name, username')
       .in('id', orderedIds)
 

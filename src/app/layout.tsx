@@ -16,11 +16,13 @@ const SITE_URL = "https://tyuta.net"
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  preload: false,
 })
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 })
 
 const heebo = Heebo({

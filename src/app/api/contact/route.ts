@@ -34,6 +34,13 @@ async function sendContactTelegramNotification(
       ? `${displayName}${username ? ` (@${username})` : ''}`
       : username ? `@${username}` : userId.slice(0, 8)
 
+    // Telegram hard limit is 4096 chars; reserve ~300 for headers, show up to 800 chars of message
+    const MSG_PREVIEW = 800
+    const msgEscaped = escapeHtml(message)
+    const msgBody = msgEscaped.length > MSG_PREVIEW
+      ? msgEscaped.slice(0, MSG_PREVIEW) + `\n<i>… (${msgEscaped.length - MSG_PREVIEW} תווים נוספים)</i>`
+      : msgEscaped
+
     const lines = [
       '🔔 <b>התראה חדשה – Tyuta</b>',
       '',
@@ -43,7 +50,7 @@ async function sendContactTelegramNotification(
       `📋 <b>נושא:</b> ${escapeHtml(subject)}`,
       '',
       '💬 <b>הודעה:</b>',
-      escapeHtml(message),
+      msgBody,
       attachmentPaths.length > 0 ? `\n📎 ${attachmentPaths.length} קבצים מצורפים` : null,
     ].filter(Boolean).join('\n')
 
@@ -131,7 +138,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const uploadedPaths: string[] = []
 
   for (const file of files) {
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'bin'
+    const rawExt = file.name.split('.').pop()?.toLowerCase() ?? ''
+    const SAFE_EXTS: Record<string, string> = { jpg: 'jpg', jpeg: 'jpg', png: 'png', gif: 'gif', webp: 'webp' }
+    const ext = SAFE_EXTS[rawExt] ?? 'bin'
     const storagePath = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
     const bytes = await file.arrayBuffer()
 
@@ -144,7 +153,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const { error: uploadErr } = await service.storage
       .from(BUCKET)
-      .upload(storagePath, bytes, { contentType: file.type, upsert: false })
+      .upload(storagePath, bytes, { contentType: imageCheck.mimeType, upsert: false })
 
     if (uploadErr) {
       if (uploadedPaths.length) {

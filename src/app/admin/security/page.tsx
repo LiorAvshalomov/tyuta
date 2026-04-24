@@ -8,6 +8,7 @@ import FilterTabs from '@/components/admin/FilterTabs'
 import ErrorBanner from '@/components/admin/ErrorBanner'
 import EmptyState from '@/components/admin/EmptyState'
 import { TableSkeleton } from '@/components/admin/AdminSkeleton'
+import CspReportsPanel from '@/components/admin/CspReportsPanel'
 import { formatProfileIdentityInlineSummary, getProfileIdentityChangeLines } from '@/lib/admin/profileIdentityAudit'
 import { Lock, LogIn, LogOut, User, UserPlus, KeyRound, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -41,7 +42,7 @@ type SecurityApiResponse = {
 
 /* ── event config ── */
 
-type EventFilter = 'all' | 'login_success' | 'login_failed' | 'logout' | 'signup' | 'password_reset' | 'token_refresh_failed' | 'profile_identity_updated'
+type EventFilter = 'all' | 'login_success' | 'login_failed' | 'logout' | 'signup' | 'password_reset' | 'password_changed' | 'token_refresh_failed' | 'token_refresh_success' | 'legacy_rt_migrated' | 'profile_identity_updated' | 'rate_limit_exceeded'
 
 const PROFILE_IDENTITY_EVENT_OPTION: { value: EventFilter; label: string } = {
   value: 'profile_identity_updated',
@@ -52,10 +53,12 @@ const EVENT_OPTIONS: { value: EventFilter; label: string }[] = [
   { value: 'all', label: 'הכל' },
   { value: 'login_success', label: 'כניסות' },
   { value: 'login_failed', label: 'כישלונות' },
+  { value: 'rate_limit_exceeded', label: 'Rate Limit' },
   { value: 'logout', label: 'יציאות' },
   { value: 'signup', label: 'הרשמות' },
   { value: 'password_reset', label: 'איפוס סיסמה' },
-  { value: 'token_refresh_failed', label: 'פג תוקף' },
+  { value: 'token_refresh_failed',  label: 'פג תוקף' },
+  { value: 'password_changed',      label: 'שינוי סיסמה' },
 ]
 
 function EventBadge({ event }: { event: string }) {
@@ -74,7 +77,11 @@ function EventBadge({ event }: { event: string }) {
     logout:                { label: 'יציאה',         icon: <LogOut size={12} />,     cls: 'bg-neutral-50 text-neutral-600 border-neutral-200 dark:bg-muted/40 dark:text-neutral-400 dark:border-border' },
     signup:                { label: 'הרשמה',         icon: <UserPlus size={12} />,   cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30' },
     password_reset:        { label: 'איפוס סיסמה',  icon: <KeyRound size={12} />,   cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30' },
-    token_refresh_failed:  { label: 'פג תוקף',      icon: <RefreshCw size={12} />,  cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30' },
+    token_refresh_failed:  { label: 'פג תוקף',        icon: <RefreshCw size={12} />,     cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30' },
+    token_refresh_success: { label: 'רענון טוקן',     icon: <RefreshCw size={12} />,     cls: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/30' },
+    rate_limit_exceeded:   { label: 'Rate Limit',    icon: <AlertTriangle size={12} />,  cls: 'bg-red-50 text-red-800 border-red-300 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/40' },
+    password_changed:      { label: 'שינוי סיסמה',   icon: <KeyRound size={12} />,      cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30' },
+    legacy_rt_migrated:    { label: 'מיגרציית Token', icon: <Lock size={12} />,          cls: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/30' },
   }
   const cfg = map[event] ?? { label: event, icon: <Lock size={12} />, cls: 'bg-neutral-50 text-neutral-600 border-neutral-200 dark:bg-muted/40 dark:text-neutral-400 dark:border-border' }
   return (
@@ -220,6 +227,8 @@ export default function SecurityPage() {
         title="אבטחה"
         description={`${total.toLocaleString('he-IL')} אירועים`}
       />
+
+      <CspReportsPanel />
 
       {/* Filters */}
       <div className="flex flex-col gap-3">

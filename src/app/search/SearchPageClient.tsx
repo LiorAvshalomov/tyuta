@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -85,9 +86,14 @@ function SearchSelect({
   )
 }
 
+const MEDAL_EMOJIS = { gold: '🥇', silver: '🥈', bronze: '🥉' } as const
+
 function SearchResultCard({ post }: { post: PostCardVM }) {
   const router = useRouter()
   const coverSrc = coverProxySrc(post.cover_image_url)
+  const medals = post.medals
+  const showMedals = Boolean(medals && (medals.gold > 0 || medals.silver > 0 || medals.bronze > 0))
+  const authorName = post.author?.display_name || post.author?.username || null
 
   return (
     <div
@@ -100,25 +106,50 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
           router.push(`/post/${post.slug}`)
         }
       }}
-      className="cursor-pointer rounded-2xl border bg-white p-4 hover:shadow-sm dark:border-border dark:bg-card"
+      className="group cursor-pointer rounded-2xl border bg-white overflow-hidden transition-all duration-150 hover:shadow-md hover:border-neutral-300 active:scale-[0.99] dark:border-border dark:bg-card dark:hover:border-neutral-600"
     >
-      <div className="flex flex-row-reverse items-stretch gap-3 sm:gap-4">
-        {/* Image column — full card height, wider on desktop */}
-        <div className="relative w-28 sm:w-40 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border/30 min-h-[110px] sm:min-h-[128px]">
+      <div className="flex flex-row-reverse items-stretch min-h-[118px] sm:min-h-[132px]">
+        {/* Image column — full card height, clips the scale effect */}
+        <div className="w-[108px] sm:w-[200px] shrink-0 relative self-stretch bg-muted overflow-hidden">
           {coverSrc ? (
             isGifUrl(coverSrc) ? (
               <div className="absolute inset-0">
                 <GifCoverCard src={coverSrc} alt="" />
               </div>
             ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={coverSrc} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <Image
+                src={coverSrc}
+                alt=""
+                fill
+                sizes="(max-width: 640px) 108px, 200px"
+                quality={82}
+                className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+              />
             )
+          ) : null}
+
+          {/* Medals overlay — top-left of image, blurred backdrop */}
+          {showMedals ? (
+            <div
+              dir="ltr"
+              className="absolute top-0 left-0 z-10 pointer-events-none flex items-center gap-0.5 text-[12px] leading-none px-1.5 py-1"
+              style={{
+                backdropFilter: 'blur(5px)',
+                WebkitBackdropFilter: 'blur(5px)',
+                background: 'rgba(0,0,0,0.22)',
+                borderBottomRightRadius: '10px',
+                color: 'white',
+              }}
+            >
+              {medals!.gold > 0 ? <span>{medals!.gold}&nbsp;{MEDAL_EMOJIS.gold}</span> : null}
+              {medals!.silver > 0 ? <span>{medals!.silver}&nbsp;{MEDAL_EMOJIS.silver}</span> : null}
+              {medals!.bronze > 0 ? <span>{medals!.bronze}&nbsp;{MEDAL_EMOJIS.bronze}</span> : null}
+            </div>
           ) : null}
         </div>
 
         {/* Content column */}
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
           {/* Category + subcategory badges — above the title */}
           {(post.channel || post.subcategory?.name_he) ? (
             <div className="mb-1.5 flex flex-nowrap items-center gap-1 overflow-hidden text-xs">
@@ -139,7 +170,7 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
             </div>
           ) : null}
 
-          <div className="line-clamp-2 cursor-pointer text-base font-bold leading-snug tyuta-hover">
+          <div className="line-clamp-2 text-base font-bold leading-snug tyuta-hover">
             {post.title}
           </div>
 
@@ -151,9 +182,10 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
 
           <div className="flex-1" />
 
+          {/* Author + meta row — always shown */}
           <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-            {post.author?.username ? (
-              <div className="min-w-0 flex-1 overflow-hidden [&>span]:max-w-full">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              {post.author?.username ? (
                 <AuthorHover username={post.author.username}>
                   <Link
                     href={`/u/${post.author.username}`}
@@ -162,18 +194,21 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
                   >
                     <Avatar
                       src={post.author.avatar_url ?? null}
-                      name={post.author.display_name || post.author.username}
+                      name={authorName ?? ''}
                       size={20}
                     />
                     <span className="min-w-0 truncate font-semibold tyuta-hover">
-                      {post.author.display_name || post.author.username}
+                      {authorName}
                     </span>
                   </Link>
                 </AuthorHover>
-              </div>
-            ) : (
-              <div className="flex-1" />
-            )}
+              ) : authorName ? (
+                <span className="inline-flex items-center gap-1.5 px-1.5">
+                  <Avatar src={post.author?.avatar_url ?? null} name={authorName} size={20} />
+                  <span className="min-w-0 truncate font-semibold">{authorName}</span>
+                </span>
+              ) : null}
+            </div>
 
             <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
               <span>{`💬 ${post.comments_count}`}</span>
@@ -334,10 +369,10 @@ export default function SearchPageClient({
       <div className="mt-6 min-h-[400px] space-y-3">
         {isPending ? (
           Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="animate-pulse rounded-2xl border bg-white p-4 dark:border-border dark:bg-card">
-              <div className="flex flex-row-reverse items-stretch gap-3 sm:gap-4">
-                <div className="w-28 sm:w-40 shrink-0 rounded-xl bg-neutral-200 min-h-[110px] sm:min-h-[128px] dark:bg-muted" />
-                <div className="min-w-0 flex-1 space-y-2 pt-1">
+            <div key={index} className="animate-pulse rounded-2xl border bg-white overflow-hidden dark:border-border dark:bg-card">
+              <div className="flex flex-row-reverse items-stretch min-h-[118px] sm:min-h-[132px]">
+                <div className="w-[108px] sm:w-[200px] shrink-0 bg-neutral-200 dark:bg-muted" />
+                <div className="min-w-0 flex-1 space-y-2 p-3 sm:p-4 pt-3">
                   <div className="h-5 w-3/4 rounded-lg bg-neutral-200 dark:bg-muted" />
                   <div className="h-4 w-full rounded-lg bg-neutral-100 dark:bg-muted/60" />
                   <div className="h-3 w-1/4 rounded-lg bg-neutral-100 dark:bg-muted/60" />

@@ -31,7 +31,7 @@ export default async function FollowersPage({ params }: PageProps) {
   }
 
   const { data: profile, error: profileError } = await supabase
-    .from('profiles')
+    .from('profiles_public')
     .select('id, username, display_name, avatar_url')
     .eq('username', username)
     .single()

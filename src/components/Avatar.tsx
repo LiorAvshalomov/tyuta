@@ -1,6 +1,6 @@
 import React from 'react'
 import Image from 'next/image'
-import { avatarProxySrc } from '@/lib/avatarUrl'
+import { avatarProxySrc, isAvatarProxySrc } from '@/lib/avatarUrl'
 
 function dicebearUrl(seed: string) {
   const s = encodeURIComponent((seed ?? '').trim() || 'user')
@@ -21,6 +21,15 @@ function Avatar({
   const safeSrc = src?.trim() ? src.trim() : null
   const radiusClass = shape === 'square' ? 'rounded-xl' : 'rounded-full'
   const url = safeSrc ? (avatarProxySrc(safeSrc) ?? safeSrc) : dicebearUrl(name)
+  const lowerUrl = url.split('?')[0].toLowerCase()
+  const unoptimized =
+    isAvatarProxySrc(url) ||
+    url.startsWith('/') ||
+    lowerUrl.endsWith('.svg') ||
+    lowerUrl.endsWith('/svg') ||
+    lowerUrl.endsWith('.gif') ||
+    lowerUrl.startsWith('https://api.dicebear.com/')
+
   return (
     <div
       className={`relative overflow-hidden shrink-0 ${radiusClass}`}
@@ -31,8 +40,9 @@ function Avatar({
         alt={`תמונת פרופיל של ${name}`}
         fill
         sizes={`${size}px`}
+        quality={size <= 48 ? 76 : 82}
         className="object-cover"
-        unoptimized
+        unoptimized={unoptimized}
       />
     </div>
   )

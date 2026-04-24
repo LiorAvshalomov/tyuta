@@ -318,7 +318,7 @@ async function hydrateNotificationRows(rows: NotifRowDb[]): Promise<NotifRowDb[]
   const profilesById = new Map<string, ProfileLite>()
   if (profileIds.size > 0) {
     const { data } = await supabase
-      .from("profiles")
+      .from("profiles_public")
       .select("id, username, display_name, avatar_url")
       .in("id", Array.from(profileIds))
       .limit(500)

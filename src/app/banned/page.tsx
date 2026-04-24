@@ -55,7 +55,7 @@ export default function BannedPage() {
             .eq("user_id", uid)
             .maybeSingle(),
           supabase
-            .from("profiles")
+            .from("profiles_public")
             .select("username, display_name")
             .eq("id", uid)
             .maybeSingle(),

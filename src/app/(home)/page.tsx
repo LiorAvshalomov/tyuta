@@ -796,7 +796,7 @@ export default async function HomePage(props: HomePageProps = {}) {
       : channelSlug === 'magazine'
         ? '/c/magazine'
         : '/'
-  const initialFeedVersion = await getFeedVersionForPath(feedPath)
+  const initialFeedVersionPromise = getFeedVersionForPath(feedPath)
 
   // Resolve channel id + subcategory tag ids in parallel (both independent on channel pages)
   const forcedSubcatIdsByName = new Map<string, number>()
@@ -855,63 +855,63 @@ export default async function HomePage(props: HomePageProps = {}) {
 
   const [rankedCombinedRes, rankedStoriesRes, rankedReleaseRes, rankedMagazineRes, rankedAllRes, recentRes] =
     isChannelPage
-      ? await Promise.all([
-        // Monthly ranking for this channel page
-        supabase.rpc('pendemic_ranked_posts_monthly', {
+      ? await (async () => {
+        // Monthly ranking for this channel page. The same ranking also powers
+        // writers-of-month, so reuse the promise instead of issuing a duplicate RPC.
+        const channelMonthlyRankingPromise = supabase.rpc('pendemic_ranked_posts_monthly', {
           ref_ts: nowIso,
           channel_slugs: channelSlug ? [channelSlug] : null,
           limit_count: 500,
-        }),
-        // Keep these placeholders for compatibility with existing rendering code (not used on channel pages)
-        supabase.rpc('pendemic_ranked_posts_monthly', {
-          ref_ts: nowIso,
-          channel_slugs: ['stories'],
-          limit_count: 0,
-        }),
-        supabase.rpc('pendemic_ranked_posts_monthly', {
-          ref_ts: nowIso,
-          channel_slugs: ['release'],
-          limit_count: 0,
-        }),
-        supabase.rpc('pendemic_ranked_posts_monthly', {
-          ref_ts: nowIso,
-          channel_slugs: ['magazine'],
-          limit_count: 0,
-        }),
-        // For writers-of-month scoring: broad coverage but still filtered to this channel
-        supabase.rpc('pendemic_ranked_posts_monthly', {
-          ref_ts: nowIso,
-          channel_slugs: channelSlug ? [channelSlug] : null,
-          limit_count: 500,
-        }),
-        // Recent posts for the sidebar (filtered by channel on channel pages)
-        (() => {
-          let q = supabase
-            .from('posts')
-            .select(
-              `
-                id,
-                title,
-                slug,
-                created_at,
-                published_at,
-                excerpt,
-                cover_image_url,
-                subcategory_tag_id,
-                channel:channels ( slug, name_he ),
-                author:profiles!posts_author_id_fkey ( username, display_name, avatar_url ),
-                post_tags:post_tags!post_tags_post_id_fkey ( tag:tags!post_tags_tag_id_fkey ( name_he, slug ) )
-                `
-            )
-            .is('deleted_at', null)
-            .eq('status', 'published')
-            .order('published_at', { ascending: false })
-            .limit(60)
+        }).then(r => r)
 
-          if (channelId != null) q = q.eq('channel_id', channelId)
-          return q
-        })(),
-      ])
+        return Promise.all([
+          channelMonthlyRankingPromise,
+          // Keep these placeholders for compatibility with existing rendering code (not used on channel pages)
+          supabase.rpc('pendemic_ranked_posts_monthly', {
+            ref_ts: nowIso,
+            channel_slugs: ['stories'],
+            limit_count: 0,
+          }),
+          supabase.rpc('pendemic_ranked_posts_monthly', {
+            ref_ts: nowIso,
+            channel_slugs: ['release'],
+            limit_count: 0,
+          }),
+          supabase.rpc('pendemic_ranked_posts_monthly', {
+            ref_ts: nowIso,
+            channel_slugs: ['magazine'],
+            limit_count: 0,
+          }),
+          channelMonthlyRankingPromise,
+          // Recent posts for the sidebar (filtered by channel on channel pages)
+          (() => {
+            let q = supabase
+              .from('posts')
+              .select(
+                `
+                  id,
+                  title,
+                  slug,
+                  created_at,
+                  published_at,
+                  excerpt,
+                  cover_image_url,
+                  subcategory_tag_id,
+                  channel:channels ( slug, name_he ),
+                  author:profiles!posts_author_id_fkey ( username, display_name, avatar_url ),
+                  post_tags:post_tags!post_tags_post_id_fkey ( tag:tags!post_tags_tag_id_fkey ( name_he, slug ) )
+                  `
+              )
+              .is('deleted_at', null)
+              .eq('status', 'published')
+              .order('published_at', { ascending: false })
+              .limit(60)
+
+            if (channelId != null) q = q.eq('channel_id', channelId)
+            return q
+          })(),
+        ])
+      })()
       : await Promise.all([
         supabase.rpc('pendemic_ranked_posts_weekly', {
           ref_ts: nowIso,
@@ -969,6 +969,7 @@ export default async function HomePage(props: HomePageProps = {}) {
     rankedReleaseRes.error ||
     rankedMagazineRes.error ||
     rankedAllRes.error
+  const initialFeedVersion = await initialFeedVersionPromise
 
   if (rpcError) {
     return (

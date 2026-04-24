@@ -186,7 +186,7 @@ export default function MessagesMenu() {
                             <div className="shrink-0 text-[11px] text-muted-foreground">{formatLast(r.last_created_at)}</div>
                           </div>
                           <div className="mt-1 truncate text-xs text-muted-foreground">
-                            {r.last_body ?? 'אין עדיין הודעות'}
+                            {(r.last_body ?? '').startsWith('[img:') ? '📸 תמונה' : (r.last_body ?? 'אין עדיין הודעות')}
                           </div>
                         </div>
 

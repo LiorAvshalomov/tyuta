@@ -93,7 +93,7 @@ export async function GET(req: Request) {
   const [authorProfileRes, authorPostsRes, channelPostsRes, globalProfileRes] = await Promise.all([
     post.author_id
       ? supabase
-          .from('profiles')
+          .from('profiles_public')
           .select('updated_at')
           .eq('id', post.author_id)
           .maybeSingle<{ updated_at: string | null }>()
@@ -125,7 +125,7 @@ export async function GET(req: Request) {
           .maybeSingle<{ updated_at: string | null; published_at: string | null; created_at: string }>()
       : Promise.resolve({ data: null, error: null }),
     supabase
-      .from('profiles')
+      .from('profiles_public')
       .select('updated_at')
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)

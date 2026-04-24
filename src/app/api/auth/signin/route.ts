@@ -8,37 +8,38 @@ import { isAdminUser } from '@/lib/auth/isAdminUser'
 import { fetchModerationRoutingHint } from '@/lib/auth/fetchModerationRoutingHint'
 import { buildHeaderUserFromAuthUser, fetchHeaderUserById } from '@/lib/auth/headerUser'
 import { setAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
-
-function getIp(req: Request): string {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  )
-}
+import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
 
 function emailHash(email: string): string {
   return createHash('sha256').update(email.toLowerCase().trim()).digest('hex').slice(0, 16)
 }
 
 export async function POST(req: Request) {
-  const ip = getIp(req)
-
-  // Rate limit: 5 attempts per minute per IP
-  const rl = await rateLimit(`signin:${ip}`, { maxRequests: 5, windowMs: 60_000 })
-  if (!rl.allowed) {
-    return NextResponse.json(
-      { error: 'יותר מדי ניסיונות כניסה. נסה שוב בעוד כדקה.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
-    )
-  }
-
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!url || !anonKey || !serviceKey) {
     return NextResponse.json({ error: 'server misconfiguration' }, { status: 500 })
+  }
+
+  const serviceClient = createClient(url, serviceKey, { auth: { persistSession: false } })
+  const ctx = buildAuditContext(req)
+
+  // Rate limit: 5 attempts per minute per IP — log before returning so brute-force is visible
+  const rl = await rateLimit(`signin:${ctx.ip}`, { maxRequests: 5, windowMs: 60_000 })
+  if (!rl.allowed) {
+    serviceClient.from('auth_audit_log').insert({
+      user_id: null,
+      event: 'rate_limit_exceeded',
+      ip: ctx.ip,
+      user_agent: ctx.user_agent,
+      metadata: mergeAuditMetadata(ctx.metadata_base, { endpoint: 'signin' }),
+    }).then(null, () => null)
+    return NextResponse.json(
+      { error: 'יותר מדי ניסיונות כניסה. נסה שוב בעוד כדקה.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
   }
 
   let email: string, password: string, rememberMe: boolean
@@ -63,27 +64,24 @@ export async function POST(req: Request) {
   const anonClient = createClient(url, anonKey, { auth: { persistSession: false } })
   const { data, error } = await anonClient.auth.signInWithPassword({ email, password })
 
-  const serviceClient = createClient(url, serviceKey, { auth: { persistSession: false } })
-
   if (error) {
-    // best-effort — audit failure must never block the auth response
     serviceClient.from('auth_audit_log').insert({
       user_id: null,
       event: 'login_failed',
-      ip,
-      user_agent: req.headers.get('user-agent') ?? null,
-      metadata: { email_hash: emailHash(email), error_code: error.code },
+      ip: ctx.ip,
+      user_agent: ctx.user_agent,
+      metadata: mergeAuditMetadata(ctx.metadata_base, { email_hash: emailHash(email), error_code: error.code }),
     }).then(null, () => null)
-    return NextResponse.json({ error: error.message }, { status: 401 })
+    return NextResponse.json({ error: 'אימייל או סיסמה שגויים' }, { status: 401 })
   }
 
-  // best-effort — audit failure must never block the auth response
+  const isAdmin = isAdminUser(data.user.id)
   serviceClient.from('auth_audit_log').insert({
-    user_id: data.user?.id ?? null,
+    user_id: data.user.id,
     event: 'login_success',
-    ip,
-    user_agent: req.headers.get('user-agent') ?? null,
-    metadata: null,
+    ip: ctx.ip,
+    user_agent: ctx.user_agent,
+    metadata: mergeAuditMetadata(ctx.metadata_base, isAdmin ? { is_admin: true } : null),
   }).then(null, () => null)
 
   // Refresh token goes into an httpOnly cookie — never exposed to JavaScript.
@@ -102,7 +100,7 @@ export async function POST(req: Request) {
     { headers: { 'Cache-Control': 'no-store' } },
   )
   setRefreshCookie(res, data.session.refresh_token, rememberMe)
-  await setPresenceCookie(res, data.user.id, isAdminUser(data.user.id), rememberMe, moderation)
+  await setPresenceCookie(res, data.user.id, isAdmin, rememberMe, moderation)
   setAnalyticsSessionCookie(res, randomUUID())
   return res
 }

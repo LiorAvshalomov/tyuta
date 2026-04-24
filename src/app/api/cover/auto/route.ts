@@ -37,6 +37,18 @@ async function translateToEnglish(text: string): Promise<string> {
   return json.translations?.[0]?.text ?? text
 }
 
+function parseSeed(value: string | null): number {
+  const parsed = Number(value ?? Date.now())
+  return Number.isFinite(parsed) ? parsed : Date.now()
+}
+
+function responseContentLengthTooLarge(headers: Headers): boolean {
+  const raw = headers.get('content-length')
+  if (!raw) return false
+  const length = Number(raw)
+  return Number.isFinite(length) && length > MAX_DOWNLOAD_BYTES
+}
+
 export async function GET(req: NextRequest) {
   // N4 FIX: Always require auth — this endpoint consumes paid third-party APIs
   const authResult = await requireUserFromRequest(req)
@@ -57,7 +69,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const qHebrew = (searchParams.get('q') ?? '').trim().slice(0, 200)
-  const seed = Number(searchParams.get('seed') ?? Date.now())
+  const seed = parseSeed(searchParams.get('seed'))
   const postId = searchParams.get('postId')
 
   if (!qHebrew) {
@@ -113,8 +125,11 @@ export async function GET(req: NextRequest) {
       }
 
       try {
-        const imgRes = await fetch(pick.largeImageURL)
+        const imgRes = await fetch(pick.largeImageURL, { cache: 'no-store' })
         if (!imgRes.ok) {
+          return NextResponse.json({ storagePath: null, signedUrl: null })
+        }
+        if (responseContentLengthTooLarge(imgRes.headers)) {
           return NextResponse.json({ storagePath: null, signedUrl: null })
         }
         const blob = await imgRes.blob()

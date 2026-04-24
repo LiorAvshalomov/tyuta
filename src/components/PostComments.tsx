@@ -122,6 +122,7 @@ export default function PostComments({ postId, postSlug, postTitle, postAuthorId
   const likeSyncTimerRef = useRef<number | null>(null)
   const likeRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const bannerCommentIdRef = useRef<string | null>(null)
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -978,11 +979,12 @@ async function submitReport() {
     setSending(true)
 
     const tempId = makeTempId()
+    const submittedParentId = replyToId
     const optimistic: CommentRow = {
       id: tempId,
       post_id: postId,
       author_id: u.id,
-      parent_comment_id: replyToId,
+      parent_comment_id: submittedParentId,
       content: value,
       created_at: new Date().toISOString(),
       updated_at: null,
@@ -1000,7 +1002,7 @@ async function submitReport() {
       .insert({
         post_id: postId,
         author_id: u.id,
-        parent_comment_id: replyToId,
+        parent_comment_id: submittedParentId,
         content: value,
       })
       .select('id')
@@ -1018,6 +1020,38 @@ async function submitReport() {
 
     if (inserted?.id) {
       setItems(prev => prev.map(x => (x.id === tempId ? { ...x, id: inserted.id } : x)))
+      if (submittedParentId) {
+        setExpandedParents(prev => {
+          if (prev.has(submittedParentId)) return prev
+          const next = new Set(prev)
+          next.add(submittedParentId)
+          return next
+        })
+
+        let attempts = 0
+        const scrollToInsertedReply = () => {
+          const el = document.getElementById(`comment-${inserted.id}`)
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            setRealtimeHighlightIds(prev => {
+              const next = new Set(prev)
+              next.add(inserted.id)
+              return next
+            })
+            window.setTimeout(() => {
+              setRealtimeHighlightIds(prev => {
+                const next = new Set(prev)
+                next.delete(inserted.id)
+                return next
+              })
+            }, 2500)
+            return
+          }
+          attempts += 1
+          if (attempts < 12) window.setTimeout(scrollToInsertedReply, 100)
+        }
+        window.setTimeout(scrollToInsertedReply, 0)
+      }
     }
   }
 
@@ -1031,6 +1065,9 @@ async function submitReport() {
       if (!el) return
       const mobile = window.matchMedia('(max-width: 767px)').matches
       el.scrollIntoView({ behavior: mobile ? 'smooth' : 'auto', block: 'start' })
+      requestAnimationFrame(() => {
+        composerTextareaRef.current?.focus({ preventScroll: true })
+      })
     })
   }
 
@@ -1121,7 +1158,7 @@ async function submitReport() {
     const userIds = (likesData as { user_id: string }[]).map(r => r.user_id)
 
     const { data: profiles } = await supabase
-      .from('profiles')
+      .from('profiles_public')
       .select('id, display_name, username')
       .in('id', userIds)
 
@@ -1387,6 +1424,7 @@ async function submitReport() {
         ) : null}
 
         <textarea
+          ref={composerTextareaRef}
           className="w-full resize-none rounded-xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
           rows={3}
           maxLength={700}

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -109,6 +110,7 @@ export default function SearchPostsBar() {
     if (debounceRef.current) clearTimeout(debounceRef.current)
 
     if (value.trim().length < MIN_CHARS) {
+      abortRef.current?.abort()
       setSuggestions([])
       close()
       setLoadingSuggest(false)
@@ -239,17 +241,18 @@ export default function SearchPostsBar() {
                           : 'hover:bg-neutral-50 dark:hover:bg-muted/50',
                       ].join(' ')}
                     >
-                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-muted ring-1 ring-black/5">
+                      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-neutral-100 dark:bg-muted ring-1 ring-black/5">
                         {coverSrc ? (
                           isGifUrl(coverSrc) ? (
                             <GifCoverImage src={coverSrc} alt="" />
                           ) : (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <Image
                               src={coverSrc}
                               alt=""
-                              className="h-full w-full object-cover"
-                              loading="lazy"
+                              fill
+                              sizes="40px"
+                              quality={76}
+                              className="object-cover"
                             />
                           )
                         ) : null}

@@ -19,6 +19,21 @@ type MutableHeadersResponse = {
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://tyuta.net').replace(/\/$/, '')
 const CSP_REPORT_ENDPOINT = `${SITE_URL}/api/internal/csp-report`
 const CSP_REPORT_GROUP = 'csp-endpoint'
+const STRICT_CSP_REPORT_ONLY_ENABLED =
+  process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_ENABLE_CSP_REPORT_ONLY === '1'
+const SENSITIVE_DOCUMENT_PREFIXES = [
+  '/admin',
+  '/auth',
+  '/login',
+  '/register',
+  '/write',
+  '/settings',
+  '/inbox',
+  '/notebook',
+  '/saved',
+  '/trash',
+  '/notifications',
+] as const
 
 function sharedDirectives(): string[] {
   const imgSrc = [
@@ -30,6 +45,7 @@ function sharedDirectives(): string[] {
     'https://pixabay.com',
     'https://cdn.pixabay.com',
     'https://images.pexels.com',
+    'https://i.ytimg.com',
     'https://www.google-analytics.com',
   ].join(' ')
 
@@ -59,6 +75,14 @@ function sharedDirectives(): string[] {
   ]
 }
 
+function matchesRoutePrefix(pathname: string, prefixes: readonly string[]): boolean {
+  return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+}
+
+export function isSensitiveDocumentPath(pathname: string): boolean {
+  return matchesRoutePrefix(pathname, SENSITIVE_DOCUMENT_PREFIXES)
+}
+
 export function buildCSP(): string {
   // 'unsafe-inline' is required in script-src because Next.js App Router RSC streaming
   // injects executable inline scripts ($RC/$RV/self.__next_f.push). Nonces would force every
@@ -82,8 +106,13 @@ export function buildReportOnlyCSP(): string {
     ...sharedDirectives(),
     // script-src and style-src keep 'unsafe-inline' — RSC streaming and Tailwind both require it.
     // Report-Only policy currently mirrors the enforced CSP; tighten only after confirming zero violations.
-    "script-src 'unsafe-inline' 'self' https://www.googletagmanager.com",
-    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' https://www.googletagmanager.com",
+    "script-src-elem 'self' https://www.googletagmanager.com",
+    "style-src 'self'",
+    "style-src-elem 'self'",
+    "style-src-attr 'none'",
+    "require-trusted-types-for 'script'",
+    "trusted-types tyuta nextjs#bundler default",
     `report-uri ${CSP_REPORT_ENDPOINT}`,
     `report-to ${CSP_REPORT_GROUP}`,
   ].join('; ')
@@ -123,4 +152,11 @@ export function applyHeaderPairs(res: MutableHeadersResponse, headers: HeaderPai
 
 export function applyDocumentSecurityHeaders(res: MutableHeadersResponse): void {
   applyHeaderPairs(res, DOCUMENT_SECURITY_HEADERS)
+}
+
+export function applyDocumentSecurityHeadersForPath(res: MutableHeadersResponse, pathname: string): void {
+  applyDocumentSecurityHeaders(res)
+  if (STRICT_CSP_REPORT_ONLY_ENABLED && isSensitiveDocumentPath(pathname)) {
+    res.headers.set('Content-Security-Policy-Report-Only', buildReportOnlyCSP())
+  }
 }

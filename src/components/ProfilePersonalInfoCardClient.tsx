@@ -17,6 +17,16 @@ type PersonalInfo = {
   personal_favorite_category: string | null
 }
 
+type PersonalInfoRpcRow = {
+  personal_is_shared: boolean | null
+  personal_about: string | null
+  personal_age: number | null
+  personal_occupation: string | null
+  personal_writing_about: string | null
+  personal_books: string | null
+  personal_favorite_category: string | null
+}
+
 const LIMITS = {
   about: 90,
   occupation: 35,
@@ -28,6 +38,18 @@ const LIMITS = {
 function clampStr(v: string, max: number) {
   const s = (v ?? '').toString()
   return s.length > max ? s.slice(0, max) : s
+}
+
+function normalizePersonalInfo(row: PersonalInfoRpcRow): PersonalInfo {
+  return {
+    personal_is_shared: Boolean(row.personal_is_shared),
+    personal_about: row.personal_about ?? null,
+    personal_age: row.personal_age ?? null,
+    personal_occupation: row.personal_occupation ?? null,
+    personal_writing_about: row.personal_writing_about ?? null,
+    personal_books: row.personal_books ?? null,
+    personal_favorite_category: row.personal_favorite_category ?? null,
+  }
 }
 
 function InputShell({
@@ -127,6 +149,33 @@ export default function ProfilePersonalInfoCardClient({
       subscription.unsubscribe()
     }
   }, [profileId])
+
+  useEffect(() => {
+    if (!isOwner) return
+
+    let mounted = true
+
+    const run = async () => {
+      const { data, error } = await supabase.rpc('get_my_profile_personal_info')
+      if (!mounted || error || !Array.isArray(data) || data.length === 0) return
+
+      const next = normalizePersonalInfo(data[0] as PersonalInfoRpcRow)
+      setInfo(next)
+      setIsShared(next.personal_is_shared)
+      setAbout(next.personal_about ?? '')
+      setAge(next.personal_age?.toString() ?? '')
+      setOccupation(next.personal_occupation ?? '')
+      setWritingAbout(next.personal_writing_about ?? '')
+      setBooks(next.personal_books ?? '')
+      setFavoriteCategory(next.personal_favorite_category ?? '')
+    }
+
+    void run()
+
+    return () => {
+      mounted = false
+    }
+  }, [isOwner])
 
   // Report height changes
   useEffect(() => {

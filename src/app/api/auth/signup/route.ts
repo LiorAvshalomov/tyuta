@@ -7,26 +7,10 @@ import { setPresenceCookie } from '@/lib/auth/presenceCookie'
 import { fetchModerationRoutingHint } from '@/lib/auth/fetchModerationRoutingHint'
 import { buildHeaderUserFromAuthUser, fetchHeaderUserById } from '@/lib/auth/headerUser'
 import { setAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
-
-function getIp(req: Request): string {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  )
-}
+import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
 
 export async function POST(req: Request) {
-  const ip = getIp(req)
-
-  // Rate limit: 3 signups per 5 minutes per IP
-  const rl = await rateLimit(`signup:${ip}`, { maxRequests: 3, windowMs: 5 * 60_000 })
-  if (!rl.allowed) {
-    return NextResponse.json(
-      { error: 'יותר מדי ניסיונות הרשמה. נסה שוב מאוחר יותר.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
-    )
-  }
+  const ctx = buildAuditContext(req)
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -34,6 +18,24 @@ export async function POST(req: Request) {
 
   if (!url || !anonKey || !serviceKey) {
     return NextResponse.json({ error: 'server misconfiguration' }, { status: 500 })
+  }
+
+  const serviceClient = createClient(url, serviceKey, { auth: { persistSession: false } })
+
+  // Rate limit: 3 signups per 5 minutes per IP — log before returning so abuse is visible
+  const rl = await rateLimit(`signup:${ctx.ip}`, { maxRequests: 3, windowMs: 5 * 60_000 })
+  if (!rl.allowed) {
+    serviceClient.from('auth_audit_log').insert({
+      user_id: null,
+      event: 'rate_limit_exceeded',
+      ip: ctx.ip,
+      user_agent: ctx.user_agent,
+      metadata: mergeAuditMetadata(ctx.metadata_base, { endpoint: 'signup' }),
+    }).then(null, () => null)
+    return NextResponse.json(
+      { error: 'יותר מדי ניסיונות הרשמה. נסה שוב מאוחר יותר.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
   }
 
   let email: string, password: string, username: string, display_name: string
@@ -68,7 +70,6 @@ export async function POST(req: Request) {
   }
 
   const anonClient = createClient(url, anonKey, { auth: { persistSession: false } })
-  const serviceClient = createClient(url, serviceKey, { auth: { persistSession: false } })
   const { data, error } = await anonClient.auth.signUp({
     email,
     password,
@@ -76,7 +77,17 @@ export async function POST(req: Request) {
   })
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 })
+    serviceClient.from('auth_audit_log').insert({
+      user_id: null,
+      event: 'signup',
+      ip: ctx.ip,
+      user_agent: ctx.user_agent,
+      metadata: mergeAuditMetadata(ctx.metadata_base, { error_code: error.code ?? error.message, username }),
+    }).then(null, () => null)
+    const userMsg = (error.code === 'user_already_exists' || error.message?.includes('already registered'))
+      ? 'כתובת האימייל הזו כבר רשומה במערכת'
+      : 'ההרשמה נכשלה. נסה שוב.'
+    return NextResponse.json({ error: userMsg }, { status: 400 })
   }
 
   // Log signup (best-effort)
@@ -84,9 +95,9 @@ export async function POST(req: Request) {
     await serviceClient.from('auth_audit_log').insert({
       user_id: data.user.id,
       event: 'signup',
-      ip,
-      user_agent: req.headers.get('user-agent') ?? null,
-      metadata: null,
+      ip: ctx.ip,
+      user_agent: ctx.user_agent,
+      metadata: mergeAuditMetadata(ctx.metadata_base, { username }),
     }).then(null, () => null)
   }
 

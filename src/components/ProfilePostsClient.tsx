@@ -1,5 +1,6 @@
 "use client"
 
+import Image from 'next/image'
 import Link from '@/components/ContentLink'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import FeedIntentLink from '@/components/FeedIntentLink'
@@ -35,6 +36,35 @@ type PostItem = {
   cover_image_url: string | null
   channel_name: string | null
   medals: { gold: number; silver: number; bronze: number } | null
+}
+
+function OptimizedCoverImage({
+  src,
+  alt,
+  sizes,
+  quality,
+  cardHovered,
+}: {
+  src: string
+  alt: string
+  sizes: string
+  quality: number
+  cardHovered: boolean
+}) {
+  if (isGifUrl(src)) {
+    return <GifCoverImage src={src} alt={alt} cardHovered={cardHovered} />
+  }
+
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      sizes={sizes}
+      quality={quality}
+      className="object-cover transition-transform duration-300 group-hover:scale-105"
+    />
+  )
 }
 
 type ChannelRow = {
@@ -154,17 +184,15 @@ function DesktopPostCard({
         <div className="shrink-0">
           <div className="relative h-28 w-36 overflow-hidden rounded-lg bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
             {post.cover_image_url ? (
-              isGifUrl(post.cover_image_url) ? (
-                <div className="absolute inset-0">
-                  <GifCoverImage src={coverProxySrc(post.cover_image_url)!} alt="" cardHovered={hovered} />
-                </div>
-              ) : (
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-300 group-hover:scale-105"
-                  style={{ backgroundImage: `url(${coverProxySrc(post.cover_image_url)})` }}
-                  aria-hidden="true"
+              <div className="absolute inset-0">
+                <OptimizedCoverImage
+                  src={coverProxySrc(post.cover_image_url)!}
+                  alt=""
+                  sizes="144px"
+                  quality={82}
+                  cardHovered={hovered}
                 />
-              )
+              </div>
             ) : (
               <div className="flex h-full w-full items-center justify-center text-3xl opacity-40">📝</div>
             )}
@@ -274,17 +302,15 @@ function MobilePostCard({
       {/* Cover Image - Top, full width */}
       <div className="relative aspect-[16/9] w-full bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100 dark:from-blue-950/40 dark:via-purple-950/40 dark:to-pink-950/40">
         {post.cover_image_url ? (
-          isGifUrl(post.cover_image_url) ? (
-            <div className="absolute inset-0">
-              <GifCoverImage src={coverProxySrc(post.cover_image_url)!} alt="" cardHovered={hovered} />
-            </div>
-          ) : (
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${coverProxySrc(post.cover_image_url)})` }}
-              aria-hidden="true"
+          <div className="absolute inset-0">
+            <OptimizedCoverImage
+              src={coverProxySrc(post.cover_image_url)!}
+              alt=""
+              sizes="(max-width: 640px) 100vw, 640px"
+              quality={84}
+              cardHovered={hovered}
             />
-          )
+          </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center text-4xl opacity-40">📝</div>
         )}

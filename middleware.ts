@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyAuthHint, verifyPresence, AUTH_HINT_COOKIE, PRESENCE_COOKIE } from '@/lib/auth/presenceCookie'
 import { buildLoginRedirect, isProtectedPath } from '@/lib/auth/protectedRoutes'
-import { applyDocumentSecurityHeaders } from '@/lib/securityHeaders'
+import { applyDocumentSecurityHeadersForPath } from '@/lib/securityHeaders'
 
 const RESET_COOKIE = 'tyuta_reset_required'
 const PUBLIC_FILE_RE = /\.(?:png|svg|jpe?g|gif|webp|ico|txt|xml|json|webmanifest|woff2?|ttf|otf|mp4|webm)$/i
@@ -49,7 +49,7 @@ function isRestrictedPath(pathname: string): boolean {
 
 function redirectWithHeaders(req: NextRequest, target: string): NextResponse {
   const redirect = NextResponse.redirect(new URL(target, req.url))
-  applyDocumentSecurityHeaders(redirect)
+  applyDocumentSecurityHeadersForPath(redirect, req.nextUrl.pathname)
   return redirect
 }
 
@@ -116,7 +116,7 @@ export async function middleware(req: NextRequest) {
       url.pathname = '/auth/reset-password'
       url.search = ''
       const redirect = NextResponse.redirect(url)
-      applyDocumentSecurityHeaders(redirect)
+      applyDocumentSecurityHeadersForPath(redirect, pathname)
       return redirect
     }
 
@@ -127,13 +127,13 @@ export async function middleware(req: NextRequest) {
       url.pathname = '/auth/reset-password'
       url.search = req.nextUrl.search
       const redirect = NextResponse.redirect(url)
-      applyDocumentSecurityHeaders(redirect)
+      applyDocumentSecurityHeadersForPath(redirect, pathname)
       return redirect
     }
   }
 
   const response = NextResponse.next()
-  applyDocumentSecurityHeaders(response)
+  applyDocumentSecurityHeadersForPath(response, pathname)
   return response
 }
 

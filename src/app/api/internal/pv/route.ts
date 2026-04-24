@@ -70,6 +70,18 @@ function isWithinWindow(dateString: string | null | undefined, windowMs: number)
   return Date.now() - ts <= windowMs
 }
 
+function normalizePath(path: unknown): string | null {
+  if (typeof path !== "string") return null
+  const value = path.trim()
+  return value ? value.slice(0, 2048) : null
+}
+
+function normalizeReferrer(referrer: unknown): string | null {
+  if (typeof referrer !== "string") return null
+  const value = referrer.trim()
+  return value ? value.slice(0, 2048) : null
+}
+
 export async function POST(req: NextRequest) {
   // Block analytics writes on non-production deployments (localhost, Vercel preview)
   if (process.env.VERCEL_ENV !== "production") {
@@ -99,11 +111,11 @@ export async function POST(req: NextRequest) {
   if (isProbablyBot(userAgent)) return NextResponse.json({ ok: true, skipped: "bot" })
 
   const body = (await req.json().catch(() => null)) as PageviewBody | null
-  const path = body?.path ?? "/"
+  const path = normalizePath(body?.path) ?? "/"
 
   if (isSkippablePath(path)) return NextResponse.json({ ok: true, skipped: "asset" })
 
-  const referrer = body?.referrer ?? null
+  const referrer = normalizeReferrer(body?.referrer)
 
   // optional user attribution (token)
   const bearer = req.headers.get("authorization") ?? ""

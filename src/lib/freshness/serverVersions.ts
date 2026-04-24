@@ -69,7 +69,7 @@ export async function getFeedVersionForPath(path: FeedPath) {
       created_at: string
     }>(),
     supabase
-      .from('profiles')
+      .from('profiles_public')
       .select('updated_at')
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)

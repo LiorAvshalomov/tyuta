@@ -107,7 +107,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 2) Profiles — direct select (should work under your RLS)
   let profileUrls: MetadataRoute.Sitemap = []
   const { data: profilesData, error: profilesErr } = await supabase
-    .from("profiles")
+    .from("profiles_public")
     .select("username,created_at,personal_updated_at")
     .not("username", "is", null)
 

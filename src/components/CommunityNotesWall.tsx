@@ -372,7 +372,10 @@ export default function CommunityNotesWall() {
     if (rtStatus === 'SUBSCRIBED') return
 
     const pollMs = 8000
-    const t = setInterval(() => loadNotes(true), pollMs)
+    const t = setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void loadNotes(true)
+    }, pollMs)
     const onFocus = () => loadNotes()
     window.addEventListener('focus', onFocus)
     return () => {

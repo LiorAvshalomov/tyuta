@@ -91,7 +91,7 @@ export async function GET(req: Request) {
 
   if (parsedPath.type === 'global') {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('profiles_public')
       .select('updated_at')
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1)
@@ -114,7 +114,7 @@ export async function GET(req: Request) {
   }
 
   const { data: profile, error: profileError } = await supabase
-    .from('profiles')
+    .from('profiles_public')
     .select('id, updated_at')
     .eq('username', parsedPath.username)
     .maybeSingle<{ id: string; updated_at: string | null }>()

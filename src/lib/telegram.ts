@@ -16,7 +16,10 @@ export function escapeHtml(s: string): string {
 }
 
 function enabled() {
-  return Boolean(BOT_TOKEN && CHAT_ID)
+  if (!BOT_TOKEN || !CHAT_ID) return false
+  // On Vercel: only fire in the production deployment — not in preview branches or local dev
+  if (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production') return false
+  return true
 }
 
 export async function sendTelegramMessage(text: string): Promise<void> {
