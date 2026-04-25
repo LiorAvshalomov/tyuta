@@ -1,4 +1,28 @@
+import type { Metadata } from 'next'
 import ContactForm from '@/components/ContactForm'
+
+export const metadata: Metadata = {
+  title: 'צור קשר',
+  description:
+    'יצירת קשר עם צוות Tyuta (טיוטה): רעיונות, תקלות, דיווחים ושאלות על בית לכותבים, כתיבה עברית ושיתוף סיפורים בישראל.',
+  alternates: {
+    canonical: '/contact',
+  },
+  openGraph: {
+    title: 'צור קשר | Tyuta',
+    description:
+      'יש רעיון, תקלה או שאלה על טיוטה? כתבו לנו. בית טוב לכותבים מתחיל גם בהקשבה למה שצריך להשתפר.',
+    url: '/contact',
+    siteName: 'Tyuta',
+    locale: 'he_IL',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'צור קשר | Tyuta',
+    description: 'רעיונות, תקלות, דיווחים ושאלות על Tyuta, בית לכותבים ולקהילת הכתיבה העברית.',
+  },
+}
 
 export default function ContactPage() {
   return (

@@ -11,6 +11,8 @@ export const dynamicParams = true
 export const revalidate = 300 // 5 minutes; revalidatePath clears it immediately on publish/edit/delete
 
 const SITE_URL = "https://tyuta.net"
+const POST_FALLBACK_DESCRIPTION =
+  "טקסט מקורי ב-Tyuta (טיוטה), בית לכותבים בישראל לכתיבה עברית, שיתוף, סיפורים, שירים, פריקה, וידויים ומחשבות שמוצאות קוראים."
 
 /**
  * Safely serialize JSON for embedding in a <script> tag.
@@ -230,7 +232,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!data) return { title: "Tyuta", robots: { index: false, follow: false } }
 
   const title = (data.title ?? "").trim() || "Tyuta"
-  const description = ((data.excerpt ?? "").trim() || "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.").slice(0, 200)
+  const description = ((data.excerpt ?? "").trim() || POST_FALLBACK_DESCRIPTION).slice(0, 200)
   // Strip ?v=timestamp cache-busting params from the cover URL.
   // Facebook/WhatsApp OG scrapers sometimes fail to fetch images whose URLs contain
   // non-standard query strings. The Supabase storage URL without ?v= is still valid.
@@ -312,7 +314,7 @@ export default async function PostPage({ params }: PageProps) {
 
   const canonical = `${SITE_URL}/post/${encodeURIComponent(data.slug)}`
   const headline = (data.title ?? "").trim() || "Tyuta"
-  const description = ((data.excerpt ?? "").trim() || "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.").slice(0, 200)
+  const description = ((data.excerpt ?? "").trim() || POST_FALLBACK_DESCRIPTION).slice(0, 200)
   const rawCoverUrl = data.cover_image_url ? data.cover_image_url.split('?')[0] : null
   const imageUrl = rawCoverUrl ? absUrl(rawCoverUrl) : absUrl("/web-app-manifest-512x512.png")
   const datePublished = data.published_at ? new Date(data.published_at).toISOString() : undefined
@@ -399,7 +401,13 @@ export default async function PostPage({ params }: PageProps) {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
-    mainEntityOfPage: { "@type": "WebPage", "@id": canonical },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": canonical,
+      primaryImageOfPage: rawCoverUrl
+        ? { "@type": "ImageObject", url: imageUrl, width: 1200, height: 630 }
+        : { "@type": "ImageObject", url: imageUrl, width: 512, height: 512 },
+    },
     headline,
     description,
     image: rawCoverUrl
@@ -407,6 +415,8 @@ export default async function PostPage({ params }: PageProps) {
       : [{ "@type": "ImageObject", url: imageUrl, width: 512, height: 512 }],
     datePublished,
     dateModified,
+    ...(initialExtras.subcategoryName ? { articleSection: initialExtras.subcategoryName } : {}),
+    ...(initialExtras.postTags.length > 0 ? { keywords: initialExtras.postTags.join(", ") } : {}),
     author: authorUrl
       ? { "@type": "Person", name: authorName, url: authorUrl }
       : { "@type": "Person", name: authorName },

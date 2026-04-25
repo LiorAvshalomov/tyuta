@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   })
   if (!rl.allowed) {
     return NextResponse.json(
-      { error: { code: 'rate_limited', message: 'Too many notification cleanup requests' } },
+      { error: { code: 'rate_limited', message: 'יותר מדי בקשות. נסו שוב בעוד רגע.' } },
       { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
     )
   }

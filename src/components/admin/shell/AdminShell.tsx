@@ -37,6 +37,7 @@ type NavGroup = {
 
 type BadgeCounts = {
   reports: number
+  contact: number
   failedLogins: number
   inbox: number
 }
@@ -52,7 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'תוכן ומשתמשים',
     items: [
       { href: '/admin/reports',    label: 'דיווחים',     icon: <Flag size={17} />,     badgeKey: 'reports' },
-      { href: '/admin/contact',    label: 'צור קשר',     icon: <Mail size={17} /> },
+      { href: '/admin/contact',    label: 'צור קשר',     icon: <Mail size={17} />,     badgeKey: 'contact' },
       { href: '/admin/posts',      label: 'פוסטים',      icon: <FileText size={17} /> },
       { href: '/admin/moderation', label: 'מודרציה',     icon: <Shield size={17} /> },
       { href: '/admin/users',      label: 'משתמשים',     icon: <Users size={17} /> },
@@ -152,7 +153,7 @@ function getPageTitle(pathname: string): string {
   return match?.label ?? 'ניהול'
 }
 
-const EMPTY_BADGES: BadgeCounts = { reports: 0, failedLogins: 0, inbox: 0 }
+const EMPTY_BADGES: BadgeCounts = { reports: 0, contact: 0, failedLogins: 0, inbox: 0 }
 const POLL_MS = 60_000
 
 function LogoMark({ className = '' }: { className?: string }) {

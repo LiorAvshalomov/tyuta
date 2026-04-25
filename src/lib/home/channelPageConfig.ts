@@ -5,6 +5,7 @@ export type ChannelPageSlug = 'release' | 'stories' | 'magazine'
 export type ChannelPageConfig = {
   slug: ChannelPageSlug
   pageTitle: string
+  seoTitle: string
   homeLabel: string
   subtitle: string
   description: string
@@ -15,10 +16,11 @@ export const CHANNEL_PAGE_CONFIGS: Record<ChannelPageSlug, ChannelPageConfig> = 
   release: {
     slug: 'release',
     pageTitle: 'פריקה',
+    seoTitle: 'פריקה, וידויים, מחשבות ושירים',
     homeLabel: 'פריקה',
     subtitle: 'הכי חם החודש בקטגוריה',
     description:
-      'פריקה רגשית, וידויים ושירה. ערוץ הפריקה של Tyuta (טיוטה) למחשבות, רגעים וטקסטים אישיים.',
+      'פריקה רגשית, וידויים, מחשבות, הגיגים ושירים בעברית. ערוץ אישי וקהילתי ב-Tyuta לכתיבה, שיתוף וטקסטים שצריכים בית וקוראים שמקשיבים.',
     subcategories: [
       { name_he: 'וידויים' },
       { name_he: 'מחשבות' },
@@ -28,10 +30,11 @@ export const CHANNEL_PAGE_CONFIGS: Record<ChannelPageSlug, ChannelPageConfig> = 
   stories: {
     slug: 'stories',
     pageTitle: 'סיפורים',
+    seoTitle: 'סיפורים קצרים וכתיבה ישראלית',
     homeLabel: 'סיפורים',
     subtitle: 'הכי חם החודש בקטגוריה',
     description:
-      'סיפורים מהקהילה, קצרים, אמיתיים ובהמשכים. דף הגילוי המרכזי של ערוץ הסיפורים ב-Tyuta.',
+      'סיפורים קצרים, סיפורים אמיתיים ופרוזה בהמשכים מהקהילה הישראלית. בית לכתוב, לשתף ולפרסם סיפורים וטקסטים מקוריים בעברית.',
     subcategories: [
       { name_he: 'סיפורים אמיתיים' },
       { name_he: 'סיפורים קצרים' },
@@ -41,10 +44,11 @@ export const CHANNEL_PAGE_CONFIGS: Record<ChannelPageSlug, ChannelPageConfig> = 
   magazine: {
     slug: 'magazine',
     pageTitle: 'כתבות',
+    seoTitle: 'מגזין כתיבה, דעות ותרבות',
     homeLabel: 'מגזין',
     subtitle: 'הכי חם החודש בקטגוריה',
     description:
-      'כתבות, דעות ותרבות מהקהילה הישראלית. ערוץ המגזין של Tyuta לנושאים רחבים, פרשנות ויצירה עיונית.',
+      'מגזין קהילתי בעברית לכתבות, דעות, תרבות ועולם הכתיבה: כתיבה יוצרת, שיתוף מחשבות, מדריכי כתיבה וסקרנות ישראלית.',
     subcategories: [
       { name_he: 'חדשות' },
       { name_he: 'עולם הכתיבה' },
@@ -59,10 +63,10 @@ export const CHANNEL_PAGE_CONFIGS: Record<ChannelPageSlug, ChannelPageConfig> = 
 export function getChannelPageMetadata(slug: ChannelPageSlug): Metadata {
   const channel = CHANNEL_PAGE_CONFIGS[slug]
   const canonical = `/c/${slug}`
-  const ogTitle = `${channel.pageTitle} | Tyuta`
+  const ogTitle = `${channel.seoTitle} | Tyuta`
 
   return {
-    title: channel.pageTitle,
+    title: channel.seoTitle,
     description: channel.description,
     alternates: {
       canonical,

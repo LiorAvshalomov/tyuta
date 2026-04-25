@@ -27,14 +27,22 @@ function getPathname(req: Request): string {
 }
 
 export function getClientIp(req: Request): string {
-  const xff = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  if (xff) return xff
-
+  // x-real-ip is set by Vercel infrastructure and cannot be spoofed by the client.
+  // Prefer it over x-forwarded-for whose first entry IS client-controlled.
   const xri = req.headers.get('x-real-ip')?.trim()
   if (xri) return xri
 
+  // cf-connecting-ip is set by Cloudflare (not client-spoofable).
   const cf = req.headers.get('cf-connecting-ip')?.trim()
   if (cf) return cf
+
+  // Last resort: rightmost XFF entry is infrastructure-added (harder to spoof
+  // than the leftmost, which the client controls).
+  const xff = req.headers.get('x-forwarded-for')
+  if (xff) {
+    const last = xff.split(',').at(-1)?.trim()
+    if (last) return last
+  }
 
   return 'unknown'
 }

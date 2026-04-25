@@ -11,8 +11,18 @@ type PageProps = {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { username } = await params
+  const supabase = createPublicServerClient()
+  const { data: profile } = supabase
+    ? await supabase
+      .from('profiles_public')
+      .select('display_name, username')
+      .eq('username', username)
+      .maybeSingle()
+    : { data: null }
+  const displayName = ((profile?.display_name ?? '').trim() || profile?.username || username).trim()
+
   return {
-    title: `עוקבים אחרי @${username}`,
+    title: `${displayName} עוקב/ת אחרי`,
     robots: { index: false, follow: true },
     alternates: { canonical: `https://tyuta.net/u/${encodeURIComponent(username)}` },
   }
@@ -110,7 +120,7 @@ export default async function FollowingPage({ params }: PageProps) {
 
       <div className="mt-6">
         <FollowListClient
-          title={`עוקב אחרי (${followingCount ?? 0})`}
+          title={`במעקב (${followingCount ?? 0})`}
           subjectProfileId={profile.id}
           mode="following"
           initialUsers={initialUsers}

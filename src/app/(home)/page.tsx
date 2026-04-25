@@ -5,22 +5,24 @@ import type { Metadata } from 'next'
 import Link from '@/components/ContentLink'
 
 export const metadata: Metadata = {
-  title: 'Tyuta - המקום לכל הגרסאות שלך',
-  description: 'Tyuta (טיוטה): קהילת הכותבים הישראלית. פריקה, סיפורים, כתבות — מהמחשבה הראשונה ועד ליצירה הסופית.',
+  title: {
+    absolute: 'Tyuta (טיוטה) - המקום לכל הגרסאות שלך',
+  },
+  description: 'בית לכותבים בישראל: מקום לכתיבה עברית, שיתוף, סיפורים קצרים, שירים, פריקה, וידויים, מחשבות וטקסטים מקוריים שמוצאים קוראים.',
   alternates: { canonical: 'https://tyuta.net' },
   openGraph: {
     type: 'website',
     url: 'https://tyuta.net',
-    title: 'Tyuta - המקום לכל הגרסאות שלך',
-    description: 'Tyuta (טיוטה): קהילת הכותבים הישראלית. פריקה, סיפורים, כתבות — מהמחשבה הראשונה ועד ליצירה הסופית.',
+    title: 'Tyuta (טיוטה) - המקום לכל הגרסאות שלך',
+    description: 'בית לכותבים בישראל: מקום לכתיבה עברית, שיתוף, סיפורים קצרים, שירים, פריקה, וידויים, מחשבות וטקסטים מקוריים שמוצאים קוראים.',
     siteName: 'Tyuta',
     locale: 'he_IL',
     images: [{ url: '/web-app-manifest-512x512.png', width: 512, height: 512, alt: 'Tyuta' }],
   },
   twitter: {
     card: 'summary',
-    title: 'Tyuta - המקום לכל הגרסאות שלך',
-    description: 'Tyuta (טיוטה): קהילת הכותבים הישראלית. פריקה, סיפורים, כתבות — מהמחשבה הראשונה ועד ליצירה הסופית.',
+    title: 'Tyuta (טיוטה) - המקום לכל הגרסאות שלך',
+    description: 'בית לכותבים בישראל: מקום לכתיבה עברית, שיתוף, סיפורים קצרים, שירים, פריקה, וידויים, מחשבות וטקסטים מקוריים שמוצאים קוראים.',
     images: ['/web-app-manifest-512x512.png'],
   },
 }
@@ -1294,10 +1296,14 @@ export default async function HomePage(props: HomePageProps = {}) {
         bronze: 0,
         reactions: 0,
       }
-      prev.gold += r.gold ?? 0
-      prev.silver += r.silver ?? 0
-      prev.bronze += r.bronze ?? 0
-      prev.reactions += r.reactions_total ?? 0
+      // Compute per-post medals from reactions_total (mirrors calcMedalsReset4)
+      // RPC medal fields may be 0/null; reactions_total is always populated.
+      const rn = r.reactions_total ?? 0
+      const rbu = Math.floor(rn / 4)
+      prev.bronze += rbu % 4
+      prev.silver += Math.floor(rbu / 4) % 4
+      prev.gold += Math.floor(rbu / 16)
+      prev.reactions += rn
       if (!prev.avatar_url && a.avatar_url) prev.avatar_url = a.avatar_url
       map.set(key, prev)
     }

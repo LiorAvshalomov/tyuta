@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { buildRateLimitResponse } from '@/lib/requestRateLimit'
 
 const MAX_BROADCAST_USERS = 5000
 
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
   // Rate limit: 2 broadcasts per 10 minutes per admin
   const rl = await rateLimit(`admin_inbox_broadcast:${auth.user.id}`, { maxRequests: 2, windowMs: 600_000 })
   if (!rl.allowed) {
-    return NextResponse.json({ error: 'rate limit exceeded - please try again in a few minutes' }, { status: 429 })
+    return buildRateLimitResponse('יותר מדי הודעות שידור. נסו שוב בעוד כמה דקות.', rl.retryAfterMs)
   }
 
   const b = (await req.json().catch(() => ({}))) as { body?: string }

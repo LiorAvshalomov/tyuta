@@ -69,7 +69,10 @@ export async function POST(req: NextRequest) {
 
   const rl = await rateLimit(`pv-identify:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {
-    return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 })
+    return NextResponse.json(
+      { ok: false, error: 'rate_limited' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

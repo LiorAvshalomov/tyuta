@@ -143,16 +143,24 @@ export async function GET(req: NextRequest) {
   await setPresenceCookie(res, data.user!.id, isAdminUser(data.user!.id), rememberMe, moderation)
 
   if (serviceClient) {
-    serviceClient.from('auth_audit_log').insert({
-      user_id:    data.user!.id,
-      event:      'token_refresh_success',
-      ip:         ctx.ip,
-      user_agent: ctx.user_agent,
-      metadata:   mergeAuditMetadata(ctx.metadata_base, {
-        device_fp:   deviceFingerprint(ctx.metadata_base),
-        remember_me: rememberMe,
-      }),
-    }).then(null, () => null)
+    const fp = deviceFingerprint(ctx.metadata_base)
+    // Deduplicate: log at most once per 24 h per user per device fingerprint.
+    // This preserves the anomaly-detection signal (fp change = new log entry) without
+    // spamming a row on every 60-second token rotation for every active user.
+    const dedupKey = `token-refresh-log:${data.user!.id}:${fp}`
+    rateLimit(dedupKey, { maxRequests: 1, windowMs: 24 * 60 * 60_000 }).then(dedup => {
+      if (!dedup.allowed) return
+      serviceClient.from('auth_audit_log').insert({
+        user_id:    data.user!.id,
+        event:      'token_refresh_success',
+        ip:         ctx.ip,
+        user_agent: ctx.user_agent,
+        metadata:   mergeAuditMetadata(ctx.metadata_base, {
+          device_fp:   fp,
+          remember_me: rememberMe,
+        }),
+      }).then(null, () => null)
+    }, () => null)
   }
 
   return res

@@ -242,7 +242,9 @@ export default function ProfilePersonalInfoCardClient({
       }
     }
 
-    const { error: upErr } = await supabase.from('profiles').update(payload).eq('id', profileId)
+    const { error: upErr } = await supabase
+      .from('profiles_personal')
+      .upsert({ user_id: profileId, ...payload }, { onConflict: 'user_id' })
 
     if (upErr) {
       setSaving(false)

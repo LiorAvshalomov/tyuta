@@ -7,8 +7,9 @@ import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
  * Returns lightweight alert counts for the admin sidebar badges.
  * Polled every 60 s by AdminShell — intentionally simple (no WebSocket).
  *
- * Response: { reports: number; failedLogins: number; inbox: number }
+ * Response: { reports; contact; failedLogins; inbox }
  *   reports      — open/pending user reports
+ *   contact      — open contact messages
  *   failedLogins — failed login attempts in the last 24 h
  *   inbox        — unread inbox messages sent to the system user
  */
@@ -20,11 +21,16 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const systemUserId = (process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? process.env.SYSTEM_USER_ID ?? '').trim()
 
-  const [reportsRes, failedLoginsRes, inboxRes] = await Promise.all([
+  const [reportsRes, contactRes, failedLoginsRes, inboxRes] = await Promise.all([
     admin
       .from('reports')
       .select('id', { count: 'exact', head: true })
       .in('status', ['open', 'pending']),
+
+    admin
+      .from('contact_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open'),
 
     admin
       .from('auth_audit_log')
@@ -55,6 +61,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   return NextResponse.json(
     {
       reports:      reportsRes.count  ?? 0,
+      contact:      contactRes.count  ?? 0,
       failedLogins: failedLoginsRes.count ?? 0,
       inbox:        (inboxRes as { count: number | null }).count ?? 0,
     },
