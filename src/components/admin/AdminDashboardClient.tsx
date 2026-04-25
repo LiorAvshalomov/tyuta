@@ -536,6 +536,82 @@ function RetentionPanel() {
   )
 }
 
+/* ── top profiles panel ── */
+
+type TopProfileRow = {
+  username: string
+  display_name: string | null
+  views: number
+}
+
+function TopProfilesPanel({ start, end }: { start: string; end: string }) {
+  const [rows, setRows] = useState<TopProfileRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const params = new URLSearchParams({ start, end, limit: '20' })
+    adminFetch(`/api/admin/profiles/top?${params}`)
+      .then(async (res) => {
+        const body = await res.json() as unknown
+        if (!res.ok) throw new Error(getAdminErrorMessage(body, 'שגיאה בטעינת פרופילים מובילים'))
+        if (!cancelled) { setErr(null); setRows(Array.isArray(body) ? (body as TopProfileRow[]) : []) }
+      })
+      .catch((e: unknown) => { if (!cancelled) setErr(e instanceof Error ? e.message : 'שגיאה') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [start, end])
+
+  return (
+    <div className="rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-neutral-800 dark:text-foreground">פרופילים מובילים</h3>
+          <p className="text-[11px] text-neutral-400 dark:text-muted-foreground mt-0.5">לפי צפיות בטווח הנבחר</p>
+        </div>
+        {loading && <RefreshCw size={13} className="animate-spin text-neutral-300 dark:text-muted-foreground/40" />}
+      </div>
+      {err ? (
+        <p className="text-xs text-red-500">{err}</p>
+      ) : !loading && rows.length === 0 ? (
+        <p className="text-xs text-neutral-400 dark:text-muted-foreground py-4 text-center">אין נתוני צפיות בטווח הנבחר</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-neutral-100 dark:border-border/40">
+                <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground w-8">#</th>
+                <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground">משתמש</th>
+                <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground">צפיות</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={row.username} className="border-b border-neutral-50 dark:border-border/20 last:border-0 hover:bg-neutral-50 dark:hover:bg-muted/20 transition-colors">
+                  <td className="py-2 text-neutral-300 dark:text-muted-foreground/40 font-mono">{i + 1}</td>
+                  <td className="py-2 max-w-[200px]">
+                    <Link
+                      href={`/u/${row.username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-neutral-800 dark:text-foreground hover:text-blue-600 dark:hover:text-blue-400"
+                    >
+                      {row.display_name ?? `@${row.username}`}
+                    </Link>
+                    <div className="text-[11px] text-neutral-400 dark:text-muted-foreground">@{row.username}</div>
+                  </td>
+                  <td className="py-2 text-end font-mono font-semibold text-neutral-700 dark:text-foreground">{formatInt(row.views)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── top posts panel ── */
 
 type TopPostRow = {
@@ -1377,7 +1453,10 @@ export default function AdminDashboardClient({
         </div>
       ) : null}
 
-      <TopPostsPanel start={start} end={end} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <TopPostsPanel start={start} end={end} />
+        <TopProfilesPanel start={start} end={end} />
+      </div>
     </div>
   );
 }

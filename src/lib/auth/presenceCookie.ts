@@ -108,7 +108,8 @@ export async function verifyPresence(
     if (!valid) return null
 
     const claims = JSON.parse(dec.decode(fromB64url(payloadB64))) as PresenceClaims
-    if (Math.floor(Date.now() / 1000) > claims.e) return null
+    // 30-second leeway absorbs server clock drift between edge nodes and the origin.
+    if (Math.floor(Date.now() / 1000) > claims.e + 30) return null
 
     return {
       uid: claims.u,
@@ -137,7 +138,7 @@ export async function verifyAuthHint(
     if (!valid) return null
 
     const claims = JSON.parse(dec.decode(fromB64url(payloadB64))) as AuthHintClaims
-    if (Math.floor(Date.now() / 1000) > claims.e) return null
+    if (Math.floor(Date.now() / 1000) > claims.e + 30) return null
 
     return {
       uid: claims.u,

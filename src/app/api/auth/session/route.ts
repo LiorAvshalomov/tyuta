@@ -18,7 +18,7 @@ import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
 
 function deviceFingerprint(meta: Record<string, unknown>): string {
   const parts = [meta.ua_browser ?? '', meta.ua_os ?? '', meta.accept_language ?? ''].join('|')
-  return createHash('sha256').update(parts).digest('hex').slice(0, 8)
+  return createHash('sha256').update(parts).digest('hex').slice(0, 16)
 }
 
 /**
@@ -145,22 +145,30 @@ export async function GET(req: NextRequest) {
   if (serviceClient) {
     const fp = deviceFingerprint(ctx.metadata_base)
     // Deduplicate: log at most once per 24 h per user per device fingerprint.
-    // This preserves the anomaly-detection signal (fp change = new log entry) without
-    // spamming a row on every 60-second token rotation for every active user.
-    const dedupKey = `token-refresh-log:${data.user!.id}:${fp}`
-    rateLimit(dedupKey, { maxRequests: 1, windowMs: 24 * 60 * 60_000 }).then(dedup => {
-      if (!dedup.allowed) return
-      serviceClient.from('auth_audit_log').insert({
-        user_id:    data.user!.id,
-        event:      'token_refresh_success',
-        ip:         ctx.ip,
-        user_agent: ctx.user_agent,
-        metadata:   mergeAuditMetadata(ctx.metadata_base, {
-          device_fp:   fp,
-          remember_me: rememberMe,
-        }),
-      }).then(null, () => null)
-    }, () => null)
+    // In-memory rateLimit() does not survive across Vercel serverless invocations,
+    // so we check the DB directly — a single lightweight SELECT before any INSERT.
+    const cutoff = new Date(Date.now() - 24 * 60 * 60_000).toISOString()
+    serviceClient
+      .from('auth_audit_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', data.user!.id)
+      .eq('event', 'token_refresh_success')
+      .filter('metadata->>device_fp', 'eq', fp)
+      .gte('created_at', cutoff)
+      .limit(1)
+      .then((check) => {
+        if ((check.count ?? 0) > 0) return
+        serviceClient.from('auth_audit_log').insert({
+          user_id:    data.user!.id,
+          event:      'token_refresh_success',
+          ip:         ctx.ip,
+          user_agent: ctx.user_agent,
+          metadata:   mergeAuditMetadata(ctx.metadata_base, {
+            device_fp:   fp,
+            remember_me: rememberMe,
+          }),
+        }).then(null, () => null)
+      }, () => null)
   }
 
   return res
