@@ -12,6 +12,7 @@ import type { ProfileReactionTotal } from '@/components/ProfileStatsCard'
 import ProfileInfoCardsSection from '@/components/ProfileInfoCardsSection'
 import type { ProfilePostsInitialData } from '@/components/ProfilePostsClient'
 import type { ProfileRecentActivityRow } from '@/components/ProfileRecentActivity'
+import { profileAvatarImageUrl } from '@/lib/avatarUrl'
 import { pickLatestVersion } from '@/lib/freshness/serverVersions'
 import { createPublicServerClient } from '@/lib/supabase/createPublicServerClient'
 
@@ -70,12 +71,6 @@ function safeJsonLdStringify(data: unknown): string {
   return JSON.stringify(data).replace(/</g, '\\u003c')
 }
 
-function absUrl(pathOrUrl: string): string {
-  if (pathOrUrl.startsWith('http')) return pathOrUrl
-  if (!pathOrUrl.startsWith('/')) return `${SITE_URL}/${pathOrUrl}`
-  return `${SITE_URL}${pathOrUrl}`
-}
-
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { username } = await params
   const canonical = `${SITE_URL}/u/${encodeURIComponent(username)}`
@@ -93,7 +88,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const name = (data.display_name ?? '').trim() || `@${data.username}`
   const description = ((data.bio ?? '').trim() || `${name} כותב/ת ב-Tyuta: בית לכותבים, כתיבה עברית, שיתוף, סיפורים, שירים ומחשבות מהקהילה.`).slice(0, 200)
-  const image = data.avatar_url ? absUrl(data.avatar_url) : absUrl('/apple-touch-icon.png')
+  const image = profileAvatarImageUrl(SITE_URL, data.avatar_url, name)
 
   return {
     title: name,
@@ -326,7 +321,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
   }
 
   const profileUrl = `${SITE_URL}/u/${encodeURIComponent(prof.username)}`
-  const profileImage = prof.avatar_url ? absUrl(prof.avatar_url) : null
+  const profileImage = profileAvatarImageUrl(SITE_URL, prof.avatar_url, displayName)
   const personJsonLd = {
     "@context": "https://schema.org",
     "@graph": [

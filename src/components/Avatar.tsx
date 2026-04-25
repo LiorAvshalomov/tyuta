@@ -1,11 +1,6 @@
 import React from 'react'
 import Image from 'next/image'
-import { avatarProxySrc, isAvatarProxySrc } from '@/lib/avatarUrl'
-
-function dicebearUrl(seed: string) {
-  const s = encodeURIComponent((seed ?? '').trim() || 'user')
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${s}`
-}
+import { avatarProxySrc, dicebearInitialsUrl, isAvatarProxySrc } from '@/lib/avatarUrl'
 
 function Avatar({
   src,
@@ -20,7 +15,7 @@ function Avatar({
 }) {
   const safeSrc = src?.trim() ? src.trim() : null
   const radiusClass = shape === 'square' ? 'rounded-xl' : 'rounded-full'
-  const url = safeSrc ? (avatarProxySrc(safeSrc) ?? safeSrc) : dicebearUrl(name)
+  const url = safeSrc ? (avatarProxySrc(safeSrc) ?? safeSrc) : dicebearInitialsUrl(name)
   const lowerUrl = url.split('?')[0].toLowerCase()
   const unoptimized =
     isAvatarProxySrc(url) ||

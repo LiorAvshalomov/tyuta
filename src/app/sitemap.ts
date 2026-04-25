@@ -1,5 +1,6 @@
 import { MetadataRoute } from "next"
 import { createClient } from "@supabase/supabase-js"
+import { profileAvatarImageUrl } from "@/lib/avatarUrl"
 
 export const revalidate = 3600 // שעה
 export const runtime = "nodejs"
@@ -13,6 +14,7 @@ type SitemapPostRow = {
 
 type ProfileRow = {
   username: string | null
+  display_name: string | null
   avatar_url: string | null
   created_at: string | null
   personal_updated_at: string | null
@@ -20,6 +22,7 @@ type ProfileRow = {
 
 type PostAuthorJoinRow = {
   username: string | null
+  display_name: string | null
   avatar_url: string | null
   created_at: string | null
   updated_at: string | null
@@ -62,6 +65,20 @@ function absUrl(baseUrl: string, pathOrUrl: string): string {
 function imageUrl(baseUrl: string, pathOrUrl: string | null): string | undefined {
   const cleaned = pathOrUrl?.trim().split("?")[0]
   return cleaned ? absUrl(baseUrl, cleaned) : undefined
+}
+
+function dicebearSitemapInitialsUrl(seed: string): string {
+  const normalized = seed.trim() || "משתמש"
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(normalized)}`
+}
+
+function profileSitemapImageUrl(baseUrl: string, avatarUrl: string | null, seed: string): string {
+  const safeAvatar = avatarUrl?.trim()
+  if (!safeAvatar || safeAvatar.startsWith("https://api.dicebear.com/7.x/initials/svg")) {
+    return dicebearSitemapInitialsUrl(seed)
+  }
+
+  return profileAvatarImageUrl(baseUrl, safeAvatar, seed, { stripQuery: true })
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -130,7 +147,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let profileUrls: MetadataRoute.Sitemap = []
   const { data: profilesData, error: profilesErr } = await supabase
     .from("profiles_public")
-    .select("username,avatar_url,created_at,personal_updated_at")
+    .select("username,display_name,avatar_url,created_at,personal_updated_at")
     .not("username", "is", null)
 
   if (!profilesErr && profilesData) {
@@ -139,13 +156,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .filter((p) => p.username && p.username.trim().length > 0)
       .map((p) => {
         const username = p.username!.trim()
-        const avatar = imageUrl(baseUrl, p.avatar_url)
+        const seed = (p.display_name ?? "").trim() || username
+        const avatar = profileSitemapImageUrl(baseUrl, p.avatar_url, seed)
         return {
           url: `${baseUrl}/u/${encodeURIComponent(username)}`,
           lastModified: pickProfileLastModified(p),
           changeFrequency: "weekly",
           priority: 0.6,
-          ...(avatar ? { images: [avatar] } : {}),
+          images: [avatar],
         }
       })
   } else {
@@ -157,7 +175,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           slug,
           published_at,
           updated_at,
-          author:profiles!posts_author_id_fkey ( username, avatar_url, created_at, updated_at )
+          author:profiles!posts_author_id_fkey ( username, display_name, avatar_url, created_at, updated_at )
         `,
       )
       .is("deleted_at", null)
@@ -166,7 +184,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     if (!joinedErr && joinedData) {
       const rows = joinedData as unknown as PostWithAuthorJoinRow[]
-      const map = new Map<string, { lastModified: string | undefined; avatar: string | undefined }>()
+      const map = new Map<string, { lastModified: string | undefined; avatar: string }>()
 
       for (const r of rows) {
         const a = firstAuthor(r)
@@ -181,20 +199,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           lastModified = new Date(postLm).getTime() > new Date(authorLm).getTime() ? postLm : authorLm
         }
 
-        const avatar = imageUrl(baseUrl, a?.avatar_url ?? null)
+        const seed = (a?.display_name ?? "").trim() || username
+        const avatar = profileSitemapImageUrl(baseUrl, a?.avatar_url ?? null, seed)
         const prev = map.get(username)
         if (!prev) {
           map.set(username, { lastModified, avatar })
           continue
         }
-        const nextAvatar = prev.avatar ?? avatar
         if (
           lastModified &&
           (!prev.lastModified || new Date(lastModified).getTime() > new Date(prev.lastModified).getTime())
         ) {
-          map.set(username, { lastModified, avatar: nextAvatar })
-        } else if (!prev.avatar && avatar) {
-          map.set(username, { ...prev, avatar })
+          map.set(username, { lastModified, avatar: prev.avatar })
         }
       }
 
@@ -203,7 +219,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: data.lastModified,
         changeFrequency: "weekly",
         priority: 0.6,
-        ...(data.avatar ? { images: [data.avatar] } : {}),
+        images: [data.avatar],
       }))
     }
   }
