@@ -37,10 +37,10 @@ const fetchProfile = cache(async (username: string) => {
   if (!error) return data as Profile | null
 
   // Fallback: profiles_public may not exist on older DB schema versions.
-  // Only select public columns — personal fields are revoked from anon on profiles directly.
+  // personal_* columns no longer exist on profiles — they live in profiles_personal.
   const { data: fallbackData } = await supabase
     .from('profiles')
-    .select('id, username, display_name, bio, avatar_url, created_at, updated_at, personal_is_shared, personal_updated_at')
+    .select('id, username, display_name, bio, avatar_url, created_at, updated_at')
     .eq('username', username)
     .maybeSingle()
 
@@ -91,7 +91,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const name = (data.display_name ?? '').trim() || `@${data.username}`
-  const description = ((data.bio ?? '').trim() || 'פרופיל משתמש ב‑Tyuta').slice(0, 200)
+  const description = ((data.bio ?? '').trim() || `${name} כותב/ת ב-Tyuta: בית לכותבים, כתיבה עברית, שיתוף, סיפורים, שירים ומחשבות מהקהילה.`).slice(0, 200)
   const image = data.avatar_url ? absUrl(data.avatar_url) : absUrl('/apple-touch-icon.png')
 
   return {
@@ -324,13 +324,28 @@ export default async function PublicProfilePage({ params }: PageProps) {
     })),
   }
 
+  const profileUrl = `${SITE_URL}/u/${encodeURIComponent(prof.username)}`
+  const profileImage = prof.avatar_url ? absUrl(prof.avatar_url) : null
   const personJsonLd = {
     "@context": "https://schema.org",
-    "@type": "Person",
-    name: displayName,
-    url: `${SITE_URL}/u/${encodeURIComponent(prof.username)}`,
-    ...(prof.avatar_url ? { image: absUrl(prof.avatar_url) } : {}),
-    ...(bio ? { description: bio } : {}),
+    "@graph": [
+      {
+        "@type": "ProfilePage",
+        "@id": `${profileUrl}#profilepage`,
+        url: profileUrl,
+        name: displayName,
+        ...(profileImage ? { primaryImageOfPage: { "@type": "ImageObject", url: profileImage } } : {}),
+        mainEntity: { "@id": `${profileUrl}#person` },
+      },
+      {
+        "@type": "Person",
+        "@id": `${profileUrl}#person`,
+        name: displayName,
+        url: profileUrl,
+        ...(profileImage ? { image: profileImage } : {}),
+        ...(bio ? { description: bio } : {}),
+      },
+    ],
   }
 
   return (

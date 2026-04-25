@@ -9,12 +9,12 @@ const VALID_EVENTS = [
   'logout',
   'signup',
   'password_reset',
-  'password_changed',
   'token_refresh_failed',
   'token_refresh_success',
   'legacy_rt_migrated',
   'profile_identity_updated',
   'rate_limit_exceeded',
+  'account_deleted',
 ] as const
 
 type AuditRow = {
@@ -70,6 +70,9 @@ export async function GET(req: Request) {
   if (end) {
     const endDate = new Date(end)
     if (!isNaN(endDate.getTime())) {
+      if (start && new Date(start) > endDate) {
+        return NextResponse.json({ error: 'תאריך התחלה חייב להיות לפני תאריך הסיום' }, { status: 400 })
+      }
       endDate.setDate(endDate.getDate() + 1)
       query = query.lt('created_at', endDate.toISOString())
     }

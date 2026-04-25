@@ -36,6 +36,7 @@ type Profile = {
   display_name: string | null
   avatar_url: string | null
   created_at: string | null
+  email: string | null
 }
 
 type Moderation = {
@@ -332,6 +333,9 @@ export default function UserTimelinePage() {
               <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">
                 @{data.profile.username ?? '—'} · נרשם {fmt(data.profile.created_at)}
               </p>
+              {data.profile.email && (
+                <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{data.profile.email}</p>
+              )}
               <p className="mt-0.5 font-mono text-[11px] text-neutral-300 dark:text-neutral-600">{data.profile.id}</p>
             </div>
             <Link

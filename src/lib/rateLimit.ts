@@ -63,6 +63,12 @@ function inMemoryLimit(key: string, maxRequests: number, windowMs: number): Rate
  * One pipeline call → two Redis commands (INCR + EXPIRE NX).
  * Returns null when Redis is unconfigured or the call fails — caller falls back.
  */
+// Prefix every Redis key with the Vercel environment so dev/preview counters
+// never bleed into production (and vice versa).  In local dev the env var is
+// unset, so we fall back to "dev".  Production gets no prefix for brevity.
+const ENV_SLUG =
+  process.env.VERCEL_ENV === 'production' ? '' : `${process.env.VERCEL_ENV ?? 'dev'}:`
+
 async function redisLimit(
   key: string,
   maxRequests: number,
@@ -75,7 +81,7 @@ async function redisLimit(
   try {
     const windowS  = Math.ceil(windowMs / 1000)
     const bucket   = Math.floor(Date.now() / windowMs)
-    const redisKey = `rl:${key}:${bucket}`
+    const redisKey = `rl:${ENV_SLUG}${key}:${bucket}`
 
     const res = await fetch(`${baseUrl}/pipeline`, {
       method:  'POST',

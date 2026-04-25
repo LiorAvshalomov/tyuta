@@ -31,12 +31,14 @@ export async function GET(
 
   const { admin } = auth
 
-  const [profileRes, modRes, postsRes, auditRes, modEventsRes, accountActionsRes] = await Promise.all([
+  const [profileRes, authUserRes, modRes, postsRes, auditRes, modEventsRes, accountActionsRes] = await Promise.all([
     admin
       .from('profiles')
       .select('id, username, display_name, avatar_url, created_at')
       .eq('id', userId)
       .maybeSingle(),
+
+    admin.auth.admin.getUserById(userId),
 
     admin
       .from('user_moderation')
@@ -81,9 +83,11 @@ export async function GET(
     return NextResponse.json({ error: 'user not found' }, { status: 404 })
   }
 
+  const email = authUserRes.data?.user?.email ?? null
+
   return NextResponse.json(
     {
-      profile:          profileRes.data,
+      profile:          { ...profileRes.data, email },
       moderation:       modRes.data ?? null,
       posts:            postsRes.data ?? [],
       auditEvents:      auditRes.data ?? [],

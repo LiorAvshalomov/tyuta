@@ -6,25 +6,30 @@ export const runtime = "nodejs"
 
 type SitemapPostRow = {
   slug: string
+  cover_image_url: string | null
   published_at: string | null
   updated_at: string | null
 }
 
 type ProfileRow = {
   username: string | null
+  avatar_url: string | null
   created_at: string | null
   personal_updated_at: string | null
+}
+
+type PostAuthorJoinRow = {
+  username: string | null
+  avatar_url: string | null
+  created_at: string | null
+  updated_at: string | null
 }
 
 type PostWithAuthorJoinRow = {
   slug: string
   published_at: string | null
   updated_at: string | null
-  author: {
-    username: string | null
-    created_at: string | null
-    personal_updated_at: string | null
-  }[] | null
+  author: PostAuthorJoinRow[] | null
 }
 
 function pickLastModified(p: { published_at: string | null; updated_at: string | null }): string | undefined {
@@ -35,15 +40,28 @@ function pickLastModified(p: { published_at: string | null; updated_at: string |
   return (a ?? b) ?? undefined
 }
 
-function pickProfileLastModified(p: ProfileRow): string | undefined {
-  return (p.personal_updated_at ?? p.created_at) ?? undefined
+function pickProfileLastModified(p: {
+  created_at: string | null
+  personal_updated_at?: string | null
+  updated_at?: string | null
+}): string | undefined {
+  return (p.personal_updated_at ?? p.updated_at ?? p.created_at) ?? undefined
 }
 
-function firstAuthor(
-  row: PostWithAuthorJoinRow,
-): { username: string | null; created_at: string | null; personal_updated_at: string | null } | null {
+function firstAuthor(row: PostWithAuthorJoinRow): PostAuthorJoinRow | null {
   if (!row.author || row.author.length === 0) return null
   return row.author[0] ?? null
+}
+
+function absUrl(baseUrl: string, pathOrUrl: string): string {
+  if (pathOrUrl.startsWith("http")) return pathOrUrl
+  if (!pathOrUrl.startsWith("/")) return `${baseUrl}/${pathOrUrl}`
+  return `${baseUrl}${pathOrUrl}`
+}
+
+function imageUrl(baseUrl: string, pathOrUrl: string | null): string | undefined {
+  const cleaned = pathOrUrl?.trim().split("?")[0]
+  return cleaned ? absUrl(baseUrl, cleaned) : undefined
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -74,7 +92,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 1) Posts (public)
   const { data: postsData, error: postsErr } = await supabase
     .from("posts")
-    .select("slug,published_at,updated_at")
+    .select("slug,cover_image_url,published_at,updated_at")
     .eq("status", "published")
     .is("deleted_at", null)
     .not("published_at", "is", null)
@@ -97,18 +115,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const postUrls: MetadataRoute.Sitemap = posts
     .filter((p) => typeof p.slug === "string" && p.slug.trim().length > 0)
-    .map((p) => ({
-      url: `${baseUrl}/post/${encodeURIComponent(p.slug)}`,
-      lastModified: pickLastModified(p),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    }))
+    .map((p) => {
+      const cover = imageUrl(baseUrl, p.cover_image_url)
+      return {
+        url: `${baseUrl}/post/${encodeURIComponent(p.slug)}`,
+        lastModified: pickLastModified(p),
+        changeFrequency: "weekly",
+        priority: 0.8,
+        ...(cover ? { images: [cover] } : {}),
+      }
+    })
 
   // 2) Profiles — direct select (should work under your RLS)
   let profileUrls: MetadataRoute.Sitemap = []
   const { data: profilesData, error: profilesErr } = await supabase
     .from("profiles_public")
-    .select("username,created_at,personal_updated_at")
+    .select("username,avatar_url,created_at,personal_updated_at")
     .not("username", "is", null)
 
   if (!profilesErr && profilesData) {
@@ -117,11 +139,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .filter((p) => p.username && p.username.trim().length > 0)
       .map((p) => {
         const username = p.username!.trim()
+        const avatar = imageUrl(baseUrl, p.avatar_url)
         return {
           url: `${baseUrl}/u/${encodeURIComponent(username)}`,
           lastModified: pickProfileLastModified(p),
           changeFrequency: "weekly",
           priority: 0.6,
+          ...(avatar ? { images: [avatar] } : {}),
         }
       })
   } else {
@@ -133,7 +157,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           slug,
           published_at,
           updated_at,
-          author:profiles!posts_author_id_fkey ( username, created_at, personal_updated_at )
+          author:profiles!posts_author_id_fkey ( username, avatar_url, created_at, updated_at )
         `,
       )
       .is("deleted_at", null)
@@ -142,7 +166,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     if (!joinedErr && joinedData) {
       const rows = joinedData as unknown as PostWithAuthorJoinRow[]
-      const map = new Map<string, string | undefined>() // username -> lastModified
+      const map = new Map<string, { lastModified: string | undefined; avatar: string | undefined }>()
 
       for (const r of rows) {
         const a = firstAuthor(r)
@@ -157,21 +181,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           lastModified = new Date(postLm).getTime() > new Date(authorLm).getTime() ? postLm : authorLm
         }
 
+        const avatar = imageUrl(baseUrl, a?.avatar_url ?? null)
         const prev = map.get(username)
         if (!prev) {
-          map.set(username, lastModified)
+          map.set(username, { lastModified, avatar })
           continue
         }
-        if (lastModified && new Date(lastModified).getTime() > new Date(prev).getTime()) {
-          map.set(username, lastModified)
+        const nextAvatar = prev.avatar ?? avatar
+        if (
+          lastModified &&
+          (!prev.lastModified || new Date(lastModified).getTime() > new Date(prev.lastModified).getTime())
+        ) {
+          map.set(username, { lastModified, avatar: nextAvatar })
+        } else if (!prev.avatar && avatar) {
+          map.set(username, { ...prev, avatar })
         }
       }
 
-      profileUrls = Array.from(map.entries()).map(([username, lastModified]) => ({
+      profileUrls = Array.from(map.entries()).map(([username, data]) => ({
         url: `${baseUrl}/u/${encodeURIComponent(username)}`,
-        lastModified,
+        lastModified: data.lastModified,
         changeFrequency: "weekly",
         priority: 0.6,
+        ...(data.avatar ? { images: [data.avatar] } : {}),
       }))
     }
   }

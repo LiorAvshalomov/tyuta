@@ -146,6 +146,21 @@ export async function POST(req: NextRequest) {
         is_anonymous: true,
         birthdate: null,
         show_online_status: false,
+      })
+      .eq('id', userId)
+
+    if (profileErr) {
+      return NextResponse.json(
+        { ok: false, error: `profile anonymize: ${profileErr.message}` },
+        { status: 500 },
+      )
+    }
+
+    // Wipe personal data from the separate table (service-role bypasses RLS).
+    const { error: personalErr } = await db
+      .from('profiles_personal')
+      .upsert({
+        user_id: userId,
         personal_is_shared: false,
         personal_about: null,
         personal_age: null,
@@ -154,12 +169,11 @@ export async function POST(req: NextRequest) {
         personal_books: null,
         personal_favorite_category: null,
         personal_updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId)
+      }, { onConflict: 'user_id' })
 
-    if (profileErr) {
+    if (personalErr) {
       return NextResponse.json(
-        { ok: false, error: `profile anonymize: ${profileErr.message}` },
+        { ok: false, error: `profile personal anonymize: ${personalErr.message}` },
         { status: 500 },
       )
     }
@@ -495,6 +509,15 @@ export async function POST(req: NextRequest) {
     )
   }
   counts['auth.users'] = 1
+
+  // Fire-and-forget audit log entry so the deletion is visible on the security page
+  db.from('auth_audit_log').insert({
+    user_id:    auth.user.id,
+    event:      'account_deleted',
+    ip:         requestIp ?? null,
+    user_agent: userAgent,
+    metadata:   { deleted_user_id: userId, mode: 'hard', reason },
+  }).then(null, () => null)
 
   if (logRowId) {
     if (logMetadataPersisted) {

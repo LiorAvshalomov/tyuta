@@ -12,6 +12,11 @@ import VisualViewportSync from "@/components/VisualViewportSync"
 import ThemeSync from "@/components/ThemeSync"
 
 const SITE_URL = "https://tyuta.net"
+const SITE_NAME = "Tyuta"
+const SITE_NAME_HE = "טיוטה"
+const SITE_TITLE = "Tyuta (טיוטה) - המקום לכל הגרסאות שלך"
+const SITE_DESCRIPTION =
+  "Tyuta (טיוטה) היא בית לכותבים בישראל: מקום לכתיבה עברית, שיתוף, סיפורים קצרים, שירים, פריקה, וידויים, מחשבות וטקסטים מקוריים."
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,19 +42,19 @@ const heebo = Heebo({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Tyuta - המקום לכל הגרסאות שלך",
+    default: SITE_TITLE,
     template: "%s | Tyuta",
   },
-  description: "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
+  description: SITE_DESCRIPTION,
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
     url: SITE_URL,
-    siteName: "Tyuta",
-    title: "Tyuta - המקום לכל הגרסאות שלך",
-    description: "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     locale: "he_IL",
     images: [
       {
@@ -62,8 +67,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tyuta - המקום לכל הגרסאות שלך",
-    description: "Tyuta(טיוטה): המקום לכל הגרסאות שלך. מרחב כתיבה שיתופי לקהילת הכותבים בישראל – מהמחשבה הראשונה ועד ליצירה הסופית.",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     images: ["/web-app-manifest-512x512.png"],
   },
   icons: {
@@ -93,7 +98,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const organizationSchema = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "Tyuta",
+    name: SITE_NAME,
+    alternateName: SITE_NAME_HE,
     url: SITE_URL,
     logo: `${SITE_URL}/apple-touch-icon.png`,
   }
@@ -101,7 +107,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const websiteSchema = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "Tyuta",
+    name: SITE_NAME,
+    alternateName: SITE_NAME_HE,
+    inLanguage: "he-IL",
+    description: SITE_DESCRIPTION,
     url: SITE_URL,
     potentialAction: {
       "@type": "SearchAction",

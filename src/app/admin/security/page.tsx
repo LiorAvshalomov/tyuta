@@ -10,7 +10,8 @@ import EmptyState from '@/components/admin/EmptyState'
 import { TableSkeleton } from '@/components/admin/AdminSkeleton'
 import CspReportsPanel from '@/components/admin/CspReportsPanel'
 import { formatProfileIdentityInlineSummary, getProfileIdentityChangeLines } from '@/lib/admin/profileIdentityAudit'
-import { Lock, LogIn, LogOut, User, UserPlus, KeyRound, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Lock, LogIn, LogOut, User, UserPlus, UserMinus, KeyRound, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react'
+import { getAdminErrorMessage } from '@/lib/admin/adminUi'
 
 /* ── types ── */
 
@@ -40,9 +41,144 @@ type SecurityApiResponse = {
   error?: string
 }
 
+/* ── security summary panel ── */
+
+type BruteIp = { ip: string; cnt: number }
+type MultiIpUser = { user_id: string; ip_count: number }
+
+type SecuritySummaryData = {
+  failed_logins_24h: number
+  failed_logins_7d_avg: number
+  rate_limit_hits_24h: number
+  token_failures_24h: number
+  identity_changes_24h: number
+  signups_24h: number
+  brute_force_ips: BruteIp[]
+  multi_ip_users_24h: MultiIpUser[]
+}
+
+function SummaryStat({
+  label, value, highlight,
+}: { label: string; value: string | number; highlight?: boolean }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 dark:text-muted-foreground">{label}</div>
+      <div className={`text-xl font-extrabold tabular-nums ${highlight ? 'text-red-600 dark:text-red-400' : 'text-neutral-900 dark:text-foreground'}`}>
+        {value}
+      </div>
+    </div>
+  )
+}
+
+function SecuritySummaryPanel() {
+  const [data, setData] = useState<SecuritySummaryData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    adminFetch('/api/admin/security/summary')
+      .then(async (res) => {
+        const body = await res.json() as unknown
+        if (!res.ok) throw new Error(getAdminErrorMessage(body, 'שגיאה בטעינת סיכום אבטחה'))
+        if (!cancelled) setData(body as SecuritySummaryData)
+      })
+      .catch((e: unknown) => { if (!cancelled) setErr(e instanceof Error ? e.message : 'שגיאה') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const hasAnomalies = data && (
+    (data.brute_force_ips?.length ?? 0) > 0 ||
+    (data.multi_ip_users_24h?.length ?? 0) > 0 ||
+    data.failed_logins_24h > data.failed_logins_7d_avg * 2
+  )
+
+  return (
+    <div className={`rounded-xl border bg-white dark:bg-card p-4 shadow-sm ${hasAnomalies ? 'border-red-200 dark:border-red-500/30' : 'border-neutral-100 dark:border-border/50'}`}>
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldAlert size={15} className={hasAnomalies ? 'text-red-500' : 'text-neutral-400 dark:text-muted-foreground'} />
+          <h3 className="text-sm font-bold text-neutral-800 dark:text-foreground">סיכום אבטחה — 24 שעות אחרונות</h3>
+        </div>
+        {loading && <RefreshCw size={13} className="animate-spin text-neutral-300 dark:text-muted-foreground/40" />}
+      </div>
+
+      {err ? (
+        <p className="text-xs text-red-500">{err}</p>
+      ) : !loading && data ? (
+        <div className="space-y-4">
+          {/* KPI row */}
+          <div className="grid grid-cols-3 gap-4 sm:grid-cols-6">
+            <SummaryStat
+              label="כישלונות כניסה"
+              value={data.failed_logins_24h}
+              highlight={data.failed_logins_24h > data.failed_logins_7d_avg * 2}
+            />
+            <SummaryStat label="ממוצע יומי (7י׳)" value={data.failed_logins_7d_avg} />
+            <SummaryStat
+              label="Rate Limit"
+              value={data.rate_limit_hits_24h}
+              highlight={data.rate_limit_hits_24h > 50}
+            />
+            <SummaryStat
+              label="טוקן פג"
+              value={data.token_failures_24h}
+              highlight={data.token_failures_24h > 20}
+            />
+            <SummaryStat label="שינויי זהות" value={data.identity_changes_24h} />
+            <SummaryStat label="הרשמות" value={data.signups_24h} />
+          </div>
+
+          {/* Anomaly tables */}
+          {(data.brute_force_ips?.length ?? 0) > 0 && (
+            <div>
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-red-500">
+                ⚠ כתובות IP חשודות — מעל 5 כישלונות בשעה האחרונה
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {data.brute_force_ips.map(({ ip, cnt }) => (
+                  <span key={ip} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 px-2.5 py-1 text-xs font-mono">
+                    <span className="font-semibold text-red-700 dark:text-red-300">{ip}</span>
+                    <span className="text-red-400 dark:text-red-400/70">×{cnt}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(data.multi_ip_users_24h?.length ?? 0) > 0 && (
+            <div>
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-amber-500">
+                ⚠ משתמשים עם מעל 3 כתובות IP שונות — 24 שעות
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {data.multi_ip_users_24h.map(({ user_id, ip_count }) => (
+                  <a
+                    key={user_id}
+                    href={`/admin/users/${user_id}`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-2.5 py-1 text-xs font-mono hover:opacity-80"
+                  >
+                    <span className="font-semibold text-amber-700 dark:text-amber-300 truncate max-w-[140px]">{user_id}</span>
+                    <span className="text-amber-400 dark:text-amber-400/70">{ip_count} IPs</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!hasAnomalies && (
+            <p className="text-xs text-neutral-400 dark:text-muted-foreground">אין אנומליות מזוהות בטווח הנבחר.</p>
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 /* ── event config ── */
 
-type EventFilter = 'all' | 'login_success' | 'login_failed' | 'logout' | 'signup' | 'password_reset' | 'password_changed' | 'token_refresh_failed' | 'token_refresh_success' | 'legacy_rt_migrated' | 'profile_identity_updated' | 'rate_limit_exceeded'
+type EventFilter = 'all' | 'login_success' | 'login_failed' | 'logout' | 'signup' | 'password_reset' | 'token_refresh_failed' | 'token_refresh_success' | 'legacy_rt_migrated' | 'profile_identity_updated' | 'rate_limit_exceeded' | 'account_deleted'
 
 const PROFILE_IDENTITY_EVENT_OPTION: { value: EventFilter; label: string } = {
   value: 'profile_identity_updated',
@@ -56,9 +192,9 @@ const EVENT_OPTIONS: { value: EventFilter; label: string }[] = [
   { value: 'rate_limit_exceeded', label: 'Rate Limit' },
   { value: 'logout', label: 'יציאות' },
   { value: 'signup', label: 'הרשמות' },
-  { value: 'password_reset', label: 'איפוס סיסמה' },
+  { value: 'password_reset',        label: 'איפוס סיסמה' },
+  { value: 'account_deleted',       label: 'מחיקת חשבון' },
   { value: 'token_refresh_failed',  label: 'פג תוקף' },
-  { value: 'password_changed',      label: 'שינוי סיסמה' },
 ]
 
 function EventBadge({ event }: { event: string }) {
@@ -80,7 +216,7 @@ function EventBadge({ event }: { event: string }) {
     token_refresh_failed:  { label: 'פג תוקף',        icon: <RefreshCw size={12} />,     cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30' },
     token_refresh_success: { label: 'רענון טוקן',     icon: <RefreshCw size={12} />,     cls: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/30' },
     rate_limit_exceeded:   { label: 'Rate Limit',    icon: <AlertTriangle size={12} />,  cls: 'bg-red-50 text-red-800 border-red-300 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/40' },
-    password_changed:      { label: 'שינוי סיסמה',   icon: <KeyRound size={12} />,      cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30' },
+    account_deleted:       { label: 'מחיקת חשבון',   icon: <UserMinus size={12} />,     cls: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/30' },
     legacy_rt_migrated:    { label: 'מיגרציית Token', icon: <Lock size={12} />,          cls: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/30' },
   }
   const cfg = map[event] ?? { label: event, icon: <Lock size={12} />, cls: 'bg-neutral-50 text-neutral-600 border-neutral-200 dark:bg-muted/40 dark:text-neutral-400 dark:border-border' }
@@ -230,6 +366,8 @@ export default function SecurityPage() {
 
       <CspReportsPanel />
 
+      <SecuritySummaryPanel />
+
       {/* Filters */}
       <div className="flex flex-col gap-3">
         <FilterTabs
@@ -294,6 +432,7 @@ export default function SecurityPage() {
             <input
               type="date"
               value={dateFrom}
+              max={dateTo || undefined}
               onChange={e => { setDateFrom(e.target.value); setPage(1) }}
               className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
               dir="ltr"
@@ -302,6 +441,7 @@ export default function SecurityPage() {
             <input
               type="date"
               value={dateTo}
+              min={dateFrom || undefined}
               onChange={e => { setDateTo(e.target.value); setPage(1) }}
               className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
               dir="ltr"

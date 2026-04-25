@@ -39,7 +39,12 @@ function parseUaOs(ua: string): string | null {
 
 export function buildAuditContext(req: Request): AuditContext {
   const xff = req.headers.get('x-forwarded-for') ?? ''
-  const ip = xff.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
+  // x-real-ip is set by Vercel infrastructure (not client-spoofable).
+  // Fall back to the rightmost XFF entry (infrastructure-added, harder to fake).
+  const ip =
+    req.headers.get('x-real-ip')?.trim() ||
+    xff.split(',').at(-1)?.trim() ||
+    'unknown'
   const ua = req.headers.get('user-agent') ?? null
   const lang = req.headers.get('accept-language')?.slice(0, 80) ?? null
 

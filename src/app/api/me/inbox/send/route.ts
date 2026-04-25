@@ -57,8 +57,12 @@ async function notifyTelegram(senderId: string, conversationId: string, body: st
 
     const svc = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
 
-    // Only notify for conversations that include the system user
     const systemUserId = getSystemUserId()
+
+    // Don't notify when the system user itself is the sender (admin replying to a user)
+    if (systemUserId && senderId === systemUserId) return
+
+    // Only notify for conversations that include the system user (user→system direction)
     if (systemUserId) {
       const { data: members } = await svc
         .from('conversation_members')

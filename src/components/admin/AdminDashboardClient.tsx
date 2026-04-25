@@ -423,6 +423,207 @@ function EmptyChart() {
 
 const chartMargin = { top: 14, right: 10, left: -16, bottom: 6 };
 
+/* ── retention panel ── */
+
+type RetentionData = {
+  dau: number
+  wau: number
+  mau: number
+  d7_cohort: number
+  d7_retained: number
+  d30_cohort: number
+  d30_retained: number
+}
+
+function retPct(retained: number, cohort: number): string {
+  if (cohort === 0) return '—'
+  return `${Math.round((retained / cohort) * 100)}%`
+}
+
+function RetentionStat({
+  label,
+  sub,
+  value,
+  detail,
+  pctRatio,
+}: {
+  label: string
+  sub: string
+  value: string
+  detail?: string
+  pctRatio?: number
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 dark:text-muted-foreground">{label}</div>
+      <div className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-foreground">{value}</div>
+      {detail && <div className="text-[11px] text-neutral-400 dark:text-muted-foreground">{detail}</div>}
+      {pctRatio !== undefined && pctRatio >= 0 && (
+        <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-muted/40">
+          <div
+            className="h-full rounded-full bg-emerald-500 dark:bg-emerald-400 transition-[width] duration-500"
+            style={{ width: `${Math.min(100, pctRatio * 100)}%` }}
+          />
+        </div>
+      )}
+      <div className="text-[10px] text-neutral-400 dark:text-muted-foreground">{sub}</div>
+    </div>
+  )
+}
+
+function RetentionPanel() {
+  const [data, setData] = useState<RetentionData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    adminFetch('/api/admin/retention')
+      .then(async (res) => {
+        const body = await res.json() as unknown
+        if (!res.ok) throw new Error(getAdminErrorMessage(body, 'שגיאה בטעינת נתוני שימור'))
+        if (!cancelled) setData(body as RetentionData)
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setErr(e instanceof Error ? e.message : 'שגיאה')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const d7ratio  = data && data.d7_cohort  > 0 ? data.d7_retained  / data.d7_cohort  : undefined
+  const d30ratio = data && data.d30_cohort > 0 ? data.d30_retained / data.d30_cohort : undefined
+
+  return (
+    <div className="rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-black tracking-tight text-neutral-900 dark:text-foreground">שימור משתמשים</h3>
+          <p className="mt-0.5 text-[11px] text-neutral-400 dark:text-muted-foreground">
+            DAU / WAU / MAU · שיעור חזרה של קוהורטות D7 ו-D30
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="h-16 animate-pulse rounded-lg bg-neutral-100 dark:bg-muted/30" />
+          ))}
+        </div>
+      ) : err ? (
+        <div className="text-xs text-neutral-400 dark:text-muted-foreground">{err}</div>
+      ) : data ? (
+        <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-5">
+          <RetentionStat label="DAU" sub="היום" value={formatInt(data.dau)} />
+          <RetentionStat label="WAU" sub="7 ימים אחרונים" value={formatInt(data.wau)} />
+          <RetentionStat label="MAU" sub="30 ימים אחרונים" value={formatInt(data.mau)} />
+          <RetentionStat
+            label="D7 Retention"
+            sub={`${data.d7_retained}/${data.d7_cohort} נרשמו לפני 7–14 יום`}
+            value={retPct(data.d7_retained, data.d7_cohort)}
+            pctRatio={d7ratio}
+          />
+          <RetentionStat
+            label="D30 Retention"
+            sub={`${data.d30_retained}/${data.d30_cohort} נרשמו לפני 30–60 יום`}
+            value={retPct(data.d30_retained, data.d30_cohort)}
+            pctRatio={d30ratio}
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/* ── top posts panel ── */
+
+type TopPostRow = {
+  post_id: string
+  title: string
+  slug: string
+  author_username: string | null
+  published_at: string | null
+  views: number
+  comments: number
+  reactions: number
+}
+
+function TopPostsPanel({ start, end }: { start: string; end: string }) {
+  const [rows, setRows] = useState<TopPostRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const params = new URLSearchParams({ start, end, limit: '20' })
+    adminFetch(`/api/admin/posts/top?${params}`)
+      .then(async (res) => {
+        const body = await res.json() as unknown
+        if (!res.ok) throw new Error(getAdminErrorMessage(body, 'שגיאה בטעינת פוסטים מובילים'))
+        if (!cancelled) { setErr(null); setRows(Array.isArray(body) ? (body as TopPostRow[]) : []) }
+      })
+      .catch((e: unknown) => { if (!cancelled) setErr(e instanceof Error ? e.message : 'שגיאה') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [start, end])
+
+  return (
+    <div className="rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-bold text-neutral-800 dark:text-foreground">פוסטים מובילים</h3>
+          <p className="text-[11px] text-neutral-400 dark:text-muted-foreground mt-0.5">לפי צפיות בטווח הנבחר</p>
+        </div>
+        {loading && <RefreshCw size={13} className="animate-spin text-neutral-300 dark:text-muted-foreground/40" />}
+      </div>
+      {err ? (
+        <p className="text-xs text-red-500">{err}</p>
+      ) : !loading && rows.length === 0 ? (
+        <p className="text-xs text-neutral-400 dark:text-muted-foreground py-4 text-center">אין נתוני צפיות בטווח הנבחר</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-neutral-100 dark:border-border/40">
+                <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground w-8">#</th>
+                <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground">כותרת</th>
+                <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground hidden sm:table-cell">מחבר</th>
+                <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground">צפיות</th>
+                <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground hidden sm:table-cell">תגובות</th>
+                <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground hidden sm:table-cell">ריאקציות</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={row.post_id} className="border-b border-neutral-50 dark:border-border/20 last:border-0 hover:bg-neutral-50 dark:hover:bg-muted/20 transition-colors">
+                  <td className="py-2 text-neutral-300 dark:text-muted-foreground/40 font-mono">{i + 1}</td>
+                  <td className="py-2 max-w-[180px] sm:max-w-xs">
+                    <Link
+                      href={`/post/${row.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-neutral-800 dark:text-foreground hover:text-blue-600 dark:hover:text-blue-400 line-clamp-1"
+                    >
+                      {row.title}
+                    </Link>
+                  </td>
+                  <td className="py-2 text-neutral-500 dark:text-muted-foreground hidden sm:table-cell">
+                    {row.author_username ?? '—'}
+                  </td>
+                  <td className="py-2 text-end font-mono font-semibold text-neutral-700 dark:text-foreground">{formatInt(row.views)}</td>
+                  <td className="py-2 text-end font-mono text-neutral-500 dark:text-muted-foreground hidden sm:table-cell">{formatInt(row.comments)}</td>
+                  <td className="py-2 text-end font-mono text-neutral-500 dark:text-muted-foreground hidden sm:table-cell">{formatInt(row.reactions)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── main component ── */
 
 export default function AdminDashboardClient({
@@ -609,6 +810,8 @@ export default function AdminDashboardClient({
             <div className="mt-1 text-xs text-neutral-400 dark:text-muted-foreground">פניות / פידבק / בעיות</div>
           </Link>
         </div>
+
+        <RetentionPanel />
 
         <div className="rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -1173,6 +1376,8 @@ export default function AdminDashboardClient({
           </DashChartCard>
         </div>
       ) : null}
+
+      <TopPostsPanel start={start} end={end} />
     </div>
   );
 }

@@ -17,39 +17,55 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, users: [] })
   }
 
-  const queries: Array<Promise<{ data: Array<{ id: string; username: string | null; display_name: string | null; avatar_url: string | null; created_at: string | null }> | null; error: { message: string } | null }>> = []
+  type ProfileRow = { id: string; username: string | null; display_name: string | null; avatar_url: string | null; created_at: string | null }
+  type QueryResult = { data: ProfileRow[] | null; error: { message: string } | null }
+
+  const queries: Array<Promise<QueryResult>> = []
 
   if (UUID_RE.test(userId)) {
     queries.push(
-      (async () => {
+      (async (): Promise<QueryResult> => {
         const { data, error } = await auth.admin
           .from('profiles')
           .select('id, username, display_name, avatar_url, created_at')
           .eq('id', userId)
           .limit(1)
-
-        return {
-          data: (data ?? []) as Array<{ id: string; username: string | null; display_name: string | null; avatar_url: string | null; created_at: string | null }>,
-          error: error ? { message: error.message } : null,
-        }
+        return { data: (data ?? []) as ProfileRow[], error: error ? { message: error.message } : null }
       })(),
     )
   }
 
-  if (q.length >= 2) {
+  // Email search: exact match via auth.users (service-role, server-side only)
+  if (q.includes('@')) {
     queries.push(
-      (async () => {
+      (async (): Promise<QueryResult> => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: authRows } = await (auth.admin as any)
+          .schema('auth')
+          .from('users')
+          .select('id')
+          .eq('email', q)
+          .limit(1) as { data: Array<{ id: string }> | null }
+        const uid = authRows?.[0]?.id
+        if (!uid) return { data: [], error: null }
+        const { data, error } = await auth.admin
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, created_at')
+          .eq('id', uid)
+          .limit(1)
+        return { data: (data ?? []) as ProfileRow[], error: error ? { message: error.message } : null }
+      })(),
+    )
+  } else if (q.length >= 2) {
+    queries.push(
+      (async (): Promise<QueryResult> => {
         const { data, error } = await auth.admin
           .from('profiles')
           .select('id, username, display_name, avatar_url, created_at')
           .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
           .order('created_at', { ascending: false })
           .limit(25)
-
-        return {
-          data: (data ?? []) as Array<{ id: string; username: string | null; display_name: string | null; avatar_url: string | null; created_at: string | null }>,
-          error: error ? { message: error.message } : null,
-        }
+        return { data: (data ?? []) as ProfileRow[], error: error ? { message: error.message } : null }
       })(),
     )
   }
