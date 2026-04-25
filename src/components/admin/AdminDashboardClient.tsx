@@ -444,20 +444,17 @@ function RetentionStat({
   label,
   sub,
   value,
-  detail,
   pctRatio,
 }: {
   label: string
   sub: string
   value: string
-  detail?: string
   pctRatio?: number
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 dark:text-muted-foreground">{label}</div>
+      <div className="text-[11px] font-semibold text-neutral-500 dark:text-muted-foreground">{label}</div>
       <div className="text-xl font-extrabold tracking-tight text-neutral-900 dark:text-foreground">{value}</div>
-      {detail && <div className="text-[11px] text-neutral-400 dark:text-muted-foreground">{detail}</div>}
       {pctRatio !== undefined && pctRatio >= 0 && (
         <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-muted/40">
           <div
@@ -496,11 +493,11 @@ function RetentionPanel() {
 
   return (
     <div className="rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-black tracking-tight text-neutral-900 dark:text-foreground">שימור משתמשים</h3>
           <p className="mt-0.5 text-[11px] text-neutral-400 dark:text-muted-foreground">
-            DAU / WAU / MAU · שיעור חזרה של קוהורטות D7 ו-D30
+            פעילים יומיים, שבועיים וחודשיים · שיעור חזרה אחרי 7 ו-30 יום
           </p>
         </div>
       </div>
@@ -512,21 +509,21 @@ function RetentionPanel() {
           ))}
         </div>
       ) : err ? (
-        <div className="text-xs text-neutral-400 dark:text-muted-foreground">{err}</div>
+        <div className="text-xs text-red-400 dark:text-red-500">{err}</div>
       ) : data ? (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-5">
-          <RetentionStat label="DAU" sub="היום" value={formatInt(data.dau)} />
-          <RetentionStat label="WAU" sub="7 ימים אחרונים" value={formatInt(data.wau)} />
-          <RetentionStat label="MAU" sub="30 ימים אחרונים" value={formatInt(data.mau)} />
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-5">
+          <RetentionStat label="פעילים יומיים" sub="היום" value={formatInt(data.dau)} />
+          <RetentionStat label="פעילים שבועיים" sub="7 ימים אחרונים" value={formatInt(data.wau)} />
+          <RetentionStat label="פעילים חודשיים" sub="30 ימים אחרונים" value={formatInt(data.mau)} />
           <RetentionStat
-            label="D7 Retention"
-            sub={`${data.d7_retained}/${data.d7_cohort} נרשמו לפני 7–14 יום`}
+            label="שימור 7 ימים"
+            sub={`${data.d7_retained} מתוך ${data.d7_cohort} שנרשמו לפני 7–14 יום`}
             value={retPct(data.d7_retained, data.d7_cohort)}
             pctRatio={d7ratio}
           />
           <RetentionStat
-            label="D30 Retention"
-            sub={`${data.d30_retained}/${data.d30_cohort} נרשמו לפני 30–60 יום`}
+            label="שימור 30 יום"
+            sub={`${data.d30_retained} מתוך ${data.d30_cohort} שנרשמו לפני 30–60 יום`}
             value={retPct(data.d30_retained, data.d30_cohort)}
             pctRatio={d30ratio}
           />
@@ -573,9 +570,16 @@ function TopProfilesPanel({ start, end }: { start: string; end: string }) {
         {loading && <RefreshCw size={13} className="animate-spin text-neutral-300 dark:text-muted-foreground/40" />}
       </div>
       {err ? (
-        <p className="text-xs text-red-500">{err}</p>
+        <div className="flex flex-col items-center justify-center gap-1.5 py-8 text-center">
+          <Users size={22} strokeWidth={1.5} className="text-red-300 dark:text-red-500/50" />
+          <p className="text-xs text-red-500 dark:text-red-400">{err}</p>
+        </div>
       ) : !loading && rows.length === 0 ? (
-        <p className="text-xs text-neutral-400 dark:text-muted-foreground py-4 text-center">אין נתוני צפיות בטווח הנבחר</p>
+        <div className="flex flex-col items-center justify-center gap-1.5 py-8 text-center">
+          <Users size={22} strokeWidth={1.5} className="text-neutral-200 dark:text-muted-foreground/30" />
+          <p className="text-xs font-medium text-neutral-400 dark:text-muted-foreground">אין נתוני צפיות בטווח הנבחר</p>
+          <p className="text-[11px] text-neutral-300 dark:text-muted-foreground/50">הנתונים יופיעו כשיצטברו צפיות בפרופילים</p>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -654,9 +658,16 @@ function TopPostsPanel({ start, end }: { start: string; end: string }) {
         {loading && <RefreshCw size={13} className="animate-spin text-neutral-300 dark:text-muted-foreground/40" />}
       </div>
       {err ? (
-        <p className="text-xs text-red-500">{err}</p>
+        <div className="flex flex-col items-center justify-center gap-1.5 py-8 text-center">
+          <FileText size={22} strokeWidth={1.5} className="text-red-300 dark:text-red-500/50" />
+          <p className="text-xs text-red-500 dark:text-red-400">{err}</p>
+        </div>
       ) : !loading && rows.length === 0 ? (
-        <p className="text-xs text-neutral-400 dark:text-muted-foreground py-4 text-center">אין נתוני צפיות בטווח הנבחר</p>
+        <div className="flex flex-col items-center justify-center gap-1.5 py-8 text-center">
+          <FileText size={22} strokeWidth={1.5} className="text-neutral-200 dark:text-muted-foreground/30" />
+          <p className="text-xs font-medium text-neutral-400 dark:text-muted-foreground">אין נתוני צפיות בטווח הנבחר</p>
+          <p className="text-[11px] text-neutral-300 dark:text-muted-foreground/50">הנתונים יופיעו כשיצטברו צפיות בפוסטים</p>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">

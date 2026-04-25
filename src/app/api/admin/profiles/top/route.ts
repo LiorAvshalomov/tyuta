@@ -37,7 +37,9 @@ export async function GET(req: Request) {
   const viewMap = new Map<string, number>()
   for (const row of pvRows ?? []) {
     const username = (row.path as string).slice(3) // strip '/u/'
-    if (username) viewMap.set(username, (viewMap.get(username) ?? 0) + 1)
+    // Ignore sub-paths like /u/foo/followers — only count exact profile pages
+    if (!username || username.includes('/')) continue
+    viewMap.set(username, (viewMap.get(username) ?? 0) + 1)
   }
 
   const sorted = [...viewMap.entries()]

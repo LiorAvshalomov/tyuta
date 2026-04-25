@@ -101,7 +101,7 @@ export default function AuthorHover({
   return (
     <span
       ref={anchorRef}
-      className="inline-flex relative pointer-events-auto"
+      className="inline-flex relative pointer-events-auto self-start"
       onMouseEnter={scheduleOpen}
       onMouseLeave={scheduleClose}
       onClick={handleTap}
