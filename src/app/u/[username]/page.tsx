@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 export const revalidate = 60
 
 import ProfileAvatarFrame from '@/components/ProfileAvatarFrame'
+import ProfileViewCount from '@/components/ProfileViewCount'
 import ProfileFollowBar from '@/components/ProfileFollowBar'
 import ProfileBottomTabsClient from '@/components/ProfileBottomTabsClient'
 import ProfileVersionSeed from '@/components/ProfileVersionSeed'
@@ -384,6 +385,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               <StatPill label="פוסטים" value={postsCount ?? 0} />
               <StatPill label="תגובות שכתב" value={commentsWritten ?? 0} />
               <StatPill label="תגובות שקיבל" value={commentsReceived} />
+              <ProfileViewCount username={prof.username} />
             </div>
 
             {/* Medals */}
@@ -427,6 +429,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             <StatPill label="פוסטים" value={postsCount ?? 0} />
             <StatPill label="תגובות שכתב" value={commentsWritten ?? 0} />
             <StatPill label="תגובות שקיבל" value={commentsReceived} />
+            <ProfileViewCount username={prof.username} />
           </div>
         </div>
 
