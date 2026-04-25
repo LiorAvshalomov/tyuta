@@ -24,7 +24,8 @@ export async function POST(req: Request) {
 
   const userId = (body.user_id ?? '').trim()
   const isSuspended = body.is_suspended === true
-  const reason = (body.reason ?? null)
+  const reasonRaw = typeof body.reason === 'string' ? body.reason.trim() : ''
+  const reason = reasonRaw || null
 
   if (!userId) {
     return NextResponse.json({ ok: false, error: 'missing user_id' }, { status: 400 })
@@ -32,6 +33,9 @@ export async function POST(req: Request) {
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!UUID_RE.test(userId)) {
     return NextResponse.json({ ok: false, error: 'invalid user_id' }, { status: 400 })
+  }
+  if (isSuspended && reasonRaw.length < 3) {
+    return NextResponse.json({ ok: false, error: 'reason_too_short' }, { status: 400 })
   }
 
   const nowIso = new Date().toISOString()

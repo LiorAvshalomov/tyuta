@@ -728,6 +728,9 @@ export default function AdminUsersPage() {
                     rows={3}
                     placeholder={selected.moderation.is_suspended ? 'הסיבה נעולה (כבר הוגדר).' : 'למה המשתמש מוגבל…'}
                   />
+                  {!selected.moderation.is_suspended && !selected.moderation.is_banned && limitedReason.trim().length > 0 && limitedReason.trim().length < 3 && (
+                    <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">נדרשים לפחות 3 תווים ({limitedReason.trim().length}/3)</p>
+                  )}
 
                   <div className="mt-3">
                     {selected.moderation.is_suspended ? (
@@ -742,7 +745,7 @@ export default function AdminUsersPage() {
                     ) : (
                       <button
                         type="button"
-                        disabled={saving || selected.moderation.is_banned}
+                        disabled={saving || selected.moderation.is_banned || limitedReason.trim().length < 3}
                         onClick={() => void toggleLimited(true)}
                         className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
                       >
@@ -771,6 +774,9 @@ export default function AdminUsersPage() {
                     rows={3}
                     placeholder={selected.moderation.is_banned ? 'הסיבה נעולה (כבר הוגדר).' : 'למה המשתמש בבאן…'}
                   />
+                  {!selected.moderation.is_banned && banReason.trim().length > 0 && banReason.trim().length < 3 && (
+                    <p className="mt-1 text-[11px] text-red-500 dark:text-red-400">נדרשים לפחות 3 תווים ({banReason.trim().length}/3)</p>
+                  )}
 
                   <div className="mt-3">
                     {selected.moderation.is_banned ? (
@@ -785,7 +791,7 @@ export default function AdminUsersPage() {
                     ) : (
                       <button
                         type="button"
-                        disabled={saving}
+                        disabled={saving || banReason.trim().length < 3}
                         onClick={() => void toggleBanned(true)}
                         className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                       >

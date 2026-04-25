@@ -27,10 +27,14 @@ export async function POST(req: Request) {
 
   const userId = (body.user_id ?? '').trim()
   const isBanned = body.is_banned === true
-  const reason = body.reason ?? null
+  const reasonRaw = typeof body.reason === 'string' ? body.reason.trim() : ''
+  const reason = reasonRaw || null
 
   if (!userId) {
     return NextResponse.json({ ok: false, error: 'missing user_id' }, { status: 400 })
+  }
+  if (isBanned && reasonRaw.length < 3) {
+    return NextResponse.json({ ok: false, error: 'reason_too_short' }, { status: 400 })
   }
   if (!UUID_REGEX.test(userId)) {
     return NextResponse.json({ error: 'INVALID_ID' }, { status: 400 })
