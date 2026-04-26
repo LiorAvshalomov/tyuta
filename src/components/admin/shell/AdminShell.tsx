@@ -22,24 +22,20 @@ import {
   Moon,
 } from 'lucide-react'
 import { setStoredTheme, resolveTheme, applyTheme } from '@/lib/theme'
+import { AdminBadgesContext, EMPTY_ADMIN_BADGES, type AdminBadgeCounts } from '@/lib/admin/AdminBadgesContext'
+
+type BadgeKey = 'reports' | 'contact' | 'failedLogins' | 'inbox'
 
 type NavItem = {
   href: string
   label: string
   icon: React.ReactNode
-  badgeKey?: keyof BadgeCounts
+  badgeKey?: BadgeKey
 }
 
 type NavGroup = {
   label: string
   items: NavItem[]
-}
-
-type BadgeCounts = {
-  reports: number
-  contact: number
-  failedLogins: number
-  inbox: number
 }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -88,7 +84,7 @@ function NavLink({
 }: {
   item: NavItem
   active: boolean
-  badges: BadgeCounts
+  badges: AdminBadgeCounts
   onClick?: () => void
 }) {
   const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0
@@ -99,13 +95,13 @@ function NavLink({
       className={
         'flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-sm font-medium transition-colors duration-100 ' +
         (active
-          ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
+          ? 'border-r-2 border-neutral-900 dark:border-neutral-100 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-semibold'
           : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-100')
       }
     >
       <span className={
         active
-          ? 'shrink-0 text-white dark:text-neutral-900'
+          ? 'shrink-0 text-neutral-700 dark:text-neutral-200'
           : 'shrink-0 text-neutral-400 dark:text-neutral-500'
       }>
         {item.icon}
@@ -124,7 +120,7 @@ function NavSection({
 }: {
   group: NavGroup
   isActive: (href: string) => boolean
-  badges: BadgeCounts
+  badges: AdminBadgeCounts
   onItemClick?: () => void
 }) {
   return (
@@ -153,12 +149,12 @@ function getPageTitle(pathname: string): string {
   return match?.label ?? 'ניהול'
 }
 
-const EMPTY_BADGES: BadgeCounts = { reports: 0, contact: 0, failedLogins: 0, inbox: 0 }
-const POLL_MS = 60_000
+const EMPTY_BADGES = EMPTY_ADMIN_BADGES
+const POLL_MS = 30_000
 
 function LogoMark({ className = '' }: { className?: string }) {
   return (
-    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-900 dark:bg-white text-[13px] font-black text-white dark:text-neutral-900 select-none ${className}`}>
+    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1a1a18] dark:bg-white text-[13px] font-black text-white dark:text-neutral-900 select-none ${className}`}>
       ט
     </div>
   )
@@ -168,7 +164,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const pathname  = usePathname()
   const getToken  = useAdminToken()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [badges, setBadges]         = useState<BadgeCounts>(EMPTY_BADGES)
+  const [badges, setBadges]         = useState<AdminBadgeCounts>(EMPTY_BADGES)
   const [isDark, setIsDark]         = useState(false)
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
@@ -206,14 +202,28 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           cache: 'no-store',
         })
         if (!res.ok || cancelled) return
-        const data = await res.json() as BadgeCounts
-        if (!cancelled) setBadges(data)
+        const data = await res.json() as Omit<AdminBadgeCounts, 'loaded'>
+        if (!cancelled) setBadges({ ...data, loaded: true })
       } catch { /* best-effort — badge failure must never crash the shell */ }
     }
 
     void fetchBadges()
     const id = setInterval(fetchBadges, POLL_MS)
-    return () => { cancelled = true; clearInterval(id) }
+
+    // Refresh immediately when the admin returns to this tab
+    function onVisible() {
+      if (!document.hidden) void fetchBadges()
+    }
+    function onFocus() { void fetchBadges() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onFocus)
+
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [getToken])
 
   const pageTitle = getPageTitle(pathname)
@@ -233,17 +243,18 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   )
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-neutral-50 dark:bg-neutral-950" dir="rtl">
+    <AdminBadgesContext.Provider value={badges}>
+    <div className="flex h-[100dvh] overflow-hidden bg-[#f7f6f3] dark:bg-neutral-950" dir="rtl">
 
       {/* ── Desktop Sidebar ── */}
-      <aside className="hidden w-[248px] shrink-0 flex-col border-l border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 md:flex">
+      <aside className="hidden w-[248px] shrink-0 flex-col border-l border-neutral-200 dark:border-neutral-800 bg-[#faf9f7] dark:bg-neutral-900 md:flex">
 
         {/* Brand */}
         <div className="flex h-14 items-center gap-3 border-b border-neutral-200 dark:border-neutral-800 px-4">
           <LogoMark />
           <div className="min-w-0">
             <div className="text-[13px] font-bold leading-tight text-neutral-900 dark:text-neutral-100">Tyuta</div>
-            <div className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500 font-medium tracking-wide">מרחב ניהול</div>
+            <div className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500 font-medium tracking-widest">מרחב ניהול</div>
           </div>
         </div>
 
@@ -268,7 +279,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* Topbar */}
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 md:px-5">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-neutral-200 dark:border-neutral-800 bg-[#faf9f7] dark:bg-neutral-900 px-4 md:px-5">
 
           {/* Mobile: hamburger */}
           <button
@@ -326,7 +337,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             onClick={closeDrawer}
             aria-hidden="true"
           />
-          <aside className="absolute top-0 right-0 bottom-0 flex w-[268px] flex-col overflow-hidden bg-white dark:bg-neutral-900 shadow-2xl">
+          <aside className="absolute top-0 right-0 bottom-0 flex w-[268px] flex-col overflow-hidden bg-[#faf9f7] dark:bg-neutral-900 shadow-2xl">
 
             {/* Drawer brand + close */}
             <div className="flex h-14 shrink-0 items-center justify-between border-b border-neutral-200 dark:border-neutral-800 px-4">
@@ -334,7 +345,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 <LogoMark />
                 <div className="min-w-0">
                   <div className="text-[13px] font-bold leading-tight text-neutral-900 dark:text-neutral-100">Tyuta</div>
-                  <div className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500 font-medium tracking-wide">מרחב ניהול</div>
+                  <div className="text-[10px] leading-none text-neutral-400 dark:text-neutral-500 font-medium tracking-widest">מרחב ניהול</div>
                 </div>
               </div>
               <button
@@ -367,5 +378,6 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         </div>
       )}
     </div>
+    </AdminBadgesContext.Provider>
   )
 }

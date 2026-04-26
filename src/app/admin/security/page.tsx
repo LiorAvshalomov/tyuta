@@ -95,7 +95,7 @@ function SecuritySummaryPanel() {
   )
 
   return (
-    <div className={`rounded-xl border bg-white dark:bg-card p-4 shadow-sm ${hasAnomalies ? 'border-red-200 dark:border-red-500/30' : 'border-neutral-100 dark:border-border/50'}`}>
+    <div className={`rounded-xl border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:bg-neutral-900 p-4 ${hasAnomalies ? 'border-r-[3px] border-r-red-500 border-neutral-200 dark:border-neutral-700 dark:border-r-red-400' : 'border-neutral-200 dark:border-neutral-700'}`}>
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ShieldAlert size={15} className={hasAnomalies ? 'text-red-500' : 'text-neutral-400 dark:text-muted-foreground'} />
@@ -467,10 +467,10 @@ export default function SecurityPage() {
         <EmptyState icon={<Lock size={32} />} title="אין אירועים" description="לא נמצאו רשומות לפילטר הנוכחי" />
       ) : (
         <>
-          <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
+          <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="border-b border-neutral-100 bg-neutral-50 text-xs text-neutral-500 dark:border-border dark:bg-muted/30 dark:text-neutral-400">
+                <thead className="border-b border-neutral-100 bg-[#f7f6f3] text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-400">
                   <tr>
                     <th className="px-4 py-3 text-right font-medium">אירוע</th>
                     <th className="px-4 py-3 text-right font-medium">משתמש</th>
@@ -504,7 +504,7 @@ export default function SecurityPage() {
                         <button
                           type="button"
                           onClick={() => { setIpInput(row.ip ?? ''); setIpSearch(row.ip ?? ''); setPage(1) }}
-                          className="font-mono text-xs text-neutral-500 hover:text-neutral-900 hover:underline dark:text-neutral-400 dark:hover:text-foreground"
+                          className="inline-flex items-center rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 font-mono text-xs text-neutral-600 hover:border-neutral-400 hover:bg-white dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:border-neutral-500"
                           title="סנן לפי IP זה"
                         >
                           {row.ip ?? '—'}

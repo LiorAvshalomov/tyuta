@@ -616,7 +616,7 @@ export default function AdminUsersPage() {
 
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         {/* Left — list panel */}
-        <div className="rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
+        <div className="rounded-xl border border-neutral-200 bg-[#faf9f7] shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
           {tab === 'search' && (
             <div className="border-b border-neutral-100 p-3 dark:border-border">
               <div className="relative">
@@ -657,8 +657,13 @@ export default function AdminUsersPage() {
                         type="button"
                         onClick={() => void selectUser(u)}
                         className={
-                          'w-full px-4 py-3 text-right transition-colors hover:bg-neutral-50 dark:hover:bg-muted/30 ' +
-                          (active ? 'bg-neutral-50 border-r-2 border-r-neutral-900 dark:bg-muted/30 dark:border-r-foreground' : '')
+                          'w-full px-4 py-3 text-right transition-colors hover:bg-white/70 dark:hover:bg-muted/30 border-r-[3px] ' +
+                          (u.moderation.is_banned
+                            ? 'border-r-[#b5534a] '
+                            : u.moderation.is_suspended
+                              ? 'border-r-[#c4923a] '
+                              : 'border-r-transparent ') +
+                          (active ? 'bg-white dark:bg-muted/30 shadow-sm' : '')
                         }
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -678,7 +683,7 @@ export default function AdminUsersPage() {
         </div>
 
         {/* Right — detail panel */}
-        <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-border dark:bg-card">
+        <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
           {!selected ? (
             <EmptyState
               title="בחר משתמש כדי לנהל סטטוס"

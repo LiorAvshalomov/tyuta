@@ -233,7 +233,7 @@ export default function UserModerationHistoryTab() {
 
   return (
     <div dir="rtl" className="space-y-4">
-      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-border dark:bg-muted/30">
+      <div className="space-y-3 rounded-xl border border-neutral-200 bg-[#f7f6f3] p-3 dark:border-border dark:bg-neutral-900/60">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">פעולה</label>
@@ -329,7 +329,7 @@ export default function UserModerationHistoryTab() {
                 onChange={(e) => setDraftQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && applyTextSearch()}
                 placeholder="משתמש, אדמין, סיבה או מזהה…"
-                className="w-[220px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
+                className="w-full min-w-[160px] sm:w-[220px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
               />
             </div>
           </div>
@@ -372,8 +372,8 @@ export default function UserModerationHistoryTab() {
       )}
 
       {!loading && events.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
-          <div className="hidden grid-cols-[160px_180px_220px_180px_1fr] gap-3 border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid dark:border-border dark:bg-muted/30 dark:text-neutral-400">
+        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
+          <div className="hidden grid-cols-[160px_180px_220px_180px_1fr] gap-3 border-b border-neutral-100 bg-[#f7f6f3] px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid dark:border-border dark:bg-muted/30 dark:text-neutral-400">
             <span>זמן</span>
             <span>פעולה</span>
             <span>משתמש</span>
@@ -430,7 +430,7 @@ export default function UserModerationHistoryTab() {
 
                   <div className="space-y-1 text-xs text-neutral-600 dark:text-neutral-400">
                     {event.reason ? (
-                      <div className="rounded border border-neutral-100 bg-neutral-50 px-2 py-1 dark:border-border dark:bg-muted/30">
+                      <div className="rounded-md border border-neutral-200 bg-[#f7f6f3] px-2 py-1 dark:border-border dark:bg-muted/30">
                         סיבה: {event.reason}
                       </div>
                     ) : (

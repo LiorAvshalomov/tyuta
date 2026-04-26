@@ -28,6 +28,7 @@ type PostRow = {
   status: string | null
   created_at: string | null
   published_at: string | null
+  updated_at: string | null
   deleted_at: string | null
   deleted_reason: string | null
   moderated_at: string | null
@@ -225,7 +226,14 @@ export default function AdminPostsPage() {
             return (
               <div
                 key={p.id}
-                className="rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm dark:border-border dark:bg-card"
+                className={
+                  "rounded-xl border bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-md dark:bg-card " +
+                  (p.deleted_at || p.moderated_at || p.status === 'moderated' || p.status === 'banned'
+                    ? "border-neutral-200 border-r-[3px] border-r-red-500 dark:border-neutral-700 dark:border-r-red-400"
+                    : p.status === 'published'
+                    ? "border-neutral-200 border-r-[3px] border-r-[#4a7c59] dark:border-neutral-700 dark:border-r-[#6dbb8a]"
+                    : "border-neutral-200 border-r-[3px] border-r-[#c4923a] dark:border-neutral-700 dark:border-r-[#e0ad5a]")
+                }
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -255,8 +263,14 @@ export default function AdminPostsPage() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
-                      נוצר: {fmtDateTime(p.created_at)} · פורסם: {fmtDateTime(p.published_at)}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-400 dark:text-neutral-500">
+                      <span>נוצר: {fmtDateTime(p.created_at)}</span>
+                      {p.published_at && <span>· פורסם: {fmtDateTime(p.published_at)}</span>}
+                      {p.updated_at && p.published_at && new Date(p.updated_at).getTime() - new Date(p.published_at).getTime() > 60_000 && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-700 dark:bg-sky-500/10 dark:text-sky-400">
+                          עודכן: {fmtDateTime(p.updated_at)}
+                        </span>
+                      )}
                     </div>
 
                     {p.deleted_at && p.deleted_reason ? (

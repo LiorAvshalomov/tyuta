@@ -10,6 +10,7 @@ type ChartCardProps = {
   empty?: boolean
   error?: string | null
   onRetry?: () => void
+  accentColor?: string
   children: React.ReactNode
 }
 
@@ -19,14 +20,20 @@ export default function ChartCard({
   empty,
   error,
   onRetry,
+  accentColor,
   children,
 }: ChartCardProps) {
   if (loading) return <ChartSkeleton />
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="rounded-xl border border-neutral-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-5 dark:border-neutral-800 dark:bg-neutral-900">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{title}</h3>
+        <h3 className="flex items-center gap-2 text-sm font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+          {accentColor && (
+            <span className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: accentColor }} />
+          )}
+          {title}
+        </h3>
         {error && onRetry && (
           <button
             onClick={onRetry}

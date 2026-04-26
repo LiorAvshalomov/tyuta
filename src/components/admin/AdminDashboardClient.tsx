@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -38,29 +38,30 @@ import {
 
 import { adminFetch } from "@/lib/admin/adminFetch";
 import { getAdminErrorMessage } from "@/lib/admin/adminUi";
+import { useAdminBadges } from "@/lib/admin/AdminBadgesContext";
 
 /* ── palettes ── */
 
 const P = {
-  ink: "#18181b",
-  slate: "#71717a",
+  ink: "#1a1a18",
+  slate: "#6b7a8d",
   mist: "#a1a1aa",
-  emerald: "#10b981",
-  amber: "#f59e0b",
-  red: "#ef4444",
-  blue: "#3b82f6",
-  grid: "#e4e4e7",
+  emerald: "#4a7c59",
+  amber: "#c4923a",
+  red: "#b5534a",
+  blue: "#2d5a8e",
+  grid: "#e8e5df",
 } as const;
 
 const darkP = {
   ink: "#e4e4e7",
-  slate: "#a1a1aa",
+  slate: "#8a9ab0",
   mist: "#71717a",
-  emerald: "#34d399",
-  amber: "#fbbf24",
-  red: "#f87171",
-  blue: "#60a5fa",
-  grid: "#3f3f46",
+  emerald: "#6dbb8a",
+  amber: "#e0ad5a",
+  red: "#e07470",
+  blue: "#6496c8",
+  grid: "#2a2a2a",
 } as const;
 
 /* ── types ── */
@@ -301,7 +302,7 @@ type TtPayloadEntry = { dataKey?: string | number; name?: string | number; value
 type TtProps = { active?: boolean; payload?: TtPayloadEntry[]; label?: string | number };
 type ChartChip = { label: string; color: string };
 
-function StyledTooltip({ active, payload, label }: TtProps) {
+const StyledTooltip = memo(function StyledTooltip({ active, payload, label }: TtProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="min-w-[170px] rounded-2xl border border-neutral-200/90 dark:border-white/10 bg-white/95 dark:bg-neutral-950/95 px-3.5 py-3 shadow-[0_18px_40px_-22px_rgba(0,0,0,0.45)] backdrop-blur-md">
@@ -320,9 +321,9 @@ function StyledTooltip({ active, payload, label }: TtProps) {
       ))}
     </div>
   );
-}
+});
 
-function ChartChips({ items }: { items?: ChartChip[] }) {
+const ChartChips = memo(function ChartChips({ items }: { items?: ChartChip[] }) {
   if (!items?.length) return null;
 
   return (
@@ -342,7 +343,7 @@ function ChartChips({ items }: { items?: ChartChip[] }) {
       ))}
     </div>
   );
-}
+});
 
 function SkeletonCard() {
   return (
@@ -350,37 +351,47 @@ function SkeletonCard() {
   );
 }
 
-function KpiCard({
+const KpiCard = memo(function KpiCard({
   label,
   value,
   sub,
   icon,
   accent = false,
+  accentColor,
 }: {
   label: string;
   value: string;
   sub?: string;
   icon?: React.ReactNode;
   accent?: boolean;
+  accentColor?: string;
 }) {
   return (
     <div
       className={
-        "group relative overflow-hidden rounded-xl border bg-white dark:bg-card p-4 transition-shadow hover:shadow-md " +
-        (accent ? "border-neutral-200 dark:border-border shadow-sm" : "border-neutral-100 dark:border-border/50")
+        "group relative overflow-hidden rounded-xl border bg-white dark:bg-card p-4 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow hover:shadow-md " +
+        (accent ? "border-neutral-200 dark:border-border" : "border-neutral-100 dark:border-border/50")
       }
+      style={accentColor ? { borderTop: `3px solid ${accentColor}` } : undefined}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-muted-foreground">{label}</span>
-        {icon && <span className="text-neutral-300 dark:text-muted-foreground/50 transition-colors group-hover:text-neutral-400">{icon}</span>}
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 dark:text-muted-foreground">{label}</span>
+        {icon && (
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-lg"
+            style={accentColor ? { backgroundColor: `${accentColor}18`, color: accentColor } : { color: '#a1a1aa' }}
+          >
+            {icon}
+          </span>
+        )}
       </div>
-      <div className="mt-2 text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-foreground">{value}</div>
+      <div className="mt-3 text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-foreground">{value}</div>
       {sub && <div className="mt-1 text-[11px] text-neutral-400 dark:text-muted-foreground">{sub}</div>}
     </div>
   );
-}
+});
 
-function DashChartCard({
+const DashChartCard = memo(function DashChartCard({
   title,
   subtitle,
   chips,
@@ -408,7 +419,7 @@ function DashChartCard({
       </div>
     </div>
   );
-}
+});
 
 function EmptyChart() {
   return (
@@ -719,8 +730,11 @@ export default function AdminDashboardClient({
   initialDash,
   initialDashErr,
 }: AdminDashboardClientProps) {
-  const [openReports] = useState<number | null>(initialQuickCounts.openReports);
-  const [openContact] = useState<number | null>(initialQuickCounts.openContact);
+  // Live badge counts from the shell's 30-second poll.
+  // Fall back to the SSR-fetched initial values until the first poll completes.
+  const liveBadges = useAdminBadges();
+  const openReports = liveBadges.loaded ? liveBadges.reports : (initialQuickCounts.openReports ?? 0);
+  const openContact = liveBadges.loaded ? liveBadges.contact : (initialQuickCounts.openContact ?? 0);
 
   const [bucket, setBucket] = useState<Bucket>(initialRange.bucket);
   const [start, setStart] = useState<string>(initialRange.start);
@@ -763,30 +777,30 @@ export default function AdminDashboardClient({
     width: 44,
     allowDecimals: false,
   };
-  const trafficChips = [
+  const trafficChips = useMemo(() => [
     { label: "צפיות", color: CP.ink },
     { label: "ביקורים", color: CP.emerald },
-  ];
-  const audienceChips = [
+  ], [CP]);
+  const audienceChips = useMemo(() => [
     { label: "מחוברים", color: CP.ink },
     { label: "אורחים", color: CP.emerald },
-  ];
-  const activeUsersChips = [{ label: "משתמשים פעילים מחוברים", color: CP.blue }];
-  const signupsChips = [{ label: "הרשמות", color: CP.ink }];
-  const postsChips = [
+  ], [CP]);
+  const activeUsersChips = useMemo(() => [{ label: "משתמשים פעילים מחוברים", color: CP.blue }], [CP]);
+  const signupsChips = useMemo(() => [{ label: "הרשמות", color: CP.ink }], [CP]);
+  const postsChips = useMemo(() => [
     { label: "נוצרו", color: CP.ink },
     { label: "פורסמו", color: CP.emerald },
     { label: "נמחקו (soft)", color: CP.amber },
     { label: "נמחקו לצמיתות", color: CP.red },
-  ];
-  const commentsChips = [
+  ], [CP]);
+  const commentsChips = useMemo(() => [
     { label: "תגובות", color: CP.ink },
     { label: "תגובות תשובה", color: CP.slate },
-  ];
-  const purgesChips = [
+  ], [CP]);
+  const purgesChips = useMemo(() => [
     { label: "פוסטים", color: CP.red },
     { label: "משתמשים", color: CP.slate },
-  ];
+  ], [CP]);
 
   // Dashboard analytics
   useEffect(() => {
@@ -872,9 +886,10 @@ export default function AdminDashboardClient({
           <Link
             href="/admin/reports"
             className="group rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm transition-all hover:border-neutral-200 dark:hover:border-border hover:shadow-md"
+            style={{ borderTop: '3px solid #b5534a' }}
           >
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#b5534a]/10 text-[#b5534a] dark:bg-[#b5534a]/20 dark:text-[#e07470]">
                 <Flag size={15} />
               </div>
               <span className="text-sm font-bold text-neutral-800 dark:text-foreground">דיווחים פתוחים</span>
@@ -886,9 +901,10 @@ export default function AdminDashboardClient({
           <Link
             href="/admin/contact"
             className="group rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm transition-all hover:border-neutral-200 dark:hover:border-border hover:shadow-md"
+            style={{ borderTop: '3px solid #2d5a8e' }}
           >
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2d5a8e]/10 text-[#2d5a8e] dark:bg-[#2d5a8e]/20 dark:text-[#6496c8]">
                 <Mail size={15} />
               </div>
               <span className="text-sm font-bold text-neutral-800 dark:text-foreground">פניות &quot;צור קשר&quot; פתוחות</span>
@@ -981,25 +997,25 @@ export default function AdminDashboardClient({
             </div>
           ) : k ? (
             <>
-              <KpiCard label="צפיות" value={formatInt(k.pageviews)} sub="Pageviews" icon={<Eye size={15} />} accent />
-              <KpiCard label="ביקורים" value={formatInt(k.visits)} sub="Sessions" icon={<MousePointerClick size={15} />} accent />
-              <KpiCard label="ביקורי מחוברים" value={formatInt(k.signedInVisits)} sub="Sessions with auth" icon={<Users size={15} />} accent />
-              <KpiCard label="ביקורי אורחים" value={formatInt(k.guestVisits)} sub="Anonymous sessions" icon={<MousePointerClick size={15} />} accent />
+              <KpiCard label="צפיות" value={formatInt(k.pageviews)} sub="Pageviews" icon={<Eye size={15} />} accent accentColor="#2d5a8e" />
+              <KpiCard label="ביקורים" value={formatInt(k.visits)} sub="Sessions" icon={<MousePointerClick size={15} />} accent accentColor="#2d5a8e" />
+              <KpiCard label="ביקורי מחוברים" value={formatInt(k.signedInVisits)} sub="Sessions with auth" icon={<Users size={15} />} accent accentColor="#2d5a8e" />
+              <KpiCard label="ביקורי אורחים" value={formatInt(k.guestVisits)} sub="Anonymous sessions" icon={<MousePointerClick size={15} />} accent accentColor="#2d5a8e" />
 
               <KpiCard label="Bounce" value={formatPct(k.bounceRate)} sub="אחוז נטישה" icon={<ArrowUpRight size={15} />} />
               <KpiCard label="אורך ביקור" value={formatMinutes(k.avgSessionMinutes)} sub="דקות (ממוצע)" icon={<Clock size={15} />} />
-              <KpiCard label="משתמשים מחוברים ייחודיים" value={formatInt(k.uniqueUsers)} sub="Distinct signed-in users" icon={<Users size={15} />} />
-              <KpiCard label="נרשמו" value={formatInt(k.signups)} icon={<UserPlus size={15} />} />
-              <KpiCard label="תגובות" value={formatInt(k.commentsTotal)} icon={<MessageCircle size={15} />} />
+              <KpiCard label="משתמשים מחוברים ייחודיים" value={formatInt(k.uniqueUsers)} sub="Distinct signed-in users" icon={<Users size={15} />} accentColor="#4a7c59" />
+              <KpiCard label="נרשמו" value={formatInt(k.signups)} icon={<UserPlus size={15} />} accentColor="#4a7c59" />
+              <KpiCard label="תגובות" value={formatInt(k.commentsTotal)} icon={<MessageCircle size={15} />} accentColor="#c4923a" />
 
-              <KpiCard label="פוסטים נוצרו" value={formatInt(k.postsCreated)} icon={<FileText size={15} />} />
-              <KpiCard label="פוסטים פורסמו" value={formatInt(k.postsPublished)} icon={<BookOpen size={15} />} />
-              <KpiCard label="נמחקו (soft)" value={formatInt(k.postsSoftDeleted)} icon={<Trash2 size={15} />} />
-              <KpiCard label="נמחקו לצמיתות" value={formatInt(k.postsPurged)} icon={<XCircle size={15} />} />
+              <KpiCard label="פוסטים נוצרו" value={formatInt(k.postsCreated)} icon={<FileText size={15} />} accentColor="#c4923a" />
+              <KpiCard label="פוסטים פורסמו" value={formatInt(k.postsPublished)} icon={<BookOpen size={15} />} accentColor="#c4923a" />
+              <KpiCard label="נמחקו (soft)" value={formatInt(k.postsSoftDeleted)} icon={<Trash2 size={15} />} accentColor="#c4923a" />
+              <KpiCard label="נמחקו לצמיתות" value={formatInt(k.postsPurged)} icon={<XCircle size={15} />} accentColor="#c4923a" />
 
-              <KpiCard label="מושעים" value={formatInt(k.usersSuspended)} icon={<UserX size={15} />} />
-              <KpiCard label="חסומים" value={formatInt(k.usersBanned)} icon={<Ban size={15} />} />
-              <KpiCard label="משתמשים נוקו" value={formatInt(k.usersPurged)} icon={<UserMinus size={15} />} />
+              <KpiCard label="מושעים" value={formatInt(k.usersSuspended)} icon={<UserX size={15} />} accentColor="#b5534a" />
+              <KpiCard label="חסומים" value={formatInt(k.usersBanned)} icon={<Ban size={15} />} accentColor="#b5534a" />
+              <KpiCard label="משתמשים נוקו" value={formatInt(k.usersPurged)} icon={<UserMinus size={15} />} accentColor="#b5534a" />
             </>
           ) : null}
         </div>
@@ -1170,6 +1186,11 @@ export default function AdminDashboardClient({
             </DashChartCard>
           </div>
         ) : null}
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <TopPostsPanel start={start} end={end} />
+          <TopProfilesPanel start={start} end={end} />
+        </div>
       </div>
     );
   }
@@ -1187,9 +1208,10 @@ export default function AdminDashboardClient({
         <Link
           href="/admin/reports"
           className="group rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm transition-all hover:border-neutral-200 dark:hover:border-border hover:shadow-md"
+          style={{ borderTop: '3px solid #b5534a' }}
         >
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#b5534a]/10 text-[#b5534a] dark:bg-[#b5534a]/20 dark:text-[#e07470]">
               <Flag size={15} />
             </div>
             <span className="text-sm font-bold text-neutral-800 dark:text-foreground">דיווחים פתוחים</span>
@@ -1201,9 +1223,10 @@ export default function AdminDashboardClient({
         <Link
           href="/admin/contact"
           className="group rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm transition-all hover:border-neutral-200 dark:hover:border-border hover:shadow-md"
+          style={{ borderTop: '3px solid #2d5a8e' }}
         >
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#2d5a8e]/10 text-[#2d5a8e] dark:bg-[#2d5a8e]/20 dark:text-[#6496c8]">
               <Mail size={15} />
             </div>
             <span className="text-sm font-bold text-neutral-800 dark:text-foreground">פניות &quot;צור קשר&quot; פתוחות</span>

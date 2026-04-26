@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Shield, Search, CalendarDays } from 'lucide-react'
+import { Shield, CalendarDays } from 'lucide-react'
 import Avatar from '@/components/Avatar'
 import { adminFetch } from '@/lib/admin/adminFetch'
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
 import ErrorBanner from './ErrorBanner'
 import EmptyState from './EmptyState'
 import { TableSkeleton } from './AdminSkeleton'
+import UserAutocompleteInput from './UserAutocompleteInput'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ type Filters = {
   actor_role: string
   target_type: string
   author: string
+  author_id: string
   from: string
   to: string
 }
@@ -203,7 +205,7 @@ function EventDrawer({ event, onClose }: { event: ModerationEvent; onClose: () =
 
 export default function ModerationHistoryTab() {
   const [filters, setFilters] = useState<Filters>({
-    actor_user_id: '', actor_role: '', target_type: '', author: '', from: '', to: '',
+    actor_user_id: '', actor_role: '', target_type: '', author: '', author_id: '', from: '', to: '',
   })
   const [draftAuthor, setDraftAuthor] = useState('')
 
@@ -233,7 +235,8 @@ export default function ModerationHistoryTab() {
       if (filters.actor_user_id) params.set('actor_user_id', filters.actor_user_id)
       if (filters.actor_role)    params.set('actor_role',    filters.actor_role)
       if (filters.target_type)   params.set('target_type',   filters.target_type)
-      if (filters.author)        params.set('author',        filters.author)
+      if (filters.author_id)     params.set('author_id',     filters.author_id)
+      else if (filters.author)   params.set('author',        filters.author)
       if (filters.from)          params.set('from',          filters.from)
       if (filters.to)            params.set('to',            filters.to)
 
@@ -266,7 +269,7 @@ export default function ModerationHistoryTab() {
   // ── Actions ──────────────────────────────────────────────────────────────
 
   function applyAuthorSearch() {
-    setFilters(f => ({ ...f, author: draftAuthor.trim() }))
+    setFilters(f => ({ ...f, author: draftAuthor.trim(), author_id: '' }))
   }
 
   function applyQuickRange(days: number | null) {
@@ -278,7 +281,7 @@ export default function ModerationHistoryTab() {
   }
 
   function clearAll() {
-    setFilters({ actor_user_id: '', actor_role: '', target_type: '', author: '', from: '', to: '' })
+    setFilters({ actor_user_id: '', actor_role: '', target_type: '', author: '', author_id: '', from: '', to: '' })
     setDraftAuthor('')
   }
 
@@ -292,7 +295,7 @@ export default function ModerationHistoryTab() {
 
   const hasMore    = events.length < total
   const hasFilters = !!(filters.actor_user_id || filters.actor_role || filters.target_type ||
-                        filters.author || filters.from || filters.to)
+                        filters.author || filters.author_id || filters.from || filters.to)
 
   function activeRange(): number | null | undefined {
     if (!filters.from && !filters.to) return null
@@ -309,7 +312,7 @@ export default function ModerationHistoryTab() {
     <div dir="rtl" className="space-y-4">
 
       {/* ── Filters panel ── */}
-      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 dark:border-border dark:bg-muted/30">
+      <div className="space-y-3 rounded-xl border border-neutral-200 bg-[#f7f6f3] p-4 dark:border-neutral-800 dark:bg-neutral-900/60">
 
         {/* Row 1: dropdowns */}
         <div className="flex flex-wrap items-end gap-3">
@@ -432,17 +435,21 @@ export default function ModerationHistoryTab() {
         {/* Row 3: author search */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">שם משתמש מושפע</label>
-            <div className="relative">
-              <Search size={13} className="absolute top-1/2 right-2.5 -translate-y-1/2 text-neutral-400" />
-              <input
-                value={draftAuthor}
-                onChange={e => setDraftAuthor(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && applyAuthorSearch()}
-                placeholder="חפש שם משתמש…"
-                className="w-[200px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
-              />
-            </div>
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">משתמש מושפע</label>
+            <UserAutocompleteInput
+              value={draftAuthor}
+              onChange={val => {
+                setDraftAuthor(val)
+                if (!val.trim()) setFilters(f => ({ ...f, author: '', author_id: '' }))
+              }}
+              onSelect={u => {
+                const label = u.display_name ?? (u.username ? `@${u.username}` : u.id.slice(0, 8) + '…')
+                setDraftAuthor(label)
+                setFilters(f => ({ ...f, author: '', author_id: u.id }))
+              }}
+              placeholder="שם / @username…"
+              width="w-full min-w-[150px] sm:w-[220px]"
+            />
           </div>
 
           <button
@@ -485,35 +492,31 @@ export default function ModerationHistoryTab() {
         <EmptyState title="אין היסטוריית מודרציה" icon={<Shield size={36} strokeWidth={1.5} />} />
       )}
 
-      {/* ── Events table ── */}
+      {/* ── Events timeline ── */}
       {!loading && events.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
-          {/* Header */}
-          <div className="hidden grid-cols-[140px_80px_80px_1fr_150px_150px] gap-3 border-b border-neutral-100 bg-neutral-50 px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid dark:border-border dark:bg-muted/30 dark:text-neutral-400">
-            <span>זמן</span>
-            <span>סוג</span>
-            <span>תפקיד</span>
-            <span>תמצית / סיבה</span>
-            <span>מבצע</span>
-            <span>משתמש מושפע</span>
-          </div>
+        <div className="relative space-y-1">
+          <div className="absolute right-[19px] top-0 bottom-0 w-px bg-neutral-200 dark:bg-neutral-800" aria-hidden="true" />
+          {events.map((ev) => {
+            const snap    = ev.snapshot
+            const excerpt = typeof snap.excerpt === 'string' ? snap.excerpt.slice(0, 100) : null
+            const isAdmin = ev.actor_role === 'admin'
 
-          <div className="divide-y divide-neutral-100 dark:divide-border">
-            {events.map((ev) => {
-              const snap    = ev.snapshot
-              const excerpt = typeof snap.excerpt === 'string' ? snap.excerpt.slice(0, 80) : null
+            return (
+              <button
+                key={ev.id}
+                type="button"
+                onClick={() => setDrawer(ev)}
+                className="relative flex w-full items-start gap-3 rounded-xl border border-neutral-200 bg-white py-3 pr-4 pl-3 text-right shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 sm:gap-4"
+              >
+                {/* Timeline dot */}
+                <div className={`absolute right-3 top-4 h-3 w-3 shrink-0 rounded-full border-2 border-white dark:border-neutral-900 ${isAdmin ? 'bg-[#b5534a]' : 'bg-[#c4923a]'}`} />
 
-              return (
-                <button
-                  key={ev.id}
-                  type="button"
-                  onClick={() => setDrawer(ev)}
-                  className="grid w-full grid-cols-1 gap-2 px-4 py-3 text-right text-sm transition-colors hover:bg-neutral-50 sm:grid-cols-[140px_80px_80px_1fr_150px_150px] sm:items-center sm:gap-3 dark:hover:bg-muted/30"
-                >
-                  <div className="text-xs text-neutral-500 dark:text-neutral-400">{fmtDateTime(ev.created_at)}</div>
-                  <div><TargetBadge targetType={ev.target_type} /></div>
-                  <div><RoleBadge role={ev.actor_role} /></div>
-                  <div className="min-w-0 text-right">
+                <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-3 gap-y-1 pr-5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <TargetBadge targetType={ev.target_type} />
+                    <RoleBadge role={ev.actor_role} />
+                  </div>
+                  <div className="w-full min-w-0">
                     {excerpt && (
                       <p className="truncate text-xs text-neutral-600 dark:text-neutral-400">{excerpt}</p>
                     )}
@@ -521,12 +524,16 @@ export default function ModerationHistoryTab() {
                       סיבה: {ev.reason}
                     </p>
                   </div>
-                  <ProfileCell profile={ev.actor_profile} userId={ev.actor_user_id} />
-                  <ProfileCell profile={ev.author_profile} userId={ev.target_author_id} />
-                </button>
-              )
-            })}
-          </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <ProfileCell profile={ev.actor_profile} userId={ev.actor_user_id} />
+                    <span className="text-neutral-300 dark:text-neutral-600">→</span>
+                    <ProfileCell profile={ev.author_profile} userId={ev.target_author_id} />
+                  </div>
+                </div>
+                <div className="shrink-0 text-xs text-neutral-400 dark:text-neutral-500 whitespace-nowrap">{fmtDateTime(ev.created_at)}</div>
+              </button>
+            )
+          })}
         </div>
       )}
 

@@ -7,6 +7,7 @@ type KpiCardProps = {
   trend?: 'up' | 'down' | 'neutral'
   trendLabel?: string
   icon?: React.ReactNode
+  accentColor?: string
 }
 
 export default function KpiCard({
@@ -16,6 +17,7 @@ export default function KpiCard({
   trend,
   trendLabel,
   icon,
+  accentColor,
 }: KpiCardProps) {
   const trendColor =
     trend === 'up'
@@ -32,13 +34,23 @@ export default function KpiCard({
         : Minus
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5 transition-shadow hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+    <div
+      className="rounded-xl border border-neutral-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-5 transition-shadow hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900"
+      style={accentColor ? { borderTop: `3px solid ${accentColor}` } : undefined}
+    >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">{label}</span>
-        {icon && <span className="text-neutral-300 dark:text-neutral-600">{icon}</span>}
+        <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">{label}</span>
+        {icon && (
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-lg"
+            style={accentColor ? { backgroundColor: `${accentColor}18`, color: accentColor } : { color: '#a1a1aa' }}
+          >
+            {icon}
+          </span>
+        )}
       </div>
-      <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+      <div className="mt-3 flex items-baseline gap-1.5">
+        <span className="text-2xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100">
           {value}
         </span>
         {suffix && (

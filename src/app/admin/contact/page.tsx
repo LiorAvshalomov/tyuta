@@ -153,10 +153,11 @@ export default function AdminContactPage() {
                 type="button"
                 onClick={() => setActive(m)}
                 className={
-                  'w-full rounded-xl border p-4 text-right transition-shadow ' +
-                  (active?.id === m.id
-                    ? 'border-neutral-300 bg-white shadow-sm dark:border-border dark:bg-card'
-                    : 'border-neutral-200 bg-white hover:shadow-sm dark:border-border dark:bg-card')
+                  'w-full rounded-xl border bg-white p-4 text-right shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-md dark:bg-card ' +
+                  (m.status === 'open'
+                    ? 'border-neutral-200 border-r-[3px] border-r-[#c4923a] dark:border-neutral-700 dark:border-r-[#e0ad5a] '
+                    : 'border-neutral-200 border-r-[3px] border-r-[#4a7c59] dark:border-neutral-700 dark:border-r-[#6dbb8a] ') +
+                  (active?.id === m.id ? 'ring-1 ring-neutral-300 dark:ring-neutral-600' : '')
                 }
               >
                 <div className="flex items-start justify-between gap-3">

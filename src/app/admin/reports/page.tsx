@@ -260,7 +260,14 @@ export default function ReportsPage() {
             return (
               <div
                 key={r.id}
-                className="rounded-xl border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm dark:border-border dark:bg-card"
+                className={
+                  "rounded-xl border bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-shadow hover:shadow-md dark:bg-card " +
+                  (src === "inbox"
+                    ? "border-neutral-200 border-r-[3px] border-r-[#2d5a8e] dark:border-neutral-700 dark:border-r-[#6496c8]"
+                    : src === "posts"
+                    ? "border-neutral-200 border-r-[3px] border-r-violet-500 dark:border-neutral-700 dark:border-r-violet-400"
+                    : "border-neutral-200 dark:border-neutral-700")
+                }
               >
                 {/* Header row */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -297,12 +304,13 @@ export default function ReportsPage() {
                   </div>
                   <span
                     className={
-                      'inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ' +
+                      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ' +
                       (r.status === 'resolved'
                         ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
                         : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400')
                     }
                   >
+                    <span className={`h-1.5 w-1.5 rounded-full ${r.status === 'resolved' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                     {r.status === 'resolved' ? 'טופל' : 'פתוח'}
                   </span>
                 </div>
@@ -466,7 +474,7 @@ function ReportDrawer({ id, onClose }: { id: string; onClose: () => void }) {
       />
 
       {/* Drawer panel */}
-      <div className="absolute inset-y-0 right-0 w-full max-w-lg overflow-y-auto bg-white shadow-2xl dark:bg-card">
+      <div className="absolute inset-y-0 right-0 w-full max-w-lg overflow-y-auto bg-[#faf9f7] shadow-2xl dark:bg-neutral-900">
         <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-3 dark:border-border">
           <h2 className="text-sm font-bold text-neutral-900 dark:text-foreground">פרטי דיווח</h2>
           <button

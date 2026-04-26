@@ -305,14 +305,14 @@ export default function UserTimelinePage() {
       {error && <ErrorBanner message={error} />}
 
       {loading ? (
-        <div className="rounded-xl border border-neutral-200 bg-white p-5 dark:border-border dark:bg-card">
+        <div className="rounded-xl border border-neutral-200 bg-[#faf9f7] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
           <TableSkeleton rows={6} />
         </div>
       ) : data ? (
         <div className="space-y-4">
 
           {/* ── User profile card ─────────────────────────────────────── */}
-          <div className="flex flex-wrap items-start gap-4 rounded-xl border border-neutral-200 bg-white p-5 dark:border-border dark:bg-card">
+          <div className="flex flex-wrap items-start gap-4 rounded-xl border border-neutral-200 bg-[#faf9f7] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
             {data.profile.avatar_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -367,9 +367,9 @@ export default function UserTimelinePage() {
           <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
 
             {/* ── Activity timeline ─────────────────────────────────────── */}
-            <div className="rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
-              <div className="border-b border-neutral-100 px-5 py-3 dark:border-border">
-                <h3 className="text-sm font-semibold text-neutral-900 dark:text-foreground">
+            <div className="rounded-xl border border-neutral-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
+              <div className="border-b border-neutral-100 bg-[#f7f6f3] px-5 py-3 dark:border-border dark:bg-muted/30">
+                <h3 className="text-sm font-bold tracking-tight text-neutral-900 dark:text-foreground">
                   פעילות ({timeline.length})
                 </h3>
               </div>
@@ -454,9 +454,9 @@ export default function UserTimelinePage() {
             </div>
 
             {/* ── Posts ────────────────────────────────────────────────── */}
-            <div className="rounded-xl border border-neutral-200 bg-white dark:border-border dark:bg-card">
-              <div className="border-b border-neutral-100 px-5 py-3 dark:border-border">
-                <h3 className="text-sm font-semibold text-neutral-900 dark:text-foreground">
+            <div className="rounded-xl border border-neutral-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
+              <div className="border-b border-neutral-100 bg-[#f7f6f3] px-5 py-3 dark:border-border dark:bg-muted/30">
+                <h3 className="text-sm font-bold tracking-tight text-neutral-900 dark:text-foreground">
                   פוסטים ({data.posts.length})
                 </h3>
               </div>

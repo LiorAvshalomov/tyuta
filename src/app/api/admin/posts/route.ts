@@ -11,6 +11,7 @@ type PostRow = {
   slug: string | null
   status: string | null
   published_at: string | null
+  updated_at: string | null
   created_at: string | null
   deleted_at: string | null
   deleted_reason: string | null
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   let query = auth.admin
     .from('posts')
-    .select('id, author_id, title, slug, status, published_at, created_at, deleted_at, deleted_reason, moderated_at, moderated_reason')
+    .select('id, author_id, title, slug, status, published_at, updated_at, created_at, deleted_at, deleted_reason, moderated_at, moderated_reason')
     .order('created_at', { ascending: false })
     .limit(limit)
 
