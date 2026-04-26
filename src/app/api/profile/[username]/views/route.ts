@@ -30,17 +30,14 @@ export async function GET(
   }
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } })
-  const { count, error } = await admin
-    .from('analytics_pageviews')
-    .select('id', { count: 'exact', head: true })
-    .eq('path', `/u/${username}`)
+  const { data, error } = await admin.rpc('get_profile_view_count', { p_username: username })
 
   if (error) {
     return NextResponse.json({ error: 'query failed' }, { status: 500 })
   }
 
   return NextResponse.json(
-    { total: count ?? 0 },
+    { total: Number(data ?? 0) },
     { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' } },
   )
 }

@@ -552,24 +552,30 @@ type TopProfileRow = {
   views: number
 }
 
+const TOP_PAGE_SIZE = 5
+
 function TopProfilesPanel({ start, end }: { start: string; end: string }) {
   const [rows, setRows] = useState<TopProfileRow[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    const params = new URLSearchParams({ start, end, limit: '20' })
+    const params = new URLSearchParams({ start, end, limit: '50' })
     adminFetch(`/api/admin/profiles/top?${params}`)
       .then(async (res) => {
         const body = await res.json() as unknown
         if (!res.ok) throw new Error(getAdminErrorMessage(body, 'שגיאה בטעינת פרופילים מובילים'))
-        if (!cancelled) { setErr(null); setRows(Array.isArray(body) ? (body as TopProfileRow[]) : []) }
+        if (!cancelled) { setErr(null); setRows(Array.isArray(body) ? (body as TopProfileRow[]) : []); setPage(0) }
       })
       .catch((e: unknown) => { if (!cancelled) setErr(e instanceof Error ? e.message : 'שגיאה') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [start, end])
+
+  const totalPages = Math.ceil(rows.length / TOP_PAGE_SIZE)
+  const pageRows = rows.slice(page * TOP_PAGE_SIZE, (page + 1) * TOP_PAGE_SIZE)
 
   return (
     <div className="rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm">
@@ -592,36 +598,59 @@ function TopProfilesPanel({ start, end }: { start: string; end: string }) {
           <p className="text-[11px] text-neutral-300 dark:text-muted-foreground/50">הנתונים יופיעו כשיצטברו צפיות בפרופילים</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-neutral-100 dark:border-border/40">
-                <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground w-8">#</th>
-                <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground">משתמש</th>
-                <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground">צפיות</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={row.username} className="border-b border-neutral-50 dark:border-border/20 last:border-0 hover:bg-neutral-50 dark:hover:bg-muted/20 transition-colors">
-                  <td className="py-2 text-neutral-300 dark:text-muted-foreground/40 font-mono">{i + 1}</td>
-                  <td className="py-2 max-w-[200px]">
-                    <Link
-                      href={`/u/${row.username}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-neutral-800 dark:text-foreground hover:text-blue-600 dark:hover:text-blue-400"
-                    >
-                      {row.display_name ?? `@${row.username}`}
-                    </Link>
-                    <div className="text-[11px] text-neutral-400 dark:text-muted-foreground">@{row.username}</div>
-                  </td>
-                  <td className="py-2 text-end font-mono font-semibold text-neutral-700 dark:text-foreground">{formatInt(row.views)}</td>
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-neutral-100 dark:border-border/40">
+                  <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground w-8">#</th>
+                  <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground">משתמש</th>
+                  <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground">צפיות</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {pageRows.map((row, i) => (
+                  <tr key={row.username} className="border-b border-neutral-50 dark:border-border/20 last:border-0 hover:bg-neutral-50 dark:hover:bg-muted/20 transition-colors">
+                    <td className="py-2 text-neutral-300 dark:text-muted-foreground/40 font-mono">{page * TOP_PAGE_SIZE + i + 1}</td>
+                    <td className="py-2 max-w-[200px]">
+                      <Link
+                        href={`/u/${row.username}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-neutral-800 dark:text-foreground hover:text-blue-600 dark:hover:text-blue-400"
+                      >
+                        {row.display_name ?? `@${row.username}`}
+                      </Link>
+                      <div className="text-[11px] text-neutral-400 dark:text-muted-foreground">@{row.username}</div>
+                    </td>
+                    <td className="py-2 text-end font-mono font-semibold text-neutral-700 dark:text-foreground">{formatInt(row.views)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {totalPages > 1 && (
+            <div className="mt-3 flex items-center justify-between border-t border-neutral-100 dark:border-border/30 pt-2.5">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="text-[11px] px-2 py-1 rounded text-neutral-500 dark:text-muted-foreground hover:bg-neutral-100 dark:hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                הקודם
+              </button>
+              <span className="text-[11px] text-neutral-400 dark:text-muted-foreground">
+                {page + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="text-[11px] px-2 py-1 rounded text-neutral-500 dark:text-muted-foreground hover:bg-neutral-100 dark:hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                הבא
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -644,20 +673,24 @@ function TopPostsPanel({ start, end }: { start: string; end: string }) {
   const [rows, setRows] = useState<TopPostRow[]>([])
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    const params = new URLSearchParams({ start, end, limit: '20' })
+    const params = new URLSearchParams({ start, end, limit: '50' })
     adminFetch(`/api/admin/posts/top?${params}`)
       .then(async (res) => {
         const body = await res.json() as unknown
         if (!res.ok) throw new Error(getAdminErrorMessage(body, 'שגיאה בטעינת פוסטים מובילים'))
-        if (!cancelled) { setErr(null); setRows(Array.isArray(body) ? (body as TopPostRow[]) : []) }
+        if (!cancelled) { setErr(null); setRows(Array.isArray(body) ? (body as TopPostRow[]) : []); setPage(0) }
       })
       .catch((e: unknown) => { if (!cancelled) setErr(e instanceof Error ? e.message : 'שגיאה') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [start, end])
+
+  const totalPages = Math.ceil(rows.length / TOP_PAGE_SIZE)
+  const pageRows = rows.slice(page * TOP_PAGE_SIZE, (page + 1) * TOP_PAGE_SIZE)
 
   return (
     <div className="rounded-xl border border-neutral-100 dark:border-border/50 bg-white dark:bg-card p-4 shadow-sm">
@@ -680,6 +713,7 @@ function TopPostsPanel({ start, end }: { start: string; end: string }) {
           <p className="text-[11px] text-neutral-300 dark:text-muted-foreground/50">הנתונים יופיעו כשיצטברו צפיות בפוסטים</p>
         </div>
       ) : (
+        <>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -693,9 +727,9 @@ function TopPostsPanel({ start, end }: { start: string; end: string }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
+              {pageRows.map((row, i) => (
                 <tr key={row.post_id} className="border-b border-neutral-50 dark:border-border/20 last:border-0 hover:bg-neutral-50 dark:hover:bg-muted/20 transition-colors">
-                  <td className="py-2 text-neutral-300 dark:text-muted-foreground/40 font-mono">{i + 1}</td>
+                  <td className="py-2 text-neutral-300 dark:text-muted-foreground/40 font-mono">{page * TOP_PAGE_SIZE + i + 1}</td>
                   <td className="py-2 max-w-[180px] sm:max-w-xs">
                     <Link
                       href={`/post/${row.slug}`}
@@ -717,6 +751,28 @@ function TopPostsPanel({ start, end }: { start: string; end: string }) {
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div className="mt-3 flex items-center justify-between border-t border-neutral-100 dark:border-border/30 pt-2.5">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="text-[11px] px-2 py-1 rounded text-neutral-500 dark:text-muted-foreground hover:bg-neutral-100 dark:hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              הקודם
+            </button>
+            <span className="text-[11px] text-neutral-400 dark:text-muted-foreground">
+              {page + 1} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="text-[11px] px-2 py-1 rounded text-neutral-500 dark:text-muted-foreground hover:bg-neutral-100 dark:hover:bg-muted/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              הבא
+            </button>
+          </div>
+        )}
+        </>
       )}
     </div>
   )
