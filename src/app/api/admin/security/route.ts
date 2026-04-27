@@ -55,6 +55,10 @@ export async function GET(req: Request) {
 
   if (event && (VALID_EVENTS as readonly string[]).includes(event)) {
     query = query.eq('event', event)
+  } else {
+    // token_refresh_success is written every hour per active session — pure noise.
+    // Exclude by default; pass ?event=token_refresh_success to see them explicitly.
+    query = query.neq('event', 'token_refresh_success')
   }
   if (ip) {
     const ipSafe = ip.replace(/[%_\\]/g, '\\$&')
