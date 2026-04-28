@@ -68,6 +68,7 @@ export default function AdminInboxPage() {
   const [searching, setSearching] = useState(false)
 
   const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [broadcastPreviewOpen, setBroadcastPreviewOpen] = useState(false)
   const [broadcastBody, setBroadcastBody] = useState('')
   const [broadcastLoading, setBroadcastLoading] = useState(false)
   const [broadcastImageUploading, setBroadcastImageUploading] = useState(false)
@@ -415,9 +416,19 @@ export default function AdminInboxPage() {
               maxLength={4000}
               className="w-full resize-none rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-sm outline-none transition focus:border-neutral-400 dark:border-white/10 dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-muted-foreground dark:focus:border-white/20"
             />
+
             <div className="mt-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-muted-foreground">{broadcastBody.length}/4000</span>
+                <button
+                  type="button"
+                  onClick={() => setBroadcastPreviewOpen(true)}
+                  disabled={!broadcastBody.trim()}
+                  title="תצוגה מקדימה"
+                  className="rounded-lg border border-black/10 px-2 py-0.5 text-[11px] font-medium text-neutral-500 transition hover:bg-black/5 disabled:opacity-30 dark:border-white/10 dark:text-neutral-400 dark:hover:bg-white/10"
+                >
+                  תצוגה מקדימה
+                </button>
                 {/* Image upload for broadcast */}
                 <input
                   ref={broadcastImageInputRef}
@@ -641,6 +652,7 @@ export default function AdminInboxPage() {
   )
 
   return (
+    <>
     <div className="h-full min-h-0 overflow-hidden" dir="rtl">
       {error ? <div className="mb-4"><ErrorBanner message={error} /></div> : null}
 
@@ -673,5 +685,118 @@ export default function AdminInboxPage() {
         )}
       </div>
     </div>
+
+    {/* ── Broadcast preview modal ─────────────────────────────────────────── */}
+    {broadcastPreviewOpen && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-6"
+        onClick={() => setBroadcastPreviewOpen(false)}
+      >
+        {/* Phone-frame dialog — stop propagation so clicking inside doesn't close */}
+        <div
+          className="flex w-full max-w-sm flex-col overflow-hidden rounded-3xl shadow-2xl sm:max-w-xs"
+          style={{ height: 'min(540px, 85dvh)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div
+            dir="rtl"
+            className="flex items-center gap-3 border-b border-black/5 bg-white/90 px-4 py-3 backdrop-blur dark:border-white/10 dark:bg-[#141414]/95"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 dark:bg-neutral-800">
+              <Megaphone size={16} className="text-neutral-500 dark:text-neutral-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-black text-black dark:text-white">מערכת האתר</div>
+              <div className="text-[11px] text-neutral-400 dark:text-neutral-500">הודעה רשמית</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBroadcastPreviewOpen(false)}
+              className="mr-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-neutral-400 transition hover:bg-black/5 dark:hover:bg-white/10"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* Messages area */}
+          <div
+            dir="rtl"
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-gradient-to-b from-[#F7F6F3] to-[#EEEAE2] px-4 py-5 dark:from-[#141414] dark:to-[#1a1a1a]"
+          >
+            {/* Day pill */}
+            <div className="mb-4 flex justify-center">
+              <span className="rounded-full border bg-white/80 px-3 py-1 text-xs font-semibold text-neutral-600 shadow-sm dark:bg-[#2a2a2a] dark:border-white/10 dark:text-neutral-400">
+                היום
+              </span>
+            </div>
+
+            {/* System message bubble — received style */}
+            <div className="flex items-end justify-start">
+              <div className="max-w-[82%]">
+                <div className="relative shadow-sm">
+                  {/* Bubble background */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 pointer-events-none rounded-3xl rounded-br-lg border border-black/5 bg-white/90 dark:border-white/10 dark:bg-[#2a2a2a]"
+                  />
+                  <div
+                    dir="auto"
+                    className="relative px-4 py-2.5 text-sm text-black dark:text-white"
+                    style={{ whiteSpace: 'pre-wrap', overflowWrap: 'break-word', minWidth: 40 }}
+                  >
+                    <BroadcastBodyPreview body={broadcastBody} />
+                  </div>
+                </div>
+                <div className="mt-1 pr-1 text-[10px] text-neutral-400 dark:text-neutral-500">
+                  {new Date().toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Fake input footer */}
+          <div
+            dir="rtl"
+            className="flex items-center gap-2 border-t border-black/5 bg-white/90 px-3 py-2.5 backdrop-blur dark:border-white/10 dark:bg-[#141414]/95"
+          >
+            <div className="flex-1 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-2 text-xs text-neutral-300 dark:border-white/10 dark:bg-zinc-800/50 dark:text-neutral-600 select-none">
+              כתוב הודעה…
+            </div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400 rotate-180"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Dismiss hint */}
+        <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-white/50 select-none">
+          לחץ מחוץ לחלון לסגירה
+        </p>
+      </div>
+    )}
+    </>
+  )
+}
+
+function BroadcastBodyPreview({ body }: { body: string }) {
+  const trimmed = body.trim()
+  if (!trimmed) return <span className="opacity-30 italic text-xs">ההודעה תופיע כאן…</span>
+
+  // Split by [img:URL] tokens anywhere in the text
+  const parts = trimmed.split(/(\[img:[^\]]+\])/g)
+  if (parts.length === 1) return <>{trimmed}</>
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith('[img:') && part.endsWith(']')) {
+          const url = part.slice(5, -1)
+          // eslint-disable-next-line @next/next/no-img-element
+          return <img key={i} src={url} alt="תמונה" className="my-1 block max-h-52 max-w-full rounded-xl object-contain" />
+        }
+        return part ? <span key={i}>{part}</span> : null
+      })}
+    </>
   )
 }

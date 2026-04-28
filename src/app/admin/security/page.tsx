@@ -109,7 +109,7 @@ function SecuritySummaryPanel() {
       ) : !loading && data ? (
         <div className="space-y-4">
           {/* KPI row */}
-          <div className="grid grid-cols-3 gap-4 sm:grid-cols-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-6">
             <SummaryStat
               label="כישלונות כניסה"
               value={data.failed_logins_24h}
@@ -178,7 +178,7 @@ function SecuritySummaryPanel() {
 
 /* ── event config ── */
 
-type EventFilter = 'all' | 'login_success' | 'login_failed' | 'logout' | 'signup' | 'password_reset' | 'token_refresh_failed' | 'token_refresh_success' | 'legacy_rt_migrated' | 'profile_identity_updated' | 'rate_limit_exceeded' | 'account_deleted'
+type EventFilter = 'all' | 'login_success' | 'login_failed' | 'logout' | 'signup' | 'signup_blocked' | 'password_reset' | 'token_refresh_failed' | 'token_refresh_success' | 'legacy_rt_migrated' | 'profile_identity_updated' | 'rate_limit_exceeded' | 'account_deleted'
 
 const PROFILE_IDENTITY_EVENT_OPTION: { value: EventFilter; label: string } = {
   value: 'profile_identity_updated',
@@ -192,6 +192,7 @@ const EVENT_OPTIONS: { value: EventFilter; label: string }[] = [
   { value: 'rate_limit_exceeded', label: 'Rate Limit' },
   { value: 'logout', label: 'יציאות' },
   { value: 'signup', label: 'הרשמות' },
+  { value: 'signup_blocked', label: 'חסימות הרשמה' },
   { value: 'password_reset',        label: 'איפוס סיסמה' },
   { value: 'account_deleted',       label: 'מחיקת חשבון' },
   { value: 'token_refresh_failed',  label: 'פג תוקף' },
@@ -212,6 +213,7 @@ function EventBadge({ event }: { event: string }) {
     login_failed:          { label: 'כישלון כניסה', icon: <AlertTriangle size={12} />, cls: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/30' },
     logout:                { label: 'יציאה',         icon: <LogOut size={12} />,     cls: 'bg-neutral-50 text-neutral-600 border-neutral-200 dark:bg-muted/40 dark:text-neutral-400 dark:border-border' },
     signup:                { label: 'הרשמה',         icon: <UserPlus size={12} />,   cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30' },
+    signup_blocked:        { label: 'הרשמה נחסמה',   icon: <ShieldAlert size={12} />, cls: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/30' },
     password_reset:        { label: 'איפוס סיסמה',  icon: <KeyRound size={12} />,   cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30' },
     token_refresh_failed:  { label: 'פג תוקף',        icon: <RefreshCw size={12} />,     cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30' },
     token_refresh_success: { label: 'רענון טוקן',     icon: <RefreshCw size={12} />,     cls: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/30' },
@@ -379,34 +381,36 @@ export default function SecurityPage() {
         {/* IP search */}
         <form
           onSubmit={e => { e.preventDefault(); applyIpSearch() }}
-          className="flex items-center gap-2"
+          className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2"
         >
           <input
             type="text"
             value={ipInput}
             onChange={e => setIpInput(e.target.value)}
             placeholder="חפש IP…"
-            className="h-9 min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
+            className="h-9 w-full min-w-0 rounded-lg border border-neutral-200 bg-white px-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
           />
-          <button
-            type="submit"
-            className="h-9 shrink-0 rounded-lg bg-neutral-900 px-4 text-xs font-semibold text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
-          >
-            חפש
-          </button>
-          {ipSearch && (
+          <div className="flex gap-2">
             <button
-              type="button"
-              onClick={() => { setIpInput(''); setIpSearch(''); setPage(1) }}
-              className="h-9 shrink-0 rounded-lg border border-neutral-200 px-3 text-xs text-neutral-600 hover:bg-neutral-100 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
+              type="submit"
+              className="h-9 flex-1 sm:flex-none shrink-0 rounded-lg bg-neutral-900 px-4 text-xs font-semibold text-white hover:bg-neutral-700 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
-              נקה
+              חפש
             </button>
-          )}
+            {ipSearch && (
+              <button
+                type="button"
+                onClick={() => { setIpInput(''); setIpSearch(''); setPage(1) }}
+                className="h-9 shrink-0 rounded-lg border border-neutral-200 px-3 text-xs text-neutral-600 hover:bg-neutral-100 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
+              >
+                נקה
+              </button>
+            )}
+          </div>
         </form>
 
         {/* Date filter */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-1">
             {(['today', 'yesterday', '7d', '30d'] as const).map(p => {
               const label = p === 'today' ? 'היום' : p === 'yesterday' ? 'אתמול' : p === '7d' ? '7 ימים' : '30 ימים'
@@ -434,7 +438,7 @@ export default function SecurityPage() {
               value={dateFrom}
               max={dateTo || undefined}
               onChange={e => { setDateFrom(e.target.value); setPage(1) }}
-              className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
+              className="h-8 max-w-[140px] rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
               dir="ltr"
             />
             <span className="text-xs text-neutral-400 dark:text-neutral-600">—</span>
@@ -443,7 +447,7 @@ export default function SecurityPage() {
               value={dateTo}
               min={dateFrom || undefined}
               onChange={e => { setDateTo(e.target.value); setPage(1) }}
-              className="h-8 rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
+              className="h-8 max-w-[140px] rounded-lg border border-neutral-200 bg-white px-2 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 dark:border-border dark:bg-zinc-800/50 dark:text-neutral-300 dark:[color-scheme:dark]"
               dir="ltr"
             />
             {(dateFrom || dateTo) && (
@@ -469,7 +473,7 @@ export default function SecurityPage() {
         <>
           <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-neutral-800 dark:bg-neutral-900">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full min-w-[560px] text-sm">
                 <thead className="border-b border-neutral-100 bg-[#f7f6f3] text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/80 dark:text-neutral-400">
                   <tr>
                     <th className="px-4 py-3 text-right font-medium">אירוע</th>
@@ -525,8 +529,8 @@ export default function SecurityPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-neutral-500 dark:text-neutral-400">
+            <div className="flex flex-col items-center gap-2 text-sm sm:flex-row sm:justify-between">
+              <span className="text-center text-neutral-500 sm:text-right dark:text-neutral-400">
                 עמוד {page} מתוך {totalPages} · {total.toLocaleString('he-IL')} סה&quot;כ
               </span>
               <div className="flex items-center gap-2">

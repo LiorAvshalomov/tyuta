@@ -8,6 +8,7 @@ import { fetchModerationRoutingHint } from '@/lib/auth/fetchModerationRoutingHin
 import { buildHeaderUserFromAuthUser, fetchHeaderUserById } from '@/lib/auth/headerUser'
 import { setAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
+import { assessSignupEmail, blockedEmailMessage } from '@/lib/auth/emailRisk'
 
 export async function POST(req: Request) {
   const ctx = buildAuditContext(req)
@@ -67,6 +68,23 @@ export async function POST(req: Request) {
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'אימייל לא תקין' }, { status: 400 })
+  }
+
+  const emailRisk = await assessSignupEmail(email)
+  if (emailRisk.action === 'block') {
+    serviceClient.from('auth_audit_log').insert({
+      user_id: null,
+      event: 'signup_blocked',
+      ip: ctx.ip,
+      user_agent: ctx.user_agent,
+      metadata: mergeAuditMetadata(ctx.metadata_base, {
+        reason: emailRisk.reason,
+        source: emailRisk.source,
+        email_domain: emailRisk.domain,
+        username,
+      }),
+    }).then(null, () => null)
+    return NextResponse.json({ error: blockedEmailMessage() }, { status: 400 })
   }
 
   const anonClient = createClient(url, anonKey, { auth: { persistSession: false } })

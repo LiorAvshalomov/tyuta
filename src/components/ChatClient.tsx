@@ -126,29 +126,24 @@ function bodySnippet(body: string, maxLength = 80): string {
 }
 
 function renderMessageBody(body: string, opts?: { senderId?: string; systemId?: string }): React.ReactNode {
-  // Render [img:URL] only when the sender is the system user (admin-sent images)
-  if (
-    opts?.senderId &&
-    opts.senderId === opts?.systemId &&
-    body.startsWith('[img:')
-  ) {
-    const end = body.indexOf(']', 5)
-    if (end !== -1) {
-      const url = body.slice(5, end)
-      const caption = body.slice(end + 1).trim()
-      return (
-        <span className="block">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={url}
-            alt="תמונה"
-            className="max-w-full max-h-80 rounded-xl object-contain"
-            style={{ display: 'block' }}
-          />
-          {caption ? <span className="mt-1 block text-sm">{caption}</span> : null}
-        </span>
-      )
-    }
+  const isSystem = !!(opts?.senderId && opts.senderId === opts?.systemId)
+
+  // For system messages, split on [img:URL] tokens that may appear anywhere in the body
+  if (isSystem && /\[img:[^\]]+\]/.test(body)) {
+    const parts = body.split(/(\[img:[^\]]+\])/)
+    return (
+      <>
+        {parts.map((part, i) => {
+          if (part.startsWith('[img:') && part.endsWith(']')) {
+            const url = part.slice(5, -1)
+            // eslint-disable-next-line @next/next/no-img-element
+            return <img key={i} src={url} alt="תמונה" className="my-1 block max-h-80 max-w-full rounded-xl object-contain" />
+          }
+          if (!part) return null
+          return <span key={i} style={{ whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>{part}</span>
+        })}
+      </>
+    )
   }
 
   const parts = body.split(/(\S{30,})/)

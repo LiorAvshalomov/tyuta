@@ -24,6 +24,7 @@ import {
   UserX,
   History,
   RotateCcw,
+  ArrowRight,
 } from 'lucide-react'
 
 type Moderation = {
@@ -90,6 +91,7 @@ export default function AdminUsersPage() {
       : 'banned'
 
   const [tab, setTab] = useState<Tab>(initialTab)
+  const [showDetail, setShowDetail] = useState(false)
 
   // search
   const [q, setQ] = useState(requestedQuery)
@@ -251,6 +253,7 @@ export default function AdminUsersPage() {
 
   const selectUser = useCallback(async (u: UserRow) => {
     setSelected(u)
+    setShowDetail(true)
     syncSelectionUrl(u)
     try {
       const res = await adminFetch(`/api/admin/users/status?user_id=${encodeURIComponent(u.id)}`)
@@ -615,8 +618,8 @@ export default function AdminUsersPage() {
       {error && <ErrorBanner message={error} />}
 
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-        {/* Left — list panel */}
-        <div className="rounded-xl border border-neutral-200 bg-[#faf9f7] shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
+        {/* Left — list panel (hidden on mobile when detail is open) */}
+        <div className={`${selected && showDetail ? 'hidden lg:block' : ''} rounded-xl border border-neutral-200 bg-[#faf9f7] shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card`}>
           {tab === 'search' && (
             <div className="border-b border-neutral-100 p-3 dark:border-border">
               <div className="relative">
@@ -632,7 +635,7 @@ export default function AdminUsersPage() {
             </div>
           )}
 
-          <div className="max-h-[65vh] overflow-y-auto">
+          <div className="max-h-[50vh] sm:max-h-[60vh] lg:max-h-[65vh] overflow-y-auto">
             {loading ? (
               <div className="p-3">
                 <TableSkeleton rows={4} />
@@ -682,8 +685,8 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
-        {/* Right — detail panel */}
-        <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
+        {/* Right — detail panel (hidden on mobile when no selection) */}
+        <div className={`${!selected || !showDetail ? 'hidden lg:block' : ''} rounded-xl border border-neutral-200 bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card`}>
           {!selected ? (
             <EmptyState
               title="בחר משתמש כדי לנהל סטטוס"
@@ -691,8 +694,18 @@ export default function AdminUsersPage() {
             />
           ) : (
             <div className="space-y-5">
+              {/* Mobile back button */}
+              <button
+                type="button"
+                onClick={() => setShowDetail(false)}
+                className="mb-1 flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-foreground lg:hidden"
+              >
+                <ArrowRight size={14} />
+                חזרה לרשימה
+              </button>
+
               {/* User header */}
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h2 className="text-base font-bold text-neutral-900 dark:text-foreground">
                     {(selected.display_name || selected.username || selected.id.slice(0, 8)).toString()}
@@ -713,7 +726,7 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 {/* Limited card */}
                 <div className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-border dark:bg-card">
                   <div className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-foreground">

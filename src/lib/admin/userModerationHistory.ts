@@ -36,19 +36,19 @@ export function getUserHistoryActionLabel(action: string): string {
 
 export function getUserHistoryActionClasses(action: string): string {
   const classes: Record<UserHistoryAction, string> = {
-    user_suspend: 'bg-amber-50 text-amber-700 border-amber-200',
-    user_unsuspend: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    user_ban: 'bg-red-50 text-red-700 border-red-200',
-    user_unban: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    user_takedown: 'bg-orange-50 text-orange-700 border-orange-200',
-    user_restore_content: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    user_purge_content: 'bg-red-100 text-red-800 border-red-300',
-    user_anonymize: 'bg-neutral-900 text-white border-neutral-900',
-    hard_delete_user: 'bg-red-100 text-red-800 border-red-300',
+    user_suspend:         'bg-amber-50   text-amber-700   border-amber-200   dark:bg-amber-500/10  dark:text-amber-400   dark:border-amber-500/30',
+    user_unsuspend:       'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30',
+    user_ban:             'bg-red-50     text-red-700     border-red-200     dark:bg-red-500/10    dark:text-red-400     dark:border-red-500/30',
+    user_unban:           'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30',
+    user_takedown:        'bg-orange-50  text-orange-700  border-orange-200  dark:bg-orange-500/10 dark:text-orange-400  dark:border-orange-500/30',
+    user_restore_content: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30',
+    user_purge_content:   'bg-red-100    text-red-800     border-red-300     dark:bg-red-500/15    dark:text-red-300     dark:border-red-500/40',
+    user_anonymize:       'bg-neutral-900 text-white border-neutral-900      dark:bg-neutral-100   dark:text-neutral-900  dark:border-neutral-200',
+    hard_delete_user:     'bg-red-100    text-red-800     border-red-300     dark:bg-red-500/15    dark:text-red-300     dark:border-red-500/40',
   }
 
   return isUserHistoryAction(action)
     ? classes[action]
-    : 'bg-neutral-100 text-neutral-600 border-neutral-200'
+    : 'bg-neutral-100 text-neutral-600 border-neutral-200 dark:bg-muted/40 dark:text-neutral-400 dark:border-border'
 }
 

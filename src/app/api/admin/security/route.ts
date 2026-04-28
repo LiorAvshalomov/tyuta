@@ -8,6 +8,7 @@ const VALID_EVENTS = [
   'login_failed',
   'logout',
   'signup',
+  'signup_blocked',
   'password_reset',
   'token_refresh_failed',
   'token_refresh_success',

@@ -234,13 +234,15 @@ export default function UserModerationHistoryTab() {
   return (
     <div dir="rtl" className="space-y-4">
       <div className="space-y-3 rounded-xl border border-neutral-200 bg-[#f7f6f3] p-3 dark:border-border dark:bg-neutral-900/60">
+
+        {/* Row 1: action filter + search */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">פעולה</label>
             <select
               value={filters.action}
               onChange={(e) => setFilters((prev) => ({ ...prev, action: e.target.value }))}
-              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
+              className="w-full sm:w-auto rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
             >
               {ACTION_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -249,78 +251,8 @@ export default function UserModerationHistoryTab() {
               ))}
             </select>
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">טווח מהיר</label>
-            <div className="flex gap-1">
-              {QUICK_RANGES.map(({ label, days }) => {
-                const active = currentRange() === days
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => applyQuickRange(days)}
-                    className={
-                      'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ' +
-                      (active
-                        ? 'border-neutral-900 bg-neutral-900 text-white'
-                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50')
-                    }
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">מתאריך</label>
-            <div className="flex items-center gap-1">
-              <input
-                ref={fromRef}
-                type="date"
-                value={filters.from}
-                onChange={(e) => setFilters((prev) => ({ ...prev, from: e.target.value }))}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
-              />
-              <button
-                type="button"
-                onClick={() => openDatePicker(fromRef)}
-                aria-label="בחר תאריך התחלה"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
-              >
-                <CalendarDays size={14} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">עד תאריך</label>
-            <div className="flex items-center gap-1">
-              <input
-                ref={toRef}
-                type="date"
-                value={filters.to}
-                onChange={(e) => setFilters((prev) => ({ ...prev, to: e.target.value }))}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500"
-              />
-              <button
-                type="button"
-                onClick={() => openDatePicker(toRef)}
-                aria-label="בחר תאריך סיום"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
-              >
-                <CalendarDays size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
             <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">חיפוש</label>
             <div className="relative">
               <Search size={13} className="absolute top-1/2 right-2.5 -translate-y-1/2 text-neutral-400" />
@@ -329,7 +261,7 @@ export default function UserModerationHistoryTab() {
                 onChange={(e) => setDraftQ(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && applyTextSearch()}
                 placeholder="משתמש, אדמין, סיבה או מזהה…"
-                className="w-full min-w-[160px] sm:w-[220px] rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
+                className="w-full rounded-lg border border-neutral-200 bg-white py-1.5 pr-7 pl-3 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:placeholder:text-neutral-600 dark:focus:border-zinc-500"
               />
             </div>
           </div>
@@ -352,6 +284,77 @@ export default function UserModerationHistoryTab() {
             </button>
           )}
         </div>
+
+        {/* Row 2: quick range + date range */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">טווח מהיר</label>
+            <div className="flex flex-wrap gap-1">
+              {QUICK_RANGES.map(({ label, days }) => {
+                const active = currentRange() === days
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => applyQuickRange(days)}
+                    className={
+                      'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ' +
+                      (active
+                        ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                        : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted/50')
+                    }
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">מתאריך</label>
+            <div className="flex items-center gap-1">
+              <input
+                ref={fromRef}
+                type="date"
+                value={filters.from}
+                onChange={(e) => setFilters((prev) => ({ ...prev, from: e.target.value }))}
+                className="max-w-[130px] rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500 dark:[color-scheme:dark]"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                onClick={() => openDatePicker(fromRef)}
+                aria-label="בחר תאריך התחלה"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
+              >
+                <CalendarDays size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-neutral-500 dark:text-neutral-400">עד תאריך</label>
+            <div className="flex items-center gap-1">
+              <input
+                ref={toRef}
+                type="date"
+                value={filters.to}
+                onChange={(e) => setFilters((prev) => ({ ...prev, to: e.target.value }))}
+                className="max-w-[130px] rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-neutral-400 dark:border-border dark:bg-zinc-800/50 dark:text-foreground dark:focus:border-zinc-500 dark:[color-scheme:dark]"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                onClick={() => openDatePicker(toRef)}
+                aria-label="בחר תאריך סיום"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-500 dark:hover:bg-muted/50"
+              >
+                <CalendarDays size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {!loading && !error && (
@@ -373,7 +376,7 @@ export default function UserModerationHistoryTab() {
 
       {!loading && events.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] dark:border-border dark:bg-card">
-          <div className="hidden grid-cols-[160px_180px_220px_180px_1fr] gap-3 border-b border-neutral-100 bg-[#f7f6f3] px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid dark:border-border dark:bg-muted/30 dark:text-neutral-400">
+          <div className="hidden grid-cols-[120px_150px_1fr_1fr_1fr] gap-3 border-b border-neutral-100 bg-[#f7f6f3] px-4 py-2.5 text-xs font-medium text-neutral-500 sm:grid dark:border-border dark:bg-muted/30 dark:text-neutral-400">
             <span>זמן</span>
             <span>פעולה</span>
             <span>משתמש</span>
@@ -391,9 +394,9 @@ export default function UserModerationHistoryTab() {
                 <div className="flex min-w-0 items-center gap-2">
                   <Avatar src={event.target_profile?.avatar_url} name={targetName} size={24} />
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-medium text-neutral-800">{targetName}</div>
+                    <div className="truncate text-xs font-medium text-neutral-800 dark:text-foreground">{targetName}</div>
                     {event.target_user_id && (
-                      <div className="font-mono text-[11px] text-neutral-400">{event.target_user_id.slice(0, 12)}…</div>
+                      <div className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500">{event.target_user_id.slice(0, 12)}…</div>
                     )}
                   </div>
                 </div>
@@ -402,13 +405,14 @@ export default function UserModerationHistoryTab() {
               return (
                 <div
                   key={event.id}
-                  className="grid grid-cols-1 gap-2 px-4 py-3 text-sm transition-colors hover:bg-neutral-50 sm:grid-cols-[160px_180px_220px_180px_1fr] sm:items-center sm:gap-3 dark:hover:bg-muted/30"
+                  className="grid grid-cols-1 gap-2 px-4 py-3 text-sm transition-colors hover:bg-neutral-50 sm:grid-cols-[120px_150px_1fr_1fr_1fr] sm:items-center sm:gap-3 dark:hover:bg-muted/30"
                 >
                   <div className="text-xs text-neutral-500 dark:text-neutral-400">{fmtDateTime(event.created_at)}</div>
 
                   <div><ActionBadge action={event.action} /></div>
 
                   <div className="min-w-0">
+                    <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 sm:hidden">משתמש</span>
                     {event.target_profile_exists && event.target_user_id ? (
                       <Link href={`/admin/users/${event.target_user_id}`} className="block hover:opacity-80">
                         {targetCell}
@@ -418,13 +422,16 @@ export default function UserModerationHistoryTab() {
                     )}
                   </div>
 
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Avatar src={event.actor_profile?.avatar_url} name={actorName} size={24} />
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-medium text-neutral-800 dark:text-foreground">{actorName}</div>
-                      {event.actor_id && (
-                        <div className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500">{event.actor_id.slice(0, 12)}…</div>
-                      )}
+                  <div className="min-w-0">
+                    <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 sm:hidden">אדמין</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Avatar src={event.actor_profile?.avatar_url} name={actorName} size={24} />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-medium text-neutral-800 dark:text-foreground">{actorName}</div>
+                        {event.actor_id && (
+                          <div className="font-mono text-[11px] text-neutral-400 dark:text-neutral-500">{event.actor_id.slice(0, 12)}…</div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
