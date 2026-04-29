@@ -1257,7 +1257,8 @@ export default async function HomePage(props: HomePageProps = {}) {
 
   const homeHasAnyPosts = Boolean(featured) || Boolean(top1) || Boolean(top2) || Boolean(top3) || storiesFinal.length > 0 || releaseFinal.length > 0 || magazineFinal.length > 0
 
-  // Writers of week: medals first, fallback to total weekly reactions.
+  // Writers of week/month: total the author's period reactions first, then
+  // convert that total into reset-4 medals.
   // writerPostRows already fetched in parallel above (Batch 3).
   const authorByPostId = new Map<string, { username: string | null; name: string; avatar_url: string | null }>()
     ; ((writerPostRows ?? []) as { id: string; author: { username: string; display_name: string | null; avatar_url: string | null }[] | null }[]).forEach(r => {
@@ -1276,9 +1277,6 @@ export default async function HomePage(props: HomePageProps = {}) {
         username: string | null
         name: string
         avatar_url: string | null
-        gold: number
-        silver: number
-        bronze: number
         reactions: number
       }
     >()
@@ -1291,37 +1289,25 @@ export default async function HomePage(props: HomePageProps = {}) {
         username: a.username,
         name: a.name,
         avatar_url: a.avatar_url,
-        gold: 0,
-        silver: 0,
-        bronze: 0,
         reactions: 0,
       }
-      // Compute per-post medals from reactions_total (mirrors calcMedalsReset4)
-      // RPC medal fields may be 0/null; reactions_total is always populated.
       const rn = r.reactions_total ?? 0
-      const rbu = Math.floor(rn / 4)
-      prev.bronze += rbu % 4
-      prev.silver += Math.floor(rbu / 4) % 4
-      prev.gold += Math.floor(rbu / 16)
       prev.reactions += rn
       if (!prev.avatar_url && a.avatar_url) prev.avatar_url = a.avatar_url
       map.set(key, prev)
     }
 
     const arr = Array.from(map.values()).map(v => {
-      // Apply base-4 rollover: 4 bronze → 1 silver, 4 silver → 1 gold (mirrors calcMedalsReset4)
-      const silverFromBronze = Math.floor(v.bronze / 4)
-      const bronze = v.bronze % 4
-      const totalSilver = v.silver + silverFromBronze
-      const goldFromSilver = Math.floor(totalSilver / 4)
-      const silver = totalSilver % 4
-      const gold = Math.min(v.gold + goldFromSilver, 6)
-      const medalScore = gold * 3 + silver * 2 + bronze
-      return { ...v, gold, silver, bronze, medalScore }
+      // Same reset-4 thresholds as PostReactions: 4 votes -> bronze, 16 -> silver, 64 -> gold.
+      const bronzeUnits = Math.floor(v.reactions / 4)
+      const bronze = bronzeUnits % 4
+      const silverUnits = Math.floor(bronzeUnits / 4)
+      const silver = silverUnits % 4
+      const gold = Math.min(Math.floor(silverUnits / 4), 6)
+      return { ...v, gold, silver, bronze }
     })
 
     arr.sort((a, b) => {
-      if (b.medalScore !== a.medalScore) return b.medalScore - a.medalScore
       if (b.reactions !== a.reactions) return b.reactions - a.reactions
       if (b.gold !== a.gold) return b.gold - a.gold
       if (b.silver !== a.silver) return b.silver - a.silver
