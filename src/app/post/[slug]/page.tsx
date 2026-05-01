@@ -327,6 +327,21 @@ export default async function PostPage({ params }: PageProps) {
   const description = ((data.excerpt ?? "").trim() || POST_FALLBACK_DESCRIPTION).slice(0, 200)
   const rawCoverUrl = data.cover_image_url ? data.cover_image_url.split('?')[0] : null
   const imageUrl = rawCoverUrl ? absUrl(rawCoverUrl) : absUrl("/web-app-manifest-512x512.png")
+  const primaryImageObject = rawCoverUrl
+    ? {
+        "@type": "ImageObject",
+        url: imageUrl,
+        contentUrl: imageUrl,
+        caption: headline,
+        representativeOfPage: true,
+      }
+    : {
+        "@type": "ImageObject",
+        url: imageUrl,
+        contentUrl: imageUrl,
+        width: 512,
+        height: 512,
+      }
   const datePublished = data.published_at ? new Date(data.published_at).toISOString() : undefined
   const dateModified = (data.updated_at ?? data.published_at)
     ? new Date((data.updated_at ?? data.published_at)!).toISOString()
@@ -424,16 +439,12 @@ export default async function PostPage({ params }: PageProps) {
     mainEntityOfPage: {
       "@type": "WebPage",
       "@id": canonical,
-      primaryImageOfPage: rawCoverUrl
-        ? { "@type": "ImageObject", url: imageUrl }
-        : { "@type": "ImageObject", url: imageUrl, width: 512, height: 512 },
+      primaryImageOfPage: primaryImageObject,
     },
     headline,
     description,
     inLanguage: "he-IL",
-    image: rawCoverUrl
-      ? [{ "@type": "ImageObject", url: imageUrl }]
-      : [{ "@type": "ImageObject", url: imageUrl, width: 512, height: 512 }],
+    image: [primaryImageObject],
     datePublished,
     dateModified,
     ...(initialExtras.subcategoryName ? { articleSection: initialExtras.subcategoryName } : {}),
