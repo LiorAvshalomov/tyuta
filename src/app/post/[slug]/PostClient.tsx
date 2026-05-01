@@ -21,7 +21,7 @@ import SharePostButton from '@/components/SharePostButton'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { formatDateTimeHe, formatRelativeHe } from '@/lib/time'
 import AuthorHover from '@/components/AuthorHover'
-import { coverNoindexThumbSrc, coverProxySrc, isGifUrl } from '@/lib/coverUrl'
+import { coverNoindexThumbSrc, isGifUrl } from '@/lib/coverUrl'
 import GifCoverCard from '@/components/GifCoverCard'
 import type { PostInitialData, PostSsrExtras } from './page'
 
@@ -759,8 +759,6 @@ export default function PostPage({ initialData, initialExtras }: Props) {
           : 'text-neutral-700 dark:text-muted-foreground'
 
   const hasMedals = medals.gold > 0 || medals.silver > 0 || medals.bronze > 0
-  const primaryCoverSrc = coverProxySrc(post.cover_image_url)
-  const primaryCoverAlt = post.title ? `קאבר הפוסט: ${post.title}` : 'קאבר הפוסט'
 
   const header = (
     <div>
@@ -812,23 +810,6 @@ export default function PostPage({ initialData, initialExtras }: Props) {
   className="mt-2 text-right text-[16px] leading-8 text-neutral-700 dark:text-muted-foreground whitespace-normal"
   style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
 >{post.excerpt}</p>
-        ) : null}
-
-        {primaryCoverSrc ? (
-          <figure className="mt-6 overflow-hidden rounded-2xl border border-neutral-200/70 bg-neutral-100 shadow-sm dark:border-border dark:bg-muted">
-            {isGifUrl(primaryCoverSrc) ? (
-              <GifCoverCard src={primaryCoverSrc} alt={primaryCoverAlt} />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element -- post covers are already public CDN images and may be GIF/PNG/JPEG/WebP.
-              <img
-                src={primaryCoverSrc}
-                alt={primaryCoverAlt}
-                loading="eager"
-                fetchPriority="high"
-                className="block max-h-[560px] w-full object-cover"
-              />
-            )}
-          </figure>
         ) : null}
 
         <div className="mt-10 flex items-start justify-start gap-3" dir="rtl">
