@@ -17,6 +17,7 @@ const SITE_NAME_HE = "טיוטה"
 const SITE_TITLE = "טיוטה - המקום לכל הגרסאות שלך"
 const SITE_DESCRIPTION =
   "טיוטה (Tyuta) היא בית לכותבים בישראל וקהילת כתיבה עברית: מקום לכתוב, לשתף ולקרוא סיפורים, שירים, פריקה ומחשבות, מהטיוטה הראשונה ועד הפרסום."
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID?.trim() ?? ""
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -147,12 +148,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             so 'unsafe-inline' remains in CSP regardless. */}
         {/* eslint-disable-next-line @next/next/no-sync-scripts */}
         <script src="/js/theme-init.js" />
-        {process.env.NODE_ENV === "production" && (
+        {process.env.NODE_ENV === "production" && GA_MEASUREMENT_ID && (
           <>
             {/* GA ID stored in a meta tag so the external ga.js can read it without inline JS */}
-            <meta name="ga-id" content={process.env.NEXT_PUBLIC_GA_ID} />
+            <meta name="ga-id" content={GA_MEASUREMENT_ID} />
             <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
               strategy="afterInteractive"
             />
             <Script src="/js/ga.js" strategy="afterInteractive" />

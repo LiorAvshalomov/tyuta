@@ -10,8 +10,7 @@ import {
 type RequireAdminOk = {
   ok: true
   user: { id: string; email?: string | null }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin: SupabaseClient<any, any, any>
+  admin: SupabaseClient
 }
 
 type RequireAdminFail = {

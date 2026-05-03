@@ -30,6 +30,9 @@ export default function SiteFooter() {
             <Link className="tyuta-hover" href="/privacy">
               מדיניות פרטיות
             </Link>
+            <Link className="tyuta-hover" href="/accessibility">
+              נגישות
+            </Link>
           </nav>
 
           {/* Center */}

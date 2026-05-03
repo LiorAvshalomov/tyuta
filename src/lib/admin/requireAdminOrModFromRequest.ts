@@ -7,15 +7,12 @@ import {
   resolveProtectedGatePolicy,
 } from "@/lib/requestRateLimit"
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SC = SupabaseClient<any, any, any>
-
 export type RequireAdminOrModOk = {
   ok: true
   user: { id: string; email?: string | null }
   isAdmin: boolean
   isMod: boolean
-  admin: SC
+  admin: SupabaseClient
 }
 
 type RequireAdminOrModFail = {

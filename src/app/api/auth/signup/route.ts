@@ -9,6 +9,7 @@ import { buildHeaderUserFromAuthUser, fetchHeaderUserById } from '@/lib/auth/hea
 import { setAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
 import { assessSignupEmail, blockedEmailMessage } from '@/lib/auth/emailRisk'
+import { DISPLAY_NAME_MAX, USERNAME_MAX } from '@/lib/validation'
 
 export async function POST(req: Request) {
   const ctx = buildAuditContext(req)
@@ -60,10 +61,10 @@ export async function POST(req: Request) {
   }
 
   // Server-side bounds (mirrors client validation — cannot be bypassed)
-  if (username.length < 3 || username.length > 30 || !/^[a-z0-9_]+$/.test(username)) {
+  if (username.length < 3 || username.length > USERNAME_MAX || !/^[a-z0-9_]+$/.test(username)) {
     return NextResponse.json({ error: 'שם משתמש לא תקין' }, { status: 400 })
   }
-  if (display_name.length < 1 || display_name.length > 50) {
+  if (display_name.length < 1 || display_name.length > DISPLAY_NAME_MAX) {
     return NextResponse.json({ error: 'שם תצוגה לא תקין' }, { status: 400 })
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
