@@ -24,6 +24,9 @@ type CspReportRow = {
   last_telegram_at: string | null
 }
 
+const CANARY_ROUTE_PATH = '/admin/security/csp-canary'
+const CANARY_SAMPLE = 'tyuta-csp-canary'
+
 function safeText(value: string): string {
   return value.replace(/[%_\\]/g, '\\$&').slice(0, 120)
 }
@@ -120,4 +123,66 @@ export async function PATCH(req: Request) {
   }
 
   return NextResponse.json({ ok: true })
+}
+
+export async function POST(req: Request) {
+  const gate = await requireAdminFromRequest(req)
+  if (!gate.ok) return gate.response
+
+  const url = new URL(req.url)
+  const documentUri = `${url.origin}${CANARY_ROUTE_PATH}`
+  const reportBody = {
+    'csp-report': {
+      'document-uri': documentUri,
+      'effective-directive': 'script-src-elem',
+      'violated-directive': "script-src-elem 'self'",
+      'blocked-uri': 'inline',
+      'source-file': documentUri,
+      'line-number': 1,
+      'column-number': 1,
+      disposition: 'report',
+      sample: CANARY_SAMPLE,
+    },
+  }
+
+  let reportRes: Response
+  try {
+    reportRes = await fetch(`${url.origin}/api/internal/csp-report`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(reportBody),
+      cache: 'no-store',
+    })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'failed to call csp report endpoint'
+    return NextResponse.json({ error: message }, { status: 502 })
+  }
+
+  if (!reportRes.ok && reportRes.status !== 204) {
+    return NextResponse.json({ error: `csp report endpoint returned ${reportRes.status}` }, { status: 502 })
+  }
+
+  const { data, error } = await gate.admin
+    .from('csp_violation_reports')
+    .select(
+      'id,route_path,document_path,effective_directive,violated_directive,blocked_uri,source_file,line_number,column_number,disposition,status,sample,user_agent_family,count,first_seen_at,last_seen_at,last_telegram_at',
+    )
+    .eq('route_path', CANARY_ROUTE_PATH)
+    .eq('sample', CANARY_SAMPLE)
+    .order('last_seen_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    if (isMissingTableError(error.message)) {
+      return NextResponse.json({ error: 'table not set up yet', setupRequired: true }, { status: 503 })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  if (!data) {
+    return NextResponse.json({ error: 'canary report was accepted but not found in csp_violation_reports' }, { status: 502 })
+  }
+
+  return NextResponse.json({ ok: true, row: data as CspReportRow })
 }
