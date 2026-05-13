@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ShieldAlert, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ShieldAlert, RefreshCw, ChevronLeft, ChevronRight, RadioTower } from 'lucide-react'
 import { adminFetch } from '@/lib/admin/adminFetch'
 
 type CspReportRow = {
@@ -135,6 +135,8 @@ export default function CspReportsPanel() {
   const [setupRequired, setSetupRequired] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [canarySending, setCanarySending] = useState(false)
+  const [canaryMessage, setCanaryMessage] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -174,6 +176,25 @@ export default function CspReportsPanel() {
     }
   }
 
+  const handleCanary = async () => {
+    setCanarySending(true)
+    setCanaryMessage(null)
+    setError(null)
+    try {
+      const res = await adminFetch('/api/admin/security/csp', { method: 'POST' })
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) throw new Error(body.error ?? `שגיאה ${res.status}`)
+      setCanaryMessage('נשלח דיווח בדיקה ונמצא במסד הנתונים.')
+      setStatusFilter('all')
+      setPage(1)
+      void load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'שגיאה בשליחת בדיקת CSP')
+    } finally {
+      setCanarySending(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
@@ -189,14 +210,26 @@ export default function CspReportsPanel() {
             הפרות ממדיניות CSP מחמירה במסלולים רגישים. לא חוסמות משתמשים.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
-          aria-label="רענן דוחות CSP"
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void handleCanary()}
+            disabled={canarySending || setupRequired}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/15"
+            title="שליחת דיווח CSP יזום כדי לוודא שהטלמטריה עובדת"
+          >
+            <RadioTower size={13} className={canarySending ? 'animate-pulse' : ''} />
+            בדיקה
+          </button>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 dark:border-border dark:text-neutral-400 dark:hover:bg-muted/50"
+            aria-label="רענן דוחות CSP"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       {/* Status filter tabs */}
@@ -218,6 +251,12 @@ export default function CspReportsPanel() {
       </div>
 
       {/* Body */}
+      {canaryMessage ? (
+        <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+          {canaryMessage}
+        </div>
+      ) : null}
+
       {setupRequired ? (
         <div className="p-4 text-sm text-neutral-500 dark:text-neutral-400">
           נדרש להחיל את migration של{' '}
