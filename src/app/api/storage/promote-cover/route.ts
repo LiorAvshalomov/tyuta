@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
 import { buildRateLimitResponse } from '@/lib/requestRateLimit'
+import { normalizeOwnedPrivatePostAssetPath } from '@/lib/storage/postAssetLifecycle'
 import { promotePrivateCoverToPublic } from '@/lib/storage/postCoverLifecycle'
 
 export const runtime = 'nodejs'
@@ -39,6 +40,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'sourcePath לא תקין' }, { status: 400 })
     }
 
+    const ownedSourcePath = normalizeOwnedPrivatePostAssetPath(sourcePath, auth.user.id, postId)
+    if (!ownedSourcePath) {
+      return NextResponse.json({ error: 'sourcePath is not owned by this post' }, { status: 403 })
+    }
+
     const { data: post } = await auth.supabase
       .from('posts')
       .select('id, author_id')
@@ -61,7 +67,7 @@ export async function POST(req: Request) {
 
     const promoted = await promotePrivateCoverToPublic(supabase, {
       postId,
-      sourcePath,
+      sourcePath: ownedSourcePath,
       removeSource: true,
     })
 

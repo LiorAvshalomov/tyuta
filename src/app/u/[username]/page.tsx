@@ -14,6 +14,7 @@ import type { ProfilePostsInitialData } from '@/components/ProfilePostsClient'
 import type { ProfileRecentActivityRow } from '@/components/ProfileRecentActivity'
 import { profileAvatarImageUrl } from '@/lib/avatarUrl'
 import { pickLatestVersion } from '@/lib/freshness/serverVersions'
+import { safeJsonLdStringify } from '@/lib/safeJsonLd'
 import { createPublicServerClient } from '@/lib/supabase/createPublicServerClient'
 
 const SITE_URL = 'https://tyuta.net'
@@ -65,10 +66,6 @@ function sanitizeProfilePersonalInfo(profile: Profile | null): Profile | null {
   }
 
   return profile
-}
-
-function safeJsonLdStringify(data: unknown): string {
-  return JSON.stringify(data).replace(/</g, '\\u003c')
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

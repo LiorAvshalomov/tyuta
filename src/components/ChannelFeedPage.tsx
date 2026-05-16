@@ -2,7 +2,7 @@ import Link from '@/components/ContentLink'
 import Image from 'next/image'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { supabase } from '@/lib/supabaseClient'
-import { coverProxySrc, isProxySrc, isGifUrl } from '@/lib/coverUrl'
+import { coverProxySrc, isGifUrl, shouldBypassCoverOptimization } from '@/lib/coverUrl'
 import { RelativeTime } from '@/components/RelativeTime'
 import { getPostDisplayDate } from '@/lib/posts'
 import StickySidebar from '@/components/StickySidebar'
@@ -121,7 +121,7 @@ function CoverFrame({
           sizes={sizes ?? `${w}px`}
           quality={quality}
           className="object-cover"
-          unoptimized={isProxySrc(proxied)}
+          unoptimized={shouldBypassCoverOptimization(proxied)}
         />
       )}
     </div>
@@ -155,7 +155,7 @@ function FeaturedTopCard({ post }: { post: CardPost }) {
                     sizes="(max-width: 768px) 100vw, 500px"
                     quality={85}
                     className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-                    unoptimized={isProxySrc(proxied)}
+                    unoptimized={shouldBypassCoverOptimization(proxied)}
                   />
                 )
               })()

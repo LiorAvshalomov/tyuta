@@ -29,33 +29,67 @@ const SENSITIVE_DOCUMENT_PREFIXES = [
   '/write',
   '/settings',
   '/inbox',
+  '/notes',
+  '/notebook',
+  '/saved',
+  '/trash',
+  '/notifications',
+] as const
+const NO_EMBED_DOCUMENT_PREFIXES = [
+  '/admin',
+  '/auth',
+  '/login',
+  '/register',
+  '/settings',
+  '/inbox',
+  '/notes',
+  '/notebook',
+  '/saved',
+  '/trash',
+  '/notifications',
+] as const
+const NONCE_ENFORCED_DOCUMENT_PREFIXES = [
+  '/admin',
+  '/auth',
+  '/login',
+  '/register',
+  '/write',
+  '/settings',
+  '/inbox',
+  '/notes',
   '/notebook',
   '/saved',
   '/trash',
   '/notifications',
 ] as const
 
-function sharedDirectives(): string[] {
+type SharedDirectiveOptions = {
+  allowFrames?: boolean
+  allowAnalytics?: boolean
+  allowRichContentImages?: boolean
+}
+
+function sharedDirectives(options: SharedDirectiveOptions = {}): string[] {
+  const allowFrames = options.allowFrames ?? true
+  const allowAnalytics = options.allowAnalytics ?? true
+  const allowRichContentImages = options.allowRichContentImages ?? true
   const imgSrc = [
     "'self'",
     'data:',
     'blob:',
     ...SB_ORIGINS,
     'https://api.dicebear.com',
-    'https://pixabay.com',
-    'https://cdn.pixabay.com',
-    'https://images.pexels.com',
-    'https://i.ytimg.com',
-    'https://www.google-analytics.com',
+    ...(allowRichContentImages
+      ? ['https://pixabay.com', 'https://cdn.pixabay.com', 'https://images.pexels.com', 'https://i.ytimg.com']
+      : []),
+    ...(allowAnalytics ? ['https://www.google-analytics.com'] : []),
   ].join(' ')
 
   const connectSrc = [
     "'self'",
     ...SB_ORIGINS,
     ...SB_WSS,
-    'https://api-free.deepl.com',
-    'https://www.google-analytics.com',
-    'https://region1.google-analytics.com',
+    ...(allowAnalytics ? ['https://www.google-analytics.com', 'https://region1.google-analytics.com'] : []),
   ].join(' ')
 
   return [
@@ -63,7 +97,7 @@ function sharedDirectives(): string[] {
     `img-src ${imgSrc}`,
     "font-src 'self'",
     `connect-src ${connectSrc}`,
-    "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
+    allowFrames ? "frame-src https://www.youtube.com https://www.youtube-nocookie.com" : "frame-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -83,14 +117,39 @@ export function isSensitiveDocumentPath(pathname: string): boolean {
   return matchesRoutePrefix(pathname, SENSITIVE_DOCUMENT_PREFIXES)
 }
 
-export function buildCSP(): string {
+export function shouldBlockEmbedsForPath(pathname: string): boolean {
+  return matchesRoutePrefix(pathname, NO_EMBED_DOCUMENT_PREFIXES)
+}
+
+export function shouldUseNonceCSPForPath(pathname: string): boolean {
+  return (
+    process.env.TYUTA_ENABLE_NONCE_CSP === '1' &&
+    process.env.NODE_ENV === 'production' &&
+    matchesRoutePrefix(pathname, NONCE_ENFORCED_DOCUMENT_PREFIXES)
+  )
+}
+
+export function buildCSP(options: SharedDirectiveOptions = {}): string {
   // 'unsafe-inline' is required in script-src because Next.js App Router RSC streaming
   // injects executable inline scripts ($RC/$RV/self.__next_f.push). Nonces would force every
   // page to be dynamic and break ISR/static optimization.
   // 'upgrade-insecure-requests' is enforcement-only (invalid in report-only policies).
   return [
-    ...sharedDirectives(),
-    "script-src 'unsafe-inline' 'self' https://www.googletagmanager.com",
+    ...sharedDirectives(options),
+    `script-src 'unsafe-inline' 'self'${(options.allowAnalytics ?? true) ? ' https://www.googletagmanager.com' : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    'upgrade-insecure-requests',
+    `report-uri ${CSP_REPORT_ENDPOINT}`,
+    `report-to ${CSP_REPORT_GROUP}`,
+  ].join('; ')
+}
+
+export function buildNonceCSP(nonce: string, options: SharedDirectiveOptions = {}): string {
+  const allowAnalytics = options.allowAnalytics ?? false
+  const allowRichContentImages = options.allowRichContentImages ?? false
+  return [
+    ...sharedDirectives({ ...options, allowAnalytics, allowRichContentImages }),
+    `script-src 'self' 'nonce-${nonce}'${allowAnalytics ? ' https://www.googletagmanager.com' : ''}`,
     "style-src 'self' 'unsafe-inline'",
     'upgrade-insecure-requests',
     `report-uri ${CSP_REPORT_ENDPOINT}`,
@@ -142,7 +201,10 @@ export const DOCUMENT_SECURITY_HEADERS: HeaderPair[] = [
   { key: 'Content-Security-Policy', value: buildCSP() },
 ]
 
-export const API_SECURITY_HEADERS: HeaderPair[] = [...BASE_SECURITY_HEADERS]
+export const API_SECURITY_HEADERS: HeaderPair[] = [
+  ...BASE_SECURITY_HEADERS,
+  { key: 'Content-Security-Policy', value: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" },
+]
 
 export function applyHeaderPairs(res: MutableHeadersResponse, headers: HeaderPair[]): void {
   for (const header of headers) {
@@ -155,7 +217,29 @@ export function applyDocumentSecurityHeaders(res: MutableHeadersResponse): void 
 }
 
 export function applyDocumentSecurityHeadersForPath(res: MutableHeadersResponse, pathname: string): void {
-  applyDocumentSecurityHeaders(res)
+  applyHeaderPairs(res, BASE_SECURITY_HEADERS)
+  const allowFrames = !shouldBlockEmbedsForPath(pathname)
+  res.headers.set('Content-Security-Policy', buildCSP({
+    allowFrames,
+    allowAnalytics: !isSensitiveDocumentPath(pathname),
+    allowRichContentImages: allowFrames,
+  }))
+  if (STRICT_CSP_REPORT_ONLY_ENABLED && isSensitiveDocumentPath(pathname)) {
+    res.headers.set('Content-Security-Policy-Report-Only', buildReportOnlyCSP())
+  }
+}
+
+export function applyNonceDocumentSecurityHeadersForPath(
+  res: MutableHeadersResponse,
+  pathname: string,
+  nonce: string,
+): void {
+  applyHeaderPairs(res, BASE_SECURITY_HEADERS)
+  const allowFrames = !shouldBlockEmbedsForPath(pathname)
+  res.headers.set('Content-Security-Policy', buildNonceCSP(nonce, {
+    allowFrames,
+    allowRichContentImages: allowFrames,
+  }))
   if (STRICT_CSP_REPORT_ONLY_ENABLED && isSensitiveDocumentPath(pathname)) {
     res.headers.set('Content-Security-Policy-Report-Only', buildReportOnlyCSP())
   }

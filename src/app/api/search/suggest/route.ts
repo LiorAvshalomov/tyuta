@@ -15,8 +15,7 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { rateLimit } from '@/lib/rateLimit'
-import { getRetryAfterSeconds } from '@/lib/requestRateLimit'
+import { enforceIpRateLimit } from '@/lib/requestRateLimit'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
@@ -24,12 +23,6 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 function serviceClient() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { auth: { persistSession: false } })
-}
-
-function clientIp(req: NextRequest): string {
-  const xff = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  if (xff) return xff
-  return req.headers.get('x-real-ip')?.trim() ?? 'unknown'
 }
 
 const MIN_CHARS = 2
@@ -42,11 +35,15 @@ const empty200 = NextResponse.json({ suggestions: [] }, { headers: CACHE_HEADERS
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── rate limit ───────────────────────────────────────────────────────────
-  const rl = await rateLimit(`suggest:${clientIp(req)}`, { maxRequests: 40, windowMs: 60_000 })
-  if (!rl.allowed) {
+  const rateLimitResponse = await enforceIpRateLimit(req, {
+    scope: 'suggest',
+    maxRequests: 40,
+    windowMs: 60_000,
+  })
+  if (rateLimitResponse) {
     return NextResponse.json(
       { suggestions: [] },
-      { status: 429, headers: { 'Retry-After': getRetryAfterSeconds(rl.retryAfterMs) } },
+      { status: 429, headers: { 'Retry-After': rateLimitResponse.headers.get('Retry-After') ?? '60' } },
     )
   }
 

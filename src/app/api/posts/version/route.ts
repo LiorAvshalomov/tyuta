@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { rateLimit } from '@/lib/rateLimit'
+import { enforceIpRateLimit } from '@/lib/requestRateLimit'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -8,7 +8,8 @@ export const revalidate = 0
 function normalizeSlug(value: string | null) {
   if (!value) return null
   const trimmed = value.trim()
-  return trimmed ? trimmed : null
+  if (!trimmed || trimmed.length > 220 || /[\s?#/]/.test(trimmed)) return null
+  return trimmed
 }
 
 function pickLatestVersion(...versions: Array<string | null | undefined>) {
@@ -23,16 +24,14 @@ function pickLatestVersion(...versions: Array<string | null | undefined>) {
 }
 
 export async function GET(req: Request) {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  const rl = await rateLimit(`posts-version:${ip}`, { maxRequests: 240, windowMs: 60_000 })
-  if (!rl.allowed) {
-    return NextResponse.json(
-      { error: 'Too many requests' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
-    )
+  const rateLimitResponse = await enforceIpRateLimit(req, {
+    scope: 'posts_version',
+    maxRequests: 240,
+    windowMs: 60_000,
+    message: 'Too many requests',
+  })
+  if (rateLimitResponse) {
+    return rateLimitResponse
   }
 
   const url = new URL(req.url)

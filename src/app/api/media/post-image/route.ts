@@ -25,7 +25,7 @@ type PublishedPostRow = {
 }
 
 function isValidPath(path: string, postId: string): boolean {
-  if (!path || path.includes('..') || path.includes('//')) return false
+  if (!path || path.includes('..') || path.includes('//') || /[?#\s]/.test(path)) return false
 
   const parts = path.split('/').filter(Boolean)
   return parts.length >= 3 && parts[1] === postId

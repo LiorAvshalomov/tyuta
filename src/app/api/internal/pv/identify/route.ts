@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { getClientIp } from '@/lib/requestRateLimit'
 import {
   ANALYTICS_AUTH_BACKFILL_WINDOW_MS,
   ANALYTICS_SESSION_COOKIE,
@@ -22,22 +23,6 @@ type AnalyticsSessionRow = {
   user_id: string | null
   created_at: string
   last_seen_at: string
-}
-
-function getClientIp(req: NextRequest): string | null {
-  const vercel = req.headers.get('x-vercel-forwarded-for')
-  if (vercel) {
-    const first = vercel.split(',')[0]?.trim()
-    if (first) return first
-  }
-
-  const xf = req.headers.get('x-forwarded-for')
-  if (xf) {
-    const first = xf.split(',')[0]?.trim()
-    if (first) return first || null
-  }
-
-  return req.headers.get('x-real-ip')
 }
 
 function isWithinWindow(dateString: string | null | undefined, windowMs: number): boolean {
@@ -90,7 +75,7 @@ export async function POST(req: NextRequest) {
 
   const admin = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } })
   const userAgent = req.headers.get('user-agent')
-  const ip = getClientIp(req) ?? 'unknown'
+  const ip = getClientIp(req)
   const nowIso = new Date().toISOString()
   let rotated = false
   let backfilled = false

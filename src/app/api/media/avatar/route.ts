@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { rateLimit } from '@/lib/rateLimit'
+import { enforceIpRateLimit } from '@/lib/requestRateLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 
 /**
@@ -23,16 +23,14 @@ const MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 const ALLOWED_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
-  const rl = await rateLimit(`avatar-proxy:${ip}`, { maxRequests: 300, windowMs: 60_000 })
-  if (!rl.allowed) {
-    return new NextResponse('Too many requests', {
-      status: 429,
-      headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) },
-    })
+  const rateLimitResponse = await enforceIpRateLimit(req, {
+    scope: 'avatar_proxy',
+    maxRequests: 300,
+    windowMs: 60_000,
+    message: 'Too many avatar requests. Try again shortly.',
+  })
+  if (rateLimitResponse) {
+    return rateLimitResponse
   }
 
   const path = req.nextUrl.searchParams.get('path') ?? ''
@@ -40,7 +38,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!path.startsWith('avatars/')) {
     return new NextResponse('Invalid path', { status: 400 })
   }
-  if (path.includes('..') || path.includes('//')) {
+  if (path.includes('..') || path.includes('//') || /[?#\s]/.test(path)) {
     return new NextResponse('Invalid path', { status: 400 })
   }
   if (!SUPABASE_URL) {

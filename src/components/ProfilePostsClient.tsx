@@ -5,7 +5,7 @@ import Link from '@/components/ContentLink'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
-import { coverProxySrc, isGifUrl } from '@/lib/coverUrl'
+import { coverProxySrc, isGifUrl, shouldBypassCoverOptimization } from '@/lib/coverUrl'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
@@ -63,6 +63,7 @@ function OptimizedCoverImage({
       sizes={sizes}
       quality={quality}
       className="object-cover transition-transform duration-300 group-hover:scale-105"
+      unoptimized={shouldBypassCoverOptimization(src)}
     />
   )
 }

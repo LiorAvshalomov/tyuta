@@ -5,7 +5,7 @@ import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import Link from '@/components/ContentLink'
 import Badge from '@/components/Badge'
-import { coverProxySrc } from '@/lib/coverUrl'
+import { coverProxySrc, shouldBypassCoverOptimization } from '@/lib/coverUrl'
 import { formatDateTimeHe, formatRelativeHe, isNewPost } from '@/lib/time'
 import GifCoverImage from '@/components/GifCoverImage'
 
@@ -84,6 +84,7 @@ function CoverImage({
       loading="lazy"
       sizes={`${width}px`}
       quality={quality}
+      unoptimized={shouldBypassCoverOptimization(src)}
       style={{
         width: '100%',
         height: '100%',

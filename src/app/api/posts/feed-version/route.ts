@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getFeedVersionForPath, type FeedPath } from '@/lib/freshness/serverVersions'
 import { rateLimit } from '@/lib/rateLimit'
+import { getClientIp } from '@/lib/requestRateLimit'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -13,10 +14,7 @@ function parseFeedPath(path: string | null): FeedPath | null {
 }
 
 export async function GET(req: Request) {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
+  const ip = getClientIp(req)
   const rl = await rateLimit(`feed-version:${ip}`, { maxRequests: 180, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json(

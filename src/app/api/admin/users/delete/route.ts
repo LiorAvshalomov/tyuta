@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import { getClientIp } from '@/lib/requestRateLimit'
 import {
   fetchUserProfileSnapshot,
   logUserModerationAction,
@@ -220,9 +221,7 @@ export async function POST(req: NextRequest) {
   // ── HARD DELETE MODE ──────────────────────────────────────────
 
   // Extract request metadata
-  const requestIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? req.headers.get('x-real-ip')
-    ?? 'unknown'
+  const requestIp = getClientIp(req)
   const userAgent = req.headers.get('user-agent') ?? 'unknown'
 
   // MANDATORY: insert moderation_actions log BEFORE any deletion.

@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { coverProxySrc, isGifUrl } from '@/lib/coverUrl'
+import { coverProxySrc, isGifUrl, shouldBypassCoverOptimization } from '@/lib/coverUrl'
 import GifCoverImage from '@/components/GifCoverImage'
 
 type Suggestion = {
@@ -253,6 +253,7 @@ export default function SearchPostsBar() {
                               sizes="40px"
                               quality={76}
                               className="object-cover"
+                              unoptimized={shouldBypassCoverOptimization(coverSrc)}
                             />
                           )
                         ) : null}

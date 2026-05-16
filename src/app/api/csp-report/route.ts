@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { getClientIp } from '@/lib/requestRateLimit'
 
 /**
  * CSP violation report receiver.
@@ -11,7 +12,7 @@ import { rateLimit } from '@/lib/rateLimit'
 export const runtime = 'edge'
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const ip = getClientIp(req)
   const limited = await rateLimit(`csp-public:${ip}`, { maxRequests: 100, windowMs: 60_000 })
   if (!limited.allowed) return new NextResponse(null, { status: 204 })
 
