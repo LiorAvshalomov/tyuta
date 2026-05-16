@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { rateLimit } from '@/lib/rateLimit'
+import { getClientIp } from '@/lib/requestRateLimit'
 
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store' }
 
@@ -18,10 +19,7 @@ function parseIds(envKey: string): string[] {
  * can safely hide privileged UI without crashing.
  */
 export async function GET(req: Request) {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'unknown'
+  const ip = getClientIp(req)
   const rl = await rateLimit(`me-roles:${ip}`, { maxRequests: 120, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json(

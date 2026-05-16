@@ -1,3 +1,21 @@
+export function isSupabasePublicAvatarSrc(src: string | null | undefined): boolean {
+  return (src ?? '').includes('/storage/v1/object/public/')
+}
+
+export function shouldBypassAvatarOptimization(src: string | null | undefined): boolean {
+  const value = src ?? ''
+  const lowerUrl = value.split('?')[0].toLowerCase()
+  return (
+    isAvatarProxySrc(value) ||
+    isSupabasePublicAvatarSrc(value) ||
+    value.startsWith('/') ||
+    lowerUrl.endsWith('.svg') ||
+    lowerUrl.endsWith('/svg') ||
+    lowerUrl.endsWith('.gif') ||
+    lowerUrl.startsWith('https://api.dicebear.com/')
+  )
+}
+
 /** True when a src has already been routed through /api/media/avatar (legacy proxy path). */
 export function isAvatarProxySrc(src: string | null | undefined): boolean {
   return (src ?? '').startsWith('/api/media/avatar')

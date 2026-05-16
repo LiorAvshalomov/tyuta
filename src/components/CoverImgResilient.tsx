@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
-import { isGifUrl } from '@/lib/coverUrl'
+import { shouldBypassCoverOptimization } from '@/lib/coverUrl'
 
 interface CoverImgResilientProps {
   src: string
@@ -31,7 +31,7 @@ export default function CoverImgResilient({
   quality,
   className,
 }: CoverImgResilientProps) {
-  const isAnimatedGif = isGifUrl(src)
+  const shouldBypass = shouldBypassCoverOptimization(src)
   const [unoptimized, setUnoptimized] = useState(false)
 
   return (
@@ -43,9 +43,9 @@ export default function CoverImgResilient({
       sizes={sizes}
       quality={quality}
       className={className}
-      unoptimized={isAnimatedGif || unoptimized}
+      unoptimized={shouldBypass || unoptimized}
       onError={() => {
-        if (!isAnimatedGif && !unoptimized) setUnoptimized(true)
+        if (!shouldBypass && !unoptimized) setUnoptimized(true)
       }}
     />
   )

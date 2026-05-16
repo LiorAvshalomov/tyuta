@@ -9,7 +9,7 @@ import AuthorHover from '@/components/AuthorHover'
 import Avatar from '@/components/Avatar'
 import FeedIntentLink from '@/components/FeedIntentLink'
 import GifCoverCard from '@/components/GifCoverCard'
-import { coverProxySrc, isGifUrl } from '@/lib/coverUrl'
+import { coverProxySrc, isGifUrl, shouldBypassCoverOptimization } from '@/lib/coverUrl'
 import type { Option, PostCardVM, SearchPageData, SearchQueryState, SortKey } from '@/lib/search/searchPageData'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
 
@@ -124,6 +124,7 @@ function SearchResultCard({ post }: { post: PostCardVM }) {
                 sizes="(max-width: 640px) 108px, 200px"
                 quality={82}
                 className="object-cover transition-transform duration-300 ease-out group-hover:scale-[1.03]"
+                unoptimized={shouldBypassCoverOptimization(coverSrc)}
               />
             )
           ) : null}

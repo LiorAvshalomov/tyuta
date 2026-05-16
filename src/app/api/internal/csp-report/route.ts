@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
+import { getClientIp } from '@/lib/requestRateLimit'
 import { escapeHtml, sendTelegramMessage } from '@/lib/telegram'
 
 export const runtime = 'nodejs'
@@ -181,7 +182,7 @@ async function notifyTelegram(recorded: RecordedCspReport): Promise<void> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const ip = getClientIp(req)
   const limited = await rateLimit(`csp:${ip}`, { maxRequests: 100, windowMs: 60_000 })
   if (!limited.allowed) return new NextResponse(null, { status: 204 })
 

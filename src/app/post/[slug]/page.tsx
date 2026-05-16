@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import PostClient from "./PostClient"
 import PostVersionSeed from "@/components/PostVersionSeed"
 import { pickLatestVersion } from "@/lib/freshness/serverVersions"
+import { safeJsonLdStringify } from "@/lib/safeJsonLd"
 
 export const runtime = "nodejs"
 export const dynamicParams = true
@@ -13,14 +14,6 @@ export const revalidate = 300 // 5 minutes; revalidatePath clears it immediately
 const SITE_URL = "https://tyuta.net"
 const POST_FALLBACK_DESCRIPTION =
   "טקסט מקורי ב-Tyuta (טיוטה), בית לכותבים בישראל: כתיבה עברית, סיפורים, שירים, פריקה ומחשבות."
-
-/**
- * Safely serialize JSON for embedding in a <script> tag.
- * Prevents </script> breakout by escaping < to \u003c.
- */
-function safeJsonLdStringify(data: unknown): string {
-  return JSON.stringify(data).replace(/</g, "\\u003c")
-}
 
 type PageProps = {
   params: Promise<{ slug: string }>

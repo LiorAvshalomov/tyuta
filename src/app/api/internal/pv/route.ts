@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { randomUUID } from "crypto"
 import { rateLimit } from "@/lib/rateLimit"
-import { buildRateLimitResponse } from "@/lib/requestRateLimit"
+import { buildRateLimitResponse, getClientIp } from "@/lib/requestRateLimit"
 import { PRESENCE_COOKIE, verifyPresence } from "@/lib/auth/presenceCookie"
 import {
   ANALYTICS_AUTH_BACKFILL_WINDOW_MS,
@@ -47,22 +47,6 @@ function isProbablyBot(userAgent: string | null): boolean {
   )
 }
 
-function getClientIp(req: NextRequest): string | null {
-  // Prefer Vercel-set header (populated from connecting socket, not spoofable).
-  const vercel = req.headers.get("x-vercel-forwarded-for")
-  if (vercel) {
-    const first = vercel.split(",")[0]?.trim()
-    if (first) return first
-  }
-  // Fallback for non-Vercel environments (dev, self-hosted).
-  const xf = req.headers.get("x-forwarded-for")
-  if (xf) {
-    const first = xf.split(",")[0]?.trim()
-    return first || null
-  }
-  return req.headers.get("x-real-ip")
-}
-
 function isWithinWindow(dateString: string | null | undefined, windowMs: number): boolean {
   if (!dateString) return false
   const ts = Date.parse(dateString)
@@ -101,7 +85,7 @@ export async function POST(req: NextRequest) {
   const admin = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false } })
 
   // Rate limit: 60 requests per 60 seconds per IP
-  const ip = getClientIp(req) ?? "unknown"
+  const ip = getClientIp(req)
   const rl = await rateLimit(`pv:${ip}`, { maxRequests: 60, windowMs: 60_000 })
   if (!rl.allowed) {
     return buildRateLimitResponse("יותר מדי בקשות אנליטיקה. נסו שוב בעוד רגע.", rl.retryAfterMs)

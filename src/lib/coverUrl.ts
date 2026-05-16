@@ -14,6 +14,14 @@ export function isProxySrc(src: string | null | undefined): boolean {
   return (src ?? '').startsWith('/api/media/cover')
 }
 
+export function isSupabasePublicStorageSrc(src: string | null | undefined): boolean {
+  return (src ?? '').includes('/storage/v1/object/public/')
+}
+
+export function shouldBypassCoverOptimization(src: string | null | undefined): boolean {
+  return isProxySrc(src) || isSupabasePublicStorageSrc(src) || isGifUrl(src)
+}
+
 /**
  * True when the URL points to a GIF file.
  * Works with both raw Supabase URLs and proxy URLs (/api/media/cover?path=...).

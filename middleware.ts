@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyAuthHint, verifyPresence, AUTH_HINT_COOKIE, PRESENCE_COOKIE } from '@/lib/auth/presenceCookie'
 import { buildLoginRedirect, isProtectedPath } from '@/lib/auth/protectedRoutes'
-import { applyDocumentSecurityHeadersForPath } from '@/lib/securityHeaders'
+import {
+  applyDocumentSecurityHeadersForPath,
+  applyNonceDocumentSecurityHeadersForPath,
+  buildNonceCSP,
+  shouldBlockEmbedsForPath,
+  shouldUseNonceCSPForPath,
+} from '@/lib/securityHeaders'
 
 const RESET_COOKIE = 'tyuta_reset_required'
 const PUBLIC_FILE_RE = /\.(?:png|svg|jpe?g|gif|webp|ico|txt|xml|json|webmanifest|woff2?|ttf|otf|mp4|webm)$/i
@@ -49,8 +55,44 @@ function isRestrictedPath(pathname: string): boolean {
 
 function redirectWithHeaders(req: NextRequest, target: string): NextResponse {
   const redirect = NextResponse.redirect(new URL(target, req.url))
-  applyDocumentSecurityHeadersForPath(redirect, req.nextUrl.pathname)
+  if (shouldUseNonceCSPForPath(req.nextUrl.pathname)) {
+    applyNonceDocumentSecurityHeadersForPath(redirect, req.nextUrl.pathname, createNonce())
+  } else {
+    applyDocumentSecurityHeadersForPath(redirect, req.nextUrl.pathname)
+  }
   return redirect
+}
+
+function createNonce(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
+function nextWithSecurityHeaders(req: NextRequest, pathname: string): NextResponse {
+  if (!shouldUseNonceCSPForPath(pathname)) {
+    const response = NextResponse.next()
+    applyDocumentSecurityHeadersForPath(response, pathname)
+    return response
+  }
+
+  const nonce = createNonce()
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-nonce', nonce)
+  requestHeaders.set(
+    'Content-Security-Policy',
+    buildNonceCSP(nonce, { allowFrames: !shouldBlockEmbedsForPath(pathname) }),
+  )
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  })
+  applyNonceDocumentSecurityHeadersForPath(response, pathname, nonce)
+  return response
 }
 
 export async function middleware(req: NextRequest) {
@@ -132,9 +174,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  const response = NextResponse.next()
-  applyDocumentSecurityHeadersForPath(response, pathname)
-  return response
+  return nextWithSecurityHeaders(req, pathname)
 }
 
 export const config = {

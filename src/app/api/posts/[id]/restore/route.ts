@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { normalizeOwnedPrivatePostAssetPath } from '@/lib/storage/postAssetLifecycle'
 import { promotePrivateCoverToPublic, removePostAssetObject } from '@/lib/storage/postCoverLifecycle'
 import {
   removePublishedPostInlineImages,
@@ -13,6 +14,7 @@ import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
 import { revalidateAuthorSidebars } from '@/lib/revalidateAuthorSidebars'
 
 const RESTORE_WINDOW_DAYS = 14
+const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -37,6 +39,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const postId = (id ?? '').toString().trim()
   if (!postId) {
     return NextResponse.json({ error: { code: 'bad_request', message: 'missing post id' } }, { status: 400 })
+  }
+  if (!POST_ID_RE.test(postId)) {
+    return NextResponse.json({ error: { code: 'bad_request', message: 'invalid post id' } }, { status: 400 })
   }
 
   const { data: post, error: postErr } = await auth.supabase
@@ -70,15 +75,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   const shouldBePublic = post.status === 'published'
-  const privateCoverPath =
+  const storedPrivateCoverPath =
     shouldBePublic &&
     typeof post.cover_image_url === 'string' &&
     post.cover_image_url &&
     !/^https?:\/\//i.test(post.cover_image_url)
       ? post.cover_image_url
       : null
+  const privateCoverPath = normalizeOwnedPrivatePostAssetPath(storedPrivateCoverPath, auth.user.id, postId)
 
-  let restoredCoverUrl = post.cover_image_url
+  let restoredCoverUrl = storedPrivateCoverPath && !privateCoverPath ? null : post.cover_image_url
   if (privateCoverPath) {
     try {
       const promoted = await promotePrivateCoverToPublic(svc, {

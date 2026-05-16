@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
-import { rateLimit } from '@/lib/rateLimit'
-import { buildRateLimitResponse } from '@/lib/requestRateLimit'
+import { enforceIpRateLimit } from '@/lib/requestRateLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 import { sendTelegramMessage, sendTelegramPhoto, escapeHtml } from '@/lib/telegram'
 
@@ -75,14 +74,14 @@ const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/web
 const BUCKET = 'contact-attachments'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    req.headers.get('x-real-ip') ??
-    'unknown'
-
-  const rl = await rateLimit(`contact:${ip}`, { maxRequests: 3, windowMs: 5 * 60_000 })
-  if (!rl.allowed) {
-    return buildRateLimitResponse('יותר מדי בקשות. נסו שוב בעוד כמה דקות.', rl.retryAfterMs)
+  const rateLimitResponse = await enforceIpRateLimit(req, {
+    scope: 'contact',
+    maxRequests: 3,
+    windowMs: 5 * 60_000,
+    message: 'יותר מדי בקשות. נסו שוב בעוד כמה דקות.',
+  })
+  if (rateLimitResponse) {
+    return rateLimitResponse
   }
 
   const gate = await requireUserFromRequest(req)

@@ -8,6 +8,8 @@ import { cleanupPostOwnedAssets } from '@/lib/storage/postAssetLifecycle'
 import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
 import { logPostPurgeEvents } from '@/lib/posts/postPurgeEvents'
 
+const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -40,6 +42,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const postId = (id ?? '').toString().trim()
   if (!postId) {
     return NextResponse.json({ error: { code: 'bad_request', message: 'missing post id' } }, { status: 400 })
+  }
+  if (!POST_ID_RE.test(postId)) {
+    return NextResponse.json({ error: { code: 'bad_request', message: 'invalid post id' } }, { status: 400 })
   }
 
   const { data, error: postErr } = await auth.supabase

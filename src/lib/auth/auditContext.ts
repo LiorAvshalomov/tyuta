@@ -4,6 +4,8 @@
 // accept_language + parsed UA + full XFF chain significantly improve
 // the ability to distinguish between events from the same IP.
 
+import { getClientIp } from '@/lib/requestRateLimit'
+
 type AuditContext = {
   ip: string
   user_agent: string | null
@@ -39,12 +41,7 @@ function parseUaOs(ua: string): string | null {
 
 export function buildAuditContext(req: Request): AuditContext {
   const xff = req.headers.get('x-forwarded-for') ?? ''
-  // x-real-ip is set by Vercel infrastructure (not client-spoofable).
-  // Fall back to the rightmost XFF entry (infrastructure-added, harder to fake).
-  const ip =
-    req.headers.get('x-real-ip')?.trim() ||
-    xff.split(',').at(-1)?.trim() ||
-    'unknown'
+  const ip = getClientIp(req)
   const ua = req.headers.get('user-agent') ?? null
   const lang = req.headers.get('accept-language')?.slice(0, 80) ?? null
 

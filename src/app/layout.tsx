@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import Script from "next/script"
 import { Suspense } from "react"
 import { Geist, Geist_Mono, Heebo } from "next/font/google"
 import "./globals.css"
@@ -10,6 +9,8 @@ import PageTracker from "@/components/analytics/PageTracker"
 import ToastProvider from "@/components/Toast"
 import VisualViewportSync from "@/components/VisualViewportSync"
 import ThemeSync from "@/components/ThemeSync"
+import GoogleAnalyticsScripts from "@/components/analytics/GoogleAnalyticsScripts"
+import { safeJsonLdStringify } from "@/lib/safeJsonLd"
 
 const SITE_URL = "https://tyuta.net"
 const SITE_NAME = "Tyuta"
@@ -98,10 +99,6 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
 }
 
-function safeJsonLdStringify(data: unknown): string {
-  return JSON.stringify(data).replace(/</g, "\\u003c")
-}
-
 function JsonLd({ data }: { data: unknown }) {
   return (
     <script
@@ -148,19 +145,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             so 'unsafe-inline' remains in CSP regardless. */}
         {/* eslint-disable-next-line @next/next/no-sync-scripts */}
         <script src="/js/theme-init.js" />
-        {process.env.NODE_ENV === "production" && GA_MEASUREMENT_ID && (
-          <>
-            {/* GA ID stored in a meta tag so the external ga.js can read it without inline JS */}
-            <meta name="ga-id" content={GA_MEASUREMENT_ID} />
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script src="/js/ga.js" strategy="afterInteractive" />
-          </>
-        )}
       </head>
       <body className={`${heebo.variable} ${geistSans.variable} ${geistMono.variable}  antialiased bg-background text-foreground overflow-x-hidden`}>
+        {process.env.NODE_ENV === "production" && GA_MEASUREMENT_ID && (
+          <GoogleAnalyticsScripts measurementId={GA_MEASUREMENT_ID} />
+        )}
         <JsonLd data={organizationSchema} />
         <JsonLd data={websiteSchema} />
         <ToastProvider>
