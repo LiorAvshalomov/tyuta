@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 
 const BUCKET = 'admin-inbox-images'
 const MAX_FILE_SIZE = 5 * 1024 * 1024
+const MAX_REQUEST_BODY_BYTES = 6 * 1024 * 1024
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
 export async function POST(req: Request): Promise<NextResponse> {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY

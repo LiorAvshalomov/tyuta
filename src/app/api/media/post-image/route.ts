@@ -21,14 +21,22 @@ const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 type PublishedPostRow = {
   id: string
+  author_id: string
   content_json: unknown
 }
 
-function isValidPath(path: string, postId: string): boolean {
+function isPlausiblePostImagePath(path: string, postId: string): boolean {
   if (!path || path.includes('..') || path.includes('//') || /[?#\s]/.test(path)) return false
 
   const parts = path.split('/').filter(Boolean)
   return parts.length >= 3 && parts[1] === postId
+}
+
+function isValidPath(path: string, postId: string, authorId: string): boolean {
+  if (!isPlausiblePostImagePath(path, postId)) return false
+
+  const parts = path.split('/').filter(Boolean)
+  return parts[0] === authorId
 }
 
 function contentHasImagePath(content: unknown, targetPath: string): boolean {
@@ -61,7 +69,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!POST_ID_RE.test(postId)) {
     return new NextResponse('Invalid postId', { status: 400 })
   }
-  if (!isValidPath(path, postId)) {
+  if (!isPlausiblePostImagePath(path, postId)) {
     return new NextResponse('Invalid path', { status: 400 })
   }
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -84,7 +92,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const { data: post, error: postError } = await supabase
     .from('posts')
-    .select('id, content_json')
+    .select('id, author_id, content_json')
     .eq('id', postId)
     .eq('status', 'published')
     .is('deleted_at', null)
@@ -94,6 +102,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return new NextResponse('Post lookup failed', { status: 502 })
   }
   if (!post || !contentHasImagePath(post.content_json, path)) {
+    return new NextResponse('Not found', { status: 404 })
+  }
+  if (!isValidPath(path, postId, post.author_id)) {
     return new NextResponse('Not found', { status: 404 })
   }
 

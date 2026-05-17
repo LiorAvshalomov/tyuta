@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 
 const PAGE_SIZE = 50
 const VALID_STATUSES = new Set(['all', 'new', 'known', 'ignored', 'fixed'])
+const MAX_REQUEST_BODY_BYTES = 4 * 1024
 
 type CspReportRow = {
   id: string
@@ -83,6 +85,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function PATCH(req: Request) {
   const gate = await requireAdminFromRequest(req)
   if (!gate.ok) return gate.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   let body: unknown
   try {

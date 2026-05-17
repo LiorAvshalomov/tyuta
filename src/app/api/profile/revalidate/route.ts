@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 
 type RevalidateBody = {
   previousUsername?: unknown
@@ -16,6 +17,8 @@ type ProfileUsernameRow = {
 type PostSlugRow = {
   slug: string
 }
+
+const MAX_REQUEST_BODY_BYTES = 4 * 1024
 
 function normalizeUsername(value: unknown) {
   if (typeof value !== 'string') return null
@@ -33,6 +36,9 @@ function revalidateUserProfilePaths(username: string | null) {
 export async function POST(req: Request) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const rl = await rateLimit(`profile-revalidate:${auth.user.id}`, { maxRequests: 15, windowMs: 5 * 60_000 })
   if (!rl.allowed) {

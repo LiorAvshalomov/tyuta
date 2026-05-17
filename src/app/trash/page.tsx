@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { buildLoginRedirect, shouldRunLoginRedirect } from '@/lib/auth/protectedRoutes'
 import RichText, { type RichNode } from '@/components/RichText'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 type TrashPostRow = {
   id: string
@@ -140,7 +141,7 @@ function urgencyTone(left: number | null) {
 async function authedFetch(input: string, init: RequestInit = {}) {
   const resolution = await waitForClientSession(4000)
   const token = resolution.status === 'authenticated' ? resolution.session.access_token : null
-  if (!token) throw new Error('Not authenticated')
+  if (!token) throw new Error('צריך להתחבר מחדש כדי להמשיך.')
 
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),
@@ -161,8 +162,8 @@ async function assertOk(response: Response) {
 
   const message = typeof body.error === 'string'
     ? body.error
-    : body.error?.message ?? 'Request failed'
-  throw new Error(message)
+    : body.error?.message ?? 'לא הצלחנו להשלים את הפעולה. נסו שוב.'
+  throw new Error(mapUserFacingError(message, 'לא הצלחנו להשלים את הפעולה. נסו שוב.'))
 }
 
 function PreviewModal({
@@ -298,7 +299,7 @@ export default function TrashPage() {
       .range(from, to)
 
     if (error) {
-      setErrorMsg(error.message)
+      setErrorMsg(mapUserFacingError(error, 'לא הצלחנו לטעון את סל המחזור. נסו שוב.'))
       if (!silent) setRows([])
       if (!silent) setLoading(false)
       return
@@ -356,7 +357,7 @@ export default function TrashPage() {
         const response = await authedFetch(`/api/posts/${postId}/restore`, { method: 'POST' })
         await assertOk(response)
       } catch (error) {
-        setErrorMsg(error instanceof Error ? error.message : 'Request failed')
+        setErrorMsg(mapUserFacingError(error, 'לא הצלחנו לשחזר את הפוסט. נסו שוב.'))
         setBusyId(null)
         return
       }
@@ -381,7 +382,7 @@ export default function TrashPage() {
         await assertOk(response)
       }
     } catch (error) {
-      setErrorMsg(error instanceof Error ? error.message : 'Request failed')
+      setErrorMsg(mapUserFacingError(error, 'לא הצלחנו לשחזר את הפוסטים. נסו שוב.'))
       setBusyId(null)
       return
     }
@@ -404,7 +405,7 @@ export default function TrashPage() {
         const response = await authedFetch(`/api/posts/${postId}/purge`, { method: 'POST' })
         await assertOk(response)
       } catch (error) {
-        setErrorMsg(error instanceof Error ? error.message : 'Request failed')
+        setErrorMsg(mapUserFacingError(error, 'לא הצלחנו למחוק את הפוסט לצמיתות. נסו שוב.'))
         setBusyId(null)
         return
       }

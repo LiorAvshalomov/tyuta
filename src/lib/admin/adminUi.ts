@@ -8,6 +8,8 @@
  * But older routes/components might still return `error: string`.
  */
 
+import { mapUserFacingError } from "@/lib/mapSupabaseError"
+
 export function getAdminErrorMessage(payload: unknown, fallback = "שגיאה"): string {
   if (!payload || typeof payload !== "object") return fallback
 
@@ -16,10 +18,10 @@ export function getAdminErrorMessage(payload: unknown, fallback = "שגיאה"):
 
   if (typeof err === "object" && err !== null) {
     const msg = (err as Record<string, unknown>).message
-    if (typeof msg === "string" && msg.trim().length > 0) return msg
+    if (typeof msg === "string" && msg.trim().length > 0) return mapUserFacingError(msg, fallback)
   }
 
-  if (typeof err === "string" && err.trim().length > 0) return err
+  if (typeof err === "string" && err.trim().length > 0) return mapUserFacingError(err, fallback)
 
   return fallback
 }

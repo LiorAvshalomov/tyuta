@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import { rateLimit } from '@/lib/rateLimit'
 import { createHash } from 'crypto'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_AUTH_BODY_BYTES = 8 * 1024
 
 function emailHash(email: string): string {
   return createHash('sha256').update(email.toLowerCase().trim()).digest('hex').slice(0, 16)
@@ -37,6 +40,8 @@ function isAllowedPasswordResetRedirect(value: string): boolean {
 
 export async function POST(req: Request) {
   const ctx = buildAuditContext(req)
+  const sizeLimitResponse = rejectLargeRequestBody(req, MAX_AUTH_BODY_BYTES)
+  if (sizeLimitResponse) return sizeLimitResponse
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY

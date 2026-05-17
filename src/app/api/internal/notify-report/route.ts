@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
 import { buildRateLimitResponse } from '@/lib/requestRateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { sendTelegramMessage, escapeHtml } from '@/lib/telegram'
 
 type Body = {
@@ -30,6 +31,7 @@ const REASON_LABEL: Record<string, string> = {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_REQUEST_BODY_BYTES = 16 * 1024
 
 function fmtProfile(display_name: string | null, username: string | null, id: string) {
   // display_name and username come from the DB (service role), not from the request body —
@@ -43,6 +45,9 @@ export async function POST(req: NextRequest) {
   // Auth gate — must be a logged-in user.
   const gate = await requireUserFromRequest(req)
   if (!gate.ok) return gate.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return NextResponse.json({ ok: true })
 
   // Rate limit: 10 reports per user per 10 minutes to prevent Telegram flood.
   const rl = await rateLimit(`notify-report:${gate.user.id}`, { maxRequests: 10, windowMs: 10 * 60_000 })

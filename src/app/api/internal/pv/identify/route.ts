@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
 import { getClientIp } from '@/lib/requestRateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import {
   ANALYTICS_AUTH_BACKFILL_WINDOW_MS,
   ANALYTICS_SESSION_COOKIE,
@@ -24,6 +25,8 @@ type AnalyticsSessionRow = {
   created_at: string
   last_seen_at: string
 }
+
+const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
 function isWithinWindow(dateString: string | null | undefined, windowMs: number): boolean {
   if (!dateString) return false
@@ -68,6 +71,9 @@ export async function POST(req: NextRequest) {
       { status: 500 },
     )
   }
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return NextResponse.json({ ok: true, skipped: 'large_body' })
 
   const body = (await req.json().catch(() => null)) as IdentifyBody | null
   const path = normalizePath(body?.path) ?? '/'

@@ -5,26 +5,18 @@ import dynamic from "next/dynamic"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import { waitForClientSession } from "@/lib/auth/clientSession"
+import { mapUserFacingError } from "@/lib/mapSupabaseError"
 
 const ShareImagesModal = dynamic(() => import("./ShareImagesModal"))
 
 function getErrorMessage(e: unknown) {
-  if (
-    e &&
-    typeof e === "object" &&
-    "message" in e &&
-    typeof (e as { message?: unknown }).message === "string"
-  ) {
-    return (e as { message: string }).message
-  }
-  if (e instanceof Error) return e.message
-  return "שגיאה לא ידועה"
+  return mapUserFacingError(e, "לא הצלחנו למחוק את הפוסט. נסו שוב.")
 }
 
 async function authedFetch(input: string, init: RequestInit = {}) {
   const resolution = await waitForClientSession(4000)
   const token = resolution.status === "authenticated" ? resolution.session.access_token : null
-  if (!token) throw new Error("Not authenticated")
+  if (!token) throw new Error("צריך להתחבר מחדש כדי להמשיך.")
 
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),
@@ -133,7 +125,7 @@ export default function PostOwnerMenu({
     try {
       const res = await authedFetch(`/api/posts/${postId}/delete`, { method: "POST" })
       const j = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(j?.error?.message ?? j?.error ?? "שגיאה במחיקה")
+      if (!res.ok) throw new Error(mapUserFacingError(j?.error?.message ?? j?.error, "לא הצלחנו למחוק את הפוסט. נסו שוב."))
       window.location.href = "/"
     } catch (e: unknown) {
       alert(getErrorMessage(e))

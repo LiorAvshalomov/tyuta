@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { extractText } from '@/lib/share-images/extractText'
 import { splitSlides } from '@/lib/share-images/splitSlides'
 import { renderCard } from '@/lib/share-images/renderer'
@@ -16,6 +17,8 @@ export const dynamic = 'force-dynamic'
 const MAX_UNITS_SQUARE = 900
 const MAX_UNITS_PORTRAIT = 1200
 const MAX_UNITS_STORY = 1600
+const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_METADATA_REQUEST_BODY_BYTES = 1024
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   // Auth
@@ -39,6 +42,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!postId) {
     return NextResponse.json({ error: { code: 'bad_request', message: 'missing post id' } }, { status: 400 })
   }
+  if (!POST_ID_RE.test(postId)) {
+    return NextResponse.json({ error: { code: 'bad_request', message: 'invalid post id' } }, { status: 400 })
+  }
 
   // Parse query params
   const { searchParams } = req.nextUrl
@@ -60,7 +66,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .maybeSingle()
 
   if (postErr) {
-    return NextResponse.json({ error: { code: 'db_error', message: postErr.message } }, { status: 500 })
+    return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו לטעון את הפוסט. נסו שוב בעוד רגע.' } }, { status: 500 })
   }
   if (!post) {
     return NextResponse.json({ error: { code: 'not_found', message: 'post not found' } }, { status: 404 })
@@ -149,10 +155,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
 
+  const tooLarge = rejectLargeRequestBody(req, MAX_METADATA_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
+
+  const rl = await rateLimit(`share-img-meta:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: { code: 'rate_limited', message: 'יותר מדי בקשות. נסו שוב בעוד רגע.' } },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } },
+    )
+  }
+
   const { id } = await ctx.params
   const postId = (id ?? '').toString().trim()
   if (!postId) {
     return NextResponse.json({ error: { code: 'bad_request', message: 'missing post id' } }, { status: 400 })
+  }
+  if (!POST_ID_RE.test(postId)) {
+    return NextResponse.json({ error: { code: 'bad_request', message: 'invalid post id' } }, { status: 400 })
   }
 
   const { searchParams } = req.nextUrl
@@ -169,7 +189,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .eq('id', postId)
     .maybeSingle()
 
-  if (postErr) return NextResponse.json({ error: { code: 'db_error', message: postErr.message } }, { status: 500 })
+  if (postErr) return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו לטעון את הפוסט. נסו שוב בעוד רגע.' } }, { status: 500 })
   if (!post) return NextResponse.json({ error: { code: 'not_found' } }, { status: 404 })
   if (post.author_id !== auth.user.id) return NextResponse.json({ error: { code: 'forbidden' } }, { status: 403 })
   if (post.status !== 'published' || post.deleted_at) {

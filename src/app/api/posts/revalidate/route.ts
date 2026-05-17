@@ -13,10 +13,16 @@ import { revalidatePath } from 'next/cache'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { revalidateAuthorSidebars } from '@/lib/revalidateAuthorSidebars'
 import { rateLimit } from '@/lib/rateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_REQUEST_BODY_BYTES = 4 * 1024
 
 export async function POST(req: Request) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   // Prevent abuse: revalidating triggers a DB query via revalidateAuthorSidebars.
   // 10 calls per minute per user is well above any legitimate publish cadence.

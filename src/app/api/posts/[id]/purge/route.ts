@@ -4,11 +4,13 @@ import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { cleanupPostOwnedAssets } from '@/lib/storage/postAssetLifecycle'
 import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
 import { logPostPurgeEvents } from '@/lib/posts/postPurgeEvents'
 
 const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_REQUEST_BODY_BYTES = 1024
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -29,6 +31,9 @@ type PostRow = {
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const rl = await rateLimit(`post-trash:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {
@@ -54,7 +59,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .maybeSingle<PostRow>()
 
   if (postErr) {
-    return NextResponse.json({ error: { code: 'db_error', message: postErr.message } }, { status: 500 })
+    return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו לטעון את הפוסט. נסו שוב בעוד רגע.' } }, { status: 500 })
   }
 
   const post = data ?? null
@@ -80,12 +85,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       postId,
       coverImageUrl: post.cover_image_url,
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         error: {
           code: 'storage_cleanup_failed',
-          message: error instanceof Error ? error.message : 'storage cleanup failed',
+          message: 'לא הצלחנו לנקות את קבצי הפוסט. נסו שוב בעוד רגע.',
         },
       },
       { status: 500 },
@@ -144,7 +149,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const { error: delErr } = await svc.from('posts').delete().eq('id', postId).eq('author_id', auth.user.id)
   if (delErr) {
-    return NextResponse.json({ error: { code: 'db_error', message: delErr.message } }, { status: 500 })
+    return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו למחוק את הפוסט לצמיתות. נסו שוב בעוד רגע.' } }, { status: 500 })
   }
 
   revalidatePath('/')

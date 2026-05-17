@@ -3,11 +3,13 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest"
 import { adminError, adminOk } from "@/lib/admin/adminHttp"
+import { rejectLargeRequestBody } from "@/lib/requestBodyLimit"
 import { copyPublicCoverToPrivate, removePostCoverPublicObject } from "@/lib/storage/postCoverLifecycle"
 import { removePublishedPostInlineImages } from "@/lib/storage/postInlineLifecycle"
 import { revalidatePublicProfileForUserId } from "@/lib/revalidatePublicProfile"
 
 const MAX_REASON_LEN = 500
+const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
 type PostRow = {
   id: string
@@ -37,6 +39,9 @@ function pickString(obj: unknown, key: string): string {
 export async function POST(req: NextRequest) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   // Use a non-generic SupabaseClient here to avoid `never` explosions in admin routes.
   const sb = auth.admin as unknown as SupabaseClient

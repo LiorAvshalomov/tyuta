@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
 import { buildRateLimitResponse } from '@/lib/requestRateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 
 const MAX_BROADCAST_USERS = 5000
+const MAX_REQUEST_BODY_BYTES = 32 * 1024
 
 function getSystemUserId(): string | null {
   const v = process.env.NEXT_PUBLIC_SYSTEM_USER_ID
@@ -20,6 +22,9 @@ type ConvRow = { id: string }
 export async function POST(req: Request) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const systemUserId = getSystemUserId()
   if (!systemUserId) {

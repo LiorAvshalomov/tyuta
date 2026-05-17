@@ -3,17 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
 import { buildRateLimitResponse } from '@/lib/requestRateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { normalizeOwnedPrivatePostAssetPath } from '@/lib/storage/postAssetLifecycle'
 import { promotePrivateCoverToPublic } from '@/lib/storage/postCoverLifecycle'
 
 export const runtime = 'nodejs'
 
 const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
 export async function POST(req: Request) {
   try {
     const auth = await requireUserFromRequest(req)
     if (!auth.ok) return auth.response
+
+    const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+    if (tooLarge) return tooLarge
 
     const rl = await rateLimit(`promote-cover:${auth.user.id}`, { maxRequests: 10, windowMs: 60_000 })
     if (!rl.allowed) {
@@ -72,9 +77,9 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json({ publicUrl: promoted.publicUrl })
-  } catch (error: unknown) {
+  } catch {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'שגיאה' },
+      { error: 'לא הצלחנו לעדכן את תמונת הקאבר. נסו שוב בעוד רגע.' },
       { status: 500 },
     )
   }

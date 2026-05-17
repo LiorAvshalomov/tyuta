@@ -134,19 +134,19 @@ function CropModal({
   if (!imgSize) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-        <div className="rounded-2xl bg-white p-6 text-sm">טוען...</div>
+        <div className="rounded-2xl bg-white p-6 text-sm text-neutral-800 dark:border dark:border-white/10 dark:bg-[#181716] dark:text-neutral-100">טוען...</div>
       </div>
     )
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" dir="rtl">
-        <div className="mb-3 text-sm font-bold">חיתוך תמונת פרופיל</div>
+      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:border dark:border-white/10 dark:bg-[#181716] dark:text-neutral-100 dark:shadow-[0_24px_70px_-35px_rgba(0,0,0,0.9)]" dir="rtl">
+        <div className="mb-3 text-sm font-bold text-neutral-900 dark:text-neutral-100">חיתוך תמונת פרופיל</div>
 
         {/* Crop viewport */}
         <div
-          className="relative mx-auto overflow-hidden rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-100 cursor-grab active:cursor-grabbing touch-none"
+          className="relative mx-auto overflow-hidden rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-100 cursor-grab active:cursor-grabbing touch-none dark:border-neutral-500 dark:bg-neutral-900"
           style={{ width: VIEWPORT, height: VIEWPORT }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -170,7 +170,7 @@ function CropModal({
         </div>
 
         {/* Zoom slider */}
-        <div className="mt-3 flex items-center gap-3 text-xs text-neutral-600">
+        <div className="mt-3 flex items-center gap-3 text-xs text-neutral-600 dark:text-neutral-300">
           <span className="select-none">&minus;</span>
           <input
             type="range"
@@ -183,7 +183,7 @@ function CropModal({
               setZoom(nextZoom)
               setOffset((prev) => clampOffset(prev.x, prev.y, nextZoom))
             }}
-            className="flex-1"
+            className="flex-1 accent-neutral-900 dark:accent-sky-400"
           />
           <span className="select-none">+</span>
         </div>
@@ -193,14 +193,14 @@ function CropModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border px-4 py-2 text-sm hover:bg-neutral-50"
+            className="rounded-xl border px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 dark:border-white/10 dark:text-neutral-200 dark:hover:bg-white/10"
           >
             ביטול
           </button>
           <button
             type="button"
             onClick={doCrop}
-            className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white hover:bg-neutral-800"
+            className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-bold text-white hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200"
           >
             אישור
           </button>

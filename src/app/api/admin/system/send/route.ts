@@ -2,16 +2,21 @@ import type { NextRequest } from "next/server"
 import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest"
 import { adminError, adminOk } from "@/lib/admin/adminHttp"
 import { rateLimit } from "@/lib/rateLimit"
+import { rejectLargeRequestBody } from "@/lib/requestBodyLimit"
 
 const TITLE_MIN = 2
 const TITLE_MAX = 120
 const MESSAGE_MIN = 2
 const MESSAGE_MAX = 2000
 const MAX_BROADCAST_USERS = 5000
+const MAX_REQUEST_BODY_BYTES = 16 * 1024
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
   const mode = (body?.mode ?? "user").toString() // 'user' | 'all'

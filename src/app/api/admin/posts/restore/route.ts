@@ -2,12 +2,15 @@ import type { NextRequest } from "next/server"
 import { revalidatePath } from "next/cache"
 import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest"
 import { adminError, adminOk } from "@/lib/admin/adminHttp"
+import { rejectLargeRequestBody } from "@/lib/requestBodyLimit"
 import { promotePrivateCoverToPublic, removePostAssetObject } from "@/lib/storage/postCoverLifecycle"
 import {
   removePublishedPostInlineImages,
   syncPublishedPostInlineImages,
 } from "@/lib/storage/postInlineLifecycle"
 import { revalidatePublicProfileForUserId } from "@/lib/revalidatePublicProfile"
+
+const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
 function pickString(body: unknown, key: string): string {
   if (!body || typeof body !== "object") return ""
@@ -31,6 +34,9 @@ type PostRestoreRow = {
 export async function POST(req: NextRequest) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const body: unknown = await req.json().catch(() => null)
   const postId = pickString(body, "post_id")

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { waitForClientSession } from "@/lib/auth/clientSession"
+import { mapUserFacingError } from "@/lib/mapSupabaseError"
 
 type Theme = "light" | "dark"
 type Format = "square" | "portrait" | "story"
@@ -68,7 +69,7 @@ export default function ShareImagesModal({ postId, onClose }: Props) {
 
         if (!res.ok) {
           const j = await res.json().catch(() => ({}))
-          throw new Error(j?.error?.message ?? "שגיאה בטעינה")
+          throw new Error(mapUserFacingError(j?.error?.message, "לא הצלחנו לטעון את תמונות השיתוף. נסו שוב."))
         }
 
         const j = await res.json()
@@ -79,7 +80,7 @@ export default function ShareImagesModal({ postId, onClose }: Props) {
         }
       } catch (e: unknown) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : "שגיאה לא ידועה")
+          setError(mapUserFacingError(e, "לא הצלחנו לטעון את תמונות השיתוף. נסו שוב."))
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -114,7 +115,7 @@ export default function ShareImagesModal({ postId, onClose }: Props) {
 
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        throw new Error(j?.error?.message ?? "שגיאה בהורדה")
+        throw new Error(mapUserFacingError(j?.error?.message, "לא הצלחנו להוריד את התמונה. נסו שוב."))
       }
 
       const blob = await res.blob()
@@ -127,7 +128,7 @@ export default function ShareImagesModal({ postId, onClose }: Props) {
       a.remove()
       URL.revokeObjectURL(blobUrl)
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "שגיאה בהורדה")
+      alert(mapUserFacingError(e, "לא הצלחנו להוריד את התמונה. נסו שוב."))
     } finally {
       setDownloading(null)
     }

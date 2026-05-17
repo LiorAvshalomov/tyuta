@@ -4,6 +4,7 @@ import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { enforceIpRateLimit } from '@/lib/requestRateLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 import { sendTelegramMessage, sendTelegramPhoto, escapeHtml } from '@/lib/telegram'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 
 async function sendContactTelegramNotification(
   userId: string,
@@ -70,10 +71,14 @@ async function sendContactTelegramNotification(
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 const MAX_FILES = 5
+const MAX_CONTACT_BODY_BYTES = MAX_FILES * MAX_FILE_SIZE + 512 * 1024
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const BUCKET = 'contact-attachments'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const sizeLimitResponse = rejectLargeRequestBody(req, MAX_CONTACT_BODY_BYTES)
+  if (sizeLimitResponse) return sizeLimitResponse
+
   const rateLimitResponse = await enforceIpRateLimit(req, {
     scope: 'contact',
     maxRequests: 3,

@@ -15,6 +15,9 @@ import { isAdminUser } from '@/lib/auth/isAdminUser'
 import { fetchModerationRoutingHint } from '@/lib/auth/fetchModerationRoutingHint'
 import { buildHeaderUserFromAuthUser, fetchHeaderUserById } from '@/lib/auth/headerUser'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_AUTH_BODY_BYTES = 8 * 1024
 
 function deviceFingerprint(meta: Record<string, unknown>): string {
   const parts = [meta.ua_browser ?? '', meta.ua_os ?? '', meta.accept_language ?? ''].join('|')
@@ -185,6 +188,8 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   const ctx = buildAuditContext(req)
+  const sizeLimitResponse = rejectLargeRequestBody(req, MAX_AUTH_BODY_BYTES)
+  if (sizeLimitResponse) return sizeLimitResponse
 
   // Strict rate limit: migration runs once per user; 3 calls per 5 min is generous
   const rl = await rateLimit(`session-migrate:${ctx.ip}`, { maxRequests: 3, windowMs: 5 * 60_000 })

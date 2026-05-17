@@ -2,6 +2,7 @@ import type { JSONContent } from '@tiptap/react'
 import {
   sanitizeRichTextColor,
   sanitizeRichTextHref,
+  sanitizeRichTextImageSrc,
   toYouTubeNoCookieEmbed,
 } from '@/lib/richTextSecurity'
 
@@ -36,11 +37,7 @@ function safeStoragePath(value: unknown): string | null {
 }
 
 function safeImageSrc(value: unknown): string | null {
-  const src = compactText(value, MAX_PATH_LENGTH)?.trim()
-  if (!src) return null
-  if (src.startsWith('/api/media/post-image')) return src
-  if (/^https:\/\//i.test(src)) return src
-  return null
+  return sanitizeRichTextImageSrc(compactText(value, MAX_PATH_LENGTH))
 }
 
 function sanitizeMarks(value: unknown): JSONContent['marks'] | undefined {

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js"
 import { randomUUID } from "crypto"
 import { rateLimit } from "@/lib/rateLimit"
 import { buildRateLimitResponse, getClientIp } from "@/lib/requestRateLimit"
+import { rejectLargeRequestBody } from "@/lib/requestBodyLimit"
 import { PRESENCE_COOKIE, verifyPresence } from "@/lib/auth/presenceCookie"
 import {
   ANALYTICS_AUTH_BACKFILL_WINDOW_MS,
@@ -24,6 +25,8 @@ type AnalyticsSessionRow = {
   created_at: string
   last_seen_at: string
 }
+
+const MAX_REQUEST_BODY_BYTES = 12 * 1024
 
 function isSkippablePath(path: string): boolean {
   if (!path) return true
@@ -93,6 +96,9 @@ export async function POST(req: NextRequest) {
 
   const userAgent = req.headers.get("user-agent")
   if (isProbablyBot(userAgent)) return NextResponse.json({ ok: true, skipped: "bot" })
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return NextResponse.json({ ok: true, skipped: "large_body" })
 
   const body = (await req.json().catch(() => null)) as PageviewBody | null
   const path = normalizePath(body?.path) ?? "/"

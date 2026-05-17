@@ -75,6 +75,87 @@ export function mapSupabaseError(error: PostgrestError | SupabaseErrorLike | nul
   return null
 }
 
+export function mapUserFacingError(error: unknown, fallback = 'משהו השתבש. נסו שוב.'): string {
+  const supabaseLike =
+    error && typeof error === 'object'
+      ? (error as SupabaseErrorLike)
+      : null
+  const mapped = supabaseLike ? mapSupabaseError(supabaseLike) : null
+  if (mapped) return mapped
+
+  const raw =
+    typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : supabaseLike?.message ?? ''
+  const message = raw.trim()
+  if (!message) return fallback
+
+  const lower = message.toLowerCase()
+
+  if (lower.includes('profiles_username_unique') || lower.includes('duplicate key')) {
+    return 'שם המשתמש כבר תפוס. נסו שם אחר.'
+  }
+  if (lower.includes('invalid login credentials') || lower.includes('email not confirmed')) {
+    return 'האימייל או הסיסמה אינם נכונים.'
+  }
+  if (
+    lower.includes('email link is invalid') ||
+    lower.includes('otp expired') ||
+    lower.includes('token has expired') ||
+    (lower.includes('expired') && lower.includes('link'))
+  ) {
+    return 'קישור האיפוס לא תקין או שפג תוקפו. בקשו קישור חדש.'
+  }
+  if (lower.includes('too many requests') || lower.includes('rate_limited')) {
+    return 'יותר מדי בקשות בזמן קצר. נסו שוב בעוד רגע.'
+  }
+  if (
+    lower.includes('file too large') ||
+    lower.includes('too large') ||
+    lower.includes('exceeds') ||
+    lower.includes('payload too large') ||
+    lower.includes('invalid request size')
+  ) {
+    return 'הקובץ גדול מדי. נסו להעלות תמונה קטנה יותר.'
+  }
+  if (
+    lower.includes('not authenticated') ||
+    lower.includes('auth_required') ||
+    lower.includes('missing token') ||
+    lower.includes('invalid token') ||
+    lower.includes('jwt')
+  ) {
+    return 'צריך להתחבר מחדש כדי להמשיך.'
+  }
+  if (lower.includes('forbidden') || lower.includes('not your post') || lower.includes('permission denied')) {
+    return 'אין לך הרשאה לבצע את הפעולה הזו.'
+  }
+  if (lower.includes('not found') || lower.includes('no rows')) {
+    return 'לא מצאנו את הפריט המבוקש.'
+  }
+  if (lower.includes('already deleted')) {
+    return 'הפוסט כבר נמחק.'
+  }
+  if (
+    lower.includes('request failed') ||
+    lower.includes('failed') ||
+    lower.includes('bad_response') ||
+    lower.includes('server misconfiguration') ||
+    lower.includes('server_error') ||
+    lower.includes('missing server env') ||
+    lower.includes('storage not configured')
+  ) {
+    return fallback
+  }
+  if (lower.includes('invalid request') || lower.includes('bad request') || lower.includes('missing ') || lower.includes('invalid input')) {
+    return 'הבקשה לא תקינה. רעננו את הדף ונסו שוב.'
+  }
+
+  return /[\u0590-\u05ff]/.test(message) ? message : fallback
+}
+
 export function mapModerationRpcError(message: string): string | null {
   for (const [code, userMessage] of Object.entries(MODERATION_MAP)) {
     if (message.includes(code)) return userMessage

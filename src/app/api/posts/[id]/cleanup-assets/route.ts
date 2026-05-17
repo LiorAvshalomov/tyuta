@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import {
   extractReferencedPostImagePaths,
   normalizeOwnedPrivatePostAssetPath,
@@ -14,6 +15,7 @@ import {
 
 export const runtime = 'nodejs'
 const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_REQUEST_BODY_BYTES = 1024
 
 type PostRow = {
   id: string
@@ -28,6 +30,9 @@ type PostRow = {
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const rl = await rateLimit(`cleanup-assets:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {
@@ -53,7 +58,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     .maybeSingle<PostRow>()
 
   if (postErr) {
-    return NextResponse.json({ error: { code: 'db_error', message: postErr.message } }, { status: 500 })
+    return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו לטעון את הפוסט. נסו שוב בעוד רגע.' } }, { status: 500 })
   }
   if (!post) {
     return NextResponse.json({ error: { code: 'not_found', message: 'post not found' } }, { status: 404 })
@@ -104,9 +109,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         }
 
     return NextResponse.json({ ok: true, removedPrivate, publicInline })
-  } catch (error: unknown) {
+  } catch {
     return NextResponse.json(
-      { error: { code: 'storage_cleanup_failed', message: error instanceof Error ? error.message : 'storage cleanup failed' } },
+      { error: { code: 'storage_cleanup_failed', message: 'לא הצלחנו לנקות את קבצי הפוסט. נסו שוב בעוד רגע.' } },
       { status: 500 },
     )
   }

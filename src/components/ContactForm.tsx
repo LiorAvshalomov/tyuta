@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 const MAX_FILES = 5
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -67,16 +68,29 @@ export default function ContactForm() {
 
   function handleFiles(selected: FileList | null) {
     if (!selected) return
+    setErrMsg(null)
     const next: File[] = [...files]
     const nextPreviews: string[] = [...previews]
+    const rejected: string[] = []
     for (const f of Array.from(selected)) {
-      if (next.length >= MAX_FILES) break
-      if (!ALLOWED_MIME.has(f.type) || f.size > MAX_FILE_SIZE) continue
+      if (next.length >= MAX_FILES) {
+        rejected.push(`אפשר לצרף עד ${MAX_FILES} תמונות.`)
+        break
+      }
+      if (!ALLOWED_MIME.has(f.type)) {
+        rejected.push(`סוג הקובץ "${f.name}" לא נתמך. מותרות תמונות JPEG, PNG, GIF ו-WebP בלבד.`)
+        continue
+      }
+      if (f.size > MAX_FILE_SIZE) {
+        rejected.push(`הקובץ "${f.name}" גדול מדי. אפשר לצרף תמונה עד 5MB.`)
+        continue
+      }
       next.push(f)
       nextPreviews.push(URL.createObjectURL(f))
     }
     setFiles(next)
     setPreviews(nextPreviews)
+    if (rejected.length > 0) setErrMsg(Array.from(new Set(rejected)).join(' '))
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -115,7 +129,7 @@ export default function ContactForm() {
 
       const json = await res.json().catch(() => ({}))
       if (!res.ok) {
-        throw new Error((json as { error?: string }).error ?? 'משהו השתבש בשליחה')
+        throw new Error(mapUserFacingError((json as { error?: string }).error, 'לא הצלחנו לשלוח את ההודעה. נסו שוב.'))
       }
 
       setOkMsg('נשלח! נחזור אליך כשנוכל 🙏')
@@ -125,7 +139,7 @@ export default function ContactForm() {
       setFiles([])
       setPreviews([])
     } catch (err: unknown) {
-      setErrMsg(err instanceof Error ? err.message : 'משהו השתבש בשליחה')
+      setErrMsg(mapUserFacingError(err, 'לא הצלחנו לשלוח את ההודעה. נסו שוב.'))
     } finally {
       setLoading(false)
     }

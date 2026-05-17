@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_REQUEST_BODY_BYTES = 4 * 1024
 
 function normalizeValue(value: unknown) {
   if (typeof value !== 'string') return null
@@ -13,6 +16,9 @@ function normalizeValue(value: unknown) {
 export async function POST(req: Request) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const rl = await rateLimit(`profile-audit:${auth.user.id}`, { maxRequests: 15, windowMs: 10 * 60_000 })
   if (!rl.allowed) {
