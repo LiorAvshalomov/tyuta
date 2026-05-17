@@ -5,9 +5,15 @@ import { clearPresenceCookie } from '@/lib/auth/presenceCookie'
 import { clearAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
 import { rateLimit } from '@/lib/rateLimit'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_REQUEST_BODY_BYTES = 1024
 
 export async function POST(req: NextRequest) {
   const ctx = buildAuditContext(req)
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
+
   const rl = await rateLimit(`signout:${ctx.ip}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {
     return NextResponse.json(

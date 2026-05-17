@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { adminFetch } from '@/lib/admin/adminFetch'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 import { event as gaEvent } from '@/lib/gtag'
 import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
@@ -47,6 +47,8 @@ type CommentLikeSyncPayload = {
 const COMMENT_LIKE_SYNC_STORAGE_KEY = 'tyuta:comment-like-sync'
 const COMMENT_LIKE_SYNC_EVENT = 'tyuta:comment-like-sync'
 const COMMENT_LIKE_SYNC_CHANNEL = 'tyuta-comment-like-sync'
+const COMMENT_MIN_LENGTH = 2
+const COMMENT_MAX_LENGTH = 700
 const NOTIFICATION_HIGHLIGHT_CLASS = "border-amber-300/80 ring-1 ring-amber-200/70 bg-[linear-gradient(180deg,rgba(255,252,244,0.96),rgba(255,247,228,0.82))] shadow-[0_18px_45px_-32px_rgba(217,119,6,0.28)] before:pointer-events-none before:absolute before:right-[1px] before:top-2 before:bottom-2 before:w-[4px] before:content-[''] before:rounded-full before:bg-[linear-gradient(180deg,rgba(245,158,11,0.98),rgba(251,191,36,0.56))] dark:border-amber-400/25 dark:ring-amber-300/15 dark:bg-[linear-gradient(180deg,rgba(120,87,29,0.18),rgba(43,32,11,0.10))] dark:shadow-[0_18px_45px_-34px_rgba(245,158,11,0.22)] dark:before:bg-[linear-gradient(180deg,rgba(251,191,36,0.84),rgba(245,158,11,0.26))] animate-[tyutaGlow_1100ms_ease-out] motion-reduce:animate-none"
 
 type RealtimePayload<T> = {
@@ -94,6 +96,10 @@ function AuthorBadge() {
       מחבר
     </span>
   )
+}
+
+function normalizeCommentText(value: string) {
+  return value.trim().slice(0, COMMENT_MAX_LENGTH)
 }
 
 export default function PostComments({ postId, postSlug, postTitle, postAuthorId }: Props) {
@@ -502,7 +508,7 @@ async function submitReport() {
     })
 
     if (error) {
-      setReportErr(mapSupabaseError(error) ?? error.message)
+      setReportErr(mapUserFacingError(error, 'לא הצלחנו לשלוח את הדיווח. נסו שוב.'))
       return
     }
     // Fire-and-forget Telegram notification (server resolves reporter from JWT)
@@ -531,7 +537,7 @@ async function submitReport() {
       setReportOk(null)
     }, 2200)
   } catch (e: unknown) {
-    setReportErr(e instanceof Error ? e.message : 'לא הצלחנו לשלוח דיווח')
+    setReportErr(mapUserFacingError(e, 'לא הצלחנו לשלוח את הדיווח. נסו שוב.'))
   } finally {
     setReportSending(false)
   }
@@ -771,7 +777,7 @@ async function submitReport() {
       .limit(150)
 
     if (error) {
-      setErrFor(error.message)
+      setErrFor(mapUserFacingError(error, 'לא הצלחנו לטעון את התגובות. נסו שוב.'))
       setLoading(false)
       return
     }
@@ -963,8 +969,8 @@ async function submitReport() {
   const send = async () => {
     setErrFor(null)
 
-    const value = text.trim()
-    if (value.length < 2) {
+    const value = normalizeCommentText(text)
+    if (value.length < COMMENT_MIN_LENGTH) {
       setErrFor('התגובה קצרה מדי')
       return
     }
@@ -1012,7 +1018,7 @@ async function submitReport() {
 
     if (error) {
       setItems(prev => prev.filter(x => x.id !== tempId))
-      setErrFor(mapSupabaseError(error) ?? error.message)
+      setErrFor(mapUserFacingError(error, 'לא הצלחנו לפרסם את התגובה. נסו שוב.'))
       return
     }
 
@@ -1113,7 +1119,7 @@ async function submitReport() {
         rb.add(commentId)
         setMyLiked(rb)
         setLikeCounts(prev => ({ ...prev, [commentId]: Number(prev[commentId] ?? 0) + 1 }))
-        setErrFor(mapSupabaseError(error) ?? error.message)
+        setErrFor(mapUserFacingError(error, 'לא הצלחנו לעדכן את הלייק. נסו שוב.'))
         return
       }
       notifyCommentLikeSync(commentId)
@@ -1132,7 +1138,7 @@ async function submitReport() {
       rb.delete(commentId)
       setMyLiked(rb)
       setLikeCounts(prev => ({ ...prev, [commentId]: Math.max(0, Number(prev[commentId] ?? 0) - 1) }))
-      setErrFor(mapSupabaseError(error) ?? error.message)
+      setErrFor(mapUserFacingError(error, 'לא הצלחנו לעדכן את הלייק. נסו שוב.'))
       return
     }
     notifyCommentLikeSync(commentId)
@@ -1194,8 +1200,8 @@ async function submitReport() {
 
   const saveEdit = async (commentId: string) => {
     setErrFor(null)
-    const value = editText.trim()
-    if (value.length < 2) {
+    const value = normalizeCommentText(editText)
+    if (value.length < COMMENT_MIN_LENGTH) {
       setErrFor('התגובה קצרה מדי')
       return
     }
@@ -1213,7 +1219,7 @@ async function submitReport() {
     setSending(false)
 
     if (error) {
-      setErrFor(mapSupabaseError(error) ?? error.message)
+      setErrFor(mapUserFacingError(error, 'לא הצלחנו לעדכן את התגובה. נסו שוב.'))
       await load()
       return
     }
@@ -1232,7 +1238,7 @@ async function submitReport() {
     const { error } = await supabase.from('comments').delete().eq('id', commentId)
 
     if (error) {
-      setErrFor(mapSupabaseError(error) ?? error.message)
+      setErrFor(mapUserFacingError(error, 'לא הצלחנו למחוק את התגובה. נסו שוב.'))
       setItems(snapshot) // rollback
     }
   }
@@ -1427,7 +1433,7 @@ async function submitReport() {
           ref={composerTextareaRef}
           className="w-full resize-none rounded-xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
           rows={3}
-          maxLength={700}
+          maxLength={COMMENT_MAX_LENGTH}
           placeholder={userId ? (replyToId ? 'כתוב תגובת תשובה…' : 'כתוב תגובה…') : 'התחבר כדי להגיב…'}
           value={text}
           onChange={e => setText(e.target.value)}
@@ -1604,7 +1610,7 @@ async function submitReport() {
                 <textarea
                   className="w-full resize-none rounded-xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
                   rows={3}
-                  maxLength={700}
+                  maxLength={COMMENT_MAX_LENGTH}
                   value={editText}
                   onChange={e => setEditText(e.target.value)}
                   disabled={sending}
@@ -1869,7 +1875,7 @@ async function submitReport() {
                               <textarea
                                 className="w-full resize-none rounded-xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
                                 rows={3}
-                                maxLength={700}
+                                maxLength={COMMENT_MAX_LENGTH}
                                 value={editText}
                                 onChange={e => setEditText(e.target.value)}
                                 disabled={sending}

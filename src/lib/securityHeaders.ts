@@ -206,6 +206,17 @@ export const API_SECURITY_HEADERS: HeaderPair[] = [
   { key: 'Content-Security-Policy', value: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" },
 ]
 
+export const ADMIN_API_SECURITY_HEADERS: HeaderPair[] = [
+  ...API_SECURITY_HEADERS,
+  { key: 'Cache-Control', value: 'no-store, max-age=0' },
+  { key: 'Pragma', value: 'no-cache' },
+]
+
+export const PRIVATE_API_SECURITY_HEADERS: HeaderPair[] = [
+  ...API_SECURITY_HEADERS,
+  { key: 'Cache-Control', value: 'no-store, max-age=0' },
+]
+
 export function applyHeaderPairs(res: MutableHeadersResponse, headers: HeaderPair[]): void {
   for (const header of headers) {
     res.headers.set(header.key, header.value)

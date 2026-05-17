@@ -16,10 +16,16 @@ import {
   verifyPresence,
 } from '@/lib/auth/presenceCookie'
 import { fetchHeaderUserById } from '@/lib/auth/headerUser'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_REQUEST_BODY_BYTES = 1024
 
 export async function POST(req: NextRequest) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const rl = await rateLimit(`presence:${auth.user.id}`, { maxRequests: 60, windowMs: 60_000 })
   if (!rl.allowed) {

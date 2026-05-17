@@ -7,7 +7,7 @@ import { Bell, X } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
 import Avatar from "@/components/Avatar"
 import { useToast } from "@/components/Toast"
-import { mapSupabaseError } from "@/lib/mapSupabaseError"
+import { mapSupabaseError, mapUserFacingError } from "@/lib/mapSupabaseError"
 import { waitForClientSession } from "@/lib/auth/clientSession"
 import {
   POST_REFRESH_CHANNEL,
@@ -624,7 +624,7 @@ export default function NotificationsBell() {
       setUnread(previousUnread)
       toast(
         mapSupabaseError(error as { message?: string | null; details?: string | null; hint?: string | null; code?: string | null }) ||
-          (error instanceof Error ? error.message : "לא הצלחנו לנקות את כל ההתראות"),
+          mapUserFacingError(error, "לא הצלחנו לנקות את כל ההתראות. נסו שוב."),
         "error"
       )
       void load({ preserveLoaded: true })

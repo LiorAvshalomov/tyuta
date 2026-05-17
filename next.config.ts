@@ -1,5 +1,10 @@
 import type { NextConfig } from 'next'
-import { API_SECURITY_HEADERS, BASE_SECURITY_HEADERS } from './src/lib/securityHeaders'
+import {
+  ADMIN_API_SECURITY_HEADERS,
+  API_SECURITY_HEADERS,
+  BASE_SECURITY_HEADERS,
+  PRIVATE_API_SECURITY_HEADERS,
+} from './src/lib/securityHeaders'
 
 // Document responses receive the full CSP (via applyDocumentSecurityHeaders in middleware.ts).
 // API responses and any other routes not touched by middleware get the base (non-CSP) headers
@@ -69,6 +74,58 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=604800, stale-while-revalidate=2592000' },
         ],
+      },
+      {
+        source: '/api/admin/:path*',
+        headers: ADMIN_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/auth/:path*',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/me/:path*',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/notifications/:path*',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/storage/:path*',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/posts/:path*',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/profile/avatar/:path*',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/profile/revalidate',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/profile/audit-identity',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/internal/pv/:path*',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/internal/notify-report',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/contact',
+        headers: PRIVATE_API_SECURITY_HEADERS,
+      },
+      {
+        source: '/api/cover/auto',
+        headers: PRIVATE_API_SECURITY_HEADERS,
       },
       {
         source: '/api/:path*',

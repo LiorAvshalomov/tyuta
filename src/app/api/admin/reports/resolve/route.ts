@@ -1,9 +1,15 @@
 import { requireAdminFromRequest } from "@/lib/admin/requireAdminFromRequest"
 import { adminError, adminOk } from "@/lib/admin/adminHttp"
+import { rejectLargeRequestBody } from "@/lib/requestBodyLimit"
+
+const MAX_REQUEST_BODY_BYTES = 4 * 1024
 
 export async function POST(req: Request) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const { admin } = auth
 

@@ -9,6 +9,9 @@ import { fetchModerationRoutingHint } from '@/lib/auth/fetchModerationRoutingHin
 import { buildHeaderUserFromAuthUser, fetchHeaderUserById } from '@/lib/auth/headerUser'
 import { setAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_AUTH_BODY_BYTES = 8 * 1024
 
 function emailHash(email: string): string {
   return createHash('sha256').update(email.toLowerCase().trim()).digest('hex').slice(0, 16)
@@ -25,6 +28,8 @@ export async function POST(req: Request) {
 
   const serviceClient = createClient(url, serviceKey, { auth: { persistSession: false } })
   const ctx = buildAuditContext(req)
+  const sizeLimitResponse = rejectLargeRequestBody(req, MAX_AUTH_BODY_BYTES)
+  if (sizeLimitResponse) return sizeLimitResponse
 
   // Rate limit: 5 attempts per minute per IP — log before returning so brute-force is visible
   const rl = await rateLimit(`signin:${ctx.ip}`, { maxRequests: 5, windowMs: 60_000 })

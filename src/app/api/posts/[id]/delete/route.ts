@@ -4,12 +4,14 @@ import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { copyPublicCoverToPrivate, removePostCoverPublicObject } from '@/lib/storage/postCoverLifecycle'
 import { removePublishedPostInlineImages } from '@/lib/storage/postInlineLifecycle'
 import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
 import { revalidateAuthorSidebars } from '@/lib/revalidateAuthorSidebars'
 
 const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_REQUEST_BODY_BYTES = 1024
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -21,6 +23,9 @@ function serviceClient() {
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const rl = await rateLimit(`post-trash:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {
@@ -47,7 +52,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .maybeSingle()
 
   if (postErr) {
-    return NextResponse.json({ error: { code: 'db_error', message: postErr.message } }, { status: 500 })
+    return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו לטעון את הפוסט. נסו שוב בעוד רגע.' } }, { status: 500 })
   }
   if (!post) {
     return NextResponse.json({ error: { code: 'not_found', message: 'post not found' } }, { status: 404 })
@@ -71,12 +76,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       postId,
       coverImageUrl: typeof post.cover_image_url === 'string' ? post.cover_image_url : null,
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       {
         error: {
           code: 'cover_quarantine_failed',
-          message: error instanceof Error ? error.message : 'cover quarantine failed',
+          message: 'לא הצלחנו להעביר את תמונת הקאבר למצב פרטי. נסו שוב בעוד רגע.',
         },
       },
       { status: 500 },
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .eq('id', postId)
 
   if (updErr) {
-    return NextResponse.json({ error: { code: 'db_error', message: updErr.message } }, { status: 500 })
+    return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו להעביר את הפוסט לפח. נסו שוב בעוד רגע.' } }, { status: 500 })
   }
 
   try {
@@ -136,15 +141,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (quarantinedCover) {
     try {
       await removePostCoverPublicObject(svc, quarantinedCover.publicPath)
-    } catch (error) {
-      warnings.push(error instanceof Error ? error.message : 'public cover cleanup failed')
+    } catch {
+      warnings.push('לא הצלחנו לנקות את הקאבר הציבורי')
     }
   }
 
   try {
     removedPublicInlineImages = await removePublishedPostInlineImages(svc, postId)
-  } catch (error) {
-    warnings.push(error instanceof Error ? error.message : 'public inline cleanup failed')
+  } catch {
+    warnings.push('לא הצלחנו לנקות חלק מהתמונות הציבוריות')
   }
 
   // Soft delete should hide post-related notifications without losing them,

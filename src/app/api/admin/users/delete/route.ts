@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
 import { getClientIp } from '@/lib/requestRateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import {
   fetchUserProfileSnapshot,
   logUserModerationAction,
@@ -20,6 +21,7 @@ type Body = {
 }
 
 type Counts = Record<string, number>
+const MAX_REQUEST_BODY_BYTES = 16 * 1024
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -84,6 +86,9 @@ async function cleanBucketPrefix(
 export async function POST(req: NextRequest) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   let body: Body = {}
   try {

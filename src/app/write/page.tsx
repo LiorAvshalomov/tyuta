@@ -7,7 +7,7 @@ import type { JSONContent } from '@tiptap/react'
 import Editor from '@/components/Editor'
 import Badge from '@/components/Badge'
 import { supabase } from '@/lib/supabaseClient'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapSupabaseError, mapUserFacingError } from '@/lib/mapSupabaseError'
 import { sanitizeTipTapContent } from '@/lib/tiptapSanitizer'
 import { useToast } from '@/components/Toast'
 import { event as gaEvent } from '@/lib/gtag'
@@ -41,6 +41,7 @@ type TagId = number
 
 const MAX_TAGS = 3
 const ALLOWED_COVER_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+const MAX_COVER_FILE_SIZE = 15 * 1024 * 1024
 const CONTENT_MAX = 15_000
 const PRIVATE_DRAFT_MEDIA_URL_TTL_SECONDS = 60 * 60 * 24
 const DRAFT_AUTOSAVE_DEBOUNCE_MS = 2500
@@ -588,7 +589,7 @@ export default function WritePage() {
       const { data: ch, error: chErr } = await supabase.from('channels').select('id, name_he').order('sort_order')
 
       if (chErr) {
-        setErrorMsg(chErr.message ?? 'שגיאה בטעינת נתונים')
+        setErrorMsg(mapUserFacingError(chErr, 'לא הצלחנו לטעון את נתוני הכתיבה. נסו שוב.'))
         setLoading(false)
         return
       }
@@ -768,7 +769,7 @@ useEffect(() => {
       if (cancelled || draftLoadSeqRef.current !== loadSeq) return
 
       if (error || !post) {
-        setErrorMsg(error?.message ?? 'לא הצלחתי לטעון טיוטה')
+        setErrorMsg(error ? mapUserFacingError(error, 'לא הצלחנו לטעון את הטיוטה. נסו שוב.') : 'לא הצלחנו לטעון את הטיוטה.')
         return
       }
 
@@ -966,7 +967,7 @@ useEffect(() => {
         .single()
 
       if (error || !created) {
-        setErrorMsg(mapSupabaseError(error ?? null) ?? error?.message ?? 'שגיאה ביצירת טיוטה')
+        setErrorMsg(mapUserFacingError(error, 'לא הצלחנו ליצור טיוטה. נסו שוב.'))
         return null
       }
 
@@ -1030,7 +1031,7 @@ useEffect(() => {
 
       const { error: deleteError } = await supabase.from('post_tags').delete().eq('post_id', postId)
       if (deleteError) {
-        setErrorMsg(mapSupabaseError(deleteError) ?? deleteError.message)
+        setErrorMsg(mapUserFacingError(deleteError, 'לא הצלחנו לעדכן את תגיות הפוסט. נסו שוב.'))
         return false
       }
 
@@ -1039,7 +1040,7 @@ useEffect(() => {
           .from('post_tags')
           .insert(nextTagIds.map(tag_id => ({ post_id: postId, tag_id })))
         if (insertError) {
-          setErrorMsg(mapSupabaseError(insertError) ?? insertError.message)
+          setErrorMsg(mapUserFacingError(insertError, 'לא הצלחנו לעדכן את תגיות הפוסט. נסו שוב.'))
           return false
         }
       }
@@ -1094,7 +1095,7 @@ useEffect(() => {
 
         const { error } = await supabase.from('posts').update(payload).eq('id', effectivePostId).eq('author_id', userId)
         if (error) {
-          setErrorMsg(mapSupabaseError(error) ?? error.message)
+          setErrorMsg(mapUserFacingError(error, 'לא הצלחנו לשמור את הטיוטה. נסו שוב.'))
           return
         }
 
@@ -1142,7 +1143,7 @@ useEffect(() => {
         .eq('author_id', userId)
 
       if (error) {
-        setErrorMsg(mapSupabaseError(error) ?? error.message)
+        setErrorMsg(mapUserFacingError(error, 'לא הצלחנו לשמור את הטיוטה. נסו שוב.'))
         return
       }
 
@@ -1336,6 +1337,10 @@ useEffect(() => {
       setErrorMsg('סוג קובץ לא נתמך. מותרות תמונות JPEG, PNG, GIF ו-WebP בלבד.')
       return
     }
+    if (file.size > MAX_COVER_FILE_SIZE) {
+      setErrorMsg('הקאבר גדול מדי. אפשר להעלות תמונה עד 15MB.')
+      return
+    }
     const session = await getActiveSession()
     const _coverSession = session
     if (!_coverSession) { setErrorMsg('הסשן פג תוקף – רענן את הדף'); return }
@@ -1359,7 +1364,7 @@ useEffect(() => {
 
     if (uploadErr) {
       setIsCoverLoading(false)
-      setErrorMsg(mapSupabaseError(uploadErr) ?? uploadErr.message)
+      setErrorMsg(mapUserFacingError(uploadErr, 'לא הצלחנו להעלות את הקאבר. נסו שוב.'))
       return
     }
 
@@ -1597,7 +1602,7 @@ useEffect(() => {
 
       const json = (await response.json().catch(() => ({}))) as { error?: string; publicUrl?: string | null }
       if (!response.ok) {
-        throw new Error(json.error ?? 'לא הצלחתי להעביר את הקאבר')
+        throw new Error(mapUserFacingError(json.error, 'לא הצלחנו להעביר את הקאבר. נסו שוב.'))
       }
 
       const publicUrl = json.publicUrl ?? publishSnapshot.coverUrl
@@ -1648,7 +1653,7 @@ useEffect(() => {
             setErrorMsg(
               msg.includes('value too long') || msg.includes('check constraint')
                 ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
-                : msg
+                : mapUserFacingError(error, 'לא הצלחנו לשמור את השינויים. נסו שוב.')
             )
           }
           setSaving(false)
@@ -1669,7 +1674,7 @@ useEffect(() => {
         router.push('/notebook')
         return
       } catch (e: unknown) {
-                setErrorMsg(e instanceof Error ? e.message : 'שגיאה בשמירת שינויים')
+                setErrorMsg(mapUserFacingError(e, 'לא הצלחנו לשמור את השינויים. נסו שוב.'))
         setSaving(false)
         return
       }
@@ -1763,7 +1768,7 @@ useEffect(() => {
       .eq('author_id', userId)
 
     if (draftSyncError) {
-      setErrorMsg(mapSupabaseError(draftSyncError) ?? draftSyncError.message)
+      setErrorMsg(mapUserFacingError(draftSyncError, 'לא הצלחנו להכין את הטיוטה לפרסום. נסו שוב.'))
       setSaving(false)
       return
     }
@@ -1814,7 +1819,7 @@ useEffect(() => {
         setCoverSource(promoted.source)
       }
     } catch (e: unknown) {
-              setErrorMsg(e instanceof Error ? e.message : 'שגיאה בהעברת קאבר')
+              setErrorMsg(mapUserFacingError(e, 'לא הצלחנו להעביר את הקאבר. נסו שוב.'))
       setSaving(false)
       return
     }
@@ -1848,7 +1853,7 @@ useEffect(() => {
         setErrorMsg(
           msg.includes('value too long') || msg.includes('check constraint')
             ? `הכותרת יכולה להכיל עד ${TITLE_MAX} תווים`
-            : msg
+            : mapUserFacingError(error, 'הפרסום נכשל. נסו שוב.')
         )
       }
       setSaving(false)

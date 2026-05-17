@@ -10,9 +10,14 @@ import { setAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
 import { assessSignupEmail, blockedEmailMessage } from '@/lib/auth/emailRisk'
 import { DISPLAY_NAME_MAX, USERNAME_MAX } from '@/lib/validation'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_AUTH_BODY_BYTES = 8 * 1024
 
 export async function POST(req: Request) {
   const ctx = buildAuditContext(req)
+  const sizeLimitResponse = rejectLargeRequestBody(req, MAX_AUTH_BODY_BYTES)
+  if (sizeLimitResponse) return sizeLimitResponse
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import {
   fetchUserProfileSnapshot,
   logUserModerationAction,
@@ -10,10 +11,14 @@ type Body = {
   is_suspended?: boolean
   reason?: string | null
 }
+const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
 export async function POST(req: Request) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   let body: Body = {}
   try {

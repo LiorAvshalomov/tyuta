@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_REQUEST_BODY_BYTES = 1024
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -13,6 +16,9 @@ function serviceClient() {
 export async function POST(req: NextRequest) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const service = serviceClient()
   if (!service) {
@@ -37,7 +43,7 @@ export async function POST(req: NextRequest) {
   const { error } = await service.rpc('clear_user_notifications', { p_user_id: uid })
   if (error) {
     return NextResponse.json(
-      { error: { code: 'db_error', message: error.message } },
+      { error: { code: 'db_error', message: 'לא הצלחנו לנקות את ההתראות. נסו שוב בעוד רגע.' } },
       { status: 500 },
     )
   }

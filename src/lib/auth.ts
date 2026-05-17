@@ -4,6 +4,7 @@ import type { Session, User } from '@supabase/supabase-js'
 import { USERNAME_MAX } from '@/lib/validation'
 import { broadcastAuthEvent } from '@/lib/auth/authEvents'
 import { publishHeaderUser, type HeaderUser } from '@/lib/auth/headerUser'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 type AuthResponseBody = {
   access_token?: string
@@ -35,7 +36,7 @@ export async function signIn(
   const body = await res.json() as AuthResponseBody
 
   if (!res.ok || body.error) {
-    return { data: { session: null, user: null }, error: { message: body.error ?? 'שגיאה בכניסה' } }
+    return { data: { session: null, user: null }, error: { message: mapUserFacingError(body.error, 'לא הצלחנו להתחבר. בדקו את הפרטים ונסו שוב.') } }
   }
 
   // AT lives in memory only; RT is now in an httpOnly cookie set by the server
@@ -70,7 +71,7 @@ export async function signUp(params: {
   const body = await res.json() as AuthResponseBody
 
   if (!res.ok || body.error) {
-    return { data: { session: null, user: null }, error: { message: body.error ?? 'שגיאה בהרשמה' } }
+    return { data: { session: null, user: null }, error: { message: mapUserFacingError(body.error, 'לא הצלחנו להשלים את ההרשמה. נסו שוב.') } }
   }
 
   // If email confirmation is disabled and session was returned, hydrate client
@@ -91,7 +92,7 @@ export async function sendPasswordResetEmail(email: string, redirectTo: string) 
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({})) as { error?: string }
-    return { error: { message: body.error ?? 'שגיאה בשליחת המייל' } }
+    return { error: { message: mapUserFacingError(body.error, 'לא הצלחנו לשלוח מייל איפוס. נסו שוב.') } }
   }
   return { error: null }
 }

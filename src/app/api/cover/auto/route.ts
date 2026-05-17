@@ -5,6 +5,7 @@ import { buildRateLimitResponse } from '@/lib/requestRateLimit'
 import { validateImageBuffer } from '@/lib/validateImage'
 
 const MAX_DOWNLOAD_BYTES = 15 * 1024 * 1024 // 15 MB
+const THIRD_PARTY_TIMEOUT_MS = 8_000
 const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 type PixabayHit = {
@@ -14,13 +15,22 @@ type PixabayHit = {
   user: string
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), THIRD_PARTY_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
 
 async function translateToEnglish(text: string): Promise<string> {
   const key = process.env.DEEPL_API_KEY
   if (!key) throw new Error('DEEPL_API_KEY missing')
     
 
-  const res = await fetch('https://api-free.deepl.com/v2/translate', {
+  const res = await fetchWithTimeout('https://api-free.deepl.com/v2/translate', {
     method: 'POST',
     headers: {
       'Authorization': `DeepL-Auth-Key ${key}`,
@@ -34,7 +44,8 @@ async function translateToEnglish(text: string): Promise<string> {
   })
 
   const json = await res.json()
-  return json.translations?.[0]?.text ?? text
+  const translated = typeof json.translations?.[0]?.text === 'string' ? json.translations[0].text : text
+  return translated.trim().slice(0, 200)
 }
 
 function parseSeed(value: string | null): number {
@@ -88,7 +99,7 @@ export async function GET(req: NextRequest) {
     url.searchParams.set('per_page', '20')
     url.searchParams.set('safesearch', 'true')
 
-    const res = await fetch(url.toString(), { cache: 'no-store' })
+    const res = await fetchWithTimeout(url.toString(), { cache: 'no-store' })
     if (!res.ok) {
       return NextResponse.json({ error: 'pixabay_error' }, { status: 502 })
     }
@@ -125,7 +136,7 @@ export async function GET(req: NextRequest) {
       }
 
       try {
-        const imgRes = await fetch(pick.largeImageURL, { cache: 'no-store' })
+        const imgRes = await fetchWithTimeout(pick.largeImageURL, { cache: 'no-store' })
         if (!imgRes.ok) {
           return NextResponse.json({ storagePath: null, signedUrl: null })
         }

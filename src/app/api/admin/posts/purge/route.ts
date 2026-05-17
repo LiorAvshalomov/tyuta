@@ -1,12 +1,14 @@
 import type { NextRequest } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
 import { adminError, adminOk } from '@/lib/admin/adminHttp'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { cleanupPostOwnedAssets } from '@/lib/storage/postAssetLifecycle'
 import { revalidatePath } from 'next/cache'
 import { revalidatePublicProfileForUserId } from '@/lib/revalidatePublicProfile'
 import { logPostPurgeEvents } from '@/lib/posts/postPurgeEvents'
 
 const MAX_REASON_LEN = 500
+const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
 type PostLite = {
   id: string
@@ -34,6 +36,9 @@ function pickString(body: unknown, key: string): string {
 export async function POST(req: NextRequest) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const body: unknown = await req.json().catch(() => null)
   const postId = pickString(body, 'post_id')

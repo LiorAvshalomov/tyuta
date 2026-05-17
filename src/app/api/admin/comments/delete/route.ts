@@ -1,13 +1,18 @@
 import type { NextRequest } from "next/server"
 import { requireAdminOrModFromRequest } from "@/lib/admin/requireAdminOrModFromRequest"
 import { adminOk, adminError } from "@/lib/admin/adminHttp"
+import { rejectLargeRequestBody } from "@/lib/requestBodyLimit"
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_REASON_LENGTH = 500
+const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
 export async function POST(req: NextRequest) {
   const gate = await requireAdminOrModFromRequest(req)
   if (!gate.ok) return gate.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const db = gate.admin
 

@@ -17,7 +17,7 @@ import CharacterCount from '@tiptap/extension-character-count'
 
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 import { sanitizeRichTextHref, toYouTubeNoCookieEmbed } from '@/lib/richTextSecurity'
 import {
   appendRelatedPosts,
@@ -28,6 +28,7 @@ import {
 } from '@/lib/postSeries'
 
 const ALLOWED_EDITOR_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
+const MAX_EDITOR_IMAGE_SIZE = 10 * 1024 * 1024
 const PRIVATE_EDITOR_IMAGE_URL_TTL_SECONDS = 60 * 60 * 24
 
 type Props = {
@@ -791,6 +792,10 @@ export default function Editor({
         alert('סוג קובץ לא נתמך. מותרות תמונות JPEG, PNG, GIF ו-WebP בלבד.')
         return
       }
+      if (file.size > MAX_EDITOR_IMAGE_SIZE) {
+        alert('התמונה גדולה מדי. אפשר להעלות תמונה עד 10MB.')
+        return
+      }
 
       setUploading(true)
 
@@ -826,7 +831,7 @@ export default function Editor({
       if (error) {
         console.error(error)
         setUploading(false)
-        alert(mapSupabaseError(error) ?? error.message)
+        alert(mapUserFacingError(error, 'לא הצלחנו להעלות את התמונה. נסו שוב.'))
         return
       }
 

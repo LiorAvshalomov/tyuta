@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { buildLoginRedirect, shouldRunLoginRedirect } from '@/lib/auth/protectedRoutes'
 
@@ -100,7 +100,7 @@ export default function NotebookPage() {
     setBusyId(null)
 
     if (error) {
-      alert(mapSupabaseError(error) ?? error.message)
+      alert(mapUserFacingError(error, 'לא הצלחנו למחוק את הטיוטה. נסו שוב.'))
       return
     }
 

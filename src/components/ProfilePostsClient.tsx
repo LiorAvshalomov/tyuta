@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import GifCoverImage from '@/components/GifCoverImage'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 type SortKey = 'recent' | 'reactions' | 'comments'
 
@@ -86,11 +87,7 @@ function clampPage(n: number) {
 }
 
 function getErrorMessage(e: unknown) {
-  if (e && typeof e === 'object' && 'message' in e && typeof (e as { message?: unknown }).message === 'string') {
-    return (e as { message: string }).message
-  }
-  if (e instanceof Error) return e.message
-  return 'שגיאה לא ידועה'
+  return mapUserFacingError(e, 'לא הצלחנו להשלים את הפעולה. נסו שוב.')
 }
 
 
@@ -119,7 +116,7 @@ function getChannelSlug(channelName: string | null): string | null {
 async function authedFetch(input: string, init: RequestInit = {}) {
   const resolution = await waitForClientSession(4000)
   const token = resolution.status === 'authenticated' ? resolution.session.access_token : null
-  if (!token) throw new Error('Not authenticated')
+  if (!token) throw new Error('צריך להתחבר מחדש כדי להמשיך.')
 
   const headers: Record<string, string> = {
     ...(init.headers as Record<string, string> | undefined),

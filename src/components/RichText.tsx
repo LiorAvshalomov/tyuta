@@ -16,6 +16,7 @@ import {
 import {
   sanitizeRichTextColor,
   sanitizeRichTextHref,
+  sanitizeRichTextImageSrc,
   toYouTubeNoCookieEmbed,
 } from '@/lib/richTextSecurity'
 import { supabase } from '@/lib/supabaseClient'
@@ -318,9 +319,10 @@ function renderNode(
       const proxySrc = postImageProxySrc(path, currentPostId)
       const publicSrc = postImagePublicSrc(path, currentPostId)
       const rawSrc = typeof attrs?.src === 'string' ? attrs.src.trim() : null
-      const src = publicSrc ?? proxySrc ?? rawSrc
+      const safeRawSrc = sanitizeRichTextImageSrc(rawSrc)
+      const src = publicSrc ?? proxySrc ?? safeRawSrc
       if (!src) return null
-      if (!proxySrc && !isPostImageProxySrc(src) && !/^https?:\/\//i.test(src)) return null
+      if (!proxySrc && !isPostImageProxySrc(src) && !safeRawSrc && !publicSrc) return null
 
       const alt = typeof attrs?.alt === 'string' ? attrs.alt : ''
       const rawWidth = attrs?.widthPercent

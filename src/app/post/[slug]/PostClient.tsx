@@ -8,7 +8,7 @@ import type { ComponentProps } from 'react'
 
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 import Avatar from '@/components/Avatar'
 import RichText from '@/components/RichText'
 import PostShell from '@/components/PostShell'
@@ -707,7 +707,7 @@ export default function PostPage({ initialData, initialExtras }: Props) {
       })
 
       if (error) {
-        setReportErr(mapSupabaseError(error) ?? error.message)
+        setReportErr(mapUserFacingError(error, 'לא הצלחנו לשלוח את הדיווח. נסו שוב.'))
         return
       }
       // Fire-and-forget Telegram notification (server resolves reporter from JWT)
@@ -734,7 +734,7 @@ export default function PostPage({ initialData, initialExtras }: Props) {
         setReportOk(null)
       }, 2200)
     } catch (e: unknown) {
-      setReportErr(e instanceof Error ? e.message : 'לא הצלחנו לשלוח דיווח')
+      setReportErr(mapUserFacingError(e, 'לא הצלחנו לשלוח את הדיווח. נסו שוב.'))
     } finally {
       setReportSending(false)
     }

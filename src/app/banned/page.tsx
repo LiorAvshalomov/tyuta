@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import { setSupportConversationId } from "@/lib/moderation"
-import { mapModerationRpcError, mapSupabaseError } from "@/lib/mapSupabaseError"
+import { mapModerationRpcError, mapSupabaseError, mapUserFacingError } from "@/lib/mapSupabaseError"
 import { getResolvedSession } from "@/lib/auth/getResolvedSession"
 
 const SYSTEM_USER_ID = process.env.NEXT_PUBLIC_SYSTEM_USER_ID ?? ""
@@ -115,7 +115,7 @@ export default function BannedPage() {
       })
 
       if (rpcError) {
-        setError(mapSupabaseError(rpcError) ?? mapModerationRpcError(rpcError.message ?? "") ?? rpcError.message)
+        setError(mapSupabaseError(rpcError) ?? mapModerationRpcError(rpcError.message ?? "") ?? mapUserFacingError(rpcError, "לא הצלחנו לפתוח שיחה עם מערכת האתר. נסו שוב."))
         return
       }
 
@@ -131,7 +131,7 @@ export default function BannedPage() {
       router.push(`/banned/contact?cid=${encodeURIComponent(conversationId)}`)
     } catch (caught: unknown) {
       const raw = caught instanceof Error ? caught.message : "Unknown error"
-      setError(mapModerationRpcError(raw) ?? raw)
+      setError(mapModerationRpcError(raw) ?? mapUserFacingError(raw, "לא הצלחנו לפתוח שיחה עם מערכת האתר. נסו שוב."))
     } finally {
       setBusy(false)
     }

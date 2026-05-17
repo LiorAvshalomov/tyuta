@@ -31,7 +31,9 @@ const MAX_CHARS = 80 // 400 if exceeded
 // Applied to every 200 response so CDN/browser caches autocomplete results.
 const CACHE_HEADERS = { 'Cache-Control': 'public, max-age=10, stale-while-revalidate=30' }
 
-const empty200 = NextResponse.json({ suggestions: [] }, { headers: CACHE_HEADERS })
+function emptySuggestionsResponse(): NextResponse {
+  return NextResponse.json({ suggestions: [] }, { headers: CACHE_HEADERS })
+}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   // ── rate limit ───────────────────────────────────────────────────────────
@@ -43,7 +45,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (rateLimitResponse) {
     return NextResponse.json(
       { suggestions: [] },
-      { status: 429, headers: { 'Retry-After': rateLimitResponse.headers.get('Retry-After') ?? '60' } },
+      {
+        status: 429,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Retry-After': rateLimitResponse.headers.get('Retry-After') ?? '60',
+        },
+      },
     )
   }
 
@@ -51,7 +59,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // trim() + collapse internal whitespace runs to a single space
   const raw = (req.nextUrl.searchParams.get('q') ?? '').trim().replace(/\s+/g, ' ')
 
-  if (raw.length < MIN_CHARS) return empty200
+  if (raw.length < MIN_CHARS) return emptySuggestionsResponse()
   if (raw.length > MAX_CHARS) {
     return NextResponse.json({ error: 'query_too_long' }, { status: 400 })
   }
@@ -59,7 +67,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Escape ILIKE metacharacters (%, _, \) so they match literally.
   // Strip PostgREST .or() grammar delimiters to prevent filter-string injection.
   const q = raw.replace(/[%_\\]/g, '\\$&').replace(/[(),]/g, '')
-  if (q.trim().length < MIN_CHARS) return empty200
+  if (q.trim().length < MIN_CHARS) return emptySuggestionsResponse()
 
   const supabase = serviceClient()
   if (!supabase) {
@@ -85,7 +93,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ suggestions: [] }, { status: 500 })
   }
 
-  if (!posts || posts.length === 0) return empty200
+  if (!posts || posts.length === 0) return emptySuggestionsResponse()
 
   // ── query 2: author names ─────────────────────────────────────────────
   const authorIds = [...new Set(posts.map(p => p.author_id as string).filter(Boolean))]

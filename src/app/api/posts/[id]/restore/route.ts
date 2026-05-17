@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
 import { rateLimit } from '@/lib/rateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { normalizeOwnedPrivatePostAssetPath } from '@/lib/storage/postAssetLifecycle'
 import { promotePrivateCoverToPublic, removePostAssetObject } from '@/lib/storage/postCoverLifecycle'
 import {
@@ -15,6 +16,7 @@ import { revalidateAuthorSidebars } from '@/lib/revalidateAuthorSidebars'
 
 const RESTORE_WINDOW_DAYS = 14
 const POST_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_REQUEST_BODY_BYTES = 1024
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -26,6 +28,9 @@ function serviceClient() {
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const rl = await rateLimit(`post-trash:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .eq('id', postId)
     .maybeSingle()
 
-  if (postErr) return NextResponse.json({ error: { code: 'db_error', message: postErr.message } }, { status: 500 })
+  if (postErr) return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו לטעון את הפוסט. נסו שוב בעוד רגע.' } }, { status: 500 })
   if (!post) return NextResponse.json({ error: { code: 'not_found', message: 'post not found' } }, { status: 404 })
   if (post.author_id !== auth.user.id) {
     return NextResponse.json({ error: { code: 'forbidden', message: 'not your post' } }, { status: 403 })
@@ -99,12 +104,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         )
       }
       restoredCoverUrl = promoted.publicUrl
-    } catch (error) {
+    } catch {
       return NextResponse.json(
         {
           error: {
             code: 'cover_restore_failed',
-            message: error instanceof Error ? error.message : 'cover restore failed',
+            message: 'לא הצלחנו לשחזר את תמונת הקאבר. נסו שוב בעוד רגע.',
           },
         },
         { status: 500 },
@@ -116,7 +121,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .from('posts')
     .update({ deleted_at: null, cover_image_url: restoredCoverUrl })
     .eq('id', postId)
-  if (updErr) return NextResponse.json({ error: { code: 'db_error', message: updErr.message } }, { status: 500 })
+  if (updErr) return NextResponse.json({ error: { code: 'db_error', message: 'לא הצלחנו לשחזר את הפוסט. נסו שוב בעוד רגע.' } }, { status: 500 })
 
   const warnings: string[] = []
   let publicInline = { uploaded: 0, removed: 0, retained: 0 }
@@ -141,8 +146,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           removed: await removePublishedPostInlineImages(svc, postId),
           retained: 0,
         }
-  } catch (error) {
-    warnings.push(error instanceof Error ? error.message : 'public inline sync failed')
+  } catch {
+    warnings.push('לא הצלחנו לסנכרן חלק מהתמונות הציבוריות')
   }
 
   try {
@@ -150,8 +155,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       p_post_id: postId,
       p_clear_delete_notice: true,
     })
-  } catch (error) {
-    warnings.push(error instanceof Error ? error.message : 'notification restore failed')
+  } catch {
+    warnings.push('לא הצלחנו לשחזר חלק מההתראות')
   }
 
   revalidatePath('/')

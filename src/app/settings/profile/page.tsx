@@ -11,7 +11,7 @@ import AvatarUpload from '@/components/AvatarUpload'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { buildLoginRedirect, shouldRunLoginRedirect } from '@/lib/auth/protectedRoutes'
 import { notifyProfileUpdated } from '@/lib/profileFreshness'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapSupabaseError, mapUserFacingError } from '@/lib/mapSupabaseError'
 
 type ProfileRow = {
   id: string
@@ -74,7 +74,7 @@ export default function ProfileSettingsPage() {
         .single()
 
       if (error || !p) {
-        setErr(error?.message ?? 'לא נמצא פרופיל')
+        setErr(error ? mapUserFacingError(error, 'לא הצלחנו לטעון את הפרופיל.') : 'לא נמצא פרופיל')
         setLoading(false)
         return
       }
@@ -133,7 +133,7 @@ export default function ProfileSettingsPage() {
 
     if (takenErr) {
       setSaving(false)
-      setErr(takenErr.message)
+      setErr(mapUserFacingError(takenErr, 'לא הצלחנו לבדוק אם שם המשתמש פנוי. נסו שוב.'))
       return
     }
 
@@ -163,7 +163,7 @@ export default function ProfileSettingsPage() {
       if (upErr.message.includes('profiles_username_unique')) {
         setErr('שם המשתמש כבר תפוס. נסה משהו אחר.')
       } else {
-        setErr(upErr.message)
+        setErr(mapUserFacingError(upErr, 'לא הצלחנו לשמור את הפרופיל. נסו שוב.'))
       }
       return
     }
@@ -230,7 +230,7 @@ export default function ProfileSettingsPage() {
         .from('avatars')
         .upload(path, file, { upsert: true, cacheControl: '31536000', contentType: 'image/jpeg' })
 
-      if (upErr) throw new Error(mapSupabaseError(upErr) ?? upErr.message)
+      if (upErr) throw new Error(mapUserFacingError(upErr, 'לא הצלחנו להעלות את תמונת הפרופיל. נסו שוב.'))
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(path)
       const baseUrl = data.publicUrl
@@ -241,13 +241,12 @@ export default function ProfileSettingsPage() {
         .update({ avatar_url: versionedUrl })
         .eq('id', uid)
 
-      if (pErr) throw new Error(mapSupabaseError(pErr) ?? pErr.message)
+      if (pErr) throw new Error(mapUserFacingError(pErr, 'התמונה עלתה, אבל לא הצלחנו לעדכן את הפרופיל. נסו שוב.'))
 
       setProfile((prev) => (prev ? { ...prev, avatar_url: versionedUrl } : prev))
       return versionedUrl
     } catch (e: unknown) {
-      const m = e instanceof Error ? e.message : String(e)
-      setErr(m)
+      setErr(mapUserFacingError(e, 'לא הצלחנו להעלות את תמונת הפרופיל. נסו שוב.'))
       return null
     } finally {
       setAvatarUploading(false)

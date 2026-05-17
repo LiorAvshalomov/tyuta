@@ -9,6 +9,7 @@ import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 import { USERNAME_MAX, DISPLAY_NAME_MAX } from '@/lib/validation'
 import { event as gaEvent } from '@/lib/gtag'
 import { supabase } from '@/lib/supabaseClient'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 const WITTY = [
   'פותחים דף חדש.',
@@ -98,7 +99,7 @@ export default function SignupPage() {
 שלחנו מייל לאימות החשבון (כדאי לבדוק גם בתיקיית הספאם או בקידומי מכירות).
 מיד לאחר האישור אפשר להתחבר.`)
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'שגיאה לא צפויה')
+      setErr(mapUserFacingError(e, 'לא הצלחנו להשלים את ההרשמה. נסו שוב.'))
     } finally {
       setLoading(false)
     }

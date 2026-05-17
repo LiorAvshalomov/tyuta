@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
+
+const MAX_REQUEST_BODY_BYTES = 4 * 1024
 
 function getSystemUserId(): string | null {
   const value = process.env.NEXT_PUBLIC_SYSTEM_USER_ID
@@ -16,6 +19,9 @@ type Body = {
 export async function POST(req: Request) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   const systemUserId = getSystemUserId()
   if (!systemUserId) {

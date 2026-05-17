@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireUserFromRequest } from '@/lib/auth/requireUserFromRequest'
+import { rateLimit } from '@/lib/rateLimit'
+import { buildRateLimitResponse } from '@/lib/requestRateLimit'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import { sendTelegramMessage, escapeHtml } from '@/lib/telegram'
 
 const MAX_BODY = 4000
+const MAX_REQUEST_BODY_BYTES = 32 * 1024
 
 function getSystemUserId(): string | null {
   const v = process.env.NEXT_PUBLIC_SYSTEM_USER_ID
@@ -16,6 +20,14 @@ function getSystemUserId(): string | null {
 export async function POST(req: Request) {
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
+
+  const rl = await rateLimit(`inbox-send:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return buildRateLimitResponse('יותר מדי הודעות בזמן קצר. נסו שוב בעוד רגע.', rl.retryAfterMs)
+  }
 
   let conversationId: string, body: string, replyToId: string | null
   try {
@@ -41,7 +53,7 @@ export async function POST(req: Request) {
   })
 
   if (error || !messageId) {
-    return NextResponse.json({ error: error?.message ?? 'failed to send' }, { status: 400 })
+    return NextResponse.json({ error: 'לא הצלחנו לשלוח את ההודעה. נסו שוב בעוד רגע.' }, { status: 400 })
   }
 
   void notifyTelegram(auth.user.id, conversationId, body)

@@ -1,4 +1,25 @@
 const CONTROL_OR_BIDI_RE = /[\u0000-\u001F\u007F\u200E\u200F\u202A-\u202E]/g
+const STATIC_RICH_IMAGE_ORIGINS = new Set([
+  'https://dowhdgcvxgzaikmpnchv.supabase.co',
+  'https://ckhhngglsipovvvgailq.supabase.co',
+  'https://api.dicebear.com',
+  'https://pixabay.com',
+  'https://cdn.pixabay.com',
+  'https://images.pexels.com',
+])
+
+function richImageOrigins(): Set<string> {
+  const origins = new Set(STATIC_RICH_IMAGE_ORIGINS)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (supabaseUrl) {
+    try {
+      origins.add(new URL(supabaseUrl).origin)
+    } catch {
+      // ignore invalid env at runtime; static allowlist still applies
+    }
+  }
+  return origins
+}
 
 export function sanitizeRichTextHref(href: unknown): string | null {
   if (typeof href !== 'string') return null
@@ -39,6 +60,23 @@ export function sanitizeRichTextColor(color: unknown): string | null {
   }
 
   return null
+}
+
+export function sanitizeRichTextImageSrc(src: unknown): string | null {
+  if (typeof src !== 'string') return null
+
+  const trimmed = src.replace(CONTROL_OR_BIDI_RE, '').trim()
+  if (!trimmed || trimmed.length > 1024) return null
+  if (trimmed.startsWith('/api/media/post-image')) return trimmed
+
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'https:') return null
+    if (!richImageOrigins().has(url.origin)) return null
+    return url.toString()
+  } catch {
+    return null
+  }
 }
 
 export function toYouTubeNoCookieEmbed(src: unknown): string | null {

@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { updatePassword } from '@/lib/auth'
 import { PASSWORD_HINT_HE, validatePassword } from '@/lib/password'
 import { broadcastAuthEvent } from '@/lib/auth/authEvents'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 
 type PageState = 'loading' | 'ready' | 'error' | 'done'
@@ -78,7 +79,7 @@ export default function ResetPasswordPage() {
       // from navigating the site until they complete (or restart) the reset flow.
       if (hashError) {
         setResetGate()
-        setErr(hashError)
+        setErr(mapUserFacingError(hashError, 'קישור האיפוס לא תקין או שפג תוקפו. בקשו קישור חדש.'))
         setState('error')
         return
       }
@@ -94,7 +95,7 @@ export default function ResetPasswordPage() {
         if (cancelled) return
         if (error) {
           setResetGate()
-          setErr(error.message)
+          setErr(mapUserFacingError(error, 'קישור האיפוס לא תקין או שפג תוקפו. בקשו קישור חדש.'))
           setState('error')
           return
         }
@@ -116,7 +117,7 @@ export default function ResetPasswordPage() {
           if (cancelled) return
           if (error) {
             setResetGate()
-            setErr(error.message)
+            setErr(mapUserFacingError(error, 'קישור האיפוס לא תקין או שפג תוקפו. בקשו קישור חדש.'))
             setState('error')
             return
           }
@@ -171,7 +172,7 @@ export default function ResetPasswordPage() {
     try {
       const { error } = await updatePassword(pw1)
       if (error) {
-        setErr(error.message)
+        setErr(mapUserFacingError(error, 'לא הצלחנו לעדכן את הסיסמה. נסו שוב.'))
         return
       }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { requireAdminFromRequest } from '@/lib/admin/requireAdminFromRequest'
+import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 import {
   fetchUserProfileSnapshot,
   logUserModerationAction,
@@ -12,6 +13,7 @@ import { logPostPurgeEvents } from '@/lib/posts/postPurgeEvents'
 type Body = {
   user_id?: string
 }
+const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
@@ -22,6 +24,9 @@ function chunk<T>(arr: T[], size: number): T[][] {
 export async function POST(req: Request) {
   const auth = await requireAdminFromRequest(req)
   if (!auth.ok) return auth.response
+
+  const tooLarge = rejectLargeRequestBody(req, MAX_REQUEST_BODY_BYTES)
+  if (tooLarge) return tooLarge
 
   let body: Body = {}
   try {

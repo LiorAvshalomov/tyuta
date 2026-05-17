@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { event as gaEvent } from '@/lib/gtag'
 import ProfilePersonalInfoCard from '@/components/ProfilePersonalInfoCard'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 type PersonalInfo = {
   personal_is_shared: boolean
@@ -248,7 +248,7 @@ export default function ProfilePersonalInfoCardClient({
 
     if (upErr) {
       setSaving(false)
-      setError(mapSupabaseError(upErr) ?? upErr.message)
+      setError(mapUserFacingError(upErr, 'לא הצלחנו לשמור את פרטי הפרופיל. נסו שוב.'))
       return
     }
 

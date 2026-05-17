@@ -3,6 +3,8 @@
 // Message length limits (UI enforced; server + DB also enforce hard limit)
 const MAX_UI_CHARS = 3500   // user cannot send above this
 const WARN_AT      = 3200   // counter appears below this remaining threshold
+const MAX_CHAT_IMAGE_SIZE = 5 * 1024 * 1024
+const ALLOWED_CHAT_IMAGE_MIMES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 
 import Link from 'next/link'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -10,7 +12,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
-import { mapSupabaseError, mapModerationRpcError } from '@/lib/mapSupabaseError'
+import { mapSupabaseError, mapModerationRpcError, mapUserFacingError } from '@/lib/mapSupabaseError'
 import { getAdminErrorMessage } from '@/lib/admin/adminUi'
 import { useToast } from '@/components/Toast'
 import Avatar from '@/components/Avatar'
@@ -261,7 +263,7 @@ export default function ChatClient({
         message_excerpt: reportedMessage ? String(reportedMessage.body).slice(0, 280) : null,
       })
       if (error) {
-        setReportErr(mapSupabaseError(error) ?? error.message)
+        setReportErr(mapUserFacingError(error, 'לא הצלחנו לשלוח את הדיווח. נסו שוב.'))
         return
       }
       // Fire-and-forget Telegram notification (server resolves reporter from JWT)
@@ -2047,8 +2049,12 @@ export default function ChatClient({
                   if (!imageInputRef.current) return
                   imageInputRef.current.value = ''
                   if (!file) return
-                  if (file.size > 5 * 1024 * 1024) {
-                    toast('הקובץ גדול מדי (מקסימום 5MB)', 'error')
+                  if (!ALLOWED_CHAT_IMAGE_MIMES.has(file.type)) {
+                    toast('סוג קובץ לא נתמך. מותרות תמונות JPEG, PNG, GIF ו-WebP בלבד.', 'error')
+                    return
+                  }
+                  if (file.size > MAX_CHAT_IMAGE_SIZE) {
+                    toast('התמונה גדולה מדי. אפשר להעלות תמונה עד 5MB.', 'error')
                     return
                   }
                   setImageUploading(true)
@@ -2058,7 +2064,7 @@ export default function ChatClient({
                     const res = await adminFetch('/api/admin/inbox/upload-image', { method: 'POST', body: fd })
                     const json = await res.json().catch(() => ({})) as { url?: string; error?: string }
                     if (!res.ok || !json.url) {
-                      toast(json.error ?? 'שגיאה בהעלאת תמונה', 'error')
+                      toast(mapUserFacingError(json.error, 'לא הצלחנו להעלות את התמונה. נסו שוב.'), 'error')
                       return
                     }
                     // Send image as a special message body
@@ -2068,7 +2074,7 @@ export default function ChatClient({
                     })
                     if (!imgRes.ok) {
                       const j = await imgRes.json().catch(() => ({})) as { error?: string }
-                      toast(j.error ?? 'שגיאה בשליחת תמונה', 'error')
+                      toast(mapUserFacingError(j.error, 'לא הצלחנו לשלוח את התמונה. נסו שוב.'), 'error')
                     }
                   } finally {
                     setImageUploading(false)

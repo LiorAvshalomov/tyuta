@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent as R
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
-import { mapSupabaseError } from '@/lib/mapSupabaseError'
+import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 type Reaction = {
   key: string
@@ -451,7 +451,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
 
       if (cancelled) return
       if (rxErr) {
-        setErrorMsg(rxErr.message)
+        setErrorMsg(mapUserFacingError(rxErr, 'לא הצלחנו לטעון את הדירוגים. נסו שוב.'))
         setLoading(false)
         return
       }
@@ -609,7 +609,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
         // rollback
         setMyVotes(prev => new Set(prev).add(reactionKey))
         optimisticDelta(reactionKey, 1)
-        setErrorMsg(mapSupabaseError(error) ?? error.message)
+        setErrorMsg(mapUserFacingError(error, 'לא הצלחנו לעדכן את הדירוג. נסו שוב.'))
         return
       }
 
@@ -643,7 +643,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
       const msg = String(error.message).toLowerCase()
       if (msg.includes('max 3 reactions')) setErrorMsg('אפשר לבחור עד 3 דירוגים לפוסט')
       else if (msg.includes('own post')) setErrorMsg('אי אפשר לדרג פוסט של עצמך')
-      else setErrorMsg(mapSupabaseError(error) ?? error.message)
+      else setErrorMsg(mapUserFacingError(error, 'לא הצלחנו לעדכן את הדירוג. נסו שוב.'))
       return
     }
 
