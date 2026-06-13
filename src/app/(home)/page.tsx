@@ -450,7 +450,7 @@ function SimplePostCard({ post }: { post: CardPost }) {
 
         {/* IMAGE — top, full width */}
         <Link href={`/post/${post.slug}`} className="block pointer-events-auto relative">
-          <div className="relative aspect-[4/3] bg-muted tyuta-img-hover">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-t-2xl bg-muted tyuta-img-hover">
             {coverSrc ? (
               <CoverImg
                 src={coverSrc}
@@ -554,7 +554,7 @@ function ListRowCompact({ post, accentClass }: { post: CardPost; accentClass?: s
         {/* IMAGE — left side, full card height, rounded by card overflow-hidden */}
         <div className="w-[108px] sm:w-[180px] shrink-0 relative self-stretch">
           <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
-            <div className="relative h-full bg-muted tyuta-img-hover">
+            <div className="relative h-full overflow-hidden rounded-l-2xl bg-muted tyuta-img-hover">
               {post.cover_image_url ? (
                 <CoverImg
                   src={coverProxySrc(post.cover_image_url)!}
@@ -672,7 +672,7 @@ function RecentMiniRow({ post }: { post: CardPost }) {
         {/* IMAGE — left side, full card height, card overflow-hidden handles rounding */}
         <div className="w-[96px] shrink-0 relative self-stretch">
           <Link href={`/post/${post.slug}`} className="block h-full pointer-events-auto">
-            <div className="relative h-full bg-muted tyuta-img-hover">
+            <div className="relative h-full overflow-hidden rounded-l-2xl bg-muted tyuta-img-hover">
               {post.cover_image_url ? (
                 <CoverImg
                   src={coverProxySrc(post.cover_image_url)!}
