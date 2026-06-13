@@ -69,13 +69,30 @@ function postSlugFromPayload(payload: Record<string, unknown>): string | null {
   return str(payload.post_slug) || str(payload.slug) || null
 }
 
+function commentIdFromPayload(payload: Record<string, unknown>, row?: NotifRowDb): string | null {
+  const nested = payload.payload
+  const nestedComment = payload.comment
+  return (
+    str(payload.comment_id) ||
+    (isRecord(nested) ? str(nested.comment_id) : null) ||
+    (isRecord(nestedComment) ? str(nestedComment.id) : null) ||
+    (row?.entity_type === 'comment' ? (row.entity_id ?? null) : null) ||
+    null
+  )
+}
+
 function formatDateTime(iso: string): string {
   const d = new Date(iso)
   const pad = (x: number) => String(x).padStart(2, '0')
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function labelForType(t: string): string {
+function labelForType(t: string, payload?: Record<string, unknown>): string {
+  const action = payload ? str(payload.action) : null
+  if (t === 'comment' && action === 'comment_mention') {
+    return 'הזכיר/ה אותך בתגובה'
+  }
+
   switch (t) {
     case 'follow':
       return 'התחיל לעקוב אחריך'
@@ -226,6 +243,7 @@ export default function NotificationsPage() {
   const loadingMoreRef = useRef(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const rowsRef = useRef<NotifRowDb[]>([])
+  const realtimeRefreshTimerRef = useRef<number | null>(null)
 
   const load = useCallback(async (opts?: { preserveLoaded?: boolean; silent?: boolean }) => {
     const preserveLoaded = opts?.preserveLoaded === true
@@ -307,16 +325,28 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (!currentUserId) return
+    const refreshSoon = () => {
+      if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current)
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        realtimeRefreshTimerRef.current = null
+        void load({ preserveLoaded: true, silent: true })
+      }, 180)
+    }
+
     const channel = supabase
       .channel(`notifications-page:${currentUserId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${currentUserId}` },
-        () => void load({ preserveLoaded: true, silent: true }),
+        refreshSoon,
       )
       .subscribe()
 
     return () => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current)
+        realtimeRefreshTimerRef.current = null
+      }
       void supabase.removeChannel(channel)
     }
   }, [currentUserId, load])
@@ -397,7 +427,12 @@ export default function NotificationsPage() {
     const payload = isRecord(r.payload) ? r.payload : {}
     const slug = postSlugFromPayload(payload)
     if (slug) {
-      router.push(`/post/${encodeURIComponent(slug)}`)
+      const commentId = commentIdFromPayload(payload, r)
+      const params = new URLSearchParams()
+      if (commentId) params.set('hl', commentId)
+      params.set('t', String(Date.now()))
+      const qs = params.toString()
+      router.push(`/post/${encodeURIComponent(slug)}${qs ? `?${qs}` : ''}`)
       return
     }
   }
@@ -456,7 +491,7 @@ export default function NotificationsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="font-bold text-neutral-900 truncate">{name}</span>
-                          <span className="text-sm text-neutral-600">{labelForType(type)}</span>
+                          <span className="text-sm text-neutral-600">{labelForType(type, payload)}</span>
                           {!r.is_read ? (
                             <span className="inline-flex items-center rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
                               חדש
