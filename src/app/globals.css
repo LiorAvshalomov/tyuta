@@ -549,6 +549,8 @@ html {
 .tyuta-img-hover {
   position: relative;
   overflow: hidden;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 /* Pre-promote card images to a GPU compositor layer only on true hover devices
