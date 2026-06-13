@@ -38,7 +38,7 @@ import Avatar from '@/components/Avatar'
 import AuthorHover from '@/components/AuthorHover'
 import FeedAutoRefresh from '@/components/FeedAutoRefresh'
 import FeedIntentLink from '@/components/FeedIntentLink'
-import { coverProxySrc, isProxySrc, isGifUrl } from '@/lib/coverUrl'
+import { coverProxySrc, isGifUrl, shouldBypassCoverOptimization } from '@/lib/coverUrl'
 import { FeaturedImageGlow } from '@/components/FeaturedImageGlow'
 import { FeaturedColorSync } from '@/components/FeaturedColorSync'
 import GifCoverCard from '@/components/GifCoverCard'
@@ -149,15 +149,14 @@ function CoverImg({
   if (isGifUrl(src)) {
     return (
       <div className={`absolute inset-0 overflow-hidden ${className ?? ''}`}>
-        <GifCoverCard src={src} alt={alt} />
+        <GifCoverCard src={src} alt={alt} loading={priority ? 'eager' : 'lazy'} />
       </div>
     )
   }
-  // Proxy URLs are already unoptimized (served from /api/media/cover).
-  // Direct Supabase CDN URLs go through Next.js optimizer — use resilient
-  // wrapper so onError retries with the unoptimized URL if Vercel's
-  // on-demand image generation fails (e.g. new DPR variant not yet cached).
-  if (isProxySrc(src)) {
+  // Proxy and public Supabase covers are already CDN-cached.
+  // Keep them server-rendered so feed thumbnails do not hydrate a client
+  // wrapper for every visible card on mobile.
+  if (shouldBypassCoverOptimization(src)) {
     return (
       <Image
         src={src}

@@ -17,10 +17,12 @@ import { useEffect, useRef, useState } from 'react'
 export default function GifCoverImage({
   src,
   alt,
+  loading = 'lazy',
   cardHovered,
 }: {
   src: string
   alt: string
+  loading?: 'eager' | 'lazy'
   cardHovered?: boolean
 }) {
   const imgRef = useRef<HTMLImageElement>(null)
@@ -86,7 +88,8 @@ export default function GifCoverImage({
         ref={imgRef}
         src={src}
         alt={alt}
-        loading="eager"
+        loading={loading}
+        decoding="async"
         onLoad={drawFrame}
         style={{
           width: '100%',

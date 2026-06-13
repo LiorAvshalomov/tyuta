@@ -474,6 +474,19 @@ html {
   box-shadow: 0 8px 24px -4px oklch(0 0 0 / 35%), 0 2px 6px -2px oklch(0 0 0 / 20%);
 }
 
+@media (hover: none), (pointer: coarse) {
+  .tyuta-card-hover {
+    transition: none;
+  }
+
+  .tyuta-card-hover:hover,
+  .tyuta-card-hover:active,
+  .dark .tyuta-card-hover:hover {
+    box-shadow: none;
+    transform: none !important;
+  }
+}
+
 /* Write CTA editorial warmth */
 .tyuta-cta-card {
   background: linear-gradient(135deg, oklch(0.97 0.01 60 / 80%), oklch(0.95 0.015 30 / 60%));
@@ -575,6 +588,24 @@ html {
 }
 .dark .tyuta-img-hover:hover::after {
   background: oklch(0.78 0.06 60 / 5%);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .tyuta-img-hover {
+    transform: none;
+  }
+
+  .tyuta-img-hover img {
+    will-change: auto !important;
+  }
+
+  .tyuta-img-hover::after {
+    transition: none;
+  }
+
+  .tyuta-img-hover:hover::after {
+    background: transparent;
+  }
 }
 
 /* Channel badge palette — canonical red / blue / purple */

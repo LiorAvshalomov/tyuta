@@ -6,6 +6,8 @@ export function FeaturedImageGlow() {
   const glowRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return
+
     const glow = glowRef.current
     if (!glow) return
     // The frame is the previous sibling — listen there so clicks are never blocked.
