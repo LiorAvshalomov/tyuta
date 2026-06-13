@@ -141,6 +141,7 @@ function effectiveType(rawType: string, payload: Record<string, unknown>): strin
 const a = str(payload.action)
 if (a === 'comment_like') return 'comment_like'
 if (a === 'comment_reply') return 'comment'
+if (a === 'comment_mention') return 'comment'
 
   // Heuristic (safe): if the payload clearly refers to a comment thread, treat it as a comment notification.
   // This fixes legacy triggers that stored an unrelated `type` while still providing comment_id/parent_comment_id.
@@ -202,7 +203,7 @@ function groupKey(n: NotifNormalized): string {
     const postId = str(p.post_id) || (n.entity_type === 'post' ? (n.entity_id ?? '') : '')
     const slug = postSlugFromPayload(p) || ''
     // Separate buckets so replies don't merge with new top-level comments.
-    const kind = isReply ? 'comment_reply' : 'comment'
+    const kind = action === 'comment_mention' ? 'comment_mention' : isReply ? 'comment_reply' : 'comment'
     return [kind, postId, slug].join('|')
   }
 
@@ -437,6 +438,7 @@ export default function NotificationsBell() {
   const loadSeqRef = useRef(0)
   const loadingMoreRef = useRef(false)
   const rowsRef = useRef<NotifRowDb[]>([])
+  const realtimeRefreshTimerRef = useRef<number | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -708,17 +710,28 @@ export default function NotificationsBell() {
 
   useEffect(() => {
     if (!currentUserId) return
+    const refreshSoon = () => {
+      if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current)
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        realtimeRefreshTimerRef.current = null
+        void load({ preserveLoaded: true, silent: true })
+      }, 180)
+    }
 
     const ch = supabase
       .channel(`notifications-bell:${currentUserId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${currentUserId}` },
-        () => void load({ preserveLoaded: true, silent: true })
+        refreshSoon
       )
       .subscribe()
 
     return () => {
+      if (realtimeRefreshTimerRef.current) {
+        window.clearTimeout(realtimeRefreshTimerRef.current)
+        realtimeRefreshTimerRef.current = null
+      }
       void supabase.removeChannel(ch)
     }
   }, [currentUserId, load])
@@ -970,6 +983,18 @@ const token = storeHighlightToken(ids)
   }
 
   if (g.type === "comment") {
+    const action = str(payload.action)
+    if (action === 'comment_mention') {
+      const postTitle = title ?? "ללא כותרת"
+      return (
+        <div className="text-right leading-snug">
+          <div>
+            הוזכרת על ידי <span className="font-semibold">{who}</span> בתגובה בפוסט &quot;{postTitle}&quot;
+          </div>
+        </div>
+      )
+    }
+
     const isReply = isReplyToComment(payload)
     const verb = verbByCount(count, "הגיב/ה", "הגיבו")
     const postTitle = title ?? "ללא כותרת"

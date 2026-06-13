@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
@@ -44,11 +45,54 @@ type CommentLikeSyncPayload = {
   version: string
 }
 
+type MentionSuggestion = {
+  id: string
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+}
+
+type MentionRenderProfile = {
+  username: string
+  display_name: string | null
+}
+
+type MentionRenderTarget = {
+  label: string
+  username: string
+}
+
+type SelectedMention = {
+  id: string
+  username: string
+  displayName: string
+  avatar_url: string | null
+}
+
+type MentionState = {
+  start: number
+  end: number
+  query: string
+} | null
+
+type MentionSuggestionsResponse = {
+  suggestions?: MentionSuggestion[]
+}
+
 const COMMENT_LIKE_SYNC_STORAGE_KEY = 'tyuta:comment-like-sync'
 const COMMENT_LIKE_SYNC_EVENT = 'tyuta:comment-like-sync'
 const COMMENT_LIKE_SYNC_CHANNEL = 'tyuta-comment-like-sync'
 const COMMENT_MIN_LENGTH = 2
 const COMMENT_MAX_LENGTH = 700
+const MENTION_MIN_QUERY_LENGTH = 2
+const MENTION_MAX_QUERY_LENGTH = 40
+const MAX_SELECTED_MENTION_IDS = 8
+const MENTION_TRIGGER_RE = /(^|[\s([{>"'״׳])@([a-zA-Z0-9_\u0590-\u05FF.-]{0,40})$/
+const MENTION_RENDER_RE = /(^|[^a-zA-Z0-9_])@([a-z0-9_]{3,20})(?=$|[^a-zA-Z0-9_])/gi
+const MENTION_TEST_RE = /(^|[^a-zA-Z0-9_])@([a-z0-9_]{3,20})(?=$|[^a-zA-Z0-9_])/i
+const COMMENT_DRAFT_STORAGE_PREFIX = 'tyuta:comment-draft:'
+const DRAFT_LEAVE_MESSAGE =
+  'יש תגובה שעדיין לא נשלחה. שמרנו לה טיוטה בדפדפן, אבל היא לא תפורסם אם תעזוב עכשיו. לצאת בכל זאת?'
 const NOTIFICATION_HIGHLIGHT_CLASS = "border-amber-300/80 ring-1 ring-amber-200/70 bg-[linear-gradient(180deg,rgba(255,252,244,0.96),rgba(255,247,228,0.82))] shadow-[0_18px_45px_-32px_rgba(217,119,6,0.28)] before:pointer-events-none before:absolute before:right-[1px] before:top-2 before:bottom-2 before:w-[4px] before:content-[''] before:rounded-full before:bg-[linear-gradient(180deg,rgba(245,158,11,0.98),rgba(251,191,36,0.56))] dark:border-amber-400/25 dark:ring-amber-300/15 dark:bg-[linear-gradient(180deg,rgba(120,87,29,0.18),rgba(43,32,11,0.10))] dark:shadow-[0_18px_45px_-34px_rgba(245,158,11,0.22)] dark:before:bg-[linear-gradient(180deg,rgba(251,191,36,0.84),rgba(245,158,11,0.26))] animate-[tyutaGlow_1100ms_ease-out] motion-reduce:animate-none"
 
 type RealtimePayload<T> = {
@@ -102,6 +146,195 @@ function normalizeCommentText(value: string) {
   return value.trim().slice(0, COMMENT_MAX_LENGTH)
 }
 
+function selectedMentionLabels(mentions: SelectedMention[]): string[] {
+  const labels: string[] = []
+  for (const mention of mentions) {
+    for (const label of [mention.displayName, mention.username]) {
+      const trimmed = label.trim()
+      if (trimmed && !labels.includes(trimmed)) labels.push(trimmed)
+    }
+  }
+  return labels.sort((a, b) => b.length - a.length)
+}
+
+function detectSelectedMentionState(value: string, caret: number, mentions: SelectedMention[]): MentionState {
+  for (const label of selectedMentionLabels(mentions)) {
+    const token = `@${label}`
+    let index = value.indexOf(token)
+    while (index !== -1) {
+      const end = index + token.length
+      if (
+        isMentionBoundaryChar(value[index - 1]) &&
+        isMentionBoundaryChar(value[end]) &&
+        caret >= index + 1 &&
+        caret <= end
+      ) {
+        return {
+          start: index,
+          end,
+          query: label.slice(0, MENTION_MAX_QUERY_LENGTH),
+        }
+      }
+      index = value.indexOf(token, index + 1)
+    }
+  }
+
+  return null
+}
+
+function selectedMentionRangeForDelete(value: string, selectionStart: number, selectionEnd: number, mentions: SelectedMention[], key: string): MentionState {
+  const probePositions = new Set<number>([selectionStart, selectionEnd])
+  if (key === 'Backspace') {
+    probePositions.add(Math.max(0, selectionStart - 1))
+  } else if (key === 'Delete') {
+    probePositions.add(Math.min(value.length, selectionEnd + 1))
+  }
+
+  for (const position of probePositions) {
+    const state = detectSelectedMentionState(value, position, mentions)
+    if (state) return state
+  }
+
+  return null
+}
+
+function detectMentionState(value: string, caret: number | null, selectedMentions: SelectedMention[] = []): MentionState {
+  if (caret === null || caret < 0) return null
+  const selectedState = detectSelectedMentionState(value, caret, selectedMentions)
+  if (selectedState) return selectedState
+
+  const before = value.slice(0, caret)
+  const match = MENTION_TRIGGER_RE.exec(before)
+  if (!match) return null
+  const query = (match[2] ?? '').trim()
+  if (query.length > MENTION_MAX_QUERY_LENGTH) return null
+  return {
+    start: before.length - query.length - 1,
+    end: caret,
+    query,
+  }
+}
+
+function hasUsernameMention(value: string): boolean {
+  return MENTION_TEST_RE.test(value)
+}
+
+function isMentionBoundaryChar(value: string | undefined): boolean {
+  return !value || !/[\p{L}\p{N}_]/u.test(value)
+}
+
+function mentionTargetsFromProfiles(profiles: MentionRenderProfile[]): MentionRenderTarget[] {
+  const byLabel = new Map<string, MentionRenderTarget>()
+
+  for (const profile of profiles) {
+    const username = profile.username.trim()
+    if (!username) continue
+
+    const labels = [profile.display_name?.trim(), username].filter((label): label is string => !!label)
+    for (const label of labels) {
+      const key = label.toLocaleLowerCase('he-IL')
+      if (!byLabel.has(key)) byLabel.set(key, { label, username })
+    }
+  }
+
+  return Array.from(byLabel.values()).sort((a, b) => b.label.length - a.label.length)
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function contentContainsMentionLabel(content: string, label: string): boolean {
+  const trimmed = label.trim()
+  if (!trimmed) return false
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}_])@${escapeRegExp(trimmed)}(?=$|[^\\p{L}\\p{N}_])`, 'iu')
+  return re.test(content)
+}
+
+function matchingMentionTokenEnd(content: string, start: number, labels: string[]): number | null {
+  for (const label of labels) {
+    const token = `@${label.trim()}`
+    if (token.length <= 1) continue
+    const end = start + token.length
+    if (
+      content.slice(start, end).toLocaleLowerCase('he-IL') === token.toLocaleLowerCase('he-IL') &&
+      isMentionBoundaryChar(content[end])
+    ) {
+      return end
+    }
+  }
+
+  return null
+}
+
+function renderMentionNode(username: string, text: string, key: string) {
+  return (
+    <AuthorHover key={key} username={username}>
+      <Link
+        href={`/u/${username}`}
+        className="font-semibold text-blue-700 underline-offset-4 hover:underline dark:text-blue-300"
+      >
+        {text}
+      </Link>
+    </AuthorHover>
+  )
+}
+
+function renderCommentContent(content: string, targets: MentionRenderTarget[]): ReactNode[] {
+  if (targets.length > 0) {
+    const nodes: ReactNode[] = []
+    let cursor = 0
+    let key = 0
+    const lowerContent = content.toLocaleLowerCase('he-IL')
+
+    for (let index = 0; index < content.length; index += 1) {
+      if (content[index] !== '@') continue
+      if (!isMentionBoundaryChar(content[index - 1])) continue
+
+      const target = targets.find((candidate) => {
+        const label = candidate.label.toLocaleLowerCase('he-IL')
+        if (!lowerContent.startsWith(label, index + 1)) return false
+        return isMentionBoundaryChar(content[index + 1 + candidate.label.length])
+      })
+      if (!target) continue
+
+      if (index > cursor) nodes.push(content.slice(cursor, index))
+      const end = index + 1 + target.label.length
+      nodes.push(renderMentionNode(target.username, content.slice(index, end), `mention-label-${target.username}-${key}`))
+      key += 1
+      cursor = end
+      index = end - 1
+    }
+
+    if (cursor < content.length) nodes.push(content.slice(cursor))
+    if (nodes.length > 0) return nodes
+  }
+
+  const nodes: ReactNode[] = []
+  let lastIndex = 0
+  let key = 0
+
+  for (const match of content.matchAll(MENTION_RENDER_RE)) {
+    const full = match[0] ?? ''
+    const prefix = match[1] ?? ''
+    const username = match[2]
+    const matchIndex = match.index ?? 0
+    if (!username) continue
+
+    const mentionStart = matchIndex + prefix.length
+    if (mentionStart > lastIndex) {
+      nodes.push(content.slice(lastIndex, mentionStart))
+    }
+
+    nodes.push(renderMentionNode(username, `@${username}`, `mention-${username}-${key}`))
+    key += 1
+    lastIndex = matchIndex + full.length
+  }
+
+  if (lastIndex < content.length) nodes.push(content.slice(lastIndex))
+  return nodes.length > 0 ? nodes : [content]
+}
+
 export default function PostComments({ postId, postSlug, postTitle, postAuthorId }: Props) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -128,7 +361,39 @@ export default function PostComments({ postId, postSlug, postTitle, postAuthorId
   const likeSyncTimerRef = useRef<number | null>(null)
   const likeRealtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const bannerCommentIdRef = useRef<string | null>(null)
+  const composerMentionWrapRef = useRef<HTMLDivElement | null>(null)
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const selectedMentionIdsRef = useRef<Set<string>>(new Set())
+  const mentionRenderProfilesLoadedRef = useRef(false)
+  const mentionFetchTimerRef = useRef<number | null>(null)
+  const mentionAbortRef = useRef<AbortController | null>(null)
+  const mentionFetchSeqRef = useRef(0)
+  const draftKeyRef = useRef<string | null>(null)
+  const shouldWarnDraftRef = useRef(false)
+  const commentSubmitInFlightRef = useRef(false)
+  const popGuardArmedRef = useRef(false)
+  const allowNextPopRef = useRef(false)
+  const restoredDraftKeysRef = useRef<Set<string>>(new Set())
+  const [mentionState, setMentionState] = useState<MentionState>(null)
+  const [mentionSuggestions, setMentionSuggestions] = useState<MentionSuggestion[]>([])
+  const [mentionRenderProfiles, setMentionRenderProfiles] = useState<MentionRenderProfile[]>([])
+  const [selectedMentions, setSelectedMentions] = useState<SelectedMention[]>([])
+  const [mentionLoading, setMentionLoading] = useState(false)
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0)
+  const [mentionPlacement, setMentionPlacement] = useState<'top' | 'bottom'>('top')
+  const [composerFocused, setComposerFocused] = useState(false)
+
+  const mentionQuery = mentionState?.query.trim() ?? ''
+  const mentionOpen =
+    composerFocused &&
+    !!userId &&
+    !!mentionState &&
+    mentionQuery.length >= MENTION_MIN_QUERY_LENGTH &&
+    (mentionLoading || mentionSuggestions.length > 0)
+  const mentionRenderTargets = useMemo(
+    () => mentionTargetsFromProfiles(mentionRenderProfiles),
+    [mentionRenderProfiles],
+  )
 
   const searchParams = useSearchParams()
   const pathname = usePathname()
@@ -454,6 +719,304 @@ const setErrFor = (msg: string | null) => {
   }
 }
 
+const resetMentionPicker = useCallback(() => {
+  setMentionState(null)
+  setMentionSuggestions([])
+  setMentionLoading(false)
+  setMentionActiveIndex(0)
+}, [])
+
+const updateMentionPicker = useCallback((nextText: string, caret: number | null) => {
+  const nextState = detectMentionState(nextText, caret, selectedMentions)
+  setMentionState(nextState)
+  setMentionActiveIndex(0)
+  if (nextState && nextState.query.trim().length >= MENTION_MIN_QUERY_LENGTH) {
+    const rect = composerTextareaRef.current?.getBoundingClientRect()
+    setMentionPlacement(rect && rect.top < 260 ? 'bottom' : 'top')
+  }
+  if (!nextState || nextState.query.trim().length < MENTION_MIN_QUERY_LENGTH) {
+    setMentionSuggestions([])
+    setMentionLoading(false)
+  }
+}, [selectedMentions])
+
+useEffect(() => {
+  if (!userId || mentionQuery.length < MENTION_MIN_QUERY_LENGTH) {
+    if (mentionFetchTimerRef.current) {
+      window.clearTimeout(mentionFetchTimerRef.current)
+      mentionFetchTimerRef.current = null
+    }
+    mentionAbortRef.current?.abort()
+    mentionAbortRef.current = null
+    setMentionLoading(false)
+    if (mentionQuery.length < MENTION_MIN_QUERY_LENGTH) setMentionSuggestions([])
+    return
+  }
+
+  const seq = ++mentionFetchSeqRef.current
+  setMentionLoading(true)
+  if (mentionFetchTimerRef.current) window.clearTimeout(mentionFetchTimerRef.current)
+  mentionAbortRef.current?.abort()
+
+  mentionFetchTimerRef.current = window.setTimeout(() => {
+    void (async () => {
+      const controller = new AbortController()
+      mentionAbortRef.current = controller
+      try {
+        const { data } = await supabase.auth.getSession()
+        const token = data.session?.access_token ?? ''
+        if (!token) {
+          if (seq === mentionFetchSeqRef.current) resetMentionPicker()
+          return
+        }
+
+        const res = await fetch(`/api/comments/mention-suggestions?q=${encodeURIComponent(mentionQuery)}`, {
+          headers: { authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        })
+
+        if (!res.ok) {
+          if (seq === mentionFetchSeqRef.current) {
+            setMentionSuggestions([])
+            setMentionActiveIndex(0)
+          }
+          return
+        }
+
+        const body = (await res.json().catch(() => ({}))) as MentionSuggestionsResponse
+        if (seq !== mentionFetchSeqRef.current) return
+        setMentionSuggestions((body.suggestions ?? []).filter((item) => !!item.id && !!item.username))
+        setMentionActiveIndex(0)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        if (seq === mentionFetchSeqRef.current) {
+          setMentionSuggestions([])
+          setMentionActiveIndex(0)
+        }
+      } finally {
+        if (mentionAbortRef.current === controller) mentionAbortRef.current = null
+        if (seq === mentionFetchSeqRef.current) setMentionLoading(false)
+      }
+    })()
+  }, 180)
+
+  return () => {
+    if (mentionFetchTimerRef.current) {
+      window.clearTimeout(mentionFetchTimerRef.current)
+      mentionFetchTimerRef.current = null
+    }
+    mentionAbortRef.current?.abort()
+  }
+}, [mentionQuery, resetMentionPicker, userId])
+
+useEffect(() => {
+  if (!mentionState) return
+
+  const onPointerDown = (event: PointerEvent) => {
+    const target = event.target
+    if (!(target instanceof Node)) return
+    if (composerMentionWrapRef.current?.contains(target)) return
+    setComposerFocused(false)
+    resetMentionPicker()
+  }
+
+  document.addEventListener('pointerdown', onPointerDown, true)
+  return () => document.removeEventListener('pointerdown', onPointerDown, true)
+}, [mentionState, resetMentionPicker])
+
+useEffect(() => {
+  if (mentionRenderProfilesLoadedRef.current) return
+  if (!items.some((item) => item.content.includes('@'))) return
+  mentionRenderProfilesLoadedRef.current = true
+
+  void (async () => {
+    const { data } = await supabase
+      .from('profiles_public')
+      .select('username, display_name')
+      .eq('is_anonymous', false)
+      .not('username', 'is', null)
+      .limit(300)
+
+    const profiles = (data ?? []) as { username: string | null; display_name: string | null }[]
+    setMentionRenderProfiles(
+      profiles
+        .filter((profile): profile is MentionRenderProfile => !!profile.username)
+        .map((profile) => ({ username: profile.username, display_name: profile.display_name })),
+    )
+  })()
+}, [items])
+
+const chooseMention = useCallback((suggestion: MentionSuggestion) => {
+  if (!mentionState || !suggestion.username) return
+
+  const displayName = (suggestion.display_name ?? '').trim() || suggestion.username
+  const insertion = `@${displayName} `
+  const matchingEnd = matchingMentionTokenEnd(text, mentionState.start, [displayName, suggestion.username])
+  const replaceEnd = matchingEnd ?? mentionState.end
+  const nextText = `${text.slice(0, mentionState.start)}${insertion}${text.slice(replaceEnd)}`
+  const nextCaret = mentionState.start + insertion.length
+
+  selectedMentionIdsRef.current.add(suggestion.id)
+  if (selectedMentionIdsRef.current.size > MAX_SELECTED_MENTION_IDS) {
+    selectedMentionIdsRef.current = new Set(Array.from(selectedMentionIdsRef.current).slice(-MAX_SELECTED_MENTION_IDS))
+  }
+
+  setText(nextText)
+  setMentionRenderProfiles((profiles) => {
+    if (profiles.some((profile) => profile.username === suggestion.username)) return profiles
+    return [...profiles, { username: suggestion.username, display_name: suggestion.display_name }]
+  })
+  setSelectedMentions((mentions) => {
+    const nextMention: SelectedMention = {
+      id: suggestion.id,
+      username: suggestion.username,
+      displayName,
+      avatar_url: suggestion.avatar_url,
+    }
+    const withoutExisting = mentions.filter((mention) => mention.id !== suggestion.id)
+    return [...withoutExisting, nextMention].slice(-MAX_SELECTED_MENTION_IDS)
+  })
+  resetMentionPicker()
+
+  requestAnimationFrame(() => {
+    const el = composerTextareaRef.current
+    if (!el) return
+    el.focus({ preventScroll: true })
+    el.setSelectionRange(nextCaret, nextCaret)
+  })
+}, [mentionState, resetMentionPicker, text])
+
+const handleComposerChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+  const nextText = event.target.value
+  setText(nextText)
+  setSelectedMentions((mentions) => {
+    const nextMentions = mentions.filter((mention) => (
+      contentContainsMentionLabel(nextText, mention.displayName) ||
+      contentContainsMentionLabel(nextText, mention.username)
+    ))
+    selectedMentionIdsRef.current = new Set(nextMentions.map((mention) => mention.id))
+    return nextMentions
+  })
+  updateMentionPicker(nextText, event.target.selectionStart)
+}, [updateMentionPicker])
+
+const refreshMentionPickerFromCaret = useCallback(() => {
+  const el = composerTextareaRef.current
+  if (!el) return
+  updateMentionPicker(text, el.selectionStart)
+}, [text, updateMentionPicker])
+
+const handleComposerKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
+  if (event.key === 'Backspace' || event.key === 'Delete') {
+    const el = event.currentTarget
+    const mentionRange = selectedMentionRangeForDelete(
+      text,
+      el.selectionStart,
+      el.selectionEnd,
+      selectedMentions,
+      event.key,
+    )
+
+    if (mentionRange) {
+      event.preventDefault()
+      const nextText = `${text.slice(0, mentionRange.start)}${text.slice(mentionRange.end).replace(/^\s/, '')}`
+      const removedText = text.slice(mentionRange.start + 1, mentionRange.end)
+      const nextMentions = selectedMentions.filter((mention) => {
+        const labels = selectedMentionLabels([mention])
+        return !labels.some((label) => label.toLocaleLowerCase('he-IL') === removedText.toLocaleLowerCase('he-IL'))
+      })
+      selectedMentionIdsRef.current = new Set(nextMentions.map((mention) => mention.id))
+      setSelectedMentions(nextMentions)
+      setText(nextText)
+      resetMentionPicker()
+      requestAnimationFrame(() => {
+        const textarea = composerTextareaRef.current
+        if (!textarea) return
+        textarea.setSelectionRange(mentionRange.start, mentionRange.start)
+      })
+      return
+    }
+  }
+
+  if (!mentionOpen) return
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault()
+    setMentionActiveIndex((index) => {
+      if (mentionSuggestions.length === 0) return 0
+      return (index + 1) % mentionSuggestions.length
+    })
+    return
+  }
+
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    setMentionActiveIndex((index) => {
+      if (mentionSuggestions.length === 0) return 0
+      return (index - 1 + mentionSuggestions.length) % mentionSuggestions.length
+    })
+    return
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    resetMentionPicker()
+    return
+  }
+
+  if ((event.key === 'Enter' || event.key === 'Tab') && mentionSuggestions[mentionActiveIndex]) {
+    event.preventDefault()
+    chooseMention(mentionSuggestions[mentionActiveIndex])
+  }
+}, [chooseMention, mentionActiveIndex, mentionOpen, mentionSuggestions, resetMentionPicker, selectedMentions, text])
+
+const removeSelectedMention = useCallback((mention: SelectedMention) => {
+  selectedMentionIdsRef.current.delete(mention.id)
+  setSelectedMentions((mentions) => mentions.filter((item) => item.id !== mention.id))
+
+  const labels = [mention.displayName, mention.username]
+    .map((label) => label.trim())
+    .filter((label, index, labelsList) => !!label && labelsList.indexOf(label) === index)
+    .sort((a, b) => b.length - a.length)
+
+  setText((current) => {
+    let next = current
+    for (const label of labels) {
+      const re = new RegExp(`(^|[^\\p{L}\\p{N}_])@${escapeRegExp(label)}(?=$|[^\\p{L}\\p{N}_])\\s?`, 'iu')
+      const replaced = next.replace(re, (match, prefix: string) => prefix)
+      if (replaced !== next) {
+        next = replaced
+        break
+      }
+    }
+    return next
+  })
+}, [])
+
+const notifyMentions = useCallback(async (commentId: string, mentionUserIds: string[], content: string) => {
+  if (!hasUsernameMention(content) && mentionUserIds.length === 0) return
+
+  try {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token ?? ''
+    if (!token) return
+
+    await fetch('/api/comments/mentions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        comment_id: commentId,
+        mention_user_ids: mentionUserIds.slice(0, MAX_SELECTED_MENTION_IDS),
+      }),
+    })
+  } catch {
+    // Mention notifications are best effort; the comment itself is already saved.
+  }
+}, [])
+
 // report (same flow as ChatClient)
 type ReportReasonCode = 'abusive_language' | 'spam_promo' | 'hate_incitement' | 'privacy_exposure' | 'other'
 const [reportOpen, setReportOpen] = useState(false)
@@ -557,6 +1120,9 @@ async function submitReport() {
   // reply state (one level)
   const [replyToId, setReplyToId] = useState<string | null>(null)
   const [replyToName, setReplyToName] = useState<string | null>(null)
+  const draftKey = useMemo(() => (
+    userId ? `${COMMENT_DRAFT_STORAGE_PREFIX}${userId}:${postId}:${replyToId ?? 'root'}` : null
+  ), [postId, replyToId, userId])
 
   // edit state
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -564,6 +1130,7 @@ async function submitReport() {
 
   const canSend = useMemo(() => text.trim().length >= 2 && !sending, [text, sending])
   const canSaveEdit = useMemo(() => editText.trim().length >= 2 && !sending, [editText, sending])
+  const hasPendingDraft = !!draftKey && text.trim().length > 0 && !sending
 
   const { topLevel, repliesByParent } = useMemo(() => {
     const top: CommentRow[] = []
@@ -586,6 +1153,115 @@ async function submitReport() {
 
     return { topLevel: top, repliesByParent: replies }
   }, [items])
+
+  useEffect(() => {
+    draftKeyRef.current = draftKey
+  }, [draftKey])
+
+  useEffect(() => {
+    shouldWarnDraftRef.current = hasPendingDraft || commentSubmitInFlightRef.current
+  }, [hasPendingDraft])
+
+  useEffect(() => {
+    if (!draftKey) return
+    if (restoredDraftKeysRef.current.has(draftKey)) return
+    restoredDraftKeysRef.current.add(draftKey)
+    if (text.trim().length > 0) return
+
+    try {
+      const saved = window.localStorage.getItem(draftKey)
+      if (!saved || saved.length > COMMENT_MAX_LENGTH) return
+      setText(saved)
+    } catch {
+      // Local draft restore is best effort only.
+    }
+  }, [draftKey, text])
+
+  useEffect(() => {
+    if (!draftKey) return
+
+    try {
+      const value = text.slice(0, COMMENT_MAX_LENGTH)
+      if (value.trim().length > 0) {
+        window.localStorage.setItem(draftKey, value)
+      } else {
+        window.localStorage.removeItem(draftKey)
+      }
+    } catch {
+      // If storage is unavailable, the beforeunload guard still protects the visible draft.
+    }
+  }, [draftKey, text])
+
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!shouldWarnDraftRef.current) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
+
+  useEffect(() => {
+    const shouldIgnoreLink = (anchor: HTMLAnchorElement) => {
+      const href = anchor.getAttribute('href')
+      if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return true
+      if (anchor.target && anchor.target !== '_self') return true
+
+      try {
+        const nextUrl = new URL(href, window.location.href)
+        return nextUrl.href === window.location.href
+      } catch {
+        return true
+      }
+    }
+
+    const onDocumentClick = (event: globalThis.MouseEvent) => {
+      if (!shouldWarnDraftRef.current || event.defaultPrevented) return
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const anchor = target.closest('a[href]')
+      if (!(anchor instanceof HTMLAnchorElement) || shouldIgnoreLink(anchor)) return
+
+      if (!window.confirm(DRAFT_LEAVE_MESSAGE)) {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+      }
+    }
+
+    const onPopState = () => {
+      if (allowNextPopRef.current) {
+        allowNextPopRef.current = false
+        return
+      }
+      popGuardArmedRef.current = false
+      if (!shouldWarnDraftRef.current) return
+
+      if (!window.confirm(DRAFT_LEAVE_MESSAGE)) {
+        window.history.pushState({ tyutaCommentDraftGuard: true }, '', window.location.href)
+        popGuardArmedRef.current = true
+        return
+      }
+
+      allowNextPopRef.current = true
+      window.history.back()
+    }
+
+    document.addEventListener('click', onDocumentClick, true)
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      document.removeEventListener('click', onDocumentClick, true)
+      window.removeEventListener('popstate', onPopState)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasPendingDraft || popGuardArmedRef.current) return
+    window.history.pushState({ tyutaCommentDraftGuard: true }, '', window.location.href)
+    popGuardArmedRef.current = true
+  }, [hasPendingDraft])
 
   const refreshLikes = useCallback(async (commentIds: string[], uid: string | null) => {
     if (commentIds.length === 0) {
@@ -983,9 +1659,15 @@ async function submitReport() {
     }
 
     setSending(true)
+    commentSubmitInFlightRef.current = true
+    shouldWarnDraftRef.current = true
 
     const tempId = makeTempId()
     const submittedParentId = replyToId
+    const submittedReplyToName = replyToName
+    const submittedMentionUserIds = Array.from(selectedMentionIdsRef.current)
+    const submittedSelectedMentions = selectedMentions
+    const submittedDraftKey = draftKeyRef.current
     const optimistic: CommentRow = {
       id: tempId,
       post_id: postId,
@@ -1000,64 +1682,116 @@ async function submitReport() {
     setItems(prev => [optimistic, ...prev])
     setLikeCounts(prev => ({ ...prev, [tempId]: 0 }))
     setText('')
+    selectedMentionIdsRef.current.clear()
+    setSelectedMentions([])
+    resetMentionPicker()
     setReplyToId(null)
     setReplyToName(null)
 
-    const { data: inserted, error } = await supabase
-      .from('comments')
-      .insert({
-        post_id: postId,
-        author_id: u.id,
-        parent_comment_id: submittedParentId,
-        content: value,
-      })
-      .select('id')
-      .single()
+    let inserted: { id: string } | null = null
+    let insertError: unknown = null
 
-    setSending(false)
+    try {
+      const { data, error } = await supabase
+        .from('comments')
+        .insert({
+          post_id: postId,
+          author_id: u.id,
+          parent_comment_id: submittedParentId,
+          content: value,
+        })
+        .select('id')
+        .single()
 
-    if (error) {
+      inserted = data
+      insertError = error
+    } catch (error: unknown) {
+      insertError = error
+    } finally {
+      commentSubmitInFlightRef.current = false
+      shouldWarnDraftRef.current = false
+      setSending(false)
+    }
+
+    if (insertError) {
       setItems(prev => prev.filter(x => x.id !== tempId))
-      setErrFor(mapUserFacingError(error, 'לא הצלחנו לפרסם את התגובה. נסו שוב.'))
+      setText(value)
+      selectedMentionIdsRef.current = new Set(submittedMentionUserIds)
+      setSelectedMentions(submittedSelectedMentions)
+      if (submittedParentId) {
+        setReplyToId(submittedParentId)
+        setReplyToName(submittedReplyToName)
+      }
+      if (submittedDraftKey) {
+        try {
+          window.localStorage.setItem(submittedDraftKey, value)
+        } catch { /* ignore */ }
+      }
+      shouldWarnDraftRef.current = true
+      setErrFor(mapUserFacingError(insertError, 'לא הצלחנו לפרסם את התגובה. נסו שוב.'))
+      return
+    }
+
+    if (!inserted?.id) {
+      setItems(prev => prev.filter(x => x.id !== tempId))
+      setText(value)
+      selectedMentionIdsRef.current = new Set(submittedMentionUserIds)
+      setSelectedMentions(submittedSelectedMentions)
+      if (submittedParentId) {
+        setReplyToId(submittedParentId)
+        setReplyToName(submittedReplyToName)
+      }
+      if (submittedDraftKey) {
+        try {
+          window.localStorage.setItem(submittedDraftKey, value)
+        } catch { /* ignore */ }
+      }
+      shouldWarnDraftRef.current = true
+      setErrFor('לא הצלחנו לפרסם את התגובה. נסו שוב.')
       return
     }
 
     gaEvent('comment_created', { post_id: postId })
+    const insertedId = inserted.id
 
-    if (inserted?.id) {
-      setItems(prev => prev.map(x => (x.id === tempId ? { ...x, id: inserted.id } : x)))
-      if (submittedParentId) {
-        setExpandedParents(prev => {
-          if (prev.has(submittedParentId)) return prev
-          const next = new Set(prev)
-          next.add(submittedParentId)
-          return next
-        })
+    if (submittedDraftKey) {
+      try {
+        window.localStorage.removeItem(submittedDraftKey)
+      } catch { /* ignore */ }
+    }
+    setItems(prev => prev.map(x => (x.id === tempId ? { ...x, id: insertedId } : x)))
+    void notifyMentions(insertedId, submittedMentionUserIds, value)
+    if (submittedParentId) {
+      setExpandedParents(prev => {
+        if (prev.has(submittedParentId)) return prev
+        const next = new Set(prev)
+        next.add(submittedParentId)
+        return next
+      })
 
-        let attempts = 0
-        const scrollToInsertedReply = () => {
-          const el = document.getElementById(`comment-${inserted.id}`)
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      let attempts = 0
+      const scrollToInsertedReply = () => {
+        const el = document.getElementById(`comment-${insertedId}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          setRealtimeHighlightIds(prev => {
+            const next = new Set(prev)
+            next.add(insertedId)
+            return next
+          })
+          window.setTimeout(() => {
             setRealtimeHighlightIds(prev => {
               const next = new Set(prev)
-              next.add(inserted.id)
+              next.delete(insertedId)
               return next
             })
-            window.setTimeout(() => {
-              setRealtimeHighlightIds(prev => {
-                const next = new Set(prev)
-                next.delete(inserted.id)
-                return next
-              })
-            }, 2500)
-            return
-          }
-          attempts += 1
-          if (attempts < 12) window.setTimeout(scrollToInsertedReply, 100)
+          }, 2500)
+          return
         }
-        window.setTimeout(scrollToInsertedReply, 0)
+        attempts += 1
+        if (attempts < 12) window.setTimeout(scrollToInsertedReply, 100)
       }
+      window.setTimeout(scrollToInsertedReply, 0)
     }
   }
 
@@ -1066,6 +1800,9 @@ async function submitReport() {
     setReplyToId(c.id)
     setReplyToName(c.author?.display_name ?? 'אנונימי')
     setText('')
+    selectedMentionIdsRef.current.clear()
+    setSelectedMentions([])
+    resetMentionPicker()
     requestAnimationFrame(() => {
       const el = document.getElementById('comment-composer')
       if (!el) return
@@ -1080,6 +1817,7 @@ async function submitReport() {
   const cancelReply = () => {
     setReplyToId(null)
     setReplyToName(null)
+    resetMentionPicker()
   }
 
   const toggleLike = async (commentId: string) => {
@@ -1224,6 +1962,7 @@ async function submitReport() {
       return
     }
 
+    void notifyMentions(commentId, [], value)
     cancelEdit()
   }
 
@@ -1429,6 +2168,52 @@ async function submitReport() {
           </div>
         ) : null}
 
+        <div ref={composerMentionWrapRef} className="relative">
+          {mentionOpen ? (
+            <div
+              className={[
+                'absolute right-0 z-30 w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-[0_20px_60px_-32px_rgba(30,24,16,0.55)] dark:border-border dark:bg-card sm:w-[min(28rem,100%)]',
+                mentionPlacement === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
+              ].join(' ')}
+              role="listbox"
+              dir="rtl"
+            >
+              <div className="max-h-72 overflow-y-auto overscroll-contain p-1.5">
+                {mentionLoading && mentionSuggestions.length === 0 ? (
+                  <div className="px-3 py-3 text-sm text-muted-foreground">מחפש…</div>
+                ) : null}
+                {mentionSuggestions.map((suggestion, index) => {
+                  const displayName = (suggestion.display_name ?? '').trim() || suggestion.username
+                  const active = index === mentionActiveIndex
+                  return (
+                    <button
+                      key={suggestion.id}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      onMouseDown={(event) => {
+                        event.preventDefault()
+                        chooseMention(suggestion)
+                      }}
+                      onMouseEnter={() => setMentionActiveIndex(index)}
+                      className={[
+                        'flex min-h-12 w-full items-center gap-3 rounded-xl px-2.5 py-2 text-right transition-colors',
+                        active ? 'bg-amber-50 dark:bg-amber-400/10' : 'hover:bg-neutral-50 dark:hover:bg-muted',
+                      ].join(' ')}
+                    >
+                      <Avatar src={suggestion.avatar_url} name={displayName} size={34} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-bold text-neutral-900 dark:text-foreground">
+                          {displayName}
+                        </span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+
         <textarea
           ref={composerTextareaRef}
           className="w-full resize-none rounded-xl border bg-white dark:bg-card dark:border-border dark:text-foreground px-3 py-2 text-sm leading-6 outline-none focus:ring-2 focus:ring-black/10"
@@ -1436,12 +2221,57 @@ async function submitReport() {
           maxLength={COMMENT_MAX_LENGTH}
           placeholder={userId ? (replyToId ? 'כתוב תגובת תשובה…' : 'כתוב תגובה…') : 'התחבר כדי להגיב…'}
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={handleComposerChange}
+          onKeyDown={handleComposerKeyDown}
+          onClick={refreshMentionPickerFromCaret}
+          onKeyUp={refreshMentionPickerFromCaret}
+          onFocus={() => {
+            setComposerFocused(true)
+            refreshMentionPickerFromCaret()
+          }}
+          onBlur={() => {
+            window.setTimeout(() => {
+              const active = document.activeElement
+              if (active instanceof Node && composerMentionWrapRef.current?.contains(active)) return
+              setComposerFocused(false)
+              resetMentionPicker()
+            }, 0)
+          }}
           disabled={!userId || sending}
         />
+        </div>
+
+        {selectedMentions.length > 0 ? (
+          <div className="mt-2 rounded-xl border border-sky-200 bg-sky-50/80 px-2.5 py-2 dark:border-sky-400/25 dark:bg-sky-500/10">
+            <div className="mb-1 text-[11px] font-bold text-sky-800 dark:text-sky-200">תיוגים פעילים</div>
+            <div className="flex flex-wrap gap-1.5">
+              {selectedMentions.map((mention) => (
+                <span
+                  key={mention.id}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-sky-300 bg-white px-2 py-1 text-xs font-black text-sky-900 shadow-sm ring-1 ring-sky-100 dark:border-sky-400/30 dark:bg-card dark:text-sky-100 dark:ring-sky-400/10"
+                >
+                  <Avatar src={mention.avatar_url} name={mention.displayName} size={20} />
+                  <span className="max-w-[12rem] truncate">@{mention.displayName}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeSelectedMention(mention)}
+                    disabled={sending}
+                    className="ms-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-sky-700 hover:bg-sky-100 disabled:opacity-50 dark:text-sky-200 dark:hover:bg-sky-400/10"
+                    aria-label={`הסר תיוג של ${mention.displayName}`}
+                    title="הסר תיוג"
+                  >
+                    x
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-2 flex items-center justify-between">
-          <div className="text-xs text-muted-foreground">מינימום 2 תווים</div>
+          <div className="text-xs text-muted-foreground">
+            מינימום 2 תווים
+          </div>
 
           <button
             type="button"
@@ -1636,7 +2466,7 @@ async function submitReport() {
               </div>
             ) : (
               <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 dark:text-foreground break-words [overflow-wrap:anywhere]">
-                {c.content}
+                {renderCommentContent(c.content, mentionRenderTargets)}
               </div>
             )
 
@@ -1901,7 +2731,7 @@ async function submitReport() {
                             </div>
                           ) : (
                             <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-neutral-800 dark:text-foreground break-words [overflow-wrap:anywhere]">
-                              {r.content}
+                              {renderCommentContent(r.content, mentionRenderTargets)}
                             </div>
                           )}
 
