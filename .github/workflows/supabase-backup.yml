@@ -9,30 +9,35 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
         with:
-          version: latest
+          version: 2.106.0
 
-      - name: Login to Supabase
-        run: supabase login --token "${{ secrets.SUPABASE_ACCESS_TOKEN }}"
-
-      - name: Link project
-        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - name: Validate backup connection
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Missing SUPABASE_DB_URL secret. Use the Supabase transaction pooler connection string, not the direct IPv6-only database host."
+            exit 1
+          fi
 
       - name: Create DB dump
         run: |
           mkdir -p backups
-          supabase db dump --file backups/backup.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" --file backups/roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" --file backups/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" --file backups/data.sql --data-only --use-copy
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: supabase-backup-${{ github.run_id }}
-          path: backups/backup.sql
+          path: backups/*.sql
           retention-days: 30

@@ -198,10 +198,76 @@ function selectedMentionRangeForDelete(value: string, selectionStart: number, se
   return null
 }
 
+function isDraftMentionChar(value: string | undefined): boolean {
+  return !!value && /[\p{L}\p{N}_ .-]/u.test(value)
+}
+
+function draftMentionMatchesSelectedToken(value: string, atIndex: number, caret: number, mentions: SelectedMention[]): boolean {
+  for (const label of selectedMentionLabels(mentions)) {
+    const token = `@${label}`
+    const tokenEnd = atIndex + token.length
+    if (
+      value.slice(atIndex, tokenEnd).toLocaleLowerCase('he-IL') === token.toLocaleLowerCase('he-IL') &&
+      isMentionBoundaryChar(value[tokenEnd]) &&
+      caret > tokenEnd
+    ) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function detectDraftMentionState(value: string, caret: number, selectedMentions: SelectedMention[]): MentionState {
+  const minStart = Math.max(0, caret - MENTION_MAX_QUERY_LENGTH - 1)
+
+  for (let atIndex = caret - 1; atIndex >= minStart; atIndex -= 1) {
+    const char = value[atIndex]
+    if (char === '\n') return null
+    if (char !== '@') continue
+    if (!isMentionBoundaryChar(value[atIndex - 1])) continue
+    if (draftMentionMatchesSelectedToken(value, atIndex, caret, selectedMentions)) return null
+
+    const queryBeforeCaret = value.slice(atIndex + 1, caret)
+    if (queryBeforeCaret.startsWith(' ')) return null
+    if (!/^[\p{L}\p{N}_ .-]*$/u.test(queryBeforeCaret)) return null
+
+    let end = caret
+    let words = queryBeforeCaret.trim().length > 0 ? queryBeforeCaret.trim().split(/\s+/).length : 0
+    let previousWasSpace = /\s$/.test(queryBeforeCaret)
+
+    while (end < value.length && end - atIndex - 1 < MENTION_MAX_QUERY_LENGTH && isDraftMentionChar(value[end])) {
+      const next = value[end]
+      const nextIsSpace = /\s/.test(next)
+      if (nextIsSpace && previousWasSpace) break
+      if (!nextIsSpace && previousWasSpace) {
+        words += 1
+        if (words > 3) break
+      }
+      previousWasSpace = nextIsSpace
+      end += 1
+    }
+
+    const query = value.slice(atIndex + 1, caret).trim()
+    if (query.length > MENTION_MAX_QUERY_LENGTH) return null
+
+    return {
+      start: atIndex,
+      end,
+      query,
+    }
+  }
+
+  return null
+}
+
 function detectMentionState(value: string, caret: number | null, selectedMentions: SelectedMention[] = []): MentionState {
   if (caret === null || caret < 0) return null
   const selectedState = detectSelectedMentionState(value, caret, selectedMentions)
   if (selectedState) return selectedState
+
+  const draftState = detectDraftMentionState(value, caret, selectedMentions)
+  if (draftState) return draftState
 
   const before = value.slice(0, caret)
   const match = MENTION_TRIGGER_RE.exec(before)
