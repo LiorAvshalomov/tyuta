@@ -8,7 +8,15 @@ import GifCoverImage from './GifCoverImage'
  * Traverses up the DOM to find the nearest article, [role=link], or
  * [data-gif-card] ancestor and attaches mouseenter/mouseleave listeners.
  */
-export default function GifCoverCard({ src, alt }: { src: string; alt: string }) {
+export default function GifCoverCard({
+  src,
+  alt,
+  loading = 'lazy',
+}: {
+  src: string
+  alt: string
+  loading?: 'eager' | 'lazy'
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState(false)
 
@@ -29,7 +37,7 @@ export default function GifCoverCard({ src, alt }: { src: string; alt: string })
 
   return (
     <div ref={ref} style={{ width: '100%', height: '100%' }}>
-      <GifCoverImage src={src} alt={alt} cardHovered={hovered} />
+      <GifCoverImage src={src} alt={alt} loading={loading} cardHovered={hovered} />
     </div>
   )
 }

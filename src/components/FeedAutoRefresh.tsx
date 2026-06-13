@@ -18,11 +18,15 @@ type FeedRefreshMessage = {
   version?: string | null
 }
 
+const SCROLL_IDLE_REFRESH_DELAY_MS = 900
+
 export default function FeedAutoRefresh({ initialVersion = null }: { initialVersion?: string | null }) {
   const pathname = usePathname()
   const router = useRouter()
   const lastNavigationRefreshRef = useRef<{ key: string; at: number } | null>(null)
   const pendingRefreshRef = useRef<{ path: string; version: string; at: number } | null>(null)
+  const lastUserScrollAtRef = useRef(0)
+  const deferredRefreshTimerRef = useRef<number | null>(null)
 
   const getActivePathname = useEffectEvent(() => {
     if (typeof window === 'undefined') return pathname
@@ -55,9 +59,41 @@ export default function FeedAutoRefresh({ initialVersion = null }: { initialVers
 
     pendingRefreshRef.current = { path: targetPath, version, at: now }
 
-    startTransition(() => {
-      router.refresh()
-    })
+    const refresh = () => {
+      startTransition(() => {
+        router.refresh()
+      })
+    }
+
+    if (typeof window !== 'undefined') {
+      const sinceScroll = now - lastUserScrollAtRef.current
+      if (sinceScroll < SCROLL_IDLE_REFRESH_DELAY_MS) {
+        const refreshWhenScrollSettles = () => {
+          const nextSinceScroll = Date.now() - lastUserScrollAtRef.current
+          if (nextSinceScroll < SCROLL_IDLE_REFRESH_DELAY_MS) {
+            deferredRefreshTimerRef.current = window.setTimeout(
+              refreshWhenScrollSettles,
+              SCROLL_IDLE_REFRESH_DELAY_MS - nextSinceScroll,
+            )
+            return
+          }
+
+          deferredRefreshTimerRef.current = null
+          refresh()
+        }
+
+        if (deferredRefreshTimerRef.current !== null) {
+          window.clearTimeout(deferredRefreshTimerRef.current)
+        }
+        deferredRefreshTimerRef.current = window.setTimeout(
+          refreshWhenScrollSettles,
+          SCROLL_IDLE_REFRESH_DELAY_MS - sinceScroll,
+        )
+        return
+      }
+    }
+
+    refresh()
   })
 
   const applyVersionIfNeeded = useEffectEvent((targetPath: string, incomingVersion?: string | null) => {
@@ -130,6 +166,24 @@ export default function FeedAutoRefresh({ initialVersion = null }: { initialVers
 
     return () => {
       window.clearInterval(interval)
+    }
+  }, [pathname])
+
+  useEffect(() => {
+    if (!pathname || !isFeedPathname(pathname)) return
+
+    const onScroll = () => {
+      lastUserScrollAtRef.current = Date.now()
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true })
+
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (deferredRefreshTimerRef.current !== null) {
+        window.clearTimeout(deferredRefreshTimerRef.current)
+        deferredRefreshTimerRef.current = null
+      }
     }
   }, [pathname])
 

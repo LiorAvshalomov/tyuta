@@ -154,6 +154,8 @@ export function FeaturedColorSync({ src }: { src: string }) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (!window.matchMedia('(min-width: 1024px)').matches) return
+
     const wrapper = ref.current?.closest('.tyuta-featured-desktop') as HTMLElement | null
     if (!wrapper) return
 
