@@ -2,6 +2,8 @@ import InboxThreads from '@/components/InboxThreads'
 import InboxShell from '@/components/InboxShell'
 import RequireAuth from '@/components/auth/RequireAuth'
 
+export const dynamic = 'force-dynamic'
+
 export default function InboxLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>

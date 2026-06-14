@@ -3,6 +3,7 @@ export const revalidate = 60
 
 import type { Metadata } from 'next'
 import Link from '@/components/ContentLink'
+import HomeJsonLd from '@/components/HomeJsonLd'
 
 const HOME_TITLE = 'טיוטה - המקום לכל הגרסאות שלך'
 const HOME_DESCRIPTION =
@@ -1322,6 +1323,7 @@ export default async function HomePage(props: HomePageProps = {}) {
 
   return (
     <main className="min-h-screen" dir="rtl">
+      {!isChannelPage ? <HomeJsonLd /> : null}
       <FeedAutoRefresh initialVersion={initialFeedVersion} />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
         
