@@ -1,6 +1,8 @@
 import RequireAuth from '@/components/auth/RequireAuth'
 import type { Metadata } from "next";
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: "עריכת פרופיל",
   robots: {

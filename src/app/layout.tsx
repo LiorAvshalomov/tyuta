@@ -10,7 +10,6 @@ import ToastProvider from "@/components/Toast"
 import VisualViewportSync from "@/components/VisualViewportSync"
 import ThemeSync from "@/components/ThemeSync"
 import GoogleAnalyticsScripts from "@/components/analytics/GoogleAnalyticsScripts"
-import { safeJsonLdStringify } from "@/lib/safeJsonLd"
 
 const SITE_URL = "https://tyuta.net"
 const SITE_NAME = "Tyuta"
@@ -43,6 +42,7 @@ const heebo = Heebo({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME_HE,
   title: {
     default: SITE_TITLE,
     template: "%s | Tyuta",
@@ -99,40 +99,7 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
 }
 
-function JsonLd({ data }: { data: unknown }) {
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(data) }}
-    />
-  )
-}
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const organizationSchema = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: SITE_NAME,
-    alternateName: SITE_NAME_HE,
-    url: SITE_URL,
-    logo: `${SITE_URL}/apple-touch-icon.png`,
-  }
-
-  const websiteSchema = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: SITE_NAME,
-    alternateName: SITE_NAME_HE,
-    inLanguage: "he-IL",
-    description: SITE_DESCRIPTION,
-    url: SITE_URL,
-    potentialAction: {
-      "@type": "SearchAction",
-      target: `${SITE_URL}/search?q={search_term_string}`,
-      "query-input": "required name=search_term_string",
-    },
-  }
-
   return (
     <html lang="he" dir="rtl" className={heebo.variable} suppressHydrationWarning>
       <head>
@@ -150,8 +117,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {process.env.NODE_ENV === "production" && GA_MEASUREMENT_ID && (
           <GoogleAnalyticsScripts measurementId={GA_MEASUREMENT_ID} />
         )}
-        <JsonLd data={organizationSchema} />
-        <JsonLd data={websiteSchema} />
         <ToastProvider>
           <VisualViewportSync />
           <ThemeSync />

@@ -16,7 +16,13 @@ type MutableHeadersResponse = {
   }
 }
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://tyuta.net').replace(/\/$/, '')
+function normalizeSiteUrl(value: string | undefined): string {
+  const trimmed = (value ?? 'https://tyuta.net').trim().replace(/\/+$/, '')
+  if (!trimmed) return 'https://tyuta.net'
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
+
+const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)
 const CSP_REPORT_ENDPOINT = `${SITE_URL}/api/internal/csp-report`
 const CSP_REPORT_GROUP = 'csp-endpoint'
 const STRICT_CSP_REPORT_ONLY_ENABLED =
@@ -62,7 +68,6 @@ const NONCE_ENFORCED_DOCUMENT_PREFIXES = [
   '/trash',
   '/notifications',
 ] as const
-
 type SharedDirectiveOptions = {
   allowFrames?: boolean
   allowAnalytics?: boolean
@@ -121,18 +126,18 @@ export function shouldBlockEmbedsForPath(pathname: string): boolean {
   return matchesRoutePrefix(pathname, NO_EMBED_DOCUMENT_PREFIXES)
 }
 
+export function isNonceCSPEnabled(): boolean {
+  return process.env.NODE_ENV === 'production' && process.env.TYUTA_ENABLE_NONCE_CSP === '1'
+}
+
 export function shouldUseNonceCSPForPath(pathname: string): boolean {
-  return (
-    process.env.TYUTA_ENABLE_NONCE_CSP === '1' &&
-    process.env.NODE_ENV === 'production' &&
-    matchesRoutePrefix(pathname, NONCE_ENFORCED_DOCUMENT_PREFIXES)
-  )
+  return isNonceCSPEnabled() && matchesRoutePrefix(pathname, NONCE_ENFORCED_DOCUMENT_PREFIXES)
 }
 
 export function buildCSP(options: SharedDirectiveOptions = {}): string {
-  // 'unsafe-inline' is required in script-src because Next.js App Router RSC streaming
-  // injects executable inline scripts ($RC/$RV/self.__next_f.push). Nonces would force every
-  // page to be dynamic and break ISR/static optimization.
+  // Fallback policy for non-production or TYUTA_ENABLE_NONCE_CSP=0 deployments.
+  // App Router streaming injects inline scripts, so this fallback keeps unsafe-inline
+  // unless document routes are rendered dynamically with per-request nonces.
   // 'upgrade-insecure-requests' is enforcement-only (invalid in report-only policies).
   return [
     ...sharedDirectives(options),
@@ -163,8 +168,7 @@ export function buildNonceCSP(nonce: string, options: SharedDirectiveOptions = {
 export function buildReportOnlyCSP(): string {
   return [
     ...sharedDirectives(),
-    // script-src and style-src keep 'unsafe-inline' — RSC streaming and Tailwind both require it.
-    // Report-Only policy currently mirrors the enforced CSP; tighten only after confirming zero violations.
+    // Report-Only stays stricter than fallback enforcement so violations surface before rollout.
     "script-src 'self' https://www.googletagmanager.com",
     "script-src-elem 'self' https://www.googletagmanager.com",
     "style-src 'self'",
@@ -249,6 +253,7 @@ export function applyNonceDocumentSecurityHeadersForPath(
   const allowFrames = !shouldBlockEmbedsForPath(pathname)
   res.headers.set('Content-Security-Policy', buildNonceCSP(nonce, {
     allowFrames,
+    allowAnalytics: !isSensitiveDocumentPath(pathname),
     allowRichContentImages: allowFrames,
   }))
   if (STRICT_CSP_REPORT_ONLY_ENABLED && isSensitiveDocumentPath(pathname)) {
