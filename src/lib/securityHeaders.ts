@@ -127,7 +127,7 @@ export function shouldBlockEmbedsForPath(pathname: string): boolean {
 }
 
 export function isNonceCSPEnabled(): boolean {
-  return process.env.NODE_ENV === 'production' && process.env.TYUTA_ENABLE_NONCE_CSP === '1'
+  return process.env.NODE_ENV === 'production' && process.env.TYUTA_ENFORCE_NONCE_CSP === '1'
 }
 
 export function shouldUseNonceCSPForPath(pathname: string): boolean {
@@ -135,9 +135,8 @@ export function shouldUseNonceCSPForPath(pathname: string): boolean {
 }
 
 export function buildCSP(options: SharedDirectiveOptions = {}): string {
-  // Fallback policy for non-production or TYUTA_ENABLE_NONCE_CSP=0 deployments.
-  // App Router streaming injects inline scripts, so this fallback keeps unsafe-inline
-  // unless document routes are rendered dynamically with per-request nonces.
+  // Fallback policy for normal deployments. App Router streaming injects inline scripts,
+  // so enforcement keeps unsafe-inline unless nonce enforcement is explicitly tested.
   // 'upgrade-insecure-requests' is enforcement-only (invalid in report-only policies).
   return [
     ...sharedDirectives(options),
