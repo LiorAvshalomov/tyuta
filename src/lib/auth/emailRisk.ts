@@ -1,6 +1,14 @@
 type EmailRiskDecision =
-  | { action: 'allow'; domain: string; source: 'local' | 'blocklist' | 'fallback' }
-  | { action: 'block'; domain: string; reason: 'disposable_email'; source: 'local' | 'blocklist' }
+  | { action: 'allow'; domain: string; source: 'local' | 'database' | 'blocklist' | 'fallback' }
+  | { action: 'block'; domain: string; reason: 'disposable_email'; source: 'local' | 'database' | 'blocklist' }
+
+export type SignupEmailDomainBlock = {
+  domain: string
+  reason: string
+  source: string
+}
+
+type SignupEmailDomainBlockLookup = (candidates: string[]) => Promise<SignupEmailDomainBlock | null>
 
 const BLOCK_MESSAGE = 'אי אפשר להירשם עם כתובת אימייל זמנית. אפשר להשתמש בכתובת קבועה אחרת.'
 
@@ -23,6 +31,7 @@ const HIGH_CONFIDENCE_DISPOSABLE_DOMAINS = [
   'moakt.com',
   'mugstock.com',
   'nada.email',
+  'ocuser.com',
   'pokemail.net',
   'sharklasers.com',
   'tempmail.com',
@@ -73,7 +82,7 @@ export function extractEmailDomain(email: string): string | null {
   return domain
 }
 
-function domainCandidates(domain: string): string[] {
+export function domainCandidates(domain: string): string[] {
   const labels = domain.split('.').filter(Boolean)
   const candidates: string[] = []
   for (let i = 0; i < labels.length - 1; i++) {
@@ -91,13 +100,6 @@ function envExtraDomains(): Set<string> {
       .map((domain) => domain.trim().toLowerCase())
       .filter((domain) => /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)),
   )
-}
-
-function hasBlockedCandidate(domain: string, blocklist: Set<string>): boolean {
-  for (const candidate of domainCandidates(domain)) {
-    if (blocklist.has(candidate)) return true
-  }
-  return false
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
@@ -153,22 +155,31 @@ async function refreshRemoteBlocklist(now: number): Promise<Set<string> | null> 
   }
 }
 
-export async function assessSignupEmail(email: string): Promise<EmailRiskDecision> {
+export async function assessSignupEmail(
+  email: string,
+  lookupBlockedDomain?: SignupEmailDomainBlockLookup,
+): Promise<EmailRiskDecision> {
   const domain = extractEmailDomain(email)
   if (!domain) {
     return { action: 'allow', domain: '', source: 'fallback' }
   }
+  const candidates = domainCandidates(domain)
 
   const localBlocklist = new Set([...LOCAL_BLOCKLIST, ...envExtraDomains()])
-  if (hasBlockedCandidate(domain, localBlocklist)) {
+  if (candidates.some((candidate) => localBlocklist.has(candidate))) {
     return { action: 'block', domain, reason: 'disposable_email', source: 'local' }
   }
   if (TRUSTED_CONSUMER_EMAIL_DOMAINS.has(domain)) {
     return { action: 'allow', domain, source: 'local' }
   }
 
+  const tableBlock = lookupBlockedDomain ? await lookupBlockedDomain(candidates) : null
+  if (tableBlock) {
+    return { action: 'block', domain, reason: 'disposable_email', source: 'database' }
+  }
+
   const remoteBlocklist = await getRemoteBlocklist()
-  if (remoteBlocklist && hasBlockedCandidate(domain, remoteBlocklist)) {
+  if (remoteBlocklist && candidates.some((candidate) => remoteBlocklist.has(candidate))) {
     return { action: 'block', domain, reason: 'disposable_email', source: 'blocklist' }
   }
 

@@ -8,7 +8,7 @@ import { fetchModerationRoutingHint } from '@/lib/auth/fetchModerationRoutingHin
 import { buildHeaderUserFromAuthUser, fetchHeaderUserById } from '@/lib/auth/headerUser'
 import { setAnalyticsSessionCookie } from '@/lib/analytics/sessionCookie'
 import { buildAuditContext, mergeAuditMetadata } from '@/lib/auth/auditContext'
-import { assessSignupEmail, blockedEmailMessage } from '@/lib/auth/emailRisk'
+import { assessSignupEmail, blockedEmailMessage, type SignupEmailDomainBlock } from '@/lib/auth/emailRisk'
 import { DISPLAY_NAME_MAX, USERNAME_MAX } from '@/lib/validation'
 import { rejectLargeRequestBody } from '@/lib/requestBodyLimit'
 
@@ -76,7 +76,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'אימייל לא תקין' }, { status: 400 })
   }
 
-  const emailRisk = await assessSignupEmail(email)
+  const emailRisk = await assessSignupEmail(email, async (candidates) => {
+    const { data } = await serviceClient
+      .from('signup_email_domain_blocks')
+      .select('domain, reason, source')
+      .in('domain', candidates)
+      .limit(1)
+
+    const rows = data as unknown as SignupEmailDomainBlock[] | null
+    return rows?.[0] ?? null
+  })
   if (emailRisk.action === 'block') {
     serviceClient.from('auth_audit_log').insert({
       user_id: null,
