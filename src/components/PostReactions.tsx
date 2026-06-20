@@ -695,11 +695,11 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
             <div className="h-4 w-16 rounded-lg bg-neutral-200 dark:bg-muted" />
             <div className="h-3 w-14 rounded bg-neutral-100 dark:bg-muted/60" />
           </div>
-          <div className="mt-4 flex flex-nowrap justify-center gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible">
+          <div className="mt-4 flex flex-nowrap items-stretch justify-center gap-1 min-[380px]:gap-1.5 sm:gap-2">
             {[0, 1, 2, 3, 4, 5].map(i => (
               <div
                 key={i}
-                className="inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border border-neutral-200 dark:border-border bg-neutral-100 dark:bg-muted px-2 py-1 gap-1.5 md:min-w-[74px] md:px-3 md:py-2"
+                className="inline-flex min-h-[48px] min-w-0 flex-1 basis-0 flex-col items-center justify-center gap-1 rounded-[14px] border border-neutral-200 bg-neutral-100 px-1 py-1 dark:border-border dark:bg-muted min-[380px]:min-h-[52px] min-[380px]:px-1.5 sm:min-w-[74px] sm:max-w-[120px] sm:flex-none sm:px-3 sm:py-2"
               >
                 <div className="h-[15px] w-[15px] rounded-full bg-neutral-200 dark:bg-muted-foreground/20 md:h-[18px] md:w-[18px]" />
                 <div className="h-2.5 w-10 rounded bg-neutral-200 dark:bg-muted-foreground/20" />
@@ -728,11 +728,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
           </div>
         ) : null}
 
-        {/*
-          מובייל: שורה אחת (scroll אופקי עדין אם אין מקום)
-          דסקטופ: wrap רגיל במרכז
-        */}
-        <div className="mt-4 flex flex-nowrap justify-center gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible">
+        <div className="mt-4 flex flex-nowrap items-stretch justify-center gap-1 min-[380px]:gap-1.5 sm:gap-2">
           {sortedReactions.map(r => {
             const votes = summary[r.key]?.votes ?? 0
             const mine = myVotes.has(r.key)
@@ -746,7 +742,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                 ref={(node) => {
                   reactionTriggerRefs.current[r.key] = node
                 }}
-                className="relative"
+                className="relative min-w-0 flex-1 basis-0 sm:flex-none"
                 onMouseEnter={() => openTooltip(r.key)}
                 onMouseLeave={scheduleTooltipHide}
               >
@@ -771,7 +767,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                   onFocus={() => openTooltip(r.key)}
                   onBlur={scheduleTooltipHide}
                   className={[
-                    'group inline-flex min-w-[58px] max-w-[120px] flex-col items-center justify-center rounded-2xl border px-2 py-1 text-center transition-all duration-150 ease-out select-none touch-manipulation md:min-w-[74px] md:px-3 md:py-2',
+                    'group inline-flex min-h-[48px] w-full min-w-0 flex-col items-center justify-center rounded-[14px] border px-1 py-1 text-center transition-all duration-150 ease-out select-none touch-manipulation min-[380px]:min-h-[52px] min-[380px]:px-1.5 sm:min-w-[74px] sm:max-w-[120px] sm:px-3 sm:py-2',
                     mine
                       ? 'border-neutral-900 bg-neutral-900 text-white'
                       : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted',
@@ -781,10 +777,10 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                     WebkitTouchCallout: 'none',
                   }}
                 >
-                  <div className="flex items-center justify-center gap-1.5 text-[15px] leading-none md:text-[18px]">
+                  <div className="flex min-w-0 items-center justify-center gap-0.5 text-[13px] leading-none min-[380px]:gap-1 min-[380px]:text-[14px] sm:gap-1.5 sm:text-[18px]">
                     <span className="drop-shadow-sm">{REACTION_EMOJI[r.key] ?? '⭐'}</span>
                     {votes > 0 ? (
-                      <span className={mine ? 'text-[11px] text-white/80 md:text-[12px]' : 'text-[11px] text-neutral-600 dark:text-muted-foreground md:text-[12px]'}>
+                      <span className={mine ? 'text-[10px] text-white/80 sm:text-[12px]' : 'text-[10px] text-neutral-600 dark:text-muted-foreground sm:text-[12px]'}>
                         {votes}
                       </span>
                     ) : null}
@@ -792,8 +788,8 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                   <div
                     className={
                       mine
-                        ? 'mt-1 text-[10px] font-semibold text-white md:text-[12px]'
-                        : 'mt-1 text-[10px] font-semibold text-neutral-800 dark:text-foreground md:text-[12px]'
+                        ? 'mt-1 max-w-full truncate text-[10px] font-semibold leading-3 text-white min-[380px]:text-[11px] sm:text-[12px]'
+                        : 'mt-1 max-w-full truncate text-[10px] font-semibold leading-3 text-neutral-800 dark:text-foreground min-[380px]:text-[11px] sm:text-[12px]'
                     }
                   >
                     {r.label_he}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { EditorContent, JSONContent, useEditor, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { RICHTEXT_TYPOGRAPHY } from '@/lib/richtextStyles'
 import type { NodeViewProps } from '@tiptap/react'
@@ -72,7 +73,8 @@ function Btn({
       disabled={disabled}
       onClick={onClick}
       style={{
-        padding: '6px 10px',
+        minHeight: 38,
+        padding: '7px 10px',
         borderRadius: 10,
         border: '1px solid var(--color-border)',
         background: active ? 'var(--color-foreground)' : subtle ? 'var(--color-muted)' : 'var(--color-background)',
@@ -81,6 +83,7 @@ function Btn({
         opacity: disabled ? 0.45 : 1,
         fontSize: 13,
         fontWeight: 700,
+        touchAction: 'manipulation',
       }}
     >
       {label}
@@ -230,6 +233,13 @@ function ImageNodeView({ node, updateAttributes, deleteNode, editor, getPos }: N
 
   const label = wp === 33 ? 'S' : wp === 66 ? 'M' : 'L'
   const imagePath = typeof node.attrs.path === 'string' ? node.attrs.path : null
+  const mobileWp = wp === 33 ? 52 : wp === 66 ? 76 : 100
+  const imageWrapperStyle = {
+    '--editor-image-width': `${wp}%`,
+    '--editor-image-mobile-width': `${mobileWp}%`,
+    width: 'var(--editor-image-width)',
+    cursor: 'grab',
+  } as CSSProperties
 
   const refreshExpiredImage = async () => {
     if (!imagePath || refreshAttemptedRef.current) return
@@ -244,7 +254,7 @@ function ImageNodeView({ node, updateAttributes, deleteNode, editor, getPos }: N
   }
 
   return (
-    <NodeViewWrapper className="relative block" draggable data-drag-handle style={{ width: `${wp}%`, cursor: 'grab' }}>
+    <NodeViewWrapper className="editor-image-node relative block" draggable data-drag-handle style={imageWrapperStyle}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={(node.attrs.src as string) || ''}
@@ -1025,7 +1035,7 @@ export default function Editor({
           direction: 'rtl',
         }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <div className="editor-toolbar-row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <Btn
           label="H2"
           active={editor.isActive('heading', { level: 2 })}
@@ -1114,7 +1124,7 @@ export default function Editor({
                   style={{
                     position: 'fixed',
                     inset: 0,
-                    zIndex: 49,
+                    zIndex: 10019,
                     background: 'rgba(15,23,42,0.28)',
                     backdropFilter: 'blur(3px)',
                   }}
@@ -1127,7 +1137,7 @@ export default function Editor({
                   aria-modal="true"
                   aria-label={seriesConfig.panelTitle}
                   style={{
-                    zIndex: 50,
+                    zIndex: 10020,
                     border: '1px solid var(--color-border)',
                     borderRadius: 22,
                     padding: 0,

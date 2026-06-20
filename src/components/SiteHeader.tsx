@@ -768,7 +768,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
           <div className="mx-auto max-w-6xl px-4">
             <div className="flex h-14 items-center justify-between" dir="rtl">
               {/* ימין: בית + פתקים (דסקטופ) | המבורגר + לוגו (מובייל) */}
-              <div className="flex items-center gap-4">
+              <div className="flex min-w-0 flex-1 items-center gap-2 lg:flex-none lg:gap-4">
                 {/* המבורגר - רק במובייל */}
                 <button
                   onClick={() => {
@@ -777,7 +777,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
                     }
                     setMobileMenuOpen(v => !v)
                   }}
-                  className="lg:hidden p-2 hover:bg-neutral-200 dark:hover:bg-muted rounded-lg transition-colors"
+                  className="lg:hidden inline-flex h-11 w-11 items-center justify-center rounded-xl hover:bg-neutral-200 dark:hover:bg-muted transition-colors"
                   aria-label="תפריט"
                 >
                   <Menu size={24} className={`text-neutral-800 dark:text-foreground transition-all duration-200 ${mobileMenuOpen ? 'rotate-90 opacity-70 scale-90' : ''}`} />
@@ -798,20 +798,20 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
 
                 {/* לוגו מוקטן - רק במובייל */}
                 <Link
-  href="/"
-  className="lg:hidden inline-flex w-fit items-center gap-3 text-right select-none active:scale-[0.99] active:opacity-90"
-  onClick={closeAll}
->
-  <span className="text-lg font-bold tracking-tight text-[#1E2A44] dark:text-foreground">
-    Tyuta
-  </span>
+                  href="/"
+                  className="lg:hidden inline-flex min-h-11 min-w-0 flex-1 items-center gap-2 text-right select-none overflow-hidden active:scale-[0.99] active:opacity-90"
+                  onClick={closeAll}
+                >
+                  <span className="shrink-0 text-lg font-bold tracking-tight text-[#1E2A44] dark:text-foreground">
+                    Tyuta
+                  </span>
 
-  <span className="h-4 w-px bg-[#1E2A44]/20 dark:bg-foreground/20" />
+                  <span className="h-4 w-px shrink-0 bg-[#1E2A44]/20 dark:bg-foreground/20" />
 
-  <span className="text-xs font-semibold text-[#1E2A44]/65 dark:text-foreground/65">
-    המקום לכל הגרסאות שלך
-  </span>
-</Link>
+                  <span className="min-w-0 truncate whitespace-nowrap text-[10px] font-semibold leading-none text-[#1E2A44]/65 dark:text-foreground/65 min-[360px]:text-[11px] min-[410px]:text-xs">
+                    המקום לכל הגרסאות שלך
+                  </span>
+                </Link>
                 
 
                 {/* פתקים - רק בדסקטופ */}
@@ -836,7 +836,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
               </div>
 
               {/* שמאל: כתוב + התראות + הודעות + פרופיל */}
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                 {/* כתוב - רק בדסקטופ */}
                 <div className="hidden lg:block relative" ref={writeRef}>
                   <button
@@ -1160,7 +1160,7 @@ const SiteHeaderChrome = React.memo(function SiteHeaderChrome({
                   value={mobileSearch}
                   onChange={(e) => setMobileSearch(e.target.value)}
                   placeholder="חפש פוסטים..."  
-                  className="w-full rounded-lg border border-neutral-200 dark:border-border bg-white dark:bg-muted hover:bg-neutral-50 dark:hover:bg-muted pr-10 pl-4 py-2.5 text-sm font-semibold outline-none focus:border-neutral-400 dark:focus:border-ring focus:bg-white dark:focus:bg-muted focus:ring-4 focus:ring-neutral-100 dark:focus:ring-ring/20 transition-all duration-300 text-foreground"
+                  className="min-h-11 w-full rounded-lg border border-neutral-200 dark:border-border bg-white dark:bg-muted hover:bg-neutral-50 dark:hover:bg-muted pr-10 pl-4 py-2.5 text-sm font-semibold outline-none focus:border-neutral-400 dark:focus:border-ring focus:bg-white dark:focus:bg-muted focus:ring-4 focus:ring-neutral-100 dark:focus:ring-ring/20 transition-all duration-300 text-foreground"
                 />
               </form>
 

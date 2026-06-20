@@ -355,7 +355,7 @@ export default function SearchPageClient({
 
           <button
             type="submit"
-            className="cursor-pointer rounded-xl bg-black px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            className="min-h-11 cursor-pointer rounded-xl bg-black px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
             disabled={isPending}
           >
             חפש
@@ -402,7 +402,7 @@ export default function SearchPageClient({
                 key={pageNumber}
                 type="button"
                 onClick={() => navigate({ page: pageNumber }, { smoothToTop: true })}
-                className={`h-9 min-w-9 cursor-pointer rounded-xl border px-3 text-center text-sm leading-9 transition-colors dark:border-border ${
+                className={`inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-xl border px-3 text-center text-sm transition-colors dark:border-border ${
                   pageNumber === initialData.query.page
                     ? 'bg-black text-white dark:bg-foreground dark:text-background'
                     : 'bg-white hover:bg-muted dark:bg-card dark:hover:bg-muted'

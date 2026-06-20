@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { MessageCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapModerationRpcError, mapSupabaseError } from '@/lib/mapSupabaseError'
@@ -70,9 +71,10 @@ export default function ProfileNonOwnerActions({ profileId }: { profileId: strin
     <button
       onClick={handleMessage}
       disabled={loading}
-      className="h-10 min-w-[110px] rounded-full bg-black px-4 text-sm font-semibold text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer transition hover:scale-[1.02] active:scale-[0.98] hover:bg-black/90"
+      className="inline-flex min-h-11 w-[144px] items-center justify-center gap-2 rounded-[14px] border border-[#31576a]/25 bg-[#17384a] px-3 text-sm font-semibold text-white shadow-sm shadow-sky-950/15 transition hover:scale-[1.01] hover:border-[#31576a]/35 hover:bg-[#1f485e] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-200/10 dark:bg-[#1a3c4f] dark:text-sky-50 dark:shadow-none dark:hover:bg-[#224c63] min-[380px]:w-[152px] sm:w-[160px] cursor-pointer"
     >
-      {loading ? 'פותח…' : 'שלח הודעה'}
+      <MessageCircle className="h-4 w-4 shrink-0" strokeWidth={2.4} aria-hidden="true" />
+      <span>{loading ? 'פותח…' : 'שליחת הודעה'}</span>
     </button>
   )
 }

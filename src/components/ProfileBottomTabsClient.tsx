@@ -65,18 +65,19 @@ export default function ProfileBottomTabsClient({
     <section className="mt-6" dir="rtl">
       <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm transition-shadow hover:shadow-md overflow-hidden dark:bg-card dark:border-border">
         {/* Header with title and tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-neutral-100 dark:border-border">
-          <h2 className="text-lg font-bold">התוכן שלי</h2>
+        <div className="flex items-center justify-between gap-3 border-b border-neutral-100 p-4 dark:border-border sm:p-5">
+          <h2 className="shrink-0 text-base font-black text-neutral-950 dark:text-foreground sm:text-lg">התוכן שלי</h2>
 
           {/* Tab switcher */}
-          <div className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 p-1 dark:border-border dark:bg-muted">
+          <div className="inline-flex shrink-0 items-center rounded-[18px] border border-neutral-200 bg-neutral-100/80 p-1 shadow-inner shadow-white/50 dark:border-white/10 dark:bg-neutral-800/70 dark:shadow-none sm:rounded-full sm:border-neutral-200 sm:bg-neutral-50 sm:p-1 sm:shadow-none sm:dark:!border-border sm:dark:!bg-neutral-800">
             <button
               type="button"
               onClick={() => setTab('posts')}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
+              aria-pressed={tab === 'posts'}
+              className={`min-h-10 rounded-[14px] px-4 py-1.5 text-sm font-semibold transition-all duration-200 sm:min-h-0 sm:rounded-full ${
                 tab === 'posts'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-neutral-600 hover:text-neutral-900 dark:text-muted-foreground dark:hover:text-foreground'
+                  ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white'
+                  : 'text-neutral-700 hover:bg-white/80 hover:text-neutral-950 dark:text-neutral-200 dark:hover:bg-white/[0.06] dark:hover:text-neutral-50 sm:text-neutral-600 sm:hover:bg-transparent sm:hover:text-neutral-900 sm:dark:text-muted-foreground sm:dark:hover:bg-transparent sm:dark:hover:text-foreground'
               }`}
             >
               פוסטים
@@ -84,10 +85,11 @@ export default function ProfileBottomTabsClient({
             <button
               type="button"
               onClick={() => setTab('stats')}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
+              aria-pressed={tab === 'stats'}
+              className={`min-h-10 rounded-[14px] px-4 py-1.5 text-sm font-semibold transition-all duration-200 sm:min-h-0 sm:rounded-full ${
                 tab === 'stats'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-neutral-600 hover:text-neutral-900 dark:text-muted-foreground dark:hover:text-foreground'
+                  ? 'bg-blue-600 text-white shadow-sm dark:bg-blue-600 dark:text-white'
+                  : 'text-neutral-700 hover:bg-white/80 hover:text-neutral-950 dark:text-neutral-200 dark:hover:bg-white/[0.06] dark:hover:text-neutral-50 sm:text-neutral-600 sm:hover:bg-transparent sm:hover:text-neutral-900 sm:dark:text-muted-foreground sm:dark:hover:bg-transparent sm:dark:hover:text-foreground'
               }`}
             >
               נתונים

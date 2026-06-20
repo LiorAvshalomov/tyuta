@@ -76,7 +76,7 @@ export default function BetaWelcomeModal() {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center px-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center px-4" role="dialog" aria-modal="true">
       {/* No blur per project rules */}
       <button
         type="button"
@@ -118,7 +118,7 @@ export default function BetaWelcomeModal() {
           <button
             type="button"
             onClick={close}
-            className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
+            className="min-h-11 rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-95"
           >
             סגור
           </button>

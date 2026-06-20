@@ -2099,7 +2099,7 @@ async function submitReport() {
   {/* Report modal */}
   {reportOpen && (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/30 p-4"
       dir="rtl"
       onMouseDown={(e) => {
         // סגירה בלחיצה מחוץ לתיבה
@@ -2343,7 +2343,7 @@ async function submitReport() {
             type="button"
             onClick={send}
             disabled={!userId || !canSend}
-            className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="min-h-11 rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             {sending ? 'שולח…' : 'שלח'}
           </button>
@@ -2524,7 +2524,7 @@ async function submitReport() {
                     type="button"
                     onClick={() => saveEdit(c.id)}
                     disabled={!canSaveEdit}
-                    className="rounded-xl bg-black px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    className="min-h-11 rounded-xl bg-black px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
                     שמירה
                   </button>
@@ -2789,7 +2789,7 @@ async function submitReport() {
                                   type="button"
                                   onClick={() => saveEdit(r.id)}
                                   disabled={!canSaveEdit}
-                                  className="rounded-xl bg-black px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                                  className="min-h-11 rounded-xl bg-black px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
                                 >
                                   שמירה
                                 </button>
@@ -2884,7 +2884,7 @@ async function submitReport() {
 
 {/* Admin delete modal */}
 {deleteTarget ? (
-  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" dir="rtl">
+  <div className="fixed inset-0 z-[10020] flex items-end justify-center bg-black/30 p-4 sm:items-center" dir="rtl">
     <div className="w-full max-w-md rounded-2xl bg-white dark:bg-card p-4 shadow-xl">
       <div className="text-base font-black">מחיקת תגובה</div>
       <div className="mt-1 text-sm text-muted-foreground">
@@ -2914,7 +2914,7 @@ async function submitReport() {
 
         <button
           type="button"
-          className="flex-1 rounded-xl bg-black px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
+          className="min-h-11 flex-1 rounded-xl bg-black px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
           disabled={deleting || deleteReason.trim().length < 3}
           onClick={async () => {
             if (!deleteTarget) return

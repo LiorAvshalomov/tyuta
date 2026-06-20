@@ -329,7 +329,7 @@ function renderNode(
       const widthPercent = rawWidth === 33 || rawWidth === 66 || rawWidth === 100 ? rawWidth : 100
 
       return (
-        <div key={key} className="my-4" style={{ width: `${widthPercent}%` }}>
+        <div key={key} className="richtext-image my-4" style={{ width: `${widthPercent}%` }}>
           {/* eslint-disable-next-line @next/next/no-img-element -- rich-text image sizing and proxy fallback are data-driven here */}
           <img
             src={src}

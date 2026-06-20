@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { Share2 } from 'lucide-react'
 
 export default function SharePostButton({ url, title }: { url: string; title: string }) {
   const [msg, setMsg] = useState<string | null>(null)
@@ -40,12 +41,13 @@ export default function SharePostButton({ url, title }: { url: string; title: st
   }
 
   const base =
-    'h-9 rounded-full px-4 text-sm font-semibold transition inline-flex items-center justify-center'
+    'h-9 rounded-[12px] px-2.5 text-[12px] font-semibold transition inline-flex items-center justify-center gap-1.5 whitespace-nowrap sm:px-3 sm:text-[13px]'
 
   return (
     <div className="relative">
-      <button type="button" onClick={onShare} className={[base, 'bg-white border hover:bg-neutral-50 dark:bg-card dark:hover:bg-muted dark:border-border'].join(' ')}>
-        שיתוף
+      <button type="button" onClick={onShare} className={[base, 'border border-neutral-200/80 bg-white/85 text-neutral-800 hover:bg-white dark:border-white/10 dark:bg-transparent dark:text-neutral-100 dark:hover:bg-white/[0.06]'].join(' ')}>
+        <Share2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden="true" />
+        <span>שתף</span>
       </button>
 
       {msg ? (
