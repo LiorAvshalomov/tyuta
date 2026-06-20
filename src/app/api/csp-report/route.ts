@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/rateLimit'
 import { getClientIp } from '@/lib/requestRateLimit'
 
+const MAX_REPORT_BYTES = 4096
+
 /**
  * CSP violation report receiver.
  *
@@ -18,8 +20,11 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.text()
-    if (body.length < 4096) {
-      console.warn('[CSP violation]', body)
+    if (body.length <= MAX_REPORT_BYTES) {
+      console.warn('[CSP violation]', {
+        bytes: body.length,
+        contentType: req.headers.get('content-type') ?? 'unknown',
+      })
     } else {
       console.warn('[CSP violation] oversized payload', body.length, 'bytes')
     }

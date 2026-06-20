@@ -4,6 +4,14 @@ const SB_ORIGINS = [
 ]
 
 const SB_WSS = SB_ORIGINS.map((origin) => origin.replace('https://', 'wss://'))
+const ANALYTICS_SCRIPT_ORIGINS = ['https://www.googletagmanager.com']
+const ANALYTICS_IMG_ORIGINS = ['https://www.google-analytics.com', 'https://www.googletagmanager.com']
+const ANALYTICS_CONNECT_ORIGINS = [
+  'https://www.google-analytics.com',
+  'https://region1.google-analytics.com',
+  'https://www.googletagmanager.com',
+  'https://www.google.com',
+]
 
 export type HeaderPair = {
   key: string
@@ -87,14 +95,14 @@ function sharedDirectives(options: SharedDirectiveOptions = {}): string[] {
     ...(allowRichContentImages
       ? ['https://pixabay.com', 'https://cdn.pixabay.com', 'https://images.pexels.com', 'https://i.ytimg.com']
       : []),
-    ...(allowAnalytics ? ['https://www.google-analytics.com'] : []),
+    ...(allowAnalytics ? ANALYTICS_IMG_ORIGINS : []),
   ].join(' ')
 
   const connectSrc = [
     "'self'",
     ...SB_ORIGINS,
     ...SB_WSS,
-    ...(allowAnalytics ? ['https://www.google-analytics.com', 'https://region1.google-analytics.com'] : []),
+    ...(allowAnalytics ? ANALYTICS_CONNECT_ORIGINS : []),
   ].join(' ')
 
   return [
@@ -140,7 +148,7 @@ export function buildCSP(options: SharedDirectiveOptions = {}): string {
   // 'upgrade-insecure-requests' is enforcement-only (invalid in report-only policies).
   return [
     ...sharedDirectives(options),
-    `script-src 'unsafe-inline' 'self'${(options.allowAnalytics ?? true) ? ' https://www.googletagmanager.com' : ''}`,
+    `script-src 'unsafe-inline' 'self'${(options.allowAnalytics ?? true) ? ` ${ANALYTICS_SCRIPT_ORIGINS.join(' ')}` : ''}`,
     "style-src 'self' 'unsafe-inline'",
     'upgrade-insecure-requests',
     `report-uri ${CSP_REPORT_ENDPOINT}`,
@@ -153,7 +161,7 @@ export function buildNonceCSP(nonce: string, options: SharedDirectiveOptions = {
   const allowRichContentImages = options.allowRichContentImages ?? false
   return [
     ...sharedDirectives({ ...options, allowAnalytics, allowRichContentImages }),
-    `script-src 'self' 'nonce-${nonce}'${allowAnalytics ? ' https://www.googletagmanager.com' : ''}`,
+    `script-src 'self' 'nonce-${nonce}'${allowAnalytics ? ` ${ANALYTICS_SCRIPT_ORIGINS.join(' ')}` : ''}`,
     "style-src 'self' 'unsafe-inline'",
     'upgrade-insecure-requests',
     `report-uri ${CSP_REPORT_ENDPOINT}`,
@@ -168,8 +176,8 @@ export function buildReportOnlyCSP(): string {
   return [
     ...sharedDirectives(),
     // Report-Only stays stricter than fallback enforcement so violations surface before rollout.
-    "script-src 'self' https://www.googletagmanager.com",
-    "script-src-elem 'self' https://www.googletagmanager.com",
+    `script-src 'self' ${ANALYTICS_SCRIPT_ORIGINS.join(' ')}`,
+    `script-src-elem 'self' ${ANALYTICS_SCRIPT_ORIGINS.join(' ')}`,
     "style-src 'self'",
     "style-src-elem 'self'",
     "style-src-attr 'none'",

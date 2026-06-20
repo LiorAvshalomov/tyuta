@@ -30,7 +30,7 @@ const REASON_LABEL: Record<string, string> = {
   other: 'אחר',
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_REQUEST_BODY_BYTES = 16 * 1024
 
 function fmtProfile(display_name: string | null, username: string | null, id: string) {

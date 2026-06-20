@@ -17,11 +17,14 @@ import {
   type PostRefreshPayload,
 } from '@/lib/postFreshness'
 
+const POST_VERSION_SYNC_COOLDOWN_MS = 5_000
+
 export default function PostRouteAutoRefresh() {
   const pathname = usePathname()
   const router = useRouter()
   const lastEventRefreshKeyRef = useRef<string | null>(null)
   const lastNavigationRefreshRef = useRef<{ key: string; at: number } | null>(null)
+  const lastServerSyncRef = useRef<{ path: string; at: number } | null>(null)
   const pendingRefreshRef = useRef<{ path: string; version: string; at: number } | null>(null)
 
   const getActivePathname = useEffectEvent(() => {
@@ -88,6 +91,16 @@ export default function PostRouteAutoRefresh() {
 
   const syncFromServer = useEffectEvent(async (targetPath: string) => {
     if (!isPostPathname(targetPath)) return
+
+    const now = Date.now()
+    const lastSync = lastServerSyncRef.current
+    if (
+      lastSync?.path === targetPath &&
+      now - lastSync.at < POST_VERSION_SYNC_COOLDOWN_MS
+    ) {
+      return
+    }
+    lastServerSyncRef.current = { path: targetPath, at: now }
 
     // Decode the slug before re-encoding it as a query param.
     // usePathname() returns the percent-encoded path, so a Hebrew slug like

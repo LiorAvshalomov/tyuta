@@ -30,7 +30,6 @@ function isAuthPage(pathname: string): boolean {
   return pathname.startsWith('/auth/')
 }
 
-const UUID_POST_RE = /^\/post\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
 const SUSPENDED_BLOCKED_PREFIXES = [
   '/write',
   '/notes',
@@ -100,11 +99,6 @@ export async function middleware(req: NextRequest) {
   const requestPath = `${pathname}${req.nextUrl.search}`
 
   if (isStaticAsset(pathname)) return NextResponse.next()
-
-  const uuidMatch = pathname.match(UUID_POST_RE)
-  if (uuidMatch && !searchParams.has('nr')) {
-    return NextResponse.rewrite(new URL(`/api/internal/post-by-id/${uuidMatch[1]}`, req.url))
-  }
 
   const secret = process.env.PRESENCE_HMAC_SECRET
   const cookieVal = secret ? req.cookies.get(PRESENCE_COOKIE)?.value : null

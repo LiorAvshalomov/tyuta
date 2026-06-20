@@ -2,6 +2,15 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 export type FeedPath = '/' | '/c/release' | '/c/stories' | '/c/magazine'
 
+const FEED_VERSION_CACHE_TTL_MS = 8_000
+
+type CachedFeedVersion = {
+  expiresAt: number
+  version: string | null
+}
+
+const feedVersionCache = new Map<FeedPath, CachedFeedVersion>()
+
 function createFreshnessServerClient(): SupabaseClient | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -32,6 +41,12 @@ function channelSlugForPath(path: FeedPath) {
 }
 
 export async function getFeedVersionForPath(path: FeedPath) {
+  const now = Date.now()
+  const cached = feedVersionCache.get(path)
+  if (cached && cached.expiresAt > now) {
+    return cached.version
+  }
+
   const supabase = createFreshnessServerClient()
   if (!supabase) return null
 
@@ -76,10 +91,17 @@ export async function getFeedVersionForPath(path: FeedPath) {
       .maybeSingle<{ updated_at: string | null }>(),
   ])
 
-  return pickLatestVersion(
+  const version = pickLatestVersion(
     post?.updated_at ?? null,
     post?.published_at ?? null,
     post?.created_at ?? null,
     profile?.updated_at ?? null,
   )
+
+  feedVersionCache.set(path, {
+    expiresAt: Date.now() + FEED_VERSION_CACHE_TTL_MS,
+    version,
+  })
+
+  return version
 }

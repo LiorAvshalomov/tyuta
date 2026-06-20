@@ -19,11 +19,13 @@ type FeedRefreshMessage = {
 }
 
 const SCROLL_IDLE_REFRESH_DELAY_MS = 900
+const FEED_VERSION_SYNC_COOLDOWN_MS = 8_000
 
 export default function FeedAutoRefresh({ initialVersion = null }: { initialVersion?: string | null }) {
   const pathname = usePathname()
   const router = useRouter()
   const lastNavigationRefreshRef = useRef<{ key: string; at: number } | null>(null)
+  const lastServerSyncRef = useRef<{ path: string; at: number } | null>(null)
   const pendingRefreshRef = useRef<{ path: string; version: string; at: number } | null>(null)
   const lastUserScrollAtRef = useRef(0)
   const deferredRefreshTimerRef = useRef<number | null>(null)
@@ -109,6 +111,16 @@ export default function FeedAutoRefresh({ initialVersion = null }: { initialVers
 
   const syncFromServer = useEffectEvent(async (targetPath: string) => {
     if (!isFeedPathname(targetPath)) return
+
+    const now = Date.now()
+    const lastSync = lastServerSyncRef.current
+    if (
+      lastSync?.path === targetPath &&
+      now - lastSync.at < FEED_VERSION_SYNC_COOLDOWN_MS
+    ) {
+      return
+    }
+    lastServerSyncRef.current = { path: targetPath, at: now }
 
     const url = `/api/posts/feed-version?path=${encodeURIComponent(targetPath)}&ts=${Date.now()}`
     const response = await fetch(url, {

@@ -15,11 +15,11 @@
     "video:still": "remotion still"
   },
   "dependencies": {
-    "@remotion/captions": "4.0.460",
-    "@remotion/cli": "4.0.460",
-    "@remotion/google-fonts": "4.0.460",
-    "@remotion/player": "4.0.460",
-    "@remotion/transitions": "4.0.460",
+    "@remotion/captions": "4.0.481",
+    "@remotion/cli": "4.0.481",
+    "@remotion/google-fonts": "4.0.481",
+    "@remotion/player": "4.0.481",
+    "@remotion/transitions": "4.0.481",
     "@resvg/resvg-js": "^2.6.2",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.93.3",
@@ -42,7 +42,7 @@
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "recharts": "^3.7.0",
-    "remotion": "4.0.460",
+    "remotion": "4.0.481",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.4.0"
   },

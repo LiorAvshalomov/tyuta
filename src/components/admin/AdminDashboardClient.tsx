@@ -697,7 +697,7 @@ function TopPostsPanel({ start, end }: { start: string; end: string }) {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-bold text-neutral-800 dark:text-foreground">פוסטים מובילים</h3>
-          <p className="text-[11px] text-neutral-400 dark:text-muted-foreground mt-0.5">לפי צפיות בטווח הנבחר</p>
+          <p className="text-[11px] text-neutral-400 dark:text-muted-foreground mt-0.5">לפי קוראים ייחודיים בטווח הנבחר</p>
         </div>
         {loading && <RefreshCw size={13} className="animate-spin text-neutral-300 dark:text-muted-foreground/40" />}
       </div>
@@ -721,7 +721,7 @@ function TopPostsPanel({ start, end }: { start: string; end: string }) {
                 <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground w-8">#</th>
                 <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground">כותרת</th>
                 <th className="pb-2 text-start font-semibold text-neutral-400 dark:text-muted-foreground hidden sm:table-cell">מחבר</th>
-                <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground">צפיות</th>
+                <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground">קוראים</th>
                 <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground hidden sm:table-cell">תגובות</th>
                 <th className="pb-2 text-end font-semibold text-neutral-400 dark:text-muted-foreground hidden sm:table-cell">ריאקציות</th>
               </tr>

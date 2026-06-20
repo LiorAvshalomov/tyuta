@@ -27,6 +27,50 @@ type AnalyticsSessionRow = {
 }
 
 const MAX_REQUEST_BODY_BYTES = 8 * 1024
+const FALLBACK_SITE_ORIGIN = 'https://tyuta.net'
+
+function configuredSiteOrigin(): string {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim() || FALLBACK_SITE_ORIGIN
+  try {
+    return new URL(raw).origin
+  } catch {
+    return FALLBACK_SITE_ORIGIN
+  }
+}
+
+function isAllowedOrigin(value: string | null): boolean {
+  if (!value) return false
+  try {
+    const origin = new URL(value).origin
+    const siteOrigin = configuredSiteOrigin()
+    return new Set([siteOrigin, 'https://tyuta.net', 'https://www.tyuta.net']).has(origin)
+  } catch {
+    return false
+  }
+}
+
+function isTrustedBrowserRequest(req: NextRequest): boolean {
+  const fetchSite = req.headers.get('sec-fetch-site')
+  if (fetchSite === 'cross-site') return false
+
+  const origin = req.headers.get('origin')
+  if (origin) return isAllowedOrigin(origin)
+
+  const referer = req.headers.get('referer')
+  return isAllowedOrigin(referer)
+}
+
+function decodePathname(pathWithSearch: string): string {
+  const queryStart = pathWithSearch.indexOf('?')
+  const pathname = queryStart >= 0 ? pathWithSearch.slice(0, queryStart) : pathWithSearch
+  const search = queryStart >= 0 ? pathWithSearch.slice(queryStart) : ''
+
+  try {
+    return `${decodeURI(pathname)}${search}`
+  } catch {
+    return pathWithSearch
+  }
+}
 
 function isWithinWindow(dateString: string | null | undefined, windowMs: number): boolean {
   if (!dateString) return false
@@ -38,13 +82,26 @@ function isWithinWindow(dateString: string | null | undefined, windowMs: number)
 function normalizePath(path: unknown): string | null {
   if (typeof path !== 'string') return null
   const value = path.trim()
-  return value ? value.slice(0, 2048) : null
+  if (!value || value.length > 2048) return null
+  if (/[\u0000-\u001F\u007F]/.test(value)) return null
+
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    if (!isAllowedOrigin(value)) return null
+    const parsed = new URL(value)
+    return decodePathname(`${parsed.pathname}${parsed.search}`).slice(0, 2048)
+  }
+
+  if (!value.startsWith('/') || value.startsWith('//')) return null
+  const pathWithoutHash = value.split('#', 1)[0] ?? ''
+  return decodePathname(pathWithoutHash).slice(0, 2048)
 }
 
 function normalizeReferrer(referrer: unknown): string | null {
   if (typeof referrer !== 'string') return null
   const value = referrer.trim()
-  return value ? value.slice(0, 2048) : null
+  if (!value || value.length > 2048) return null
+  if (/[\u0000-\u001F\u007F]/.test(value)) return null
+  return value.slice(0, 2048)
 }
 
 export async function POST(req: NextRequest) {
@@ -54,6 +111,10 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireUserFromRequest(req)
   if (!auth.ok) return auth.response
+
+  if (!isTrustedBrowserRequest(req)) {
+    return NextResponse.json({ ok: true, skipped: 'untrusted_origin' })
+  }
 
   const rl = await rateLimit(`pv-identify:${auth.user.id}`, { maxRequests: 30, windowMs: 60_000 })
   if (!rl.allowed) {

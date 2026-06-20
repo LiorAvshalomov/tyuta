@@ -8,6 +8,68 @@ import { getAuthResolutionState, waitForAuthResolution } from "@/lib/auth/authEv
 
 type PvResponse = { ok?: boolean; new_session?: boolean }
 
+const POST_VIEW_QUALIFICATION_MS = 8_000
+const POST_VIEW_SCROLL_FRACTION = 0.3
+const POST_VIEW_SCROLL_PX = 480
+
+function isPostPath(pathname: string): boolean {
+  return pathname.startsWith("/post/")
+}
+
+function hasQualifiedPostScroll(): boolean {
+  if (typeof document === "undefined") return false
+
+  const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+  if (scrollTop >= POST_VIEW_SCROLL_PX) return true
+
+  const scrollHeight = Math.max(
+    document.documentElement.scrollHeight,
+    document.body.scrollHeight,
+  )
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 1
+  const scrollable = Math.max(scrollHeight - viewportHeight, 1)
+  return scrollTop / scrollable >= POST_VIEW_SCROLL_FRACTION
+}
+
+function waitForQualifiedPageview(pathname: string, signal: AbortSignal): Promise<void> {
+  if (!isPostPath(pathname)) return Promise.resolve()
+  if (typeof window === "undefined" || typeof document === "undefined") return Promise.resolve()
+  if (hasQualifiedPostScroll()) return Promise.resolve()
+
+  return new Promise((resolve) => {
+    let settled = false
+    let timerId: number | null = null
+
+    const cleanup = () => {
+      if (timerId != null) window.clearTimeout(timerId)
+      window.removeEventListener("scroll", onScroll)
+      signal.removeEventListener("abort", onAbort)
+    }
+
+    const settle = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve()
+    }
+
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve()
+    }
+
+    const onScroll = () => {
+      if (hasQualifiedPostScroll()) settle()
+    }
+
+    timerId = window.setTimeout(settle, POST_VIEW_QUALIFICATION_MS)
+    window.addEventListener("scroll", onScroll, { passive: true })
+    signal.addEventListener("abort", onAbort, { once: true })
+  })
+}
+
 export default function AnalyticsPageviewClient() {
   const pathname = usePathname() || "/"
 
@@ -30,6 +92,9 @@ export default function AnalyticsPageviewClient() {
     }
 
     void (async () => {
+      await waitForQualifiedPageview(pathname, controller.signal)
+      if (controller.signal.aborted) return
+
       const token = await resolveAccessToken()
       if (controller.signal.aborted) return
 
