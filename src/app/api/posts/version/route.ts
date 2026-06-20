@@ -5,6 +5,21 @@ import { enforceIpRateLimit } from '@/lib/requestRateLimit'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+const NO_STORE_HEADERS = { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' }
+const POST_VERSION_CACHE_TTL_MS = 5_000
+
+type PostVersionPayload = {
+  ok: true
+  version: string | null
+}
+
+type CachedPostVersion = {
+  expiresAt: number
+  payload: PostVersionPayload
+}
+
+const postVersionCache = new Map<string, CachedPostVersion>()
+
 function normalizeSlug(value: string | null) {
   if (!value) return null
   const trimmed = value.trim()
@@ -42,9 +57,14 @@ export async function GET(req: Request) {
       { error: { code: 'invalid_slug', message: 'invalid slug' } },
       {
         status: 400,
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+        headers: NO_STORE_HEADERS,
       },
     )
+  }
+
+  const cached = postVersionCache.get(slug)
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.payload, { headers: NO_STORE_HEADERS })
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -55,7 +75,7 @@ export async function GET(req: Request) {
       { error: { code: 'server_env', message: 'missing server env' } },
       {
         status: 500,
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+        headers: NO_STORE_HEADERS,
       },
     )
   }
@@ -77,7 +97,7 @@ export async function GET(req: Request) {
       { error: { code: 'post_lookup_failed', message: postError.message } },
       {
         status: 500,
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+        headers: NO_STORE_HEADERS,
       },
     )
   }
@@ -85,7 +105,7 @@ export async function GET(req: Request) {
   if (!post) {
     return NextResponse.json(
       { ok: true, version: null },
-      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } },
+      { headers: NO_STORE_HEADERS },
     )
   }
 
@@ -137,7 +157,7 @@ export async function GET(req: Request) {
       { error: { code: 'post_author_version_failed', message: authorProfileError.message } },
       {
         status: 500,
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+        headers: NO_STORE_HEADERS,
       },
     )
   }
@@ -147,7 +167,7 @@ export async function GET(req: Request) {
       { error: { code: 'post_author_posts_version_failed', message: authorPostsRes.error.message } },
       {
         status: 500,
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+        headers: NO_STORE_HEADERS,
       },
     )
   }
@@ -157,7 +177,7 @@ export async function GET(req: Request) {
       { error: { code: 'post_channel_version_failed', message: channelPostsRes.error.message } },
       {
         status: 500,
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+        headers: NO_STORE_HEADERS,
       },
     )
   }
@@ -167,28 +187,35 @@ export async function GET(req: Request) {
       { error: { code: 'global_profile_version_failed', message: globalProfileRes.error.message } },
       {
         status: 500,
-        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' },
+        headers: NO_STORE_HEADERS,
       },
     )
   }
 
+  const payload: PostVersionPayload = {
+    ok: true,
+    version: pickLatestVersion(
+      post.updated_at ?? null,
+      post.published_at ?? null,
+      post.created_at ?? null,
+      authorProfileRes.data?.updated_at ?? null,
+      authorPostsRes.data?.updated_at ?? null,
+      authorPostsRes.data?.published_at ?? null,
+      authorPostsRes.data?.created_at ?? null,
+      channelPostsRes.data?.updated_at ?? null,
+      channelPostsRes.data?.published_at ?? null,
+      channelPostsRes.data?.created_at ?? null,
+      globalProfileRes.data?.updated_at ?? null,
+    ),
+  }
+
+  postVersionCache.set(slug, {
+    expiresAt: Date.now() + POST_VERSION_CACHE_TTL_MS,
+    payload,
+  })
+
   return NextResponse.json(
-    {
-      ok: true,
-      version: pickLatestVersion(
-        post.updated_at ?? null,
-        post.published_at ?? null,
-        post.created_at ?? null,
-        authorProfileRes.data?.updated_at ?? null,
-        authorPostsRes.data?.updated_at ?? null,
-        authorPostsRes.data?.published_at ?? null,
-        authorPostsRes.data?.created_at ?? null,
-        channelPostsRes.data?.updated_at ?? null,
-        channelPostsRes.data?.published_at ?? null,
-        channelPostsRes.data?.created_at ?? null,
-        globalProfileRes.data?.updated_at ?? null,
-      ),
-    },
-    { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } },
+    payload,
+    { headers: NO_STORE_HEADERS },
   )
 }

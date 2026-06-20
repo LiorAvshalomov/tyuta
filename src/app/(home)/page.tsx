@@ -873,21 +873,9 @@ export default async function HomePage(props: HomePageProps = {}) {
         return Promise.all([
           channelMonthlyRankingPromise,
           // Keep these placeholders for compatibility with existing rendering code (not used on channel pages)
-          supabase.rpc('pendemic_ranked_posts_monthly', {
-            ref_ts: nowIso,
-            channel_slugs: ['stories'],
-            limit_count: 0,
-          }),
-          supabase.rpc('pendemic_ranked_posts_monthly', {
-            ref_ts: nowIso,
-            channel_slugs: ['release'],
-            limit_count: 0,
-          }),
-          supabase.rpc('pendemic_ranked_posts_monthly', {
-            ref_ts: nowIso,
-            channel_slugs: ['magazine'],
-            limit_count: 0,
-          }),
+          Promise.resolve({ data: [], error: null }),
+          Promise.resolve({ data: [], error: null }),
+          Promise.resolve({ data: [], error: null }),
           channelMonthlyRankingPromise,
           // Recent posts for the sidebar (filtered by channel on channel pages)
           (() => {

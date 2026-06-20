@@ -9,6 +9,8 @@ export const runtime = 'nodejs'
 
 const MAX_REPORT_BYTES = 4096
 const MAX_FIELD_LENGTH = 240
+const UUID_PATH_SEGMENT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const FALLBACK_SITE_ORIGIN = 'https://tyuta.net'
 
 type CspReportPayload = {
   documentUri: string
@@ -55,6 +57,26 @@ function compactNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : null
 }
 
+function configuredSiteOrigin(): string {
+  const raw = process.env.NEXT_PUBLIC_SITE_URL?.trim() || FALLBACK_SITE_ORIGIN
+  try {
+    return new URL(raw).origin
+  } catch {
+    return FALLBACK_SITE_ORIGIN
+  }
+}
+
+function isAllowedDocumentUri(value: string): boolean {
+  if (value.startsWith('/')) return true
+
+  try {
+    const origin = new URL(value).origin
+    return new Set([configuredSiteOrigin(), 'https://tyuta.net', 'https://www.tyuta.net']).has(origin)
+  } catch {
+    return false
+  }
+}
+
 function pathFromUri(value: string | null): string {
   if (!value) return '/'
   try {
@@ -64,6 +86,15 @@ function pathFromUri(value: string | null): string {
     if (value.startsWith('/')) return value.split('?')[0]?.slice(0, MAX_FIELD_LENGTH) || '/'
     return '/'
   }
+}
+
+function normalizeRoutePath(path: string): string {
+  const normalized = path
+    .split('/')
+    .map((segment) => (UUID_PATH_SEGMENT_RE.test(segment) ? '[uuid]' : segment))
+    .join('/')
+
+  return normalized || '/'
 }
 
 function normalizeBlockedUri(value: string | null): string {
@@ -113,6 +144,7 @@ function parseReportObject(value: unknown): CspReportPayload | null {
   const blockedUri = compactText(report['blocked-uri'] ?? report.blockedURL ?? report.blockedUri)
 
   if (!documentUri || !effectiveDirective || !blockedUri) return null
+  if (!isAllowedDocumentUri(documentUri)) return null
 
   return {
     documentUri,
@@ -134,7 +166,7 @@ function parseReports(raw: string): CspReportPayload[] {
 }
 
 function fingerprintFor(report: CspReportPayload): string {
-  const routePath = pathFromUri(report.documentUri)
+  const routePath = normalizeRoutePath(pathFromUri(report.documentUri))
   const blocked = normalizeBlockedUri(report.blockedUri)
   return createHash('sha256')
     .update(`${routePath}|${report.effectiveDirective}|${blocked}`)
@@ -145,11 +177,12 @@ async function recordReport(req: NextRequest, report: CspReportPayload): Promise
   const client = serviceClient()
   if (!client) return null
 
-  const routePath = pathFromUri(report.documentUri)
+  const documentPath = pathFromUri(report.documentUri)
+  const routePath = normalizeRoutePath(documentPath)
   const { data, error } = await client.rpc('record_csp_violation_report', {
     p_fingerprint: fingerprintFor(report),
     p_route_path: routePath,
-    p_document_path: routePath,
+    p_document_path: documentPath,
     p_effective_directive: report.effectiveDirective,
     p_violated_directive: report.violatedDirective,
     p_blocked_uri: normalizeBlockedUri(report.blockedUri),

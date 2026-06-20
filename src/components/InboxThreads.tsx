@@ -64,8 +64,7 @@ export default function InboxThreads() {
   const [typingMap, setTypingMap] = useState<Record<string, TypingEntry>>({})
   const meIdRef = useRef<string | null>(null)
   // One Supabase channel per conversation for typing broadcasts
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const typingChannelsRef = useRef<Map<string, any>>(new Map())
+  const typingChannelsRef = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map())
   // Per-conversation timeout handles for clearing typing (mirrors ChatClient's 2500ms)
   const typingTimersRef = useRef<Map<string, number>>(new Map())
 

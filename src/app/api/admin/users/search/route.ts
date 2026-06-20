@@ -19,6 +19,17 @@ export async function GET(req: Request) {
 
   type ProfileRow = { id: string; username: string | null; display_name: string | null; avatar_url: string | null; created_at: string | null }
   type QueryResult = { data: ProfileRow[] | null; error: { message: string } | null }
+  type AuthUsersSchemaClient = {
+    schema(schema: 'auth'): {
+      from(table: 'users'): {
+        select(columns: 'id'): {
+          eq(column: 'email', value: string): {
+            limit(count: number): Promise<{ data: Array<{ id: string }> | null }>
+          }
+        }
+      }
+    }
+  }
 
   const queries: Array<Promise<QueryResult>> = []
 
@@ -39,8 +50,8 @@ export async function GET(req: Request) {
   if (q.includes('@')) {
     queries.push(
       (async (): Promise<QueryResult> => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: authRows } = await (auth.admin as any)
+        const authSchema = auth.admin as unknown as AuthUsersSchemaClient
+        const { data: authRows } = await authSchema
           .schema('auth')
           .from('users')
           .select('id')
