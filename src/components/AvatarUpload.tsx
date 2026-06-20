@@ -133,14 +133,14 @@ function CropModal({
 
   if (!imgSize) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/60">
         <div className="rounded-2xl bg-white p-6 text-sm text-neutral-800 dark:border dark:border-white/10 dark:bg-[#181716] dark:text-neutral-100">טוען...</div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl dark:border dark:border-white/10 dark:bg-[#181716] dark:text-neutral-100 dark:shadow-[0_24px_70px_-35px_rgba(0,0,0,0.9)]" dir="rtl">
         <div className="mb-3 text-sm font-bold text-neutral-900 dark:text-neutral-100">חיתוך תמונת פרופיל</div>
 

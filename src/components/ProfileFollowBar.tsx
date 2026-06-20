@@ -106,13 +106,13 @@ export default function ProfileFollowBar({
     <div className="mt-6">
       {/* Full-width divider */}
       <div className="-mx-5 border-t border-neutral-200 pt-5 lg:-mx-8 dark:border-border">
-        <div className="flex items-center justify-between px-2 lg:px-8 pt-4">
+        <div className="flex flex-col gap-4 px-2 pt-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           {/* Follow counts (RIGHT side in RTL) */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-6 sm:justify-start">
             <Link
               href={`/u/${username}/followers`}
               prefetch
-              className="group flex flex-col items-center transition-transform hover:scale-105 active:scale-95"
+              className="group flex min-h-11 min-w-16 flex-col items-center justify-center transition-transform hover:scale-105 active:scale-95"
             >
               <span className="text-2xl font-black leading-none transition-colors group-hover:text-blue-600">
                 {formatCount(followersCount)}
@@ -125,7 +125,7 @@ export default function ProfileFollowBar({
             <Link
               href={`/u/${username}/following`}
               prefetch
-              className="group flex flex-col items-center transition-transform hover:scale-105 active:scale-95"
+              className="group flex min-h-11 min-w-16 flex-col items-center justify-center transition-transform hover:scale-105 active:scale-95"
             >
               <span className="text-2xl font-black leading-none transition-colors group-hover:text-blue-600">
                 {formatCount(followingCount)}
@@ -137,10 +137,10 @@ export default function ProfileFollowBar({
           </div>
 
           {/* Action buttons (LEFT side in RTL) */}
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center justify-center gap-2 sm:w-auto sm:justify-start">
             {isMe || !isAuthed ? null : (
               <>
-                <FollowButton targetUserId={profileId} targetUsername={username} />
+                <FollowButton targetUserId={profileId} targetUsername={username} size="icon" />
                 <ProfileNonOwnerActions profileId={profileId} />
               </>
             )}

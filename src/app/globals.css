@@ -384,6 +384,31 @@ html {
   white-space: pre-wrap;
 }
 
+.editor-toolbar-row {
+  flex-wrap: wrap;
+}
+
+.editor-image-node {
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .editor-toolbar-row {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+
+  .richtext-viewer .richtext-image {
+    width: 100% !important;
+  }
+
+  .editor-image-node {
+    width: var(--editor-image-mobile-width, var(--editor-image-width, 100%)) !important;
+    max-width: 100%;
+  }
+}
+
 /* === Dark-mode ProseMirror overrides === */
 
 /* Editor links: override the hardcoded blue-600 so they don't glow in dark mode */

@@ -58,13 +58,13 @@ export default function ProfileStatsCard({
   })
 
   return (
-    <div className="rounded-2xl border bg-white p-4 h-[320px] flex flex-col dark:bg-card dark:border-border" dir="rtl">
+    <div className="flex min-h-[320px] flex-col overflow-hidden rounded-2xl border bg-white p-4 dark:bg-card dark:border-border" dir="rtl">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold m-0">נתונים</h3>
       </div>
 
       {loading ? (
-        <div className="mt-3 grid grid-cols-3 gap-3 animate-pulse">
+        <div className="mt-3 grid grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3 animate-pulse">
           {[0, 1, 2, 3, 4, 5].map(i => (
             <div key={i} className="rounded-2xl border bg-neutral-50 px-3 py-3 dark:bg-muted dark:border-border">
               <div className="h-3 w-2/3 rounded bg-neutral-200 dark:bg-muted/70" />
@@ -73,7 +73,7 @@ export default function ProfileStatsCard({
           ))}
         </div>
       ) : reactionsAvailable ? (
-        <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3">
           {items.map(r => (
             <Tile
               key={r.reaction_key}
@@ -84,7 +84,7 @@ export default function ProfileStatsCard({
         </div>
       ) : (
         // Fallback: only if reactionTotals was not returned at all
-        <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-2 gap-3 overflow-y-auto pr-1 sm:grid-cols-3">
           <Tile label="פוסטים" value={postsCount} />
           <Tile label="תגובות שכתב" value={commentsWritten} />
           <Tile label="תגובות שקיבל" value={commentsReceived} />

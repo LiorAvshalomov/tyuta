@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { UserPlus } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
@@ -26,7 +27,7 @@ export default function FollowButton({
   targetUserId: string
   targetUsername?: string
   variant?: 'default' | 'text'
-  size?: 'default' | 'sm' | 'desktop-sm'
+  size?: 'default' | 'sm' | 'desktop-sm' | 'icon'
   initialViewerId?: string | null
   initialIsFollowing?: boolean
   skipInitialLoad?: boolean
@@ -160,7 +161,7 @@ export default function FollowButton({
 
   const confirmDialog = confirmOpen ? (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/40"
       onClick={() => setConfirmOpen(false)}
     >
       <div
@@ -223,11 +224,14 @@ export default function FollowButton({
   }
 
   // ── default variant (full-size button, used on profile page) ─────────────
-  const base = size === 'sm'
-    ? 'h-9 min-w-[98px] rounded-full px-3.5 text-[13px] font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
+  const compactProfile = size === 'icon'
+  const base = size === 'icon'
+    ? 'min-h-11 h-11 min-w-[78px] rounded-[14px] px-3 text-[13px] font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
+    : size === 'sm'
+    ? 'min-h-11 min-w-[98px] rounded-full px-3.5 text-[13px] font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
     : size === 'desktop-sm'
-      ? 'h-10 min-w-[110px] rounded-full px-4 text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98] md:h-9 md:min-w-[98px] md:px-3.5 md:text-[13px] md:gap-1'
-      : 'h-10 min-w-[110px] rounded-full px-4 text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
+      ? 'min-h-11 min-w-[110px] rounded-full px-4 text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98] md:min-h-11 md:min-w-[98px] md:px-3.5 md:text-[13px] md:gap-1'
+      : 'min-h-11 min-w-[110px] rounded-full px-4 text-sm font-semibold transition-all duration-150 inline-flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
   const iconSize = size === 'sm'
     ? 'w-3 h-3'
     : size === 'desktop-sm'
@@ -241,16 +245,30 @@ export default function FollowButton({
         type="button"
         disabled={loading}
         onClick={handleClick}
+        aria-label={compactProfile ? (isFollowing ? 'עוקב - הסר מעקב' : 'עקוב') : undefined}
+        title={compactProfile ? (isFollowing ? 'עוקב' : 'עקוב') : undefined}
         className={[
           'group/fw',
           base,
           isFollowing
-            ? 'border border-border/60 bg-neutral-100/60 dark:bg-muted/40 dark:border-border/50 text-foreground/70 hover:border-rose-400/50 dark:hover:border-rose-500/40 hover:bg-rose-50/60 dark:hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400'
-            : 'bg-sky-500 dark:bg-sky-600 text-white border border-sky-500 dark:border-sky-600 hover:bg-sky-600 hover:border-sky-600 dark:hover:bg-sky-700 dark:hover:border-sky-700 shadow-sm shadow-sky-500/20',
+            ? 'border border-[#31576a]/25 bg-[#e9f2f5] text-[#214c60] shadow-inner shadow-white/60 hover:border-rose-300/70 hover:bg-rose-50/80 hover:text-rose-700 dark:border-sky-200/10 dark:bg-sky-300/[0.10] dark:text-sky-100 dark:shadow-none dark:hover:border-rose-400/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300'
+            : 'border border-[#31576a]/25 bg-[#17384a] text-white shadow-sm shadow-sky-950/15 hover:bg-[#1f485e] dark:border-sky-200/10 dark:bg-[#1a3c4f] dark:hover:bg-[#224c63]',
           loading ? 'opacity-60 cursor-not-allowed' : '',
         ].join(' ')}
       >
-        {isFollowing ? (
+        {compactProfile ? (
+          isFollowing ? (
+            <>
+              <CheckIcon className={`${iconSize} shrink-0`} />
+              <span>עוקב</span>
+            </>
+          ) : (
+            <>
+              <UserPlus className={`${iconSize} shrink-0`} strokeWidth={2.3} aria-hidden="true" />
+              <span>עקוב</span>
+            </>
+          )
+        ) : isFollowing ? (
           <>
             <CheckIcon className={`${iconSize} shrink-0 group-hover/fw:hidden`} />
             <span className="group-hover/fw:hidden">עוקב</span>

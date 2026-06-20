@@ -286,7 +286,7 @@ export default function ProfilePersonalInfoCardClient({
 
       {/* Modal */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center sm:items-center justify-center pt-14" dir="rtl">
+        <div className="fixed inset-0 z-[10020] flex items-center sm:items-center justify-center pt-14" dir="rtl">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"

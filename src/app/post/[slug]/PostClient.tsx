@@ -762,11 +762,11 @@ export default function PostPage({ initialData, initialExtras }: Props) {
 
   const header = (
     <div>
-        <div className="flex items-start justify-between gap-3">
-        <h1 className="min-w-0 flex-1 text-right text-[32px] sm:text-[36px] font-black tracking-tight text-neutral-950 dark:text-foreground break-words">
+        <div className="flex flex-col gap-2">
+        <h1 className="order-2 min-w-0 flex-1 text-right text-[28px] leading-[1.15] sm:text-[36px] font-black tracking-tight text-neutral-950 dark:text-foreground break-words">
           {post.title ?? 'ללא כותרת'}
         </h1>
-        <div className="mt-1 flex shrink-0 items-center gap-2" dir="ltr">
+        <div className="order-1 flex w-full shrink-0 items-center justify-start gap-2 self-start" dir="ltr">
           {/* menu (left of medals) */}
           {canReportPost ? (
             <div ref={menuRef} className="relative">
@@ -933,7 +933,7 @@ export default function PostPage({ initialData, initialExtras }: Props) {
       {/* Report post modal (same flow/styling as report comment) */}
       {reportOpen ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          className="fixed inset-0 z-[10020] flex items-center justify-center bg-black/30 p-4"
           dir="rtl"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
@@ -1065,7 +1065,7 @@ export default function PostPage({ initialData, initialExtras }: Props) {
         const channelSlug = ch?.slug ?? null
         const hasTaxonomy = !!(subcategoryName || postTags.length > 0)
         return (
-          <div className="flex w-full items-center justify-between gap-3 mt-4 pt-4 border-t border-border/60" dir="rtl">
+          <div className="mt-4 flex w-full items-start justify-between gap-3 border-t border-border/60 pt-4 sm:items-center" dir="rtl">
             {/* RIGHT in RTL (first in DOM): taxonomy */}
             {hasTaxonomy && (() => {
               const subcatNode = subcategoryName
@@ -1089,7 +1089,7 @@ export default function PostPage({ initialData, initialExtras }: Props) {
                 : null
 
               return (
-                <div className="min-w-0 flex-1 text-sm text-muted-foreground">
+                <div className="min-w-0 flex-1 text-sm leading-6 text-muted-foreground">
                   {/* Mobile: stacked 2 lines */}
                   <div className="flex flex-col gap-0.5 sm:hidden">
                     {subcatNode && <div>{subcatNode}</div>}
@@ -1109,7 +1109,7 @@ export default function PostPage({ initialData, initialExtras }: Props) {
             })()}
 
             {/* LEFT in RTL (second in DOM): actions */}
-            <div className="shrink-0 flex items-center gap-2 [&_button]:h-10 [&_button]:rounded-xl [&_button]:border [&_button]:border-neutral-200 dark:[&_button]:border-border [&_button]:transition-all [&_button]:duration-100 [&_button:hover]:bg-neutral-100/70 dark:[&_button:hover]:bg-muted/70 [&_button:active]:scale-[0.98]">
+            <div className="flex shrink-0 items-center gap-2">
               <SavePostButton postId={post.id} />
               <SharePostButton url={typeof window !== 'undefined' ? window.location.href : ''} title={post.title ?? ''} />
             </div>

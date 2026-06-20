@@ -297,7 +297,7 @@ export default function FollowListClient({
                         skipInitialLoad
                       />
                     ) : (
-                      <div className="h-10 min-w-[110px] md:h-9 md:min-w-[98px]" aria-hidden="true" />
+                      <div className="min-h-11 min-w-[110px] md:min-w-[98px]" aria-hidden="true" />
                     )}
                   </div>
                 </div>

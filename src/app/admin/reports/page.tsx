@@ -465,7 +465,7 @@ export default function ReportsPage() {
 
 function ReportDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[10020]" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40"

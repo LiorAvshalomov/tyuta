@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Bookmark, BookmarkCheck } from 'lucide-react'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import { mapSupabaseError } from '@/lib/mapSupabaseError'
 import { supabase } from '@/lib/supabaseClient'
@@ -125,7 +126,7 @@ export default function SavePostButton({ postId }: { postId: string }) {
   }
 
   const base =
-    'h-9 rounded-full px-4 text-sm font-semibold transition inline-flex items-center justify-center gap-2'
+    'h-9 rounded-[12px] px-2.5 text-[12px] font-semibold transition inline-flex items-center justify-center gap-1.5 whitespace-nowrap sm:px-3 sm:text-[13px]'
 
   return (
     <div className="relative">
@@ -143,11 +144,25 @@ export default function SavePostButton({ postId }: { postId: string }) {
         onClick={toggle}
         className={[
           base,
-          saved ? 'border bg-white hover:bg-neutral-50 dark:bg-card dark:hover:bg-muted dark:border-border' : 'bg-white border hover:bg-neutral-50 dark:bg-card dark:hover:bg-muted dark:border-border',
+          saved
+            ? 'border border-[#31576a]/25 bg-[#17384a] text-white hover:bg-[#1f485e] dark:border-sky-200/10 dark:bg-[#1a3c4f] dark:hover:bg-[#224c63]'
+            : 'border border-neutral-200/80 bg-white/85 text-neutral-800 hover:bg-white dark:border-white/10 dark:bg-transparent dark:text-neutral-100 dark:hover:bg-white/[0.06]',
           loading ? 'opacity-60 cursor-not-allowed' : '',
         ].join(' ')}
       >
-        {saved ? 'שמורים ✓' : 'שמור פוסט'}
+        {saved ? (
+          <>
+            <BookmarkCheck className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden="true" />
+            <span className="sm:hidden">נשמר</span>
+            <span className="hidden sm:inline">שמורים</span>
+          </>
+        ) : (
+          <>
+            <Bookmark className="h-3.5 w-3.5 shrink-0" strokeWidth={2.4} aria-hidden="true" />
+            <span className="sm:hidden">שמור</span>
+            <span className="hidden sm:inline">שמור פוסט</span>
+          </>
+        )}
       </button>
 
       {msg ? (

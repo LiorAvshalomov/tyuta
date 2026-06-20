@@ -431,7 +431,7 @@ export default function AdminPostsPage() {
 
       {/* Delete Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
+        <div className="fixed inset-0 z-[10020] flex items-center justify-center p-4" dir="rtl">
           <div
             className="absolute inset-0 bg-black/40"
             onClick={() => !busy && setModal(null)}

@@ -308,7 +308,7 @@ export default function SearchPostsBar() {
             ? `search-opt-${suggestions[activeIdx].id}`
             : undefined
         }
-        className="h-10 rounded-full border border-border bg-card text-foreground placeholder:text-muted-foreground dark:bg-muted dark:focus:bg-muted px-4 text-sm outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-foreground/10"
+        className="min-h-11 rounded-full border border-border bg-card text-foreground placeholder:text-muted-foreground dark:bg-muted dark:focus:bg-muted px-4 text-sm outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-foreground/10"
         style={{ width: 240 }}
       />
 
@@ -318,7 +318,7 @@ export default function SearchPostsBar() {
       <button
         type="button"
         onClick={() => navigateToSearch()}
-        className="h-10 shrink-0 rounded-full bg-black px-4 text-sm font-semibold text-white cursor-pointer transition hover:bg-neutral-900 shadow-sm hover:shadow-md active:scale-[0.98] active:opacity-90 focus:outline-none focus:ring-4"
+        className="min-h-11 shrink-0 rounded-full bg-black px-4 text-sm font-semibold text-white cursor-pointer transition hover:bg-neutral-900 shadow-sm hover:shadow-md active:scale-[0.98] active:opacity-90 focus:outline-none focus:ring-4"
       >
         חפש
       </button>

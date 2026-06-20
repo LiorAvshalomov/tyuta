@@ -802,7 +802,7 @@ export default function CommunityNotesWall() {
 
       {/* Admin delete modal */}
       {deleteTarget ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-4 sm:items-center" dir="rtl">
+        <div className="fixed inset-0 z-[10020] flex items-end justify-center bg-black/30 p-4 sm:items-center" dir="rtl">
           <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl dark:bg-card dark:border dark:border-border">
             <div className="text-base font-black">מחיקת פתק</div>
             <div className="mt-1 text-sm text-muted-foreground">

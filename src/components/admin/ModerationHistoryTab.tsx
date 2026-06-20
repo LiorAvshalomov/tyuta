@@ -136,7 +136,7 @@ function EventDrawer({ event, onClose }: { event: ModerationEvent; onClose: () =
   const excerpt = typeof snap.excerpt === 'string' ? snap.excerpt : null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center" dir="rtl">
+    <div className="fixed inset-0 z-[10020] flex items-end justify-center p-4 sm:items-center" dir="rtl">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
       <div className="relative w-full max-w-lg rounded-xl border border-neutral-200 bg-white p-6 shadow-xl dark:border-border dark:bg-card">
         <div className="mb-4 flex items-center justify-between">

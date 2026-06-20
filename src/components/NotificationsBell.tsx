@@ -1232,8 +1232,20 @@ const token = storeHighlightToken(ids)
       {open && typeof document !== 'undefined'
         ? createPortal(
             <>
-              <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9998] bg-black/30 backdrop-blur-sm animate-in fade-in duration-200" />
-              <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9999] p-0 overflow-hidden overscroll-none animate-in slide-in-from-top duration-300">
+              <style>{`
+                @keyframes menuSlideIn {
+                  from { opacity: 0; transform: translateY(-6px); }
+                  to   { opacity: 1; transform: translateY(0); }
+                }
+              `}</style>
+              <div className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9998] bg-black/30 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setOpen(false)} />
+              <div
+                className="lg:hidden fixed top-14 left-0 right-0 bottom-0 z-[9999] p-0 overflow-hidden overscroll-none"
+                style={{
+                  animation: 'menuSlideIn 0.18s cubic-bezier(0.25, 1, 0.5, 1) both',
+                  willChange: 'transform, opacity',
+                }}
+              >
                 {renderPanel('mobile')}
               </div>
             </>,

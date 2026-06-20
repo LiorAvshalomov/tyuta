@@ -7,12 +7,24 @@ import FeedIntentLink from '@/components/FeedIntentLink'
 import { heRelativeTime } from '@/lib/time/heRelativeTime'
 import { coverProxySrc, isGifUrl, shouldBypassCoverOptimization } from '@/lib/coverUrl'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Clock3, MessageCircle, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
 import { waitForClientSession } from '@/lib/auth/clientSession'
 import GifCoverImage from '@/components/GifCoverImage'
 import { mapUserFacingError } from '@/lib/mapSupabaseError'
 
 type SortKey = 'recent' | 'reactions' | 'comments'
+
+const SORT_OPTIONS: Array<{
+  key: SortKey
+  shortLabel: string
+  label: string
+  Icon: typeof Clock3
+}> = [
+  { key: 'recent', shortLabel: 'אחרונים', label: 'אחרונים', Icon: Clock3 },
+  { key: 'reactions', shortLabel: 'פופולרי', label: 'הכי פופולרי', Icon: Sparkles },
+  { key: 'comments', shortLabel: 'תגובות', label: 'הכי הרבה תגובות', Icon: MessageCircle },
+]
 
 type PostBase = {
   id: string
@@ -681,6 +693,8 @@ export default function ProfilePostsClient({
 
   const pages = useMemo(() => {
     const n = totalPages
+    if (n <= 7) return Array.from({ length: n }, (_, i) => i + 1)
+
     const cur = clampPage(page)
     const out: number[] = []
     const start = Math.max(1, cur - 2)
@@ -691,43 +705,62 @@ export default function ProfilePostsClient({
     return [...new Set(out)]
   }, [page, totalPages])
 
+  const mobilePages = useMemo(() => {
+    const n = totalPages
+    const cur = clampPage(page)
+    if (n <= 4) return Array.from({ length: n }, (_, i) => i + 1)
+    if (cur <= 2) return [1, 2, 3, n]
+    if (cur >= n - 1) return [1, n - 2, n - 1, n]
+    return [1, cur - 1, cur, n]
+  }, [page, totalPages])
+
   return (
     <section>
       {/* Sort buttons */}
-      <div className="mb-4 flex flex-wrap items-center justify-center sm:justify-start gap-2">
-        <button
-          type="button"
-          onClick={() => setSort('recent')}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-            sort === 'recent'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:bg-card dark:border-border dark:text-muted-foreground dark:hover:bg-muted'
-          }`}
-        >
-          אחרונים
-        </button>
-        <button
-          type="button"
-          onClick={() => setSort('reactions')}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-            sort === 'reactions'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:bg-card dark:border-border dark:text-muted-foreground dark:hover:bg-muted'
-          }`}
-        >
-          הכי פופולרי
-        </button>
-        <button
-          type="button"
-          onClick={() => setSort('comments')}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
-            sort === 'comments'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:bg-card dark:border-border dark:text-muted-foreground dark:hover:bg-muted'
-          }`}
-        >
-          הכי הרבה תגובות
-        </button>
+      <div className="mb-4 max-w-full overflow-x-auto pb-0.5 [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden">
+        <div className="inline-flex min-w-full items-center gap-1 rounded-[20px] border border-neutral-200 bg-neutral-100/75 p-1 shadow-inner shadow-white/60 dark:border-white/10 dark:bg-white/[0.05] dark:shadow-none">
+          {SORT_OPTIONS.map(({ key, shortLabel, Icon }) => {
+            const active = sort === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSort(key)}
+                aria-pressed={active}
+                className={`inline-flex min-h-10 flex-1 shrink-0 items-center justify-center gap-1.5 rounded-[15px] px-3 text-[13px] font-semibold transition-all duration-200 ${
+                  active
+                    ? 'bg-white text-neutral-950 shadow-sm shadow-neutral-900/10 dark:bg-neutral-700 dark:text-neutral-50 dark:shadow-none'
+                    : 'text-neutral-600 hover:bg-white/70 hover:text-neutral-950 dark:text-neutral-300 dark:hover:bg-white/[0.07] dark:hover:text-neutral-100'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} aria-hidden="true" />
+                <span>{shortLabel}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="mb-4 hidden flex-wrap items-center justify-start gap-2 sm:flex">
+          {SORT_OPTIONS.map(({ key, label, Icon }) => {
+            const active = sort === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSort(key)}
+                aria-pressed={active}
+                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-medium transition-all duration-200 ${
+                  active
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-muted-foreground dark:hover:bg-muted'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.1} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            )
+          })}
       </div>
 
       {error && (
@@ -775,40 +808,100 @@ export default function ProfilePostsClient({
       )}
 
       {totalPages > 1 && (
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            disabled={page >= totalPages}
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-card dark:border-border dark:hover:bg-muted"
-          >
-            הבא →
-          </button>
-
-          {pages.map(n => (
+        <nav className="mt-6" aria-label="עמודי פוסטים">
+          <div className="flex w-full items-center justify-center gap-2 sm:hidden">
             <button
-              key={n}
               type="button"
-              onClick={() => setPage(n)}
-              className={`rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
-                n === page
-                  ? 'bg-neutral-900 text-white shadow-sm dark:bg-foreground dark:text-background'
-                  : 'border border-neutral-200 bg-white hover:bg-neutral-50 dark:bg-card dark:border-border dark:hover:bg-muted'
-              }`}
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white/80 px-3 text-sm font-semibold text-neutral-700 transition-colors duration-200 hover:border-neutral-300 hover:bg-white hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-transparent dark:text-neutral-300 dark:hover:border-white/20 dark:hover:bg-white/[0.06] dark:hover:text-neutral-100 sm:px-4"
             >
-              {n}
+              הבא
             </button>
-          ))}
 
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => setPage(p => Math.max(1, p - 1))}
-            className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium transition-colors hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-card dark:border-border dark:hover:bg-muted"
-          >
-            ← קודם
-          </button>
-        </div>
+            <div className="min-w-0">
+              <div className="inline-flex items-center justify-center gap-1.5 px-0.5 sm:hidden">
+                {mobilePages.map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPage(n)}
+                    aria-current={n === page ? 'page' : undefined}
+                    className={`inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-xl px-3 text-sm font-semibold tabular-nums transition-colors duration-200 ${
+                      n === page
+                        ? 'bg-white text-neutral-950 shadow-sm dark:bg-neutral-700 dark:text-neutral-50'
+                        : 'border border-neutral-200 bg-white/80 text-neutral-700 hover:border-neutral-300 hover:bg-white hover:text-neutral-950 dark:border-white/10 dark:bg-transparent dark:text-neutral-300 dark:hover:border-white/20 dark:hover:bg-white/[0.06] dark:hover:text-neutral-100'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div className="hidden items-center justify-center gap-2 px-0.5 sm:inline-flex">
+                {pages.map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setPage(n)}
+                    aria-current={n === page ? 'page' : undefined}
+                    className={`inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-xl px-3 text-sm font-semibold tabular-nums transition-colors duration-200 ${
+                      n === page
+                        ? 'bg-white text-neutral-950 shadow-sm dark:bg-neutral-700 dark:text-neutral-50'
+                        : 'border border-neutral-200 bg-white/80 text-neutral-700 hover:border-neutral-300 hover:bg-white hover:text-neutral-950 dark:border-white/10 dark:bg-transparent dark:text-neutral-300 dark:hover:border-white/20 dark:hover:bg-white/[0.06] dark:hover:text-neutral-100'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white/80 px-3 text-sm font-semibold text-neutral-700 transition-colors duration-200 hover:border-neutral-300 hover:bg-white hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/10 dark:bg-transparent dark:text-neutral-300 dark:hover:border-white/20 dark:hover:bg-white/[0.06] dark:hover:text-neutral-100 sm:px-4"
+            >
+              קודם
+            </button>
+          </div>
+
+          <div className="hidden flex-wrap items-center justify-center gap-2.5 sm:flex">
+            <button
+              type="button"
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-neutral-200 bg-white px-5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted"
+            >
+              הבא
+            </button>
+
+            {pages.map(n => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setPage(n)}
+                aria-current={n === page ? 'page' : undefined}
+                className={`inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl px-4 text-sm font-semibold tabular-nums transition-all duration-200 ${
+                  n === page
+                    ? 'bg-neutral-900 text-white shadow-sm dark:bg-neutral-100 dark:text-neutral-950'
+                    : 'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-neutral-200 bg-white px-5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-border dark:bg-card dark:text-neutral-300 dark:hover:bg-muted"
+            >
+              קודם
+            </button>
+          </div>
+        </nav>
       )}
     </section>
   )

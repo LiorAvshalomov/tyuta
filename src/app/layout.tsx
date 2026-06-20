@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { Geist, Geist_Mono, Heebo } from "next/font/google"
+import Script from "next/script"
 import "./globals.css"
 import AuthSync from "@/components/auth/AuthSync"
 import SuspensionSync from "@/components/moderation/SuspensionSync"
@@ -110,8 +111,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             External file (cached by CDN) keeps our first-party inline-script footprint at zero.
             Note: Next.js App Router RSC streaming still injects its own inline scripts,
             so 'unsafe-inline' remains in CSP regardless. */}
-        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-        <script src="/js/theme-init.js" />
+        <Script src="/js/theme-init.js" strategy="beforeInteractive" />
       </head>
       <body className={`${heebo.variable} ${geistSans.variable} ${geistMono.variable}  antialiased bg-background text-foreground overflow-x-hidden`}>
         {process.env.NODE_ENV === "production" && GA_MEASUREMENT_ID && (
