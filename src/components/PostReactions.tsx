@@ -76,6 +76,14 @@ const REACTION_EMOJI: Record<string, string> = {
 }
 const LONG_PRESS_MOVE_TOLERANCE_PX = 12
 
+function formatReactionVotes(votes: number): string {
+  if (votes >= 1000) {
+    return `${(votes / 1000).toFixed(votes >= 10000 ? 0 : 1).replace(/\.0$/, '')}K`
+  }
+
+  return String(votes)
+}
+
 export default function PostReactions({ postId, channelId, authorId, onMedalsChange }: Props) {
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
@@ -750,6 +758,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                   type="button"
                   aria-expanded={isTooltipOpen}
                   aria-haspopup="dialog"
+                  title={r.label_he}
                   onClick={() => {
                     if (suppressTapAfterLongPressRef.current) {
                       suppressTapAfterLongPressRef.current = false
@@ -767,7 +776,7 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                   onFocus={() => openTooltip(r.key)}
                   onBlur={scheduleTooltipHide}
                   className={[
-                    'group inline-flex min-h-[48px] w-full min-w-0 flex-col items-center justify-center rounded-[14px] border px-1 py-1 text-center transition-all duration-150 ease-out select-none touch-manipulation min-[380px]:min-h-[52px] min-[380px]:px-1.5 sm:min-w-[74px] sm:max-w-[120px] sm:px-3 sm:py-2',
+                    'group relative inline-flex min-h-[58px] w-full min-w-0 flex-col items-center justify-center overflow-hidden rounded-[14px] border px-1 py-1.5 text-center transition-all duration-150 ease-out select-none touch-manipulation min-[380px]:min-h-[60px] min-[380px]:px-1.5 sm:min-h-[54px] sm:min-w-[74px] sm:max-w-[120px] sm:px-3 sm:py-2',
                     mine
                       ? 'border-neutral-900 bg-neutral-900 text-white'
                       : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50 dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted',
@@ -777,19 +786,28 @@ export default function PostReactions({ postId, channelId, authorId, onMedalsCha
                     WebkitTouchCallout: 'none',
                   }}
                 >
-                  <div className="flex min-w-0 items-center justify-center gap-0.5 text-[13px] leading-none min-[380px]:gap-1 min-[380px]:text-[14px] sm:gap-1.5 sm:text-[18px]">
+                  {votes > 0 ? (
+                    <span
+                      className={[
+                        'absolute left-1 top-1 min-w-[17px] max-w-[32px] truncate rounded-full px-1 text-center text-[9px] font-black leading-4 tabular-nums min-[380px]:left-1.5 min-[380px]:top-1.5 sm:text-[10px]',
+                        mine
+                          ? 'bg-white/16 text-white/90'
+                          : 'bg-neutral-100 text-neutral-600 ring-1 ring-neutral-200/70 dark:bg-white/10 dark:text-muted-foreground dark:ring-white/10',
+                      ].join(' ')}
+                      dir="ltr"
+                      aria-label={`${votes} דירוגים`}
+                    >
+                      {formatReactionVotes(votes)}
+                    </span>
+                  ) : null}
+                  <div className="flex min-w-0 items-center justify-center text-[15px] leading-none min-[380px]:text-[16px] sm:text-[18px]">
                     <span className="drop-shadow-sm">{REACTION_EMOJI[r.key] ?? '⭐'}</span>
-                    {votes > 0 ? (
-                      <span className={mine ? 'text-[10px] text-white/80 sm:text-[12px]' : 'text-[10px] text-neutral-600 dark:text-muted-foreground sm:text-[12px]'}>
-                        {votes}
-                      </span>
-                    ) : null}
                   </div>
                   <div
                     className={
                       mine
-                        ? 'mt-1 max-w-full truncate text-[10px] font-semibold leading-3 text-white min-[380px]:text-[11px] sm:text-[12px]'
-                        : 'mt-1 max-w-full truncate text-[10px] font-semibold leading-3 text-neutral-800 dark:text-foreground min-[380px]:text-[11px] sm:text-[12px]'
+                        ? 'mt-1 line-clamp-2 max-w-full text-[9.5px] font-semibold leading-[1.05] text-white min-[380px]:text-[10.5px] sm:text-[12px]'
+                        : 'mt-1 line-clamp-2 max-w-full text-[9.5px] font-semibold leading-[1.05] text-neutral-800 dark:text-foreground min-[380px]:text-[10.5px] sm:text-[12px]'
                     }
                   >
                     {r.label_he}
