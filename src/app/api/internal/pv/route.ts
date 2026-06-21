@@ -80,6 +80,19 @@ function isSkippablePath(path: string): boolean {
   return false
 }
 
+function isContentViewPath(path: string): boolean {
+  const pathname = (path.split("?", 1)[0] ?? "").replace(/\/+$/, "")
+  if (pathname.startsWith("/post/")) {
+    const slug = pathname.slice("/post/".length)
+    return Boolean(slug) && !slug.includes("/")
+  }
+  if (pathname.startsWith("/u/")) {
+    const username = pathname.slice("/u/".length)
+    return Boolean(username) && !username.includes("/")
+  }
+  return false
+}
+
 function isProbablyBot(userAgent: string | null): boolean {
   if (!userAgent) return false
   const s = userAgent.toLowerCase()
@@ -290,6 +303,19 @@ export async function POST(req: NextRequest) {
   if (pvErr) {
     return NextResponse.json({ ok: false, error: "pageview_insert_failed" }, { status: 500 })
   }
+
+  if (isContentViewPath(path)) {
+    const { error: contentViewErr } = await admin.rpc("record_content_view", {
+      p_path: path,
+      p_session_id: sessionId,
+      p_user_id: userId,
+    })
+
+    if (contentViewErr) {
+      return NextResponse.json({ ok: false, error: "content_view_record_failed" }, { status: 500 })
+    }
+  }
+
   const res = NextResponse.json({ ok: true, new_session: isNewSession })
   if (isNewSession && sessionId) {
     setAnalyticsSessionCookie(res, sessionId)

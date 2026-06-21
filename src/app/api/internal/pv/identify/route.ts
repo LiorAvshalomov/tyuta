@@ -226,6 +226,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const { error: contentViewIdentifyError } = await admin.rpc('identify_content_view_session', {
+    p_session_id: sessionId,
+    p_user_id: auth.user.id,
+  })
+
+  if (contentViewIdentifyError) {
+    return NextResponse.json({ ok: false, error: 'content_view_identify_failed' }, { status: 500 })
+  }
+
   const response = NextResponse.json(
     { ok: true, rotated, backfilled },
     { headers: { 'Cache-Control': 'no-store' } },
