@@ -67,18 +67,8 @@ function imageUrl(baseUrl: string, pathOrUrl: string | null): string | undefined
   return cleaned ? absUrl(baseUrl, cleaned) : undefined
 }
 
-function dicebearSitemapInitialsUrl(seed: string): string {
-  const normalized = seed.trim() || "משתמש"
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(normalized)}`
-}
-
 function profileSitemapImageUrl(baseUrl: string, avatarUrl: string | null, seed: string): string {
-  const safeAvatar = avatarUrl?.trim()
-  if (!safeAvatar || safeAvatar.startsWith("https://api.dicebear.com/7.x/initials/svg")) {
-    return dicebearSitemapInitialsUrl(seed)
-  }
-
-  return profileAvatarImageUrl(baseUrl, safeAvatar, seed, { stripQuery: true })
+  return profileAvatarImageUrl(baseUrl, avatarUrl, seed, { stripQuery: true })
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
