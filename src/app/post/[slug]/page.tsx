@@ -14,6 +14,8 @@ export const revalidate = 300 // 5 minutes; revalidatePath clears it immediately
 const SITE_URL = "https://tyuta.net"
 const POST_FALLBACK_DESCRIPTION =
   "טקסט מקורי ב-Tyuta (טיוטה), בית לכותבים בישראל: כתיבה עברית, סיפורים, שירים, פריקה ומחשבות."
+const POST_DESCRIPTION_CONTEXT =
+  "מתוך Tyuta (טיוטה), קהילת כתיבה עברית לסיפורים, שירים, פריקה ומחשבות של כותבים בישראל."
 
 type PageProps = {
   params: Promise<{ slug: string }>
@@ -75,6 +77,16 @@ function absUrl(pathOrUrl: string): string {
   if (pathOrUrl.startsWith("http")) return pathOrUrl
   if (!pathOrUrl.startsWith("/")) return `${SITE_URL}/${pathOrUrl}`
   return `${SITE_URL}${pathOrUrl}`
+}
+
+function buildPostDescription(excerpt: string | null, title: string): string {
+  const text = (excerpt ?? "").trim()
+  if (!text) return POST_FALLBACK_DESCRIPTION
+  if (text.length >= 90) return text.slice(0, 200)
+
+  const headline = title.trim()
+  const prefix = headline && headline !== text ? `${headline}: ${text}` : text
+  return `${prefix}. ${POST_DESCRIPTION_CONTEXT}`.slice(0, 200)
 }
 
 function getServerSupabase() {
@@ -225,7 +237,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!data) return { title: "Tyuta", robots: { index: false, follow: false } }
 
   const title = (data.title ?? "").trim() || "Tyuta"
-  const description = ((data.excerpt ?? "").trim() || POST_FALLBACK_DESCRIPTION).slice(0, 200)
+  const description = buildPostDescription(data.excerpt, title)
   // Strip ?v=timestamp cache-busting params from the cover URL.
   // Facebook/WhatsApp OG scrapers sometimes fail to fetch images whose URLs contain
   // non-standard query strings. The Supabase storage URL without ?v= is still valid.
@@ -317,7 +329,7 @@ export default async function PostPage({ params }: PageProps) {
 
   const canonical = `${SITE_URL}/post/${encodeURIComponent(data.slug)}`
   const headline = (data.title ?? "").trim() || "Tyuta"
-  const description = ((data.excerpt ?? "").trim() || POST_FALLBACK_DESCRIPTION).slice(0, 200)
+  const description = buildPostDescription(data.excerpt, headline)
   const rawCoverUrl = data.cover_image_url ? data.cover_image_url.split('?')[0] : null
   const imageUrl = rawCoverUrl ? absUrl(rawCoverUrl) : absUrl("/web-app-manifest-512x512.png")
   const primaryImageObject = rawCoverUrl

@@ -15,9 +15,9 @@ import GoogleAnalyticsScripts from "@/components/analytics/GoogleAnalyticsScript
 const SITE_URL = "https://tyuta.net"
 const SITE_NAME = "Tyuta"
 const SITE_NAME_HE = "טיוטה"
-const SITE_TITLE = "טיוטה - המקום לכל הגרסאות שלך"
+const SITE_TITLE = "טיוטה - המקום לכל הגרסאות שלך | Tyuta"
 const SITE_DESCRIPTION =
-  "טיוטה (Tyuta) היא בית לכותבים בישראל וקהילת כתיבה עברית: מקום לכתוב, לשתף ולקרוא סיפורים, שירים, פריקה ומחשבות, מהטיוטה הראשונה ועד הפרסום."
+  "טיוטה היא המקום לכל הגרסאות שלך: פלטפורמה ישראלית לכתיבה עברית, עם סיפורים, שירים, פריקה ומחשבות מאת כותבים וכותבות מהקהילה."
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID?.trim() ?? ""
 
 const geistSans = Geist({

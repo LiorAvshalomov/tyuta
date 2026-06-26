@@ -18,6 +18,8 @@ import { safeJsonLdStringify } from '@/lib/safeJsonLd'
 import { createPublicServerClient } from '@/lib/supabase/createPublicServerClient'
 
 const SITE_URL = 'https://tyuta.net'
+const PROFILE_DESCRIPTION_CONTEXT =
+  'פרופיל כתיבה ב-Tyuta (טיוטה), קהילה עברית לסיפורים, שירים, פריקה ומחשבות של כותבים בישראל.'
 
 type PageProps = {
   params: Promise<{ username: string }>
@@ -68,6 +70,14 @@ function sanitizeProfilePersonalInfo(profile: Profile | null): Profile | null {
   return profile
 }
 
+function buildProfileDescription(name: string, bio: string | null): string {
+  const text = (bio ?? '').trim()
+  if (!text) return `${name} בטיוטה: ${PROFILE_DESCRIPTION_CONTEXT}`.slice(0, 200)
+  if (text.length >= 90) return text.slice(0, 200)
+
+  return `${text}. ${name} בטיוטה: ${PROFILE_DESCRIPTION_CONTEXT}`.slice(0, 200)
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { username } = await params
   const canonical = `${SITE_URL}/u/${encodeURIComponent(username)}`
@@ -84,8 +94,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const name = (data.display_name ?? '').trim() || `@${data.username}`
-  const description = ((data.bio ?? '').trim() || `${name} בטיוטה: פרופיל כתיבה עם סיפורים, שירים ומחשבות מתוך קהילת הכותבים.`).slice(0, 200)
-  const image = profileAvatarImageUrl(SITE_URL, data.avatar_url, name)
+  const description = buildProfileDescription(name, data.bio)
+  const profileImage = profileAvatarImageUrl(SITE_URL, data.avatar_url, name)
 
   return {
     title: name,
@@ -108,13 +118,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       siteName: 'Tyuta',
       locale: 'he_IL',
-      images: [{ url: image, alt: `תמונת פרופיל של ${name}`, width: 512, height: 512 }],
+      images: [{ url: profileImage, alt: `תמונת פרופיל של ${name}`, width: 512, height: 512 }],
     },
     twitter: {
       card: 'summary',
       title: `${name} | Tyuta`,
       description,
-      images: [image],
+      images: [profileImage],
     },
   }
 }
@@ -215,6 +225,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
   const displayName = safeText(prof.display_name) || 'אנונימי'
   const bio = safeText(prof.bio)
+  const profileDescription = buildProfileDescription(displayName, prof.bio)
 
   // Batch 1: all queries independent of each other — runs in parallel
   const [
@@ -354,7 +365,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
         "@id": `${profileUrl}#profilepage`,
         url: profileUrl,
         name: displayName,
-        description: `${displayName} בטיוטה - פרופיל כתיבה ויצירה בעברית`,
+        description: profileDescription,
         inLanguage: "he-IL",
         dateCreated: prof.created_at ? new Date(prof.created_at).toISOString() : undefined,
         dateModified: prof.updated_at ? new Date(prof.updated_at).toISOString() : undefined,
@@ -469,7 +480,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
             {/* Name + Username + Bio */}
             <div className="flex min-w-0 flex-1 flex-col pt-2">
-              <h1 className="break-words text-4xl font-black leading-tight">{displayName}</h1>
+              <div className="break-words text-4xl font-black leading-tight">{displayName}</div>
               <div className="mt-1 text-sm text-neutral-500 dark:text-muted-foreground">@{prof.username}</div>
               
               {bio && (

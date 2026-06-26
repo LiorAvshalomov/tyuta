@@ -5,9 +5,9 @@ import type { Metadata } from 'next'
 import Link from '@/components/ContentLink'
 import HomeJsonLd from '@/components/HomeJsonLd'
 
-const HOME_TITLE = 'טיוטה - המקום לכל הגרסאות שלך'
+const HOME_TITLE = 'טיוטה - המקום לכל הגרסאות שלך | Tyuta'
 const HOME_DESCRIPTION =
-  'בית לכותבים בישראל וקהילת כתיבה עברית: מקום לכתוב, לשתף ולקרוא סיפורים, שירים, פריקה ומחשבות, מהטיוטה הראשונה ועד הפרסום.'
+  'טיוטה היא המקום לכל הגרסאות שלך: פלטפורמה ישראלית לכתיבה עברית, עם סיפורים, שירים, פריקה ומחשבות מאת כותבים וכותבות מהקהילה.'
 
 export const metadata: Metadata = {
   title: {
@@ -1314,7 +1314,6 @@ export default async function HomePage(props: HomePageProps = {}) {
       {!isChannelPage ? <HomeJsonLd /> : null}
       <FeedAutoRefresh initialVersion={initialFeedVersion} />
       <div className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
-        
 {isChannelPage ? (
           <div className="space-y-8">
             {/* Channel header */}
